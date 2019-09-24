@@ -8,7 +8,7 @@ This repo is a POC for host file integrity monitoring that is a work-in-progress
 $ (clone repo)
 $ oc create -f deploy/ns.yaml
 $ oc create -f deploy/
-$ oc create -f deploy/crd
+$ oc create -f deploy/crds
 
 $ oc get all -n openshift-file-integrity
 NAME                                           READY   STATUS    RESTARTS   AGE
