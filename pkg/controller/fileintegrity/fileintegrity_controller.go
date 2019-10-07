@@ -102,18 +102,32 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 	}
 
 	daemonSet := &appsv1.DaemonSet{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: "aide", Namespace: "openshift-file-integrity"}, daemonSet)
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: "aiderunner-worker", Namespace: "openshift-file-integrity"}, daemonSet)
 	if err != nil {
 		if !errors.IsNotFound(err) {
-			reqLogger.Error(err, "Error getting daemonSet")
+			reqLogger.Error(err, "Error getting worker daemonSet")
 			return reconcile.Result{}, err
 		}
 		// create
-		ds := aideDaemonset()
+		ds := workerAideDaemonset()
 		createErr := r.client.Create(context.TODO(), ds)
 		if createErr != nil {
-			reqLogger.Error(err, "Error creating daemonSet")
+			reqLogger.Error(createErr, "Error creating worker daemonSet")
+			return reconcile.Result{}, createErr
+		}
+	}
+	masterDaemonSet := &appsv1.DaemonSet{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: "aiderunner-master", Namespace: "openshift-file-integrity"}, masterDaemonSet)
+	if err != nil {
+		if !errors.IsNotFound(err) {
+			reqLogger.Error(err, "Error getting master daemonSet")
 			return reconcile.Result{}, err
+		}
+		mds := masterAideDaemonset()
+		mcreateErr := r.client.Create(context.TODO(), mds)
+		if mcreateErr != nil {
+			reqLogger.Error(mcreateErr, "Error creating master daemonSet")
+			return reconcile.Result{}, mcreateErr
 		}
 	}
 	return reconcile.Result{}, nil
@@ -142,29 +156,118 @@ func newPodForCR(cr *fileintegrityv1alpha1.FileIntegrity) *corev1.Pod {
 	}
 }
 
-func aideDaemonset() *appsv1.DaemonSet {
+func workerAideDaemonset() *appsv1.DaemonSet {
 	priv := true
 	runAs := int64(0)
 	mode := int32(0744)
 
 	return &appsv1.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "aiderunner",
+			Name:      "aiderunner-worker",
 			Namespace: "openshift-file-integrity",
 		},
 		Spec: appsv1.DaemonSetSpec{
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
-					"app": "aiderunner",
+					"app": "aiderunner-worker",
 				},
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						"app": "aiderunner",
+						"app": "aiderunner-worker",
 					},
 				},
 				Spec: corev1.PodSpec{
+					ServiceAccountName: "file-integrity-operator",
+					Containers: []corev1.Container{
+						{
+							SecurityContext: &corev1.SecurityContext{
+								Privileged: &priv,
+								RunAsUser:  &runAs,
+							},
+							Name:    "aide",
+							Image:   "docker.io/mrogers950/aide:latest",
+							Command: []string{"/scripts/aide.sh"},
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      "hostroot",
+									MountPath: "/hostroot",
+								},
+								{
+									Name:      "config",
+									MountPath: "/tmp",
+								},
+								{
+									Name:      "aide-script",
+									MountPath: "/scripts",
+								},
+							},
+						},
+					},
+					Volumes: []corev1.Volume{
+						{
+							Name: "hostroot",
+							VolumeSource: corev1.VolumeSource{
+								HostPath: &corev1.HostPathVolumeSource{
+									Path: "/",
+								},
+							},
+						},
+						{
+							Name: "config",
+							VolumeSource: corev1.VolumeSource{
+								ConfigMap: &corev1.ConfigMapVolumeSource{
+									LocalObjectReference: corev1.LocalObjectReference{
+										Name: "aide-conf",
+									},
+								},
+							},
+						},
+						{
+							Name: "aide-script",
+							VolumeSource: corev1.VolumeSource{
+								ConfigMap: &corev1.ConfigMapVolumeSource{
+									LocalObjectReference: corev1.LocalObjectReference{
+										Name: "aide-script",
+									},
+									DefaultMode: &mode,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func masterAideDaemonset() *appsv1.DaemonSet {
+	priv := true
+	runAs := int64(0)
+	mode := int32(0744)
+
+	return &appsv1.DaemonSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "aiderunner-master",
+			Namespace: "openshift-file-integrity",
+		},
+		Spec: appsv1.DaemonSetSpec{
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": "aiderunner-master",
+				},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"app": "aiderunner-master",
+					},
+				},
+				Spec: corev1.PodSpec{
+					NodeSelector: map[string]string{
+						"node-role.kubernetes.io/master": "",
+					},
 					ServiceAccountName: "file-integrity-operator",
 					Containers: []corev1.Container{
 						{
