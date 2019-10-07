@@ -2,6 +2,7 @@ module github.com/mrogers950/file-integrity-operator
 
 require (
 	github.com/go-openapi/spec v0.17.2
+	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0 // indirect
 	github.com/operator-framework/operator-sdk v0.10.1-0.20190912163340-c0e167d4f396
 	github.com/spf13/pflag v1.0.3
 	k8s.io/api v0.0.0-20190612125737-db0771252981
