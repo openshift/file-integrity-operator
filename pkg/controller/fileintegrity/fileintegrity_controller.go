@@ -2,12 +2,13 @@ package fileintegrity
 
 import (
 	"context"
+	"errors"
 
 	appsv1 "k8s.io/api/apps/v1"
 
 	fileintegrityv1alpha1 "github.com/mrogers950/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	kerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -85,13 +86,13 @@ type ReconcileFileIntegrity struct {
 // Result.Requeue is true, otherwise upon completion it will remove the work from the queue.
 func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile.Result, error) {
 	reqLogger := log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
-	reqLogger.Info("Reconciling FileIntegrity")
+	reqLogger.Info("reconciling FileIntegrity")
 
 	// Fetch the FileIntegrity instance
 	instance := &fileintegrityv1alpha1.FileIntegrity{}
 	err := r.client.Get(context.TODO(), request.NamespacedName, instance)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if kerr.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
 			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
 			// Return and don't requeue
@@ -101,32 +102,67 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 		return reconcile.Result{}, err
 	}
 
+	// update the aide-conf configmap with the contents of the cr-provided one
+	defaultAideConf := &corev1.ConfigMap{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: "aide-conf", Namespace: "openshift-file-integrity"}, defaultAideConf)
+	if err != nil {
+		reqLogger.Error(err, "error getting default aide config")
+		return reconcile.Result{}, err
+	}
+	if _, ok := defaultAideConf.Data["aide.conf"]; !ok {
+		reqLogger.Info("default aide.conf has no data")
+		return reconcile.Result{}, errors.New("default aide.conf has no data")
+	}
+	defaultAideConfCopy := defaultAideConf.DeepCopy()
+
+	if len(instance.Spec.Config.Name) > 0 && len(instance.Spec.Config.Namespace) > 0 {
+		cm := &corev1.ConfigMap{}
+		cfErr := r.client.Get(context.TODO(), types.NamespacedName{Name: instance.Spec.Config.Name, Namespace: instance.Spec.Config.Namespace}, cm)
+		if err != nil {
+			if !kerr.IsNotFound(cfErr) {
+				reqLogger.Error(cfErr, "error getting aide config configmap")
+				return reconcile.Result{}, cfErr
+			}
+		}
+		if !kerr.IsNotFound(cfErr) {
+			conf, ok := cm.Data["aide.conf"]
+			if ok && len(conf) > 0 && conf != defaultAideConfCopy.Data["aide.conf"] {
+				defaultAideConfCopy.Data["aide.conf"] = conf
+				updateErr := r.client.Update(context.TODO(), defaultAideConfCopy)
+				if updateErr != nil {
+					reqLogger.Error(updateErr, "error updating default configmap")
+					return reconcile.Result{}, updateErr
+				}
+			}
+		}
+	}
+
 	daemonSet := &appsv1.DaemonSet{}
 	err = r.client.Get(context.TODO(), types.NamespacedName{Name: "aiderunner-worker", Namespace: "openshift-file-integrity"}, daemonSet)
 	if err != nil {
-		if !errors.IsNotFound(err) {
-			reqLogger.Error(err, "Error getting worker daemonSet")
+		if !kerr.IsNotFound(err) {
+			reqLogger.Error(err, "error getting worker daemonSet")
 			return reconcile.Result{}, err
 		}
 		// create
 		ds := workerAideDaemonset()
 		createErr := r.client.Create(context.TODO(), ds)
 		if createErr != nil {
-			reqLogger.Error(createErr, "Error creating worker daemonSet")
+			reqLogger.Error(createErr, "error creating worker daemonSet")
 			return reconcile.Result{}, createErr
 		}
 	}
 	masterDaemonSet := &appsv1.DaemonSet{}
 	err = r.client.Get(context.TODO(), types.NamespacedName{Name: "aiderunner-master", Namespace: "openshift-file-integrity"}, masterDaemonSet)
 	if err != nil {
-		if !errors.IsNotFound(err) {
-			reqLogger.Error(err, "Error getting master daemonSet")
+		if !kerr.IsNotFound(err) {
+			reqLogger.Error(err, "error getting master daemonSet")
 			return reconcile.Result{}, err
 		}
 		mds := masterAideDaemonset()
 		mcreateErr := r.client.Create(context.TODO(), mds)
 		if mcreateErr != nil {
-			reqLogger.Error(mcreateErr, "Error creating master daemonSet")
+			reqLogger.Error(mcreateErr, "error creating master daemonSet")
 			return reconcile.Result{}, mcreateErr
 		}
 	}
