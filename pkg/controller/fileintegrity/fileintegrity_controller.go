@@ -127,7 +127,12 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 		if !kerr.IsNotFound(cfErr) {
 			conf, ok := cm.Data["aide.conf"]
 			if ok && len(conf) > 0 && conf != defaultAideConfCopy.Data["aide.conf"] {
-				defaultAideConfCopy.Data["aide.conf"] = conf
+				preparedConf, prepErr := prepareAideConf(conf)
+				if prepErr != nil {
+					reqLogger.Error(prepErr, "error preparing provided aide conf")
+					return reconcile.Result{}, prepErr
+				}
+				defaultAideConfCopy.Data["aide.conf"] = preparedConf
 				updateErr := r.client.Update(context.TODO(), defaultAideConfCopy)
 				if updateErr != nil {
 					reqLogger.Error(updateErr, "error updating default configmap")
