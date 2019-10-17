@@ -2,6 +2,7 @@ package configmap
 
 import (
 	"context"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -95,7 +96,28 @@ func (r *ReconcileConfigMap) Reconcile(request reconcile.Request) (reconcile.Res
 		return reconcile.Result{}, err
 	}
 
-	// XXX - detect an update to the aide config and restart the daemonSet pods.
+	// delete daemonSet pods when aide-conf configMap changes
+	podList := &corev1.PodList{}
+	err = r.client.List(context.TODO(), podList, client.InNamespace(instance.Namespace))
+	if err != nil {
+		if errors.IsNotFound(err) {
+			reqLogger.Info("no daemonSet pods found")
+			return reconcile.Result{}, nil
+		}
+		reqLogger.Error(err, "error getting pod list")
+		return reconcile.Result{}, err
+	}
+
+	for _, pod := range podList.Items {
+		if strings.HasPrefix(pod.Name, "aiderunner") {
+			reqLogger.Info("deleting pod ", pod.Name)
+			podCopy := pod.DeepCopy()
+			delErr := r.client.Delete(context.TODO(), podCopy)
+			if delErr != nil {
+				return reconcile.Result{}, delErr
+			}
+		}
+	}
 
 	return reconcile.Result{}, nil
 }
