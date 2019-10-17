@@ -301,6 +301,13 @@ func masterAideDaemonset() *appsv1.DaemonSet {
 					},
 				},
 				Spec: corev1.PodSpec{
+					Tolerations: []corev1.Toleration{
+						{
+							Key:      "node-role.kubernetes.io/master",
+							Operator: "Exists",
+							Effect:   "NoSchedule",
+						},
+					},
 					NodeSelector: map[string]string{
 						"node-role.kubernetes.io/master": "",
 					},
