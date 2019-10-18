@@ -118,7 +118,7 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 	if len(instance.Spec.Config.Name) > 0 && len(instance.Spec.Config.Namespace) > 0 {
 		cm := &corev1.ConfigMap{}
 		cfErr := r.client.Get(context.TODO(), types.NamespacedName{Name: instance.Spec.Config.Name, Namespace: instance.Spec.Config.Namespace}, cm)
-		if err != nil {
+		if cfErr != nil {
 			if !kerr.IsNotFound(cfErr) {
 				reqLogger.Error(cfErr, "error getting aide config configmap")
 				return reconcile.Result{}, cfErr
