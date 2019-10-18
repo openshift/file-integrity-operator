@@ -114,8 +114,10 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 		return reconcile.Result{}, errors.New("default aide.conf has no data")
 	}
 	defaultAideConfCopy := defaultAideConf.DeepCopy()
-
+	reqLogger.Info("instance spec", "Instance.Spec", instance.Spec)
 	if len(instance.Spec.Config.Name) > 0 && len(instance.Spec.Config.Namespace) > 0 {
+		reqLogger.Info("checking for configmap update")
+
 		cm := &corev1.ConfigMap{}
 		cfErr := r.client.Get(context.TODO(), types.NamespacedName{Name: instance.Spec.Config.Name, Namespace: instance.Spec.Config.Namespace}, cm)
 		if cfErr != nil {
@@ -124,6 +126,7 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 				return reconcile.Result{}, cfErr
 			}
 		}
+		reqLogger.Info("default configmap found")
 		if !kerr.IsNotFound(cfErr) {
 			key := "aide.conf"
 			if instance.Spec.Config.Key != "" {
@@ -131,11 +134,13 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 			}
 			conf, ok := cm.Data[key]
 			if ok && len(conf) > 0 && conf != defaultAideConfCopy.Data["aide.conf"] {
+				reqLogger.Info("preparing aide conf")
 				preparedConf, prepErr := prepareAideConf(conf)
 				if prepErr != nil {
 					reqLogger.Error(prepErr, "error preparing provided aide conf")
 					return reconcile.Result{}, prepErr
 				}
+				reqLogger.Info("updating aide conf")
 				defaultAideConfCopy.Data["aide.conf"] = preparedConf
 				updateErr := r.client.Update(context.TODO(), defaultAideConfCopy)
 				if updateErr != nil {
@@ -146,6 +151,7 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 		}
 	}
 
+	reqLogger.Info("reconciling daemonSets")
 	daemonSet := &appsv1.DaemonSet{}
 	err = r.client.Get(context.TODO(), types.NamespacedName{Name: "aiderunner-worker", Namespace: "openshift-file-integrity"}, daemonSet)
 	if err != nil {
