@@ -18,7 +18,7 @@ type FileIntegritySpec struct {
 
 type FileIntegrityConfig struct {
 	Name      string `json:name,omitempty`
-	Namespace string `json:name,omitempty`
+	Namespace string `json:namespace,omitempty`
 }
 
 // FileIntegrityStatus defines the observed state of FileIntegrity
