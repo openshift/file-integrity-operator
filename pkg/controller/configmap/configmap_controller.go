@@ -110,7 +110,7 @@ func (r *ReconcileConfigMap) Reconcile(request reconcile.Request) (reconcile.Res
 
 	for _, pod := range podList.Items {
 		if strings.HasPrefix(pod.Name, "aiderunner") {
-			reqLogger.Info("deleting pod ", pod.Name)
+			reqLogger.Info("deleting pod", "Pod.Name", pod.Name)
 			podCopy := pod.DeepCopy()
 			delErr := r.client.Delete(context.TODO(), podCopy)
 			if delErr != nil {

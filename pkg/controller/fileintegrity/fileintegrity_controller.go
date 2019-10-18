@@ -125,7 +125,11 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 			}
 		}
 		if !kerr.IsNotFound(cfErr) {
-			conf, ok := cm.Data["aide.conf"]
+			key := "aide.conf"
+			if instance.Spec.Config.Key != "" {
+				key = instance.Spec.Config.Key
+			}
+			conf, ok := cm.Data[key]
 			if ok && len(conf) > 0 && conf != defaultAideConfCopy.Data["aide.conf"] {
 				preparedConf, prepErr := prepareAideConf(conf)
 				if prepErr != nil {
