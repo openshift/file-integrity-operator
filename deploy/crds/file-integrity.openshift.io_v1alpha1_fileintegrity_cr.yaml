@@ -4,5 +4,3 @@ metadata:
   name: example-fileintegrity
   namespace: openshift-file-integrity
 spec:
-  # Add fields here
-  size: 3
