@@ -7,6 +7,8 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 
 	fileintegrityv1alpha1 "github.com/mrogers950/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
+	"github.com/mrogers950/file-integrity-operator/pkg/common"
+
 	corev1 "k8s.io/api/core/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -102,17 +104,43 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 		return reconcile.Result{}, err
 	}
 
-	// update the aide-conf configmap with the contents of the cr-provided one
-	defaultAideConf := &corev1.ConfigMap{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: "aide-conf", Namespace: "openshift-file-integrity"}, defaultAideConf)
+	// create the aide script configmap if it does not exist.
+	defaultAideScript := &corev1.ConfigMap{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: common.AideScriptConfigMapName, Namespace: common.FileIntegrityNamespace}, defaultAideScript)
 	if err != nil {
-		reqLogger.Error(err, "error getting default aide config")
-		return reconcile.Result{}, err
+		if !kerr.IsNotFound(err) {
+			reqLogger.Error(err, "error getting aide script")
+			return reconcile.Result{}, err
+		}
+		// does not exist, create it
+		createErr := r.client.Create(context.TODO(), defaultAIDEScript())
+		if createErr != nil {
+			reqLogger.Error(err, "error creating aide script")
+			return reconcile.Result{}, createErr
+		}
 	}
-	if _, ok := defaultAideConf.Data["aide.conf"]; !ok {
+
+	// handle configuration configmap
+	defaultAideConf := &corev1.ConfigMap{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: common.DefaultConfigMapName, Namespace: common.FileIntegrityNamespace}, defaultAideConf)
+	if err != nil {
+		if !kerr.IsNotFound(err) {
+			reqLogger.Error(err, "error getting default aide config")
+			return reconcile.Result{}, err
+		}
+		// does not exist, create it
+		createErr := r.client.Create(context.TODO(), defaultAIDEConfigMap())
+		if createErr != nil {
+			reqLogger.Error(err, "error creating default aide config")
+			return reconcile.Result{}, createErr
+		}
+	}
+	if _, ok := defaultAideConf.Data[common.DefaultConfDataKey]; !ok {
 		reqLogger.Info("default aide.conf has no data")
 		return reconcile.Result{}, errors.New("default aide.conf has no data")
 	}
+
+	// handle user-provided configmap
 	defaultAideConfCopy := defaultAideConf.DeepCopy()
 	reqLogger.Info("instance spec", "Instance.Spec", instance.Spec)
 	if len(instance.Spec.Config.Name) > 0 && len(instance.Spec.Config.Namespace) > 0 {
@@ -128,12 +156,12 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 		}
 		reqLogger.Info("default configmap found")
 		if !kerr.IsNotFound(cfErr) {
-			key := "aide.conf"
+			key := common.DefaultConfDataKey
 			if instance.Spec.Config.Key != "" {
 				key = instance.Spec.Config.Key
 			}
 			conf, ok := cm.Data[key]
-			if ok && len(conf) > 0 && conf != defaultAideConfCopy.Data["aide.conf"] {
+			if ok && len(conf) > 0 && conf != defaultAideConfCopy.Data[common.DefaultConfDataKey] {
 				reqLogger.Info("preparing aide conf")
 				preparedConf, prepErr := prepareAideConf(conf)
 				if prepErr != nil {
@@ -141,7 +169,7 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 					return reconcile.Result{}, prepErr
 				}
 				reqLogger.Info("updating aide conf")
-				defaultAideConfCopy.Data["aide.conf"] = preparedConf
+				defaultAideConfCopy.Data[common.DefaultConfDataKey] = preparedConf
 				updateErr := r.client.Update(context.TODO(), defaultAideConfCopy)
 				if updateErr != nil {
 					reqLogger.Error(updateErr, "error updating default configmap")
@@ -153,7 +181,7 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 
 	reqLogger.Info("reconciling daemonSets")
 	daemonSet := &appsv1.DaemonSet{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: "aiderunner-worker", Namespace: "openshift-file-integrity"}, daemonSet)
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: common.WorkerDaemonSetName, Namespace: common.FileIntegrityNamespace}, daemonSet)
 	if err != nil {
 		if !kerr.IsNotFound(err) {
 			reqLogger.Error(err, "error getting worker daemonSet")
@@ -168,7 +196,7 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 		}
 	}
 	masterDaemonSet := &appsv1.DaemonSet{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: "aiderunner-master", Namespace: "openshift-file-integrity"}, masterDaemonSet)
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: common.MasterDaemonSetName, Namespace: common.FileIntegrityNamespace}, masterDaemonSet)
 	if err != nil {
 		if !kerr.IsNotFound(err) {
 			reqLogger.Error(err, "error getting master daemonSet")
@@ -182,6 +210,30 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 		}
 	}
 	return reconcile.Result{}, nil
+}
+
+func defaultAIDEConfigMap() *corev1.ConfigMap {
+	return &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      common.DefaultConfigMapName,
+			Namespace: common.FileIntegrityNamespace,
+		},
+		Data: map[string]string{
+			"aide.conf": defaultAideConfig,
+		},
+	}
+}
+
+func defaultAIDEScript() *corev1.ConfigMap {
+	return &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      common.AideScriptConfigMapName,
+			Namespace: common.FileIntegrityNamespace,
+		},
+		Data: map[string]string{
+			"aide.sh": aideScript,
+		},
+	}
 }
 
 // newPodForCR returns a busybox pod with the same name/namespace as the cr
@@ -214,23 +266,23 @@ func workerAideDaemonset() *appsv1.DaemonSet {
 
 	return &appsv1.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "aiderunner-worker",
-			Namespace: "openshift-file-integrity",
+			Name:      common.WorkerDaemonSetName,
+			Namespace: common.FileIntegrityNamespace,
 		},
 		Spec: appsv1.DaemonSetSpec{
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
-					"app": "aiderunner-worker",
+					"app": common.WorkerDaemonSetName,
 				},
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						"app": "aiderunner-worker",
+						"app": common.WorkerDaemonSetName,
 					},
 				},
 				Spec: corev1.PodSpec{
-					ServiceAccountName: "file-integrity-operator",
+					ServiceAccountName: common.OperatorServiceAccountName,
 					Containers: []corev1.Container{
 						{
 							SecurityContext: &corev1.SecurityContext{
@@ -239,7 +291,7 @@ func workerAideDaemonset() *appsv1.DaemonSet {
 							},
 							Name:    "aide",
 							Image:   "docker.io/mrogers950/aide:latest",
-							Command: []string{"/scripts/aide.sh"},
+							Command: []string{common.AideScriptPath},
 							VolumeMounts: []corev1.VolumeMount{
 								{
 									Name:      "hostroot",
@@ -250,7 +302,7 @@ func workerAideDaemonset() *appsv1.DaemonSet {
 									MountPath: "/tmp",
 								},
 								{
-									Name:      "aide-script",
+									Name:      common.AideScriptConfigMapName,
 									MountPath: "/scripts",
 								},
 							},
@@ -270,17 +322,17 @@ func workerAideDaemonset() *appsv1.DaemonSet {
 							VolumeSource: corev1.VolumeSource{
 								ConfigMap: &corev1.ConfigMapVolumeSource{
 									LocalObjectReference: corev1.LocalObjectReference{
-										Name: "aide-conf",
+										Name: common.DefaultConfigMapName,
 									},
 								},
 							},
 						},
 						{
-							Name: "aide-script",
+							Name: common.AideScriptConfigMapName,
 							VolumeSource: corev1.VolumeSource{
 								ConfigMap: &corev1.ConfigMapVolumeSource{
 									LocalObjectReference: corev1.LocalObjectReference{
-										Name: "aide-script",
+										Name: common.AideScriptConfigMapName,
 									},
 									DefaultMode: &mode,
 								},
@@ -300,19 +352,19 @@ func masterAideDaemonset() *appsv1.DaemonSet {
 
 	return &appsv1.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "aiderunner-master",
-			Namespace: "openshift-file-integrity",
+			Name:      common.MasterDaemonSetName,
+			Namespace: common.FileIntegrityNamespace,
 		},
 		Spec: appsv1.DaemonSetSpec{
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
-					"app": "aiderunner-master",
+					"app": common.MasterDaemonSetName,
 				},
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						"app": "aiderunner-master",
+						"app": common.MasterDaemonSetName,
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -326,7 +378,7 @@ func masterAideDaemonset() *appsv1.DaemonSet {
 					NodeSelector: map[string]string{
 						"node-role.kubernetes.io/master": "",
 					},
-					ServiceAccountName: "file-integrity-operator",
+					ServiceAccountName: common.OperatorServiceAccountName,
 					Containers: []corev1.Container{
 						{
 							SecurityContext: &corev1.SecurityContext{
@@ -335,7 +387,7 @@ func masterAideDaemonset() *appsv1.DaemonSet {
 							},
 							Name:    "aide",
 							Image:   "docker.io/mrogers950/aide:latest",
-							Command: []string{"/scripts/aide.sh"},
+							Command: []string{common.AideScriptPath},
 							VolumeMounts: []corev1.VolumeMount{
 								{
 									Name:      "hostroot",
@@ -346,7 +398,7 @@ func masterAideDaemonset() *appsv1.DaemonSet {
 									MountPath: "/tmp",
 								},
 								{
-									Name:      "aide-script",
+									Name:      common.AideScriptConfigMapName,
 									MountPath: "/scripts",
 								},
 							},
@@ -372,11 +424,11 @@ func masterAideDaemonset() *appsv1.DaemonSet {
 							},
 						},
 						{
-							Name: "aide-script",
+							Name: common.AideScriptConfigMapName,
 							VolumeSource: corev1.VolumeSource{
 								ConfigMap: &corev1.ConfigMapVolumeSource{
 									LocalObjectReference: corev1.LocalObjectReference{
-										Name: "aide-script",
+										Name: common.AideScriptConfigMapName,
 									},
 									DefaultMode: &mode,
 								},
