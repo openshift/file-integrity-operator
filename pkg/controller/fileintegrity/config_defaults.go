@@ -1,10 +1,21 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: aide-conf
-  namespace: openshift-file-integrity
-data:
-  aide.conf: |
+package fileintegrity
+
+var aideScript = `
+    #!/bin/sh
+    if test ! -f /hostroot/etc/kubernetes/aide.db.gz; then
+      echo "initializing AIDE db"
+      aide -c /tmp/aide.conf -i
+    fi
+    while true; do
+      echo "running AIDE check.."
+      aide -c /tmp/aide.conf
+      echo "AIDE check returned $?.. sleeping"
+      sleep 5m
+    done
+    exit 1
+`
+
+var defaultAideConfig = `
     @@define DBDIR /hostroot/etc/kubernetes
     @@define LOGDIR /hostroot/etc/kubernetes
     database=file:@@{DBDIR}/aide.db.gz
@@ -113,24 +124,4 @@ data:
     /hostroot/etc/cups LSPP
     !/hostroot/var/log/and-httpd
     /hostroot/root/\..* PERMS
-
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: aide-script
-  namespace: openshift-file-integrity
-data:
-  aide.sh: |
-    #!/bin/sh
-    if test ! -f /hostroot/etc/kubernetes/aide.db.gz; then
-      echo "initializing AIDE db"
-      aide -c /tmp/aide.conf -i
-    fi
-    while true; do
-      echo "running AIDE check.."
-      aide -c /tmp/aide.conf
-      echo "AIDE check returned $?.. sleeping"
-      sleep 5m
-    done
-    exit 1
+`
