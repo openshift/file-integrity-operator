@@ -1,7 +1,6 @@
 package fileintegrity
 
-var aideScript = `
-    #!/bin/sh
+var aideScript = `#!/bin/sh
     if test ! -f /hostroot/etc/kubernetes/aide.db.gz; then
       echo "initializing AIDE db"
       aide -c /tmp/aide.conf -i
@@ -12,11 +11,9 @@ var aideScript = `
       echo "AIDE check returned $?.. sleeping"
       sleep 5m
     done
-    exit 1
-`
+    exit 1`
 
-var defaultAideConfig = `
-    @@define DBDIR /hostroot/etc/kubernetes
+var defaultAideConfig = `@@define DBDIR /hostroot/etc/kubernetes
     @@define LOGDIR /hostroot/etc/kubernetes
     database=file:@@{DBDIR}/aide.db.gz
     database_out=file:@@{DBDIR}/aide.db.gz
@@ -123,5 +120,4 @@ var defaultAideConfig = `
     /hostroot/etc/issue.net LSPP
     /hostroot/etc/cups LSPP
     !/hostroot/var/log/and-httpd
-    /hostroot/root/\..* PERMS
-`
+    /hostroot/root/\..* PERMS`
