@@ -2,8 +2,13 @@ package configmap
 
 import (
 	"context"
-	"strings"
+	"fmt"
+	"time"
 
+	"github.com/mrogers950/file-integrity-operator/pkg/common"
+	"k8s.io/apimachinery/pkg/types"
+
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -96,28 +101,54 @@ func (r *ReconcileConfigMap) Reconcile(request reconcile.Request) (reconcile.Res
 		return reconcile.Result{}, err
 	}
 
-	// delete daemonSet pods when aide-conf configMap changes
-	podList := &corev1.PodList{}
-	err = r.client.List(context.TODO(), podList, client.InNamespace(instance.Namespace))
+	// only continue if the configmap received an update through the user-provided config
+	if _, ok := instance.Annotations["fileintegrity.openshift.io/updated"]; !ok {
+		return reconcile.Result{}, nil
+	}
+
+	ds := &appsv1.DaemonSet{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: common.WorkerDaemonSetName, Namespace: common.FileIntegrityNamespace}, ds)
 	if err != nil {
-		if errors.IsNotFound(err) {
-			reqLogger.Info("no daemonSet pods found")
-			return reconcile.Result{}, nil
-		}
-		reqLogger.Error(err, "error getting pod list")
+		reqLogger.Error(err, "error getting worker daemonSet")
 		return reconcile.Result{}, err
 	}
 
-	for _, pod := range podList.Items {
-		if strings.HasPrefix(pod.Name, "aiderunner") {
-			reqLogger.Info("deleting pod", "Pod.Name", pod.Name)
-			podCopy := pod.DeepCopy()
-			delErr := r.client.Delete(context.TODO(), podCopy)
-			if delErr != nil {
-				return reconcile.Result{}, delErr
-			}
-		}
+	if err := triggerDaemonSetRollout(r.client, ds); err != nil {
+		reqLogger.Error(err, "error triggering worker daemonSet rollout")
+		return reconcile.Result{}, err
+	}
+
+	ds = &appsv1.DaemonSet{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: common.MasterDaemonSetName, Namespace: common.FileIntegrityNamespace}, ds)
+	if err != nil {
+		reqLogger.Error(err, "error getting master daemonSet")
+		return reconcile.Result{}, err
+	}
+
+	if err := triggerDaemonSetRollout(r.client, ds); err != nil {
+		reqLogger.Error(err, "error triggering master daemonSet rollout")
+		return reconcile.Result{}, err
+	}
+
+	// unset update annotation
+	conf := instance.DeepCopy()
+	conf.Annotations = nil
+	if err := r.client.Update(context.TODO(), conf); err != nil {
+		reqLogger.Error(err, "error clearing configMap annotations")
+		return reconcile.Result{}, err
 	}
 
 	return reconcile.Result{}, nil
+}
+
+// triggerDaemonSetRollout restarts the daemonSet pods by adding an annotation to the spec template.
+func triggerDaemonSetRollout(c client.Client, ds *appsv1.DaemonSet) error {
+	annotations := map[string]string{}
+	dscpy := ds.DeepCopy()
+
+	if dscpy.Spec.Template.Annotations == nil {
+		dscpy.Spec.Template.Annotations = annotations
+	}
+	dscpy.Spec.Template.Annotations["fileintegrity.openshift.io/restart-"+fmt.Sprintf("%d", time.Now().Unix())] = ""
+	return c.Update(context.TODO(), dscpy)
 }
