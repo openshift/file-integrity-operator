@@ -2,7 +2,6 @@ package fileintegrity
 
 import (
 	"context"
-	"errors"
 
 	appsv1 "k8s.io/api/apps/v1"
 
@@ -135,9 +134,14 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 			return reconcile.Result{}, createErr
 		}
 	}
+
+	// check if the configmap data was deleted for some reason, and recreate.
 	if _, ok := defaultAideConf.Data[common.DefaultConfDataKey]; !ok {
-		reqLogger.Info("default aide.conf has no data")
-		return reconcile.Result{}, errors.New("default aide.conf has no data")
+		reqLogger.Info("default aide.conf has no data, restoring default")
+		updateErr := r.client.Update(context.TODO(), defaultAIDEConfigMap())
+		if updateErr != nil {
+			return reconcile.Result{}, updateErr
+		}
 	}
 
 	// handle user-provided configmap
@@ -170,6 +174,13 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 				}
 				reqLogger.Info("updating aide conf")
 				defaultAideConfCopy.Data[common.DefaultConfDataKey] = preparedConf
+				// mark the configMap as updated by the user-provided config
+				annotations := map[string]string{}
+				if defaultAideConfCopy.Annotations == nil {
+					defaultAideConfCopy.Annotations = annotations
+				}
+				defaultAideConfCopy.Annotations["fileintegrity.openshift.io/updated"] = "true"
+
 				updateErr := r.client.Update(context.TODO(), defaultAideConfCopy)
 				if updateErr != nil {
 					reqLogger.Error(updateErr, "error updating default configmap")
