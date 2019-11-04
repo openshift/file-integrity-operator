@@ -54,16 +54,6 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 		return err
 	}
 
-	// TODO(user): Modify this to be the types you create that are owned by the primary resource
-	// Watch for changes to secondary resource Pods and requeue the owner FileIntegrity
-	err = c.Watch(&source.Kind{Type: &corev1.Pod{}}, &handler.EnqueueRequestForOwner{
-		IsController: true,
-		OwnerType:    &fileintegrityv1alpha1.FileIntegrity{},
-	})
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -78,13 +68,74 @@ type ReconcileFileIntegrity struct {
 	scheme *runtime.Scheme
 }
 
-// Reconcile reads that state of the cluster for a FileIntegrity object and makes changes based on the state read
-// and what is in the FileIntegrity.Spec
-// TODO(user): Modify this Reconcile function to implement your Controller logic.  This example creates
-// a Pod as an example
+// handleDefaultConfigMaps creates the inital configMaps needed by the operator and aide pods. It returns the
+// active AIDE configuration configMap
+func (r *ReconcileFileIntegrity) handleDefaultConfigMaps() (*corev1.ConfigMap, error) {
+	cm := &corev1.ConfigMap{}
+	if err := r.client.Get(context.TODO(), types.NamespacedName{
+		Name:      common.AideScriptConfigMapName,
+		Namespace: common.FileIntegrityNamespace,
+	}, cm); err != nil {
+		if !kerr.IsNotFound(err) {
+			return nil, err
+		}
+		// does not exist, create
+		if err := r.client.Create(context.TODO(), defaultAIDEScript()); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := r.client.Get(context.TODO(), types.NamespacedName{
+		Name:      common.AideInitScriptConfigMapName,
+		Namespace: common.FileIntegrityNamespace,
+	}, cm); err != nil {
+		if !kerr.IsNotFound(err) {
+			return nil, err
+		}
+		// does not exist, create
+		if err := r.client.Create(context.TODO(), aideInitScript()); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := r.client.Get(context.TODO(), types.NamespacedName{
+		Name:      common.AideReinitScriptConfigMapName,
+		Namespace: common.FileIntegrityNamespace,
+	}, cm); err != nil {
+		if !kerr.IsNotFound(err) {
+			return nil, err
+		}
+		// does not exist, create
+		if err := r.client.Create(context.TODO(), aideReinitScript()); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := r.client.Get(context.TODO(), types.NamespacedName{
+		Name:      common.DefaultConfigMapName,
+		Namespace: common.FileIntegrityNamespace,
+	}, cm); err != nil {
+		if !kerr.IsNotFound(err) {
+			return nil, err
+		}
+		// does not exist, create
+		if err := r.client.Create(context.TODO(), defaultAIDEConfigMap()); err != nil {
+			return nil, err
+		}
+	} else if _, ok := cm.Data[common.DefaultConfDataKey]; !ok {
+		// we had the configMap but its data was missing for some reason, so restore it.
+		if err := r.client.Update(context.TODO(), defaultAIDEConfigMap()); err != nil {
+			return nil, err
+		}
+	}
+
+	return cm, nil
+}
+
 // Note:
 // The Controller will requeue the Request to be processed again if the returned error is non-nil or
 // Result.Requeue is true, otherwise upon completion it will remove the work from the queue.
+// Reconcile handles the creation and update of configMaps as well as the initial daemonSets for the AIDE pods.
 func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile.Result, error) {
 	reqLogger := log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
 	reqLogger.Info("reconciling FileIntegrity")
@@ -103,49 +154,17 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 		return reconcile.Result{}, err
 	}
 
-	// create the aide script configmap if it does not exist.
-	defaultAideScript := &corev1.ConfigMap{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: common.AideScriptConfigMapName, Namespace: common.FileIntegrityNamespace}, defaultAideScript)
+	defaultAideConf, err := r.handleDefaultConfigMaps()
 	if err != nil {
-		if !kerr.IsNotFound(err) {
-			reqLogger.Error(err, "error getting aide script")
-			return reconcile.Result{}, err
-		}
-		// does not exist, create it
-		createErr := r.client.Create(context.TODO(), defaultAIDEScript())
-		if createErr != nil {
-			reqLogger.Error(err, "error creating aide script")
-			return reconcile.Result{}, createErr
-		}
+		reqLogger.Error(err, "error handling default configMaps")
+		return reconcile.Result{}, err
 	}
-
-	// handle configuration configmap
-	defaultAideConf := &corev1.ConfigMap{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: common.DefaultConfigMapName, Namespace: common.FileIntegrityNamespace}, defaultAideConf)
-	if err != nil {
-		if !kerr.IsNotFound(err) {
-			reqLogger.Error(err, "error getting default aide config")
-			return reconcile.Result{}, err
-		}
-		// does not exist, create it
-		createErr := r.client.Create(context.TODO(), defaultAIDEConfigMap())
-		if createErr != nil {
-			reqLogger.Error(err, "error creating default aide config")
-			return reconcile.Result{}, createErr
-		}
-	}
-
-	// check if the configmap data was deleted for some reason, and recreate.
-	if _, ok := defaultAideConf.Data[common.DefaultConfDataKey]; !ok {
-		reqLogger.Info("default aide.conf has no data, restoring default")
-		updateErr := r.client.Update(context.TODO(), defaultAIDEConfigMap())
-		if updateErr != nil {
-			return reconcile.Result{}, updateErr
-		}
+	if defaultAideConf == nil {
+		// this just got created, so we should re-queue in order to handle the user provided config next go around.
+		return reconcile.Result{Requeue: true}, nil
 	}
 
 	// handle user-provided configmap
-	defaultAideConfCopy := defaultAideConf.DeepCopy()
 	reqLogger.Info("instance spec", "Instance.Spec", instance.Spec)
 	if len(instance.Spec.Config.Name) > 0 && len(instance.Spec.Config.Namespace) > 0 {
 		reqLogger.Info("checking for configmap update")
@@ -158,33 +177,75 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 				return reconcile.Result{}, cfErr
 			}
 		}
-		reqLogger.Info("default configmap found")
+
 		if !kerr.IsNotFound(cfErr) {
 			key := common.DefaultConfDataKey
 			if instance.Spec.Config.Key != "" {
 				key = instance.Spec.Config.Key
 			}
 			conf, ok := cm.Data[key]
-			if ok && len(conf) > 0 && conf != defaultAideConfCopy.Data[common.DefaultConfDataKey] {
-				reqLogger.Info("preparing aide conf")
+			if ok && len(conf) > 0 {
 				preparedConf, prepErr := prepareAideConf(conf)
 				if prepErr != nil {
 					reqLogger.Error(prepErr, "error preparing provided aide conf")
 					return reconcile.Result{}, prepErr
 				}
-				reqLogger.Info("updating aide conf")
-				defaultAideConfCopy.Data[common.DefaultConfDataKey] = preparedConf
-				// mark the configMap as updated by the user-provided config
-				annotations := map[string]string{}
-				if defaultAideConfCopy.Annotations == nil {
-					defaultAideConfCopy.Annotations = annotations
-				}
-				defaultAideConfCopy.Annotations["fileintegrity.openshift.io/updated"] = "true"
+				// the converted config is different than the currently installed config - update it
+				// TODO - refactor this
+				if preparedConf != defaultAideConf.Data[common.DefaultConfDataKey] {
+					reqLogger.Info("updating aide conf")
+					defaultAideConfCopy := defaultAideConf.DeepCopy()
+					defaultAideConfCopy.Data[common.DefaultConfDataKey] = preparedConf
+					// mark the configMap as updated by the user-provided config, for the
+					// configmap-controller to trigger a rolling update.
+					annotations := map[string]string{}
+					if defaultAideConfCopy.Annotations == nil {
+						defaultAideConfCopy.Annotations = annotations
+					}
+					defaultAideConfCopy.Annotations["fileintegrity.openshift.io/updated"] = "true"
 
-				updateErr := r.client.Update(context.TODO(), defaultAideConfCopy)
-				if updateErr != nil {
-					reqLogger.Error(updateErr, "error updating default configmap")
-					return reconcile.Result{}, updateErr
+					updateErr := r.client.Update(context.TODO(), defaultAideConfCopy)
+					if updateErr != nil {
+						reqLogger.Error(updateErr, "error updating default configmap")
+						return reconcile.Result{}, updateErr
+					}
+					// create the daemonSets for the re-initialize pods.
+					daemonSet := &appsv1.DaemonSet{}
+					err = r.client.Get(context.TODO(), types.NamespacedName{
+						Name:      common.WorkerReinitDaemonSetName,
+						Namespace: common.FileIntegrityNamespace,
+					}, daemonSet)
+					if err != nil {
+						if !kerr.IsNotFound(err) {
+							reqLogger.Error(err, "error getting worker reinit daemonSet")
+							return reconcile.Result{}, err
+						}
+						// create
+						ds := workerReinitAideDaemonset()
+						createErr := r.client.Create(context.TODO(), ds)
+						if createErr != nil {
+							reqLogger.Error(createErr, "error creating worker reinit daemonSet")
+							return reconcile.Result{}, createErr
+						}
+					}
+					daemonSet = &appsv1.DaemonSet{}
+					err = r.client.Get(context.TODO(), types.NamespacedName{
+						Name:      common.MasterReinitDaemonSetName,
+						Namespace: common.FileIntegrityNamespace,
+					}, daemonSet)
+					if err != nil {
+						if !kerr.IsNotFound(err) {
+							reqLogger.Error(err, "error getting master reinit daemonSet")
+							return reconcile.Result{}, err
+						}
+						// create
+						ds := masterReinitAideDaemonset()
+						createErr := r.client.Create(context.TODO(), ds)
+						if createErr != nil {
+							reqLogger.Error(createErr, "error creating master reinit daemonSet")
+							return reconcile.Result{}, createErr
+						}
+					}
 				}
 			}
 		}
@@ -247,6 +308,203 @@ func defaultAIDEScript() *corev1.ConfigMap {
 	}
 }
 
+func aideInitScript() *corev1.ConfigMap {
+	return &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      common.AideInitScriptConfigMapName,
+			Namespace: common.FileIntegrityNamespace,
+		},
+		Data: map[string]string{
+			"aide.sh": aideInitContainerScript,
+		},
+	}
+}
+
+func aideReinitScript() *corev1.ConfigMap {
+	return &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      common.AideReinitScriptConfigMapName,
+			Namespace: common.FileIntegrityNamespace,
+		},
+		Data: map[string]string{
+			"aide.sh": aideReinitContainerScript,
+		},
+	}
+}
+
+// workerReinitAideDaemonset returns a DaemonSet that runs a one-shot pod on each worker node. This pod touches a file
+// on the host OS that informs the AIDE init container script to back up and reinitialize the AIDE db. This whole
+// process is intended to ensure that the reinitialization of the database only happens when necessary.
+func workerReinitAideDaemonset() *appsv1.DaemonSet {
+	priv := true
+	runAs := int64(0)
+	mode := int32(0744)
+
+	return &appsv1.DaemonSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      common.WorkerReinitDaemonSetName,
+			Namespace: common.FileIntegrityNamespace,
+		},
+		Spec: appsv1.DaemonSetSpec{
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": common.WorkerReinitDaemonSetName,
+				},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"app": common.WorkerReinitDaemonSetName,
+					},
+				},
+				Spec: corev1.PodSpec{
+					ServiceAccountName: common.OperatorServiceAccountName,
+					InitContainers: []corev1.Container{
+						{
+							SecurityContext: &corev1.SecurityContext{
+								Privileged: &priv,
+								RunAsUser:  &runAs,
+							},
+							Name:    "aide",
+							Image:   "docker.io/mrogers950/aide:latest",
+							Command: []string{common.AideScriptPath},
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      "hostroot",
+									MountPath: "/hostroot",
+								},
+								{
+									Name:      common.AideReinitScriptConfigMapName,
+									MountPath: "/scripts",
+								},
+							},
+						},
+					},
+					// make this an endless loop
+					Containers: []corev1.Container{
+						{
+							Name:  "pause",
+							Image: "gcr.io/google_containers/pause",
+						},
+					},
+					Volumes: []corev1.Volume{
+						{
+							Name: "hostroot",
+							VolumeSource: corev1.VolumeSource{
+								HostPath: &corev1.HostPathVolumeSource{
+									Path: "/",
+								},
+							},
+						},
+						{
+							Name: common.AideReinitScriptConfigMapName,
+							VolumeSource: corev1.VolumeSource{
+								ConfigMap: &corev1.ConfigMapVolumeSource{
+									LocalObjectReference: corev1.LocalObjectReference{
+										Name: common.AideReinitScriptConfigMapName,
+									},
+									DefaultMode: &mode,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+// masterReinitAideDaemonset returns a DaemonSet that runs a one-shot pod on each master node. This pod touches a file
+// on the host OS that informs the AIDE init container script to back up and reinitialize the AIDE db.
+func masterReinitAideDaemonset() *appsv1.DaemonSet {
+	priv := true
+	runAs := int64(0)
+	mode := int32(0744)
+
+	return &appsv1.DaemonSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      common.MasterReinitDaemonSetName,
+			Namespace: common.FileIntegrityNamespace,
+		},
+		Spec: appsv1.DaemonSetSpec{
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": common.MasterReinitDaemonSetName,
+				},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"app": common.MasterReinitDaemonSetName,
+					},
+				},
+				Spec: corev1.PodSpec{
+					Tolerations: []corev1.Toleration{
+						{
+							Key:      "node-role.kubernetes.io/master",
+							Operator: "Exists",
+							Effect:   "NoSchedule",
+						},
+					},
+					NodeSelector: map[string]string{
+						"node-role.kubernetes.io/master": "",
+					},
+					ServiceAccountName: common.OperatorServiceAccountName,
+					InitContainers: []corev1.Container{
+						{
+							SecurityContext: &corev1.SecurityContext{
+								Privileged: &priv,
+								RunAsUser:  &runAs,
+							},
+							Name:    "aide",
+							Image:   "docker.io/mrogers950/aide:latest",
+							Command: []string{common.AideScriptPath},
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      "hostroot",
+									MountPath: "/hostroot",
+								},
+								{
+									Name:      common.AideReinitScriptConfigMapName,
+									MountPath: "/scripts",
+								},
+							},
+						},
+					},
+					// make this an endless loop
+					Containers: []corev1.Container{
+						{
+							Name:  "pause",
+							Image: "gcr.io/google_containers/pause",
+						},
+					},
+					Volumes: []corev1.Volume{
+						{
+							Name: "hostroot",
+							VolumeSource: corev1.VolumeSource{
+								HostPath: &corev1.HostPathVolumeSource{
+									Path: "/",
+								},
+							},
+						},
+						{
+							Name: common.AideReinitScriptConfigMapName,
+							VolumeSource: corev1.VolumeSource{
+								ConfigMap: &corev1.ConfigMapVolumeSource{
+									LocalObjectReference: corev1.LocalObjectReference{
+										Name: common.AideReinitScriptConfigMapName,
+									},
+									DefaultMode: &mode,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
 func workerAideDaemonset() *appsv1.DaemonSet {
 	priv := true
 	runAs := int64(0)
@@ -271,6 +529,32 @@ func workerAideDaemonset() *appsv1.DaemonSet {
 				},
 				Spec: corev1.PodSpec{
 					ServiceAccountName: common.OperatorServiceAccountName,
+					// The init container handles the reinitialization of the aide db after a configuration change
+					InitContainers: []corev1.Container{
+						{
+							SecurityContext: &corev1.SecurityContext{
+								Privileged: &priv,
+								RunAsUser:  &runAs,
+							},
+							Name:    "aide-worker-init",
+							Image:   "docker.io/mrogers950/aide:latest",
+							Command: []string{common.AideScriptPath},
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      "hostroot",
+									MountPath: "/hostroot",
+								},
+								{
+									Name:      "config",
+									MountPath: "/tmp",
+								},
+								{
+									Name:      common.AideInitScriptConfigMapName,
+									MountPath: "/scripts",
+								},
+							},
+						},
+					},
 					Containers: []corev1.Container{
 						{
 							SecurityContext: &corev1.SecurityContext{
@@ -326,6 +610,17 @@ func workerAideDaemonset() *appsv1.DaemonSet {
 								},
 							},
 						},
+						{
+							Name: common.AideInitScriptConfigMapName,
+							VolumeSource: corev1.VolumeSource{
+								ConfigMap: &corev1.ConfigMapVolumeSource{
+									LocalObjectReference: corev1.LocalObjectReference{
+										Name: common.AideInitScriptConfigMapName,
+									},
+									DefaultMode: &mode,
+								},
+							},
+						},
 					},
 				},
 			},
@@ -367,6 +662,32 @@ func masterAideDaemonset() *appsv1.DaemonSet {
 						"node-role.kubernetes.io/master": "",
 					},
 					ServiceAccountName: common.OperatorServiceAccountName,
+					// The init container handles the reinitialization of the aide db after a configuration change
+					InitContainers: []corev1.Container{
+						{
+							SecurityContext: &corev1.SecurityContext{
+								Privileged: &priv,
+								RunAsUser:  &runAs,
+							},
+							Name:    "aide-master-init",
+							Image:   "docker.io/mrogers950/aide:latest",
+							Command: []string{common.AideScriptPath},
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      "hostroot",
+									MountPath: "/hostroot",
+								},
+								{
+									Name:      "config",
+									MountPath: "/tmp",
+								},
+								{
+									Name:      common.AideInitScriptConfigMapName,
+									MountPath: "/scripts",
+								},
+							},
+						},
+					},
 					Containers: []corev1.Container{
 						{
 							SecurityContext: &corev1.SecurityContext{
@@ -417,6 +738,17 @@ func masterAideDaemonset() *appsv1.DaemonSet {
 								ConfigMap: &corev1.ConfigMapVolumeSource{
 									LocalObjectReference: corev1.LocalObjectReference{
 										Name: common.AideScriptConfigMapName,
+									},
+									DefaultMode: &mode,
+								},
+							},
+						},
+						{
+							Name: common.AideInitScriptConfigMapName,
+							VolumeSource: corev1.VolumeSource{
+								ConfigMap: &corev1.ConfigMapVolumeSource{
+									LocalObjectReference: corev1.LocalObjectReference{
+										Name: common.AideInitScriptConfigMapName,
 									},
 									DefaultMode: &mode,
 								},

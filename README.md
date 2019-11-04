@@ -89,7 +89,28 @@ $ docker push docker.io/mrogers950/file-integrity-operator:latest
 When forking the repo and making your own changes you should adjust the docker image repo name and paths to push to your own repo, and then change deploy/operator.yaml to refer to your image.
 The operand AIDE container is located at `docker.io/mrogers950/aide`.
 
+## Applying an AIDE config
+It's possible to provide the file-integrity-operator with an existing aide.conf. The provided aide.conf will be automatically converted to run in a pod, so there is no need to adjust the database and file directives to accommodate the operator.
+
+- Create a configMap containing the aide.conf, e.g.,
+```
+$ oc project openshift-file-integrity
+$ oc create configmap myconf --from-file=aide-conf=aide.conf.rhel8
+```
+- Post the FileIntegrity CR containing the name, namespace, and data key containing the aide.conf in the spec.
+```
+apiVersion: file-integrity.openshift.io/v1alpha1
+kind: FileIntegrity
+metadata:
+  name: example-fileintegrity
+  namespace: openshift-file-integrity
+spec:
+  config:
+    name: myconf
+    namespace: openshift-file-integrity
+    key: aide-conf
+```
+* At this point the operator will update the active AIDE config and perform a re-initialization of the AIDE database, as well as a restart of the AIDE pods to begin scanning with the new configuration. A backup of the logs and database from the previously applied configurations are left available on the nodes under /etc/kubernetes.
+
 ## TODO
-- Ensure the DaemonSet runs on both masters and workers (are separate DaemonSets needed?)
-- Currently there is only one reconcile function that creates the DaemonSet if it doesn't exist. Create a second controller that is responsible for collating/managing the AIDE logs. 
 - Fine-tune the AIDE rules in the aide.conf ConfigMap. The above deployment example shows the rules cover the host's /var/log/ for attributes and added/removed files, which should be corrected.

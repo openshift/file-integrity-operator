@@ -1,5 +1,19 @@
 package fileintegrity
 
+var aideInitContainerScript = `#!/bin/sh
+    if test -f /hostroot/etc/kubernetes/aide.reinit; then
+      echo "reinitializing AIDE db"
+      mv /hostroot/etc/kubernetes/aide.db.gz /hostroot/etc/kubernetes/aide.db.gz.backup-$(date +%s)
+      mv /hostroot/etc/kubernetes/aide.log /hostroot/etc/kubernetes/aide.log.backup-$(date +%s)
+      aide -c /tmp/aide.conf -i
+      rm -f /hostroot/etc/kubernetes/aide.reinit
+    fi
+`
+
+var aideReinitContainerScript = `#!/bin/sh
+    touch /hostroot/etc/kubernetes/aide.reinit
+`
+
 var aideScript = `#!/bin/sh
     if test ! -f /hostroot/etc/kubernetes/aide.db.gz; then
       echo "initializing AIDE db"
