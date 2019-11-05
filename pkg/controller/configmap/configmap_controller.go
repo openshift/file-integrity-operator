@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/mrogers950/file-integrity-operator/pkg/common"
 	"k8s.io/apimachinery/pkg/types"
-
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -19,6 +17,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
+
+	"github.com/mrogers950/file-integrity-operator/pkg/common"
 )
 
 var log = logf.Log.WithName("controller_configmap")
@@ -111,63 +111,35 @@ func (r *ReconcileConfigMap) Reconcile(request reconcile.Request) (reconcile.Res
 	// updated by the user. They touch a file on the node host and then sleep. The file signals to the AIDE pod
 	// daemonSets that they need to back up and re-initialize the AIDE database. So once we've confirmed that the
 	// re-init daemonSets have started running we can delete them and continue with the rollout of the AIDE pods.
-	masterReinitDS := &appsv1.DaemonSet{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: common.MasterReinitDaemonSetName, Namespace: common.FileIntegrityNamespace}, masterReinitDS)
+	reinitDS := &appsv1.DaemonSet{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: common.ReinitDaemonSetName, Namespace: common.FileIntegrityNamespace}, reinitDS)
 	if err != nil {
 		// includes notFound, we will requeue here at least once.
-		reqLogger.Error(err, "error getting master reinit daemonSet")
+		reqLogger.Error(err, "error getting reinit daemonSet")
 		return reconcile.Result{}, err
 	}
 	// not ready, requeue
-	if !daemonSetIsReady(masterReinitDS) {
-		reqLogger.Info("DBG: requeue of master DS")
+	if !daemonSetIsReady(reinitDS) {
+		reqLogger.Info("DBG: requeue of DS")
 		return reconcile.Result{RequeueAfter: time.Duration(5 * time.Second)}, nil // guessing on 5 seconds as acceptable requeue rate
 	}
 
-	workerReinitDS := &appsv1.DaemonSet{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: common.WorkerReinitDaemonSetName, Namespace: common.FileIntegrityNamespace}, workerReinitDS)
-	if err != nil {
-		// includes notFound, we will requeue here at least once.
-		reqLogger.Error(err, "error getting worker reinit daemonSet")
-		return reconcile.Result{}, err
-	}
-	// not ready, requeue
-	if !daemonSetIsReady(workerReinitDS) {
-		reqLogger.Info("DBG: requeue of worker DS")
-		return reconcile.Result{RequeueAfter: time.Duration(5 * time.Second)}, nil // guessing on 5 seconds as acceptable requeue rate
-	}
+	reqLogger.Info("reinitDaemonSet statuses", "Status", reinitDS.Status)
 
-	reqLogger.Info("reinitDaemonSet statuses", "workerStatus", workerReinitDS.Status, "masterStatus", masterReinitDS.Status)
-
-	// both reinit daemonSets are ready, so we're finished with them
-	if err := r.client.Delete(context.TODO(), masterReinitDS); err != nil {
-		return reconcile.Result{}, err
-	}
-	if err := r.client.Delete(context.TODO(), workerReinitDS); err != nil {
+	// reinit daemonSet is ready, so we're finished with it
+	if err := r.client.Delete(context.TODO(), reinitDS); err != nil {
 		return reconcile.Result{}, err
 	}
 
 	ds := &appsv1.DaemonSet{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: common.WorkerDaemonSetName, Namespace: common.FileIntegrityNamespace}, ds)
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: common.DaemonSetName, Namespace: common.FileIntegrityNamespace}, ds)
 	if err != nil {
-		reqLogger.Error(err, "error getting worker daemonSet")
+		reqLogger.Error(err, "error getting daemonSet")
 		return reconcile.Result{}, err
 	}
 
 	if err := triggerDaemonSetRollout(r.client, ds); err != nil {
-		reqLogger.Error(err, "error triggering worker daemonSet rollout")
-		return reconcile.Result{}, err
-	}
-
-	ds = &appsv1.DaemonSet{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: common.MasterDaemonSetName, Namespace: common.FileIntegrityNamespace}, ds)
-	if err != nil {
-		reqLogger.Error(err, "error getting master daemonSet")
-		return reconcile.Result{}, err
-	}
-
-	if err := triggerDaemonSetRollout(r.client, ds); err != nil {
-		reqLogger.Error(err, "error triggering master daemonSet rollout")
+		reqLogger.Error(err, "error triggering daemonSet rollout")
 		return reconcile.Result{}, err
 	}
 

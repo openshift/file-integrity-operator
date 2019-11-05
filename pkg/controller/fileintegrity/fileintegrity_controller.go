@@ -4,10 +4,6 @@ import (
 	"context"
 
 	appsv1 "k8s.io/api/apps/v1"
-
-	fileintegrityv1alpha1 "github.com/mrogers950/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
-	"github.com/mrogers950/file-integrity-operator/pkg/common"
-
 	corev1 "k8s.io/api/core/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -20,6 +16,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
+
+	fileintegrityv1alpha1 "github.com/mrogers950/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
+	"github.com/mrogers950/file-integrity-operator/pkg/common"
 )
 
 var log = logf.Log.WithName("controller_fileintegrity")
@@ -212,37 +211,19 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 					// create the daemonSets for the re-initialize pods.
 					daemonSet := &appsv1.DaemonSet{}
 					err = r.client.Get(context.TODO(), types.NamespacedName{
-						Name:      common.WorkerReinitDaemonSetName,
+						Name:      common.ReinitDaemonSetName,
 						Namespace: common.FileIntegrityNamespace,
 					}, daemonSet)
 					if err != nil {
 						if !kerr.IsNotFound(err) {
-							reqLogger.Error(err, "error getting worker reinit daemonSet")
+							reqLogger.Error(err, "error getting reinit daemonSet")
 							return reconcile.Result{}, err
 						}
 						// create
-						ds := workerReinitAideDaemonset()
+						ds := reinitAideDaemonset()
 						createErr := r.client.Create(context.TODO(), ds)
 						if createErr != nil {
-							reqLogger.Error(createErr, "error creating worker reinit daemonSet")
-							return reconcile.Result{}, createErr
-						}
-					}
-					daemonSet = &appsv1.DaemonSet{}
-					err = r.client.Get(context.TODO(), types.NamespacedName{
-						Name:      common.MasterReinitDaemonSetName,
-						Namespace: common.FileIntegrityNamespace,
-					}, daemonSet)
-					if err != nil {
-						if !kerr.IsNotFound(err) {
-							reqLogger.Error(err, "error getting master reinit daemonSet")
-							return reconcile.Result{}, err
-						}
-						// create
-						ds := masterReinitAideDaemonset()
-						createErr := r.client.Create(context.TODO(), ds)
-						if createErr != nil {
-							reqLogger.Error(createErr, "error creating master reinit daemonSet")
+							reqLogger.Error(createErr, "error creating reinit daemonSet")
 							return reconcile.Result{}, createErr
 						}
 					}
@@ -253,32 +234,18 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 
 	reqLogger.Info("reconciling daemonSets")
 	daemonSet := &appsv1.DaemonSet{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: common.WorkerDaemonSetName, Namespace: common.FileIntegrityNamespace}, daemonSet)
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: common.DaemonSetName, Namespace: common.FileIntegrityNamespace}, daemonSet)
 	if err != nil {
 		if !kerr.IsNotFound(err) {
-			reqLogger.Error(err, "error getting worker daemonSet")
+			reqLogger.Error(err, "error getting daemonSet")
 			return reconcile.Result{}, err
 		}
 		// create
-		ds := workerAideDaemonset()
+		ds := aideDaemonset()
 		createErr := r.client.Create(context.TODO(), ds)
 		if createErr != nil {
-			reqLogger.Error(createErr, "error creating worker daemonSet")
+			reqLogger.Error(createErr, "error creating daemonSet")
 			return reconcile.Result{}, createErr
-		}
-	}
-	masterDaemonSet := &appsv1.DaemonSet{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: common.MasterDaemonSetName, Namespace: common.FileIntegrityNamespace}, masterDaemonSet)
-	if err != nil {
-		if !kerr.IsNotFound(err) {
-			reqLogger.Error(err, "error getting master daemonSet")
-			return reconcile.Result{}, err
-		}
-		mds := masterAideDaemonset()
-		mcreateErr := r.client.Create(context.TODO(), mds)
-		if mcreateErr != nil {
-			reqLogger.Error(mcreateErr, "error creating master daemonSet")
-			return reconcile.Result{}, mcreateErr
 		}
 	}
 	return reconcile.Result{}, nil
@@ -332,110 +299,28 @@ func aideReinitScript() *corev1.ConfigMap {
 	}
 }
 
-// workerReinitAideDaemonset returns a DaemonSet that runs a one-shot pod on each worker node. This pod touches a file
-// on the host OS that informs the AIDE init container script to back up and reinitialize the AIDE db. This whole
-// process is intended to ensure that the reinitialization of the database only happens when necessary.
-func workerReinitAideDaemonset() *appsv1.DaemonSet {
-	priv := true
-	runAs := int64(0)
-	mode := int32(0744)
-
-	return &appsv1.DaemonSet{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      common.WorkerReinitDaemonSetName,
-			Namespace: common.FileIntegrityNamespace,
-		},
-		Spec: appsv1.DaemonSetSpec{
-			Selector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					"app": common.WorkerReinitDaemonSetName,
-				},
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{
-						"app": common.WorkerReinitDaemonSetName,
-					},
-				},
-				Spec: corev1.PodSpec{
-					ServiceAccountName: common.OperatorServiceAccountName,
-					InitContainers: []corev1.Container{
-						{
-							SecurityContext: &corev1.SecurityContext{
-								Privileged: &priv,
-								RunAsUser:  &runAs,
-							},
-							Name:    "aide",
-							Image:   "docker.io/mrogers950/aide:latest",
-							Command: []string{common.AideScriptPath},
-							VolumeMounts: []corev1.VolumeMount{
-								{
-									Name:      "hostroot",
-									MountPath: "/hostroot",
-								},
-								{
-									Name:      common.AideReinitScriptConfigMapName,
-									MountPath: "/scripts",
-								},
-							},
-						},
-					},
-					// make this an endless loop
-					Containers: []corev1.Container{
-						{
-							Name:  "pause",
-							Image: "gcr.io/google_containers/pause",
-						},
-					},
-					Volumes: []corev1.Volume{
-						{
-							Name: "hostroot",
-							VolumeSource: corev1.VolumeSource{
-								HostPath: &corev1.HostPathVolumeSource{
-									Path: "/",
-								},
-							},
-						},
-						{
-							Name: common.AideReinitScriptConfigMapName,
-							VolumeSource: corev1.VolumeSource{
-								ConfigMap: &corev1.ConfigMapVolumeSource{
-									LocalObjectReference: corev1.LocalObjectReference{
-										Name: common.AideReinitScriptConfigMapName,
-									},
-									DefaultMode: &mode,
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-// masterReinitAideDaemonset returns a DaemonSet that runs a one-shot pod on each master node. This pod touches a file
+// reinitAideDaemonset returns a DaemonSet that runs a one-shot pod on each node. This pod touches a file
 // on the host OS that informs the AIDE init container script to back up and reinitialize the AIDE db.
-func masterReinitAideDaemonset() *appsv1.DaemonSet {
+func reinitAideDaemonset() *appsv1.DaemonSet {
 	priv := true
 	runAs := int64(0)
 	mode := int32(0744)
 
 	return &appsv1.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      common.MasterReinitDaemonSetName,
+			Name:      common.ReinitDaemonSetName,
 			Namespace: common.FileIntegrityNamespace,
 		},
 		Spec: appsv1.DaemonSetSpec{
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
-					"app": common.MasterReinitDaemonSetName,
+					"app": common.ReinitDaemonSetName,
 				},
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						"app": common.MasterReinitDaemonSetName,
+						"app": common.ReinitDaemonSetName,
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -445,9 +330,6 @@ func masterReinitAideDaemonset() *appsv1.DaemonSet {
 							Operator: "Exists",
 							Effect:   "NoSchedule",
 						},
-					},
-					NodeSelector: map[string]string{
-						"node-role.kubernetes.io/master": "",
 					},
 					ServiceAccountName: common.OperatorServiceAccountName,
 					InitContainers: []corev1.Container{
@@ -505,149 +387,26 @@ func masterReinitAideDaemonset() *appsv1.DaemonSet {
 	}
 }
 
-func workerAideDaemonset() *appsv1.DaemonSet {
+func aideDaemonset() *appsv1.DaemonSet {
 	priv := true
 	runAs := int64(0)
 	mode := int32(0744)
 
 	return &appsv1.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      common.WorkerDaemonSetName,
+			Name:      common.DaemonSetName,
 			Namespace: common.FileIntegrityNamespace,
 		},
 		Spec: appsv1.DaemonSetSpec{
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
-					"app": common.WorkerDaemonSetName,
+					"app": common.DaemonSetName,
 				},
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						"app": common.WorkerDaemonSetName,
-					},
-				},
-				Spec: corev1.PodSpec{
-					ServiceAccountName: common.OperatorServiceAccountName,
-					// The init container handles the reinitialization of the aide db after a configuration change
-					InitContainers: []corev1.Container{
-						{
-							SecurityContext: &corev1.SecurityContext{
-								Privileged: &priv,
-								RunAsUser:  &runAs,
-							},
-							Name:    "aide-worker-init",
-							Image:   "docker.io/mrogers950/aide:latest",
-							Command: []string{common.AideScriptPath},
-							VolumeMounts: []corev1.VolumeMount{
-								{
-									Name:      "hostroot",
-									MountPath: "/hostroot",
-								},
-								{
-									Name:      "config",
-									MountPath: "/tmp",
-								},
-								{
-									Name:      common.AideInitScriptConfigMapName,
-									MountPath: "/scripts",
-								},
-							},
-						},
-					},
-					Containers: []corev1.Container{
-						{
-							SecurityContext: &corev1.SecurityContext{
-								Privileged: &priv,
-								RunAsUser:  &runAs,
-							},
-							Name:    "aide",
-							Image:   "docker.io/mrogers950/aide:latest",
-							Command: []string{common.AideScriptPath},
-							VolumeMounts: []corev1.VolumeMount{
-								{
-									Name:      "hostroot",
-									MountPath: "/hostroot",
-								},
-								{
-									Name:      "config",
-									MountPath: "/tmp",
-								},
-								{
-									Name:      common.AideScriptConfigMapName,
-									MountPath: "/scripts",
-								},
-							},
-						},
-					},
-					Volumes: []corev1.Volume{
-						{
-							Name: "hostroot",
-							VolumeSource: corev1.VolumeSource{
-								HostPath: &corev1.HostPathVolumeSource{
-									Path: "/",
-								},
-							},
-						},
-						{
-							Name: "config",
-							VolumeSource: corev1.VolumeSource{
-								ConfigMap: &corev1.ConfigMapVolumeSource{
-									LocalObjectReference: corev1.LocalObjectReference{
-										Name: common.DefaultConfigMapName,
-									},
-								},
-							},
-						},
-						{
-							Name: common.AideScriptConfigMapName,
-							VolumeSource: corev1.VolumeSource{
-								ConfigMap: &corev1.ConfigMapVolumeSource{
-									LocalObjectReference: corev1.LocalObjectReference{
-										Name: common.AideScriptConfigMapName,
-									},
-									DefaultMode: &mode,
-								},
-							},
-						},
-						{
-							Name: common.AideInitScriptConfigMapName,
-							VolumeSource: corev1.VolumeSource{
-								ConfigMap: &corev1.ConfigMapVolumeSource{
-									LocalObjectReference: corev1.LocalObjectReference{
-										Name: common.AideInitScriptConfigMapName,
-									},
-									DefaultMode: &mode,
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-func masterAideDaemonset() *appsv1.DaemonSet {
-	priv := true
-	runAs := int64(0)
-	mode := int32(0744)
-
-	return &appsv1.DaemonSet{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      common.MasterDaemonSetName,
-			Namespace: common.FileIntegrityNamespace,
-		},
-		Spec: appsv1.DaemonSetSpec{
-			Selector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					"app": common.MasterDaemonSetName,
-				},
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{
-						"app": common.MasterDaemonSetName,
+						"app": common.DaemonSetName,
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -658,9 +417,6 @@ func masterAideDaemonset() *appsv1.DaemonSet {
 							Effect:   "NoSchedule",
 						},
 					},
-					NodeSelector: map[string]string{
-						"node-role.kubernetes.io/master": "",
-					},
 					ServiceAccountName: common.OperatorServiceAccountName,
 					// The init container handles the reinitialization of the aide db after a configuration change
 					InitContainers: []corev1.Container{
@@ -669,7 +425,7 @@ func masterAideDaemonset() *appsv1.DaemonSet {
 								Privileged: &priv,
 								RunAsUser:  &runAs,
 							},
-							Name:    "aide-master-init",
+							Name:    "aide-ds-init",
 							Image:   "docker.io/mrogers950/aide:latest",
 							Command: []string{common.AideScriptPath},
 							VolumeMounts: []corev1.VolumeMount{
