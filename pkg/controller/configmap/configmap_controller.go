@@ -103,7 +103,48 @@ func (r *ReconcileConfigMap) Reconcile(request reconcile.Request) (reconcile.Res
 
 	// only continue if the configmap received an update through the user-provided config
 	if _, ok := instance.Annotations["fileintegrity.openshift.io/updated"]; !ok {
+		reqLogger.Info("DBG: updated annotation not found - removing from queue")
 		return reconcile.Result{}, nil
+	}
+
+	// handling the re-init daemonSets: these are created by the FileIntegrity controller when the AIDE config has been
+	// updated by the user. They touch a file on the node host and then sleep. The file signals to the AIDE pod
+	// daemonSets that they need to back up and re-initialize the AIDE database. So once we've confirmed that the
+	// re-init daemonSets have started running we can delete them and continue with the rollout of the AIDE pods.
+	masterReinitDS := &appsv1.DaemonSet{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: common.MasterReinitDaemonSetName, Namespace: common.FileIntegrityNamespace}, masterReinitDS)
+	if err != nil {
+		// includes notFound, we will requeue here at least once.
+		reqLogger.Error(err, "error getting master reinit daemonSet")
+		return reconcile.Result{}, err
+	}
+	// not ready, requeue
+	if !daemonSetIsReady(masterReinitDS) {
+		reqLogger.Info("DBG: requeue of master DS")
+		return reconcile.Result{RequeueAfter: time.Duration(5 * time.Second)}, nil // guessing on 5 seconds as acceptable requeue rate
+	}
+
+	workerReinitDS := &appsv1.DaemonSet{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: common.WorkerReinitDaemonSetName, Namespace: common.FileIntegrityNamespace}, workerReinitDS)
+	if err != nil {
+		// includes notFound, we will requeue here at least once.
+		reqLogger.Error(err, "error getting worker reinit daemonSet")
+		return reconcile.Result{}, err
+	}
+	// not ready, requeue
+	if !daemonSetIsReady(workerReinitDS) {
+		reqLogger.Info("DBG: requeue of worker DS")
+		return reconcile.Result{RequeueAfter: time.Duration(5 * time.Second)}, nil // guessing on 5 seconds as acceptable requeue rate
+	}
+
+	reqLogger.Info("reinitDaemonSet statuses", "workerStatus", workerReinitDS.Status, "masterStatus", masterReinitDS.Status)
+
+	// both reinit daemonSets are ready, so we're finished with them
+	if err := r.client.Delete(context.TODO(), masterReinitDS); err != nil {
+		return reconcile.Result{}, err
+	}
+	if err := r.client.Delete(context.TODO(), workerReinitDS); err != nil {
+		return reconcile.Result{}, err
 	}
 
 	ds := &appsv1.DaemonSet{}
@@ -130,6 +171,7 @@ func (r *ReconcileConfigMap) Reconcile(request reconcile.Request) (reconcile.Res
 		return reconcile.Result{}, err
 	}
 
+	reqLogger.Info("DBG: rollout triggered, clearing update annotation")
 	// unset update annotation
 	conf := instance.DeepCopy()
 	conf.Annotations = nil
@@ -151,4 +193,9 @@ func triggerDaemonSetRollout(c client.Client, ds *appsv1.DaemonSet) error {
 	}
 	dscpy.Spec.Template.Annotations["fileintegrity.openshift.io/restart-"+fmt.Sprintf("%d", time.Now().Unix())] = ""
 	return c.Update(context.TODO(), dscpy)
+}
+
+// this method to check ready is used in some of the Origin e2e testing - is it accurate?
+func daemonSetIsReady(ds *appsv1.DaemonSet) bool {
+	return ds.Status.DesiredNumberScheduled == ds.Status.NumberAvailable
 }
