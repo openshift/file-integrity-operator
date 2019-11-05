@@ -4,3 +4,4 @@ metadata:
   name: example-fileintegrity
   namespace: openshift-file-integrity
 spec:
+  config: {}
