@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -221,8 +222,12 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 						}
 						// create
 						ds := reinitAideDaemonset()
-						createErr := r.client.Create(context.TODO(), ds)
-						if createErr != nil {
+
+						if ownerErr := controllerutil.SetControllerReference(instance, ds, r.scheme); ownerErr != nil {
+							log.Error(ownerErr, "Failed to set daemonset ownership", "DaemonSet", ds)
+							return reconcile.Result{}, err
+						}
+						if createErr := r.client.Create(context.TODO(), ds); createErr != nil {
 							reqLogger.Error(createErr, "error creating reinit daemonSet")
 							return reconcile.Result{}, createErr
 						}
@@ -242,8 +247,12 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 		}
 		// create
 		ds := aideDaemonset()
-		createErr := r.client.Create(context.TODO(), ds)
-		if createErr != nil {
+
+		if ownerErr := controllerutil.SetControllerReference(instance, ds, r.scheme); ownerErr != nil {
+			log.Error(ownerErr, "Failed to set daemonset ownership", "DaemonSet", ds)
+			return reconcile.Result{}, err
+		}
+		if createErr := r.client.Create(context.TODO(), ds); createErr != nil {
 			reqLogger.Error(createErr, "error creating daemonSet")
 			return reconcile.Result{}, createErr
 		}
