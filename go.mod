@@ -2,7 +2,6 @@ module github.com/mrogers950/file-integrity-operator
 
 require (
 	github.com/go-openapi/spec v0.17.2
-	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0 // indirect
 	github.com/operator-framework/operator-sdk v0.10.1-0.20190912163340-c0e167d4f396
 	github.com/spf13/pflag v1.0.3
 	k8s.io/api v0.0.0-20190612125737-db0771252981
@@ -24,10 +23,7 @@ replace (
 replace (
 	// Indirect operator-sdk dependencies use git.apache.org, which is frequently
 	// down. The github mirror should be used instead.
-	// go.opencensus.io@v0.18.0
-	git.apache.org/thrift.git v0.0.0-20180902110319-2566ecd5d999 => github.com/apache/thrift v0.0.0-20180902110319-2566ecd5d999
 	// go.opencensus.io@v0.19.1
-	git.apache.org/thrift.git v0.12.0 => github.com/apache/thrift v0.12.0
 	github.com/coreos/prometheus-operator => github.com/coreos/prometheus-operator v0.31.1
 	// Pinned to v2.10.0 (kubernetes-1.14.1) so https://proxy.golang.org can
 	// resolve it correctly.
