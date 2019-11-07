@@ -177,7 +177,7 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 			}
 		}
 
-		if !kerr.IsNotFound(cfErr) {
+		if cfErr == nil {
 			key := common.DefaultConfDataKey
 			if instance.Spec.Config.Key != "" {
 				key = instance.Spec.Config.Key
