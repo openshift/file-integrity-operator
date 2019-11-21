@@ -15,6 +15,8 @@ PKGS=$(shell go list ./... | grep -v -E '/vendor/|/test|/examples')
 TEST_OPTIONS?=
 
 OC?=oc
+SDK_VERSION?=v0.12.0
+OPERATOR_SDK_URL=https://github.com/operator-framework/operator-sdk/releases/download/$(SDK_VERSION)/operator-sdk-$(SDK_VERSION)-x86_64-linux-gnu
 
 # These will be provided to the target
 #VERSION := 1.0.0
@@ -34,11 +36,17 @@ all: build #check install
 build: fmt
 	operator-sdk build $(IMAGE_PATH)
 
+operator-sdk:
+ifeq ("$(wildcard $(GOPATH)/bin/operator-sdk)","")
+	wget $(OPERATOR_SDK_URL) -O $(GOPATH)/bin/operator-sdk || (echo "wget returned $$? trying to fetch operator-sdk. please install operator-sdk and try again"; exit 1)
+	chmod +x $(GOPATH)/bin/operator-sdk
+endif
+
 run:
 	OPERATOR_NAME=file-integrity-operator \
 	WATCH_NAMESPACE=$(NAMESPACE) \
 	KUBERNETES_CONFIG=$(KUBECONFIG) \
-	operator-sdk up local --namespace $(NAMESPACE)
+	@$(GOPATH)/bin/operator-sdk up local --namespace $(NAMESPACE)
 
 clean:
 	@rm -rf $(TARGET_DIR)
@@ -51,7 +59,13 @@ simplify:
 	@gofmt -s -l -w $(SRC)
 
 gendeepcopy: operator-sdk
-	@GO111MODULE=on operator-sdk generate k8s
+	@$(GOPATH)/bin/operator-sdk generate k8s
 
 test-unit: fmt
 	@$(GO) test $(TEST_OPTIONS) $(PKGS)
+
+e2e: operator-sdk
+	@echo "Creating '$(NAMESPACE)' namespace/project"
+	@oc create -f deploy/ns.yaml || true
+	@echo "Running e2e tests"
+	@$(GOPATH)/bin/operator-sdk test local ./tests/e2e --namespace "$(NAMESPACE)" --go-test-flags "-v"
