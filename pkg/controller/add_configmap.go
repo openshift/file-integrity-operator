@@ -1,7 +1,7 @@
 package controller
 
 import (
-	"github.com/mrogers950/file-integrity-operator/pkg/controller/configmap"
+	"github.com/openshift/file-integrity-operator/pkg/controller/configmap"
 )
 
 func init() {

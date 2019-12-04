@@ -18,7 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	"github.com/mrogers950/file-integrity-operator/pkg/common"
+	"github.com/openshift/file-integrity-operator/pkg/common"
 )
 
 var log = logf.Log.WithName("controller_configmap")

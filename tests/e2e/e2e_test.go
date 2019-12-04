@@ -7,8 +7,8 @@ import (
 	framework "github.com/operator-framework/operator-sdk/pkg/test"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	fileintv1alpha1 "github.com/mrogers950/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
-	"github.com/mrogers950/file-integrity-operator/pkg/common"
+	fileintv1alpha1 "github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
+	"github.com/openshift/file-integrity-operator/pkg/common"
 )
 
 func TestFileIntegritySingleRun(t *testing.T) {
