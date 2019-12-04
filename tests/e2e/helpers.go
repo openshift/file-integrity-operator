@@ -20,11 +20,11 @@ import (
 )
 
 const (
-	pollInterval         = 2 * time.Second
-	timeout              = time.Second * 120
+	pollInterval         = time.Second * 2
 	retryInterval        = time.Second * 5
+	timeout              = time.Minute * 10
 	cleanupRetryInterval = time.Second * 1
-	cleanupTimeout       = time.Second * 5
+	cleanupTimeout       = time.Minute * 5
 )
 
 func cleanUp(t *testing.T, namespace string) func() error {
