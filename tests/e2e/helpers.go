@@ -14,9 +14,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/mrogers950/file-integrity-operator/pkg/apis"
-	fileintv1alpha1 "github.com/mrogers950/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
-	"github.com/mrogers950/file-integrity-operator/pkg/common"
+	"github.com/openshift/file-integrity-operator/pkg/apis"
+	fileintv1alpha1 "github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
+	"github.com/openshift/file-integrity-operator/pkg/common"
 )
 
 const (

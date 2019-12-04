@@ -1,4 +1,4 @@
-module github.com/mrogers950/file-integrity-operator
+module github.com/openshift/file-integrity-operator
 
 go 1.13
 

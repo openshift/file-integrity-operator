@@ -1,7 +1,7 @@
 package apis
 
 import (
-	"github.com/mrogers950/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
+	"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
 )
 
 func init() {

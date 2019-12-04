@@ -11,8 +11,8 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/client-go/rest"
 
-	"github.com/mrogers950/file-integrity-operator/pkg/apis"
-	"github.com/mrogers950/file-integrity-operator/pkg/controller"
+	"github.com/openshift/file-integrity-operator/pkg/apis"
+	"github.com/openshift/file-integrity-operator/pkg/controller"
 
 	"github.com/operator-framework/operator-sdk/pkg/k8sutil"
 	kubemetrics "github.com/operator-framework/operator-sdk/pkg/kube-metrics"
