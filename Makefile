@@ -20,7 +20,7 @@ TAG?=latest
 # ===============
 CURPATH=$(PWD)
 TARGET_DIR=$(CURPATH)/build/_output
-GOPROXY_SETTINGS=GOPROXY="https://proxy.golang.org" GOSUMDB="sum.golang.org"
+GOPROXY_SETTINGS?=
 GO=$(GOPROXY_SETTINGS) GO111MODULE=on go
 GOBUILD=$(GO) build
 BUILD_GOPATH=$(TARGET_DIR):$(CURPATH)/cmd
