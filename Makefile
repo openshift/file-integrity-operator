@@ -20,7 +20,8 @@ TAG?=latest
 # ===============
 CURPATH=$(PWD)
 TARGET_DIR=$(CURPATH)/build/_output
-GO=GOPROXY="https://proxy.golang.org" GOSUMDB="sum.golang.org" GO111MODULE=on go
+GOPROXY_SETTINGS=GOPROXY="https://proxy.golang.org" GOSUMDB="sum.golang.org"
+GO=$(GOPROXY_SETTINGS) GO111MODULE=on go
 GOBUILD=$(GO) build
 BUILD_GOPATH=$(TARGET_DIR):$(CURPATH)/cmd
 TARGET=$(TARGET_DIR)/bin/$(APP_NAME)
@@ -40,6 +41,7 @@ export NAMESPACE?=openshift-file-integrity
 # ======================
 SDK_VERSION?=v0.12.0
 OPERATOR_SDK_URL=https://github.com/operator-framework/operator-sdk/releases/download/$(SDK_VERSION)/operator-sdk-$(SDK_VERSION)-x86_64-linux-gnu
+OPERATOR_SDK=$(GOPROXY_SETTINGS) $(GOPATH)/bin/operator-sdk
 
 # Test variables
 # ==============
@@ -61,7 +63,7 @@ help: ## Show this help screen
 
 .PHONY: image
 image: fmt operator-sdk ## Build the file-integrity-operator container image
-	$(GOPATH)/bin/operator-sdk build $(IMAGE_PATH) --image-builder $(RUNTIME)
+	$(OPERATOR_SDK) build $(IMAGE_PATH) --image-builder $(RUNTIME)
 
 .PHONY: build
 build: fmt ## Build the file-integrity-operator binary
@@ -79,7 +81,7 @@ run: operator-sdk ## Run the file-integrity-operator locally
 	WATCH_NAMESPACE=$(NAMESPACE) \
 	KUBERNETES_CONFIG=$(KUBECONFIG) \
 	OPERATOR_NAME=$(APP_NAME) \
-	$(GOPATH)/bin/operator-sdk up local --namespace $(NAMESPACE)
+	$(OPERATOR_SDK) up local --namespace $(NAMESPACE)
 
 .PHONY: clean
 clean: clean-modcache clean-cache clean-output ## Clean the golang environment
@@ -121,8 +123,8 @@ gosec:
 
 .PHONY: generate
 generate: operator-sdk ## Run operator-sdk's code generation (k8s and openapi)
-	$(GOPATH)/bin/operator-sdk generate k8s
-	$(GOPATH)/bin/operator-sdk generate openapi
+	$(OPERATOR_SDK) generate k8s
+	$(OPERATOR_SDK) generate openapi
 
 .PHONY: test-unit
 test-unit: fmt ## Run the unit tests
@@ -138,7 +140,7 @@ else
 e2e: namespace operator-sdk check-if-ci
 endif
 	@echo "Running e2e tests"
-	$(GOPATH)/bin/operator-sdk test local ./tests/e2e --image "$(IMAGE_PATH)" --namespace "$(NAMESPACE)" --go-test-flags "-v"
+	$(OPERATOR_SDK) test local ./tests/e2e --image "$(IMAGE_PATH)" --namespace "$(NAMESPACE)" --go-test-flags "-v"
 
 # This checks if we're in a CI environment by checking the IMAGE_FORMAT
 # environmnet variable. if we are, lets ues the image from CI and use this
