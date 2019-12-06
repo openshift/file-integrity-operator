@@ -11,10 +11,10 @@ import (
 
 func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	return map[string]common.OpenAPIDefinition{
-		"./pkg/apis/fileintegrity/v1alpha1.FileIntegrity":       schema_pkg_apis_fileintegrity_v1alpha1_FileIntegrity(ref),
-		"./pkg/apis/fileintegrity/v1alpha1.FileIntegrityConfig": schema_pkg_apis_fileintegrity_v1alpha1_FileIntegrityConfig(ref),
-		"./pkg/apis/fileintegrity/v1alpha1.FileIntegritySpec":   schema_pkg_apis_fileintegrity_v1alpha1_FileIntegritySpec(ref),
-		"./pkg/apis/fileintegrity/v1alpha1.FileIntegrityStatus": schema_pkg_apis_fileintegrity_v1alpha1_FileIntegrityStatus(ref),
+		"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1.FileIntegrity":       schema_pkg_apis_fileintegrity_v1alpha1_FileIntegrity(ref),
+		"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1.FileIntegrityConfig": schema_pkg_apis_fileintegrity_v1alpha1_FileIntegrityConfig(ref),
+		"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1.FileIntegritySpec":   schema_pkg_apis_fileintegrity_v1alpha1_FileIntegritySpec(ref),
+		"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1.FileIntegrityStatus": schema_pkg_apis_fileintegrity_v1alpha1_FileIntegrityStatus(ref),
 	}
 }
 
@@ -46,19 +46,19 @@ func schema_pkg_apis_fileintegrity_v1alpha1_FileIntegrity(ref common.ReferenceCa
 					},
 					"spec": {
 						SchemaProps: spec.SchemaProps{
-							Ref: ref("./pkg/apis/fileintegrity/v1alpha1.FileIntegritySpec"),
+							Ref: ref("github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1.FileIntegritySpec"),
 						},
 					},
 					"status": {
 						SchemaProps: spec.SchemaProps{
-							Ref: ref("./pkg/apis/fileintegrity/v1alpha1.FileIntegrityStatus"),
+							Ref: ref("github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1.FileIntegrityStatus"),
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"./pkg/apis/fileintegrity/v1alpha1.FileIntegritySpec", "./pkg/apis/fileintegrity/v1alpha1.FileIntegrityStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+			"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1.FileIntegritySpec", "github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1.FileIntegrityStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
 	}
 }
 
@@ -103,7 +103,7 @@ func schema_pkg_apis_fileintegrity_v1alpha1_FileIntegritySpec(ref common.Referen
 					"config": {
 						SchemaProps: spec.SchemaProps{
 							Description: "INSERT ADDITIONAL SPEC FIELDS - desired state of cluster Important: Run \"operator-sdk generate k8s\" to regenerate code after modifying this file Add custom validation using kubebuilder tags: https://book-v1.book.kubebuilder.io/beyond_basics/generating_crd.html",
-							Ref:         ref("./pkg/apis/fileintegrity/v1alpha1.FileIntegrityConfig"),
+							Ref:         ref("github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1.FileIntegrityConfig"),
 						},
 					},
 				},
@@ -111,7 +111,7 @@ func schema_pkg_apis_fileintegrity_v1alpha1_FileIntegritySpec(ref common.Referen
 			},
 		},
 		Dependencies: []string{
-			"./pkg/apis/fileintegrity/v1alpha1.FileIntegrityConfig"},
+			"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1.FileIntegrityConfig"},
 	}
 }
 
@@ -121,6 +121,15 @@ func schema_pkg_apis_fileintegrity_v1alpha1_FileIntegrityStatus(ref common.Refer
 			SchemaProps: spec.SchemaProps{
 				Description: "FileIntegrityStatus defines the observed state of FileIntegrity",
 				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"phase": {
+						SchemaProps: spec.SchemaProps{
+							Description: "INSERT ADDITIONAL STATUS FIELD - define observed state of cluster Important: Run \"operator-sdk generate k8s\" to regenerate code after modifying this file Add custom validation using kubebuilder tags: https://book-v1.book.kubebuilder.io/beyond_basics/generating_crd.html",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
 			},
 		},
 	}

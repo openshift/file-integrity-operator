@@ -119,7 +119,7 @@ func (r *ReconcileConfigMap) Reconcile(request reconcile.Request) (reconcile.Res
 		return reconcile.Result{}, err
 	}
 	// not ready, requeue
-	if !daemonSetIsReady(reinitDS) {
+	if !common.DaemonSetIsReady(reinitDS) {
 		reqLogger.Info("DBG: requeue of DS")
 		return reconcile.Result{RequeueAfter: time.Duration(5 * time.Second)}, nil // guessing on 5 seconds as acceptable requeue rate
 	}
@@ -165,9 +165,4 @@ func triggerDaemonSetRollout(c client.Client, ds *appsv1.DaemonSet) error {
 	}
 	dscpy.Spec.Template.Annotations["fileintegrity.openshift.io/restart-"+fmt.Sprintf("%d", time.Now().Unix())] = ""
 	return c.Update(context.TODO(), dscpy)
-}
-
-// this method to check ready is used in some of the Origin e2e testing - is it accurate?
-func daemonSetIsReady(ds *appsv1.DaemonSet) bool {
-	return ds.Status.DesiredNumberScheduled == ds.Status.NumberAvailable
 }

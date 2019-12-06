@@ -27,9 +27,19 @@ func prepareAideConf(in string) (string, error) {
 		} else if strings.HasPrefix(line, "report_url=file") {
 			conv = conv + "report_url=file:@@{LOGDIR}/aide.log\n"
 		} else if strings.HasPrefix(line, "/") {
-			conv = conv + "/hostroot" + line + "\n"
+			if strings.HasPrefix(line, "/hostroot") {
+				// line already has /hostroot, skip prepending it
+				conv = conv + line + "\n"
+			} else {
+				conv = conv + "/hostroot" + line + "\n"
+			}
 		} else if strings.HasPrefix(line, "!/") {
-			conv = conv + "!/hostroot" + line[1:] + "\n"
+			if strings.HasPrefix(line, "!/hostroot") {
+				// line already has !/hostroot, skip prepending it
+				conv = conv + line + "\n"
+			} else {
+				conv = conv + "!/hostroot" + line[1:] + "\n"
+			}
 		} else {
 			if line != "\n" {
 				conv = conv + line + "\n"
