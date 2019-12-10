@@ -267,7 +267,7 @@ func defaultAIDEConfigMap() *corev1.ConfigMap {
 			Namespace: common.FileIntegrityNamespace,
 		},
 		Data: map[string]string{
-			"aide.conf": defaultAideConfig,
+			"aide.conf": DefaultAideConfig,
 		},
 	}
 }
