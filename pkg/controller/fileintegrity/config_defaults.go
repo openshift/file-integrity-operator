@@ -27,7 +27,7 @@ var aideScript = `#!/bin/sh
     done
     exit 1`
 
-var defaultAideConfig = `@@define DBDIR /hostroot/etc/kubernetes
+var DefaultAideConfig = `@@define DBDIR /hostroot/etc/kubernetes
 @@define LOGDIR /hostroot/etc/kubernetes
 database=file:@@{DBDIR}/aide.db.gz
 database_out=file:@@{DBDIR}/aide.db.gz

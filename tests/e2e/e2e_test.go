@@ -4,6 +4,7 @@ import (
 	"bytes"
 	goctx "context"
 	"testing"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -13,6 +14,7 @@ import (
 
 	fileintv1alpha1 "github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
 	"github.com/openshift/file-integrity-operator/pkg/common"
+	"github.com/openshift/file-integrity-operator/pkg/controller/fileintegrity"
 	framework "github.com/operator-framework/operator-sdk/pkg/test"
 )
 
@@ -63,15 +65,9 @@ DATAONLY =  p+n+u+g+s+acl+selinux+xattrs+sha512
 # Catch everything else in /etc
 /hostroot/etc/    CONTENT_EX`
 
-// TestFileIntegrityConfigurationStatus tests the following:
-// - Deployment of operator and resource
-// - Successful transition from Initializing to Active
-// - Update of the AIDE configuration
-// - Successful transition to Initialization back to Active after update
-func TestFileIntegrityConfigurationStatus(t *testing.T) {
+// setupTest sets up the operator and waits for AIDE to roll out
+func setupTest(t *testing.T) (*framework.Framework, *framework.TestCtx, string) {
 	testctx := setupTestRequirements(t)
-	defer testctx.Cleanup()
-
 	namespace, err := testctx.GetNamespace()
 	if err != nil {
 		t.Errorf("could not get namespace: %v", err)
@@ -106,60 +102,112 @@ func TestFileIntegrityConfigurationStatus(t *testing.T) {
 		t.Error(err)
 	}
 
-	// wait for an initialization period.
-	err = waitForScanStatus(t, f, namespace, testIntegrityName, fileintv1alpha1.PhaseInitializing)
-	if err != nil {
-		t.Error(err)
-	}
-
 	// wait to go active
 	err = waitForScanStatus(t, f, namespace, testIntegrityName, fileintv1alpha1.PhaseActive)
 	if err != nil {
 		t.Error(err)
 	}
+	return f, testctx, namespace
+}
 
+func updateFileIntegrityConfig(t *testing.T, f *framework.Framework, integrityName, configMapName, namespace, key string) {
+	fileIntegrity := &fileintv1alpha1.FileIntegrity{}
+	err := f.Client.Get(goctx.TODO(), types.NamespacedName{Name: integrityName, Namespace: namespace}, fileIntegrity)
+	if err != nil {
+		t.Error(err)
+	}
+	fileIntegrityCopy := fileIntegrity.DeepCopy()
+	fileIntegrityCopy.Spec = fileintv1alpha1.FileIntegritySpec{
+		Config: fileintv1alpha1.FileIntegrityConfig{
+			Name:      configMapName,
+			Namespace: namespace,
+			Key:       key,
+		},
+	}
+	err = f.Client.Update(goctx.TODO(), fileIntegrityCopy)
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+func createTestConfigMap(t *testing.T, f *framework.Framework, integrityName, configMapName, namespace, key, data string) {
 	// create a test AIDE config configMap
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      testConfName,
+			Name:      configMapName,
 			Namespace: namespace,
 		},
 		Data: map[string]string{
-			testConfDataKey: testAideConfig,
+			key: data,
 		},
 	}
-	_, err = f.KubeClient.CoreV1().ConfigMaps(namespace).Create(cm)
+	_, err := f.KubeClient.CoreV1().ConfigMaps(namespace).Create(cm)
 	if err != nil {
 		t.Error(err)
 	}
 
 	// update FileIntegrity config spec to point to the configMap
-	newFileIntegrity := &fileintv1alpha1.FileIntegrity{}
-	err = f.Client.Get(goctx.TODO(), types.NamespacedName{Name: testIntegrityName, Namespace: namespace}, newFileIntegrity)
-	if err != nil {
-		t.Error(err)
+	updateFileIntegrityConfig(t, f, integrityName, configMapName, namespace, key)
+}
+
+func waitForScanStatusWithTimeout(t *testing.T, f *framework.Framework, namespace, name string, targetStatus fileintv1alpha1.FileIntegrityStatusPhase, interval, timeout time.Duration) error {
+	exampleFileIntegrity := &fileintv1alpha1.FileIntegrity{}
+	var lastErr error
+	// retry and ignore errors until timeout
+	timeouterr := wait.Poll(interval, timeout, func() (bool, error) {
+		lastErr = f.Client.Get(goctx.TODO(), types.NamespacedName{Name: name, Namespace: namespace}, exampleFileIntegrity)
+		if lastErr != nil {
+			if apierrors.IsNotFound(lastErr) {
+				t.Logf("Waiting for availability of %s compliancescan\n", name)
+				return false, nil
+			}
+			t.Logf("Retrying. Got error: %v\n", lastErr)
+			return false, nil
+		}
+
+		if exampleFileIntegrity.Status.Phase == targetStatus {
+			return true, nil
+		}
+		t.Logf("Waiting for run of %s fileintegrity (%s)\n", name, exampleFileIntegrity.Status.Phase)
+		return false, nil
+	})
+	// Error in function call
+	if lastErr != nil {
+		return lastErr
 	}
-	newFileIntegrityCopy := newFileIntegrity.DeepCopy()
-	newFileIntegrityCopy.Spec = fileintv1alpha1.FileIntegritySpec{
-		Config: fileintv1alpha1.FileIntegrityConfig{
-			Name:      testConfName,
-			Namespace: namespace,
-			Key:       testConfDataKey,
-		},
+	// Timeout
+	if timeouterr != nil {
+		return timeouterr
 	}
-	err = f.Client.Update(goctx.TODO(), newFileIntegrityCopy)
-	if err != nil {
-		t.Error(err)
-	}
+	t.Logf("ComplianceScan ready (%s)\n", exampleFileIntegrity.Status.Phase)
+	return nil
+}
+
+// waitForScanStatus will poll until the fileintegrity that we're looking for reaches a certain status, or until
+// a timeout is reached.
+func waitForScanStatus(t *testing.T, f *framework.Framework, namespace, name string, targetStatus fileintv1alpha1.FileIntegrityStatusPhase) error {
+	return waitForScanStatusWithTimeout(t, f, namespace, name, targetStatus, retryInterval, timeout)
+}
+
+// TestFileIntegrityConfigurationStatus tests the following:
+// - Deployment of operator and resource
+// - Successful transition from Initializing to Active
+// - Update of the AIDE configuration
+// - Successful transition to Initialization back to Active after update
+func TestFileIntegrityConfigurationStatus(t *testing.T) {
+	f, testctx, namespace := setupTest(t)
+	defer testctx.Cleanup()
+
+	createTestConfigMap(t, f, testIntegrityName, testConfName, namespace, testConfDataKey, testAideConfig)
 
 	// wait for an initialization period.
-	err = waitForScanStatus(t, f, namespace, "test-check", fileintv1alpha1.PhaseInitializing)
+	err := waitForScanStatus(t, f, namespace, testIntegrityName, fileintv1alpha1.PhaseInitializing)
 	if err != nil {
 		t.Error(err)
 	}
 
 	// wait to go active.
-	err = waitForScanStatus(t, f, namespace, "test-check", fileintv1alpha1.PhaseActive)
+	err = waitForScanStatus(t, f, namespace, testIntegrityName, fileintv1alpha1.PhaseActive)
 	if err != nil {
 		t.Error(err)
 	}
@@ -176,37 +224,38 @@ func TestFileIntegrityConfigurationStatus(t *testing.T) {
 	}
 }
 
-// waitForScanStatus will poll until the fileintegrity that we're lookingfor reaches a certain status, or until
-// a timeout is reached.
-func waitForScanStatus(t *testing.T, f *framework.Framework, namespace, name string, targetStaus fileintv1alpha1.FileIntegrityStatusPhase) error {
-	exampleFileIntegrity := &fileintv1alpha1.FileIntegrity{}
-	var lastErr error
-	// retry and ignore errors until timeout
-	timeouterr := wait.Poll(retryInterval, timeout, func() (bool, error) {
-		lastErr = f.Client.Get(goctx.TODO(), types.NamespacedName{Name: name, Namespace: namespace}, exampleFileIntegrity)
-		if lastErr != nil {
-			if apierrors.IsNotFound(lastErr) {
-				t.Logf("Waiting for availability of %s compliancescan\n", name)
-				return false, nil
-			}
-			t.Logf("Retrying. Got error: %v\n", lastErr)
-			return false, nil
-		}
+// TestFileIntegrityConfigurationIgnoreMissing tests the following:
+// Deployment of operator and resources
+// Successful transition from Initializing to Active
+// Update of the AIDE configuration by passing a missing configmap.
+// Ensure that this does not trigger a re-init.
+func TestFileIntegrityConfigurationIgnoreMissing(t *testing.T) {
+	f, testctx, namespace := setupTest(t)
+	defer testctx.Cleanup()
 
-		if exampleFileIntegrity.Status.Phase == targetStaus {
-			return true, nil
-		}
-		t.Logf("Waiting for run of %s fileintegrity (%s)\n", name, exampleFileIntegrity.Status.Phase)
-		return false, nil
-	})
-	// Error in function call
-	if lastErr != nil {
-		return lastErr
+	// Non-existent conf
+	updateFileIntegrityConfig(t, f, testIntegrityName, "fooconf", namespace, "fookey")
+
+	// No re-init should happen, let this error pass.
+	err := waitForScanStatusWithTimeout(t, f, namespace, testIntegrityName, fileintv1alpha1.PhaseInitializing, time.Second*5, time.Second*30)
+	if err == nil {
+		t.Errorf("status changed to initialization in error")
 	}
-	// Timeout
-	if timeouterr != nil {
-		return timeouterr
+
+	// Confirm active.
+	err = waitForScanStatus(t, f, namespace, testIntegrityName, fileintv1alpha1.PhaseActive)
+	if err != nil {
+		t.Error(err)
 	}
-	t.Logf("ComplianceScan ready (%s)\n", exampleFileIntegrity.Status.Phase)
-	return nil
+
+	// confirm we still have the default conf
+	defaultConfMap, err := f.KubeClient.CoreV1().ConfigMaps(namespace).Get(common.DefaultConfigMapName, metav1.GetOptions{})
+	if err != nil {
+		t.Error(err)
+	}
+	if !bytes.Equal([]byte(defaultConfMap.Data[common.DefaultConfDataKey]), []byte(fileintegrity.DefaultAideConfig)) {
+		t.Logf("current: %s", defaultConfMap.Data[common.DefaultConfDataKey])
+		t.Logf("intended: %s", fileintegrity.DefaultAideConfig)
+		t.Error("user-provided AIDE configuration did not apply")
+	}
 }

@@ -42,6 +42,12 @@ func cleanUp(t *testing.T, namespace string) func() error {
 		if err := f.KubeClient.AppsV1().DaemonSets(namespace).Delete("aide-clean", &metav1.DeleteOptions{}); err != nil {
 			return err
 		}
+
+		if err := f.KubeClient.CoreV1().ConfigMaps(namespace).Delete(common.DefaultConfigMapName, &metav1.DeleteOptions{}); err != nil {
+			if !kerr.IsNotFound(err) {
+				return err
+			}
+		}
 		return nil
 	}
 }
