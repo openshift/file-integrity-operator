@@ -48,7 +48,7 @@ TEST_OPTIONS?=
 E2E_SKIP_CONTAINER_PUSH?=false
 
 .PHONY: all
-all: build verify test-unit ## Test and Build the file-integrity-operator
+all: build ## Test and Build the file-integrity-operator
 
 .PHONY: help
 help: ## Show this help screen
