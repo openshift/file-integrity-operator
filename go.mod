@@ -4,16 +4,9 @@ go 1.13
 
 require (
 	github.com/go-openapi/spec v0.19.0
-	github.com/onsi/ginkgo v1.10.3 // indirect
-	github.com/onsi/gomega v1.7.1 // indirect
 	github.com/operator-framework/operator-sdk v0.12.0
+	github.com/securego/gosec v0.0.0-20191119104125-df484bfa9e9f
 	github.com/spf13/pflag v1.0.3
-	github.com/stretchr/testify v1.4.0 // indirect
-	golang.org/x/crypto v0.0.0-20190923035154-9ee001bba392 // indirect
-	golang.org/x/net v0.0.0-20190923162816-aa69164e4478 // indirect
-	golang.org/x/text v0.3.2 // indirect
-	golang.org/x/tools v0.0.0-20191101200257-8dbcdeb83d3f // indirect
-	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
 	k8s.io/api v0.0.0
 	k8s.io/apimachinery v0.0.0
 	k8s.io/client-go v11.0.0+incompatible

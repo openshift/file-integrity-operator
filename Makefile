@@ -20,7 +20,7 @@ TAG?=latest
 # ===============
 CURPATH=$(PWD)
 TARGET_DIR=$(CURPATH)/build/_output
-GO=GOPROXY="https://proxy.golang.org" GOSUMDB="sum.golang.org" GO111MODULE=on go
+GO=GOFLAGS=-mod=vendor GO111MODULE=auto go
 GOBUILD=$(GO) build
 BUILD_GOPATH=$(TARGET_DIR):$(CURPATH)/cmd
 TARGET=$(TARGET_DIR)/bin/$(APP_NAME)
@@ -48,7 +48,7 @@ TEST_OPTIONS?=
 E2E_SKIP_CONTAINER_PUSH?=false
 
 .PHONY: all
-all: build verify test-unit ## Test and Build the file-integrity-operator
+all: build ## Test and Build the file-integrity-operator
 
 .PHONY: help
 help: ## Show this help screen
@@ -64,7 +64,7 @@ image: fmt operator-sdk ## Build the file-integrity-operator container image
 	$(GOPATH)/bin/operator-sdk build $(IMAGE_PATH) --image-builder $(RUNTIME)
 
 .PHONY: build
-build: fmt ## Build the file-integrity-operator binary
+build: ## Build the file-integrity-operator binary
 	$(GO) build -o $(TARGET) github.com/openshift/file-integrity-operator/cmd/manager
 
 .PHONY: operator-sdk
