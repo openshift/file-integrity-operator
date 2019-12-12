@@ -2,7 +2,6 @@ package configmap
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -10,6 +9,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -147,8 +147,8 @@ func (r *ReconcileConfigMap) reconcileAideConf(instance *corev1.ConfigMap, logge
 		return reconcile.Result{}, err
 	}
 
-	if err := triggerDaemonSetRollout(r.client, ds); err != nil {
-		logger.Error(err, "error triggering daemonSet rollout")
+	if err := deleteDaemonSetPods(r.client, ds); err != nil {
+		logger.Error(err, "error deleting daemonSet pods")
 		return reconcile.Result{}, err
 	}
 
@@ -279,14 +279,22 @@ func getConfigMapForFailureLog(cm *corev1.ConfigMap) *corev1.ConfigMap {
 	return failedCM
 }
 
-// triggerDaemonSetRollout restarts the daemonSet pods by adding an annotation to the spec template.
-func triggerDaemonSetRollout(c client.Client, ds *appsv1.DaemonSet) error {
-	annotations := map[string]string{}
-	dscpy := ds.DeepCopy()
+func deleteDaemonSetPods(c client.Client, ds *appsv1.DaemonSet) error {
+	var pods corev1.PodList
 
-	if dscpy.Spec.Template.Annotations == nil {
-		dscpy.Spec.Template.Annotations = annotations
+	if err := c.List(context.TODO(), &pods, &client.ListOptions{
+		LabelSelector: labels.SelectorFromSet(ds.GetLabels()),
+		Namespace:     common.FileIntegrityNamespace,
+	}); err != nil {
+		return err
 	}
-	dscpy.Spec.Template.Annotations["fileintegrity.openshift.io/restart-"+fmt.Sprintf("%d", time.Now().Unix())] = ""
-	return c.Update(context.TODO(), dscpy)
+
+	for _, pod := range pods.Items {
+		err := c.Delete(context.TODO(), &pod, &client.DeleteOptions{})
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
