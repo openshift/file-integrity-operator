@@ -6,6 +6,7 @@ const (
 	DefaultConfigMapName          = "aide-conf"
 	DaemonSetName                 = "aide-ds"
 	ReinitDaemonSetName           = "aide-reinit-ds"
+	LogCollectorDaemonSetName     = "logcollector"
 	AideScriptConfigMapName       = "aide-script"
 	AideInitScriptConfigMapName   = "aide-init"
 	AideReinitScriptConfigMapName = "aide-reinit"
