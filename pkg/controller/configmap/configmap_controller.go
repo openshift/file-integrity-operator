@@ -80,7 +80,7 @@ type ReconcileConfigMap struct {
 // The Controller will requeue the Request to be processed again if the returned error is non-nil or
 // Result.Requeue is true, otherwise upon completion it will remove the work from the queue.
 func (r *ReconcileConfigMap) Reconcile(request reconcile.Request) (reconcile.Result, error) {
-	if request.Namespace != "openshift-file-integrity" || request.Name != "aide-conf" {
+	if request.Namespace != "openshift-file-integrity" || request.Name != "aide-conf" { // status_condition TODO: Remove this aide-conf check, move namespace check to outside controller
 		return reconcile.Result{}, nil
 	}
 
@@ -100,6 +100,9 @@ func (r *ReconcileConfigMap) Reconcile(request reconcile.Request) (reconcile.Res
 		// Error reading the object - requeue the request.
 		return reconcile.Result{}, err
 	}
+
+	// status_condition TODO: The rest of this should be moved to its own function (reconcileConfigReinit) and branch with a new function
+	// to handle the logcollector-created temporary configmaps.
 
 	// only continue if the configmap received an update through the user-provided config
 	if _, ok := instance.Annotations["fileintegrity.openshift.io/updated"]; !ok {

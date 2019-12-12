@@ -20,8 +20,8 @@ const (
 type FileIntegrityNodeCondition string
 
 const (
-	NodeConditionGood FileIntegrityNodeCondition = "Good"
-	NodeConditionBad  FileIntegrityNodeCondition = "Bad"
+	NodeConditionSucceeded FileIntegrityNodeCondition = "Succeeded"
+	NodeConditionFailed    FileIntegrityNodeCondition = "Failed"
 )
 
 // FileIntegritySpec defines the desired state of FileIntegrity
