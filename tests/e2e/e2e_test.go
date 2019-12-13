@@ -1,7 +1,6 @@
 package e2e
 
 import (
-	"bytes"
 	goctx "context"
 	"testing"
 	"time"
@@ -189,6 +188,19 @@ func waitForScanStatus(t *testing.T, f *framework.Framework, namespace, name str
 	return waitForScanStatusWithTimeout(t, f, namespace, name, targetStatus, retryInterval, timeout)
 }
 
+func pollUntilConfigMapDataMatches(t *testing.T, f *framework.Framework, namespace, name, key, expected string, interval, timeout time.Duration) error {
+	return wait.PollImmediate(interval, timeout, func() (bool, error) {
+		cm, getErr := f.KubeClient.CoreV1().ConfigMaps(namespace).Get(name, metav1.GetOptions{})
+		if getErr != nil {
+			return false, getErr
+		}
+		if cm.Data[key] == expected {
+			return true, nil
+		}
+		return false, nil
+	})
+}
+
 // TestFileIntegrityConfigurationStatus tests the following:
 // - Deployment of operator and resource
 // - Successful transition from Initializing to Active
@@ -200,27 +212,15 @@ func TestFileIntegrityConfigurationStatus(t *testing.T) {
 
 	createTestConfigMap(t, f, testIntegrityName, testConfName, namespace, testConfDataKey, testAideConfig)
 
-	// wait for an initialization period.
-	err := waitForScanStatus(t, f, namespace, testIntegrityName, fileintv1alpha1.PhaseInitializing)
-	if err != nil {
-		t.Error(err)
-	}
-
 	// wait to go active.
-	err = waitForScanStatus(t, f, namespace, testIntegrityName, fileintv1alpha1.PhaseActive)
+	err := waitForScanStatus(t, f, namespace, testIntegrityName, fileintv1alpha1.PhaseActive)
 	if err != nil {
 		t.Error(err)
 	}
 
-	// confirm that the active configMap reflects the config update
-	defaultConfMap, err := f.KubeClient.CoreV1().ConfigMaps(namespace).Get(common.DefaultConfigMapName, metav1.GetOptions{})
-	if err != nil {
+	if err := pollUntilConfigMapDataMatches(t, f, namespace, common.DefaultConfigMapName, common.DefaultConfDataKey,
+		testAideConfig, time.Second*5, time.Minute*5); err != nil {
 		t.Error(err)
-	}
-	if !bytes.Equal([]byte(defaultConfMap.Data[common.DefaultConfDataKey]), []byte(testAideConfig)) {
-		t.Logf("current: %s", defaultConfMap.Data[common.DefaultConfDataKey])
-		t.Logf("intended: %s", testAideConfig)
-		t.Error("user-provided AIDE configuration did not apply")
 	}
 }
 
@@ -248,14 +248,8 @@ func TestFileIntegrityConfigurationIgnoreMissing(t *testing.T) {
 		t.Error(err)
 	}
 
-	// confirm we still have the default conf
-	defaultConfMap, err := f.KubeClient.CoreV1().ConfigMaps(namespace).Get(common.DefaultConfigMapName, metav1.GetOptions{})
-	if err != nil {
+	if err := pollUntilConfigMapDataMatches(t, f, namespace, common.DefaultConfigMapName, common.DefaultConfDataKey,
+		fileintegrity.DefaultAideConfig, time.Second*5, time.Minute*5); err != nil {
 		t.Error(err)
-	}
-	if !bytes.Equal([]byte(defaultConfMap.Data[common.DefaultConfDataKey]), []byte(fileintegrity.DefaultAideConfig)) {
-		t.Logf("current: %s", defaultConfMap.Data[common.DefaultConfDataKey])
-		t.Logf("intended: %s", fileintegrity.DefaultAideConfig)
-		t.Error("user-provided AIDE configuration did not apply")
 	}
 }
