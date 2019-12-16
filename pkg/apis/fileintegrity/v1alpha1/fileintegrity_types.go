@@ -1,8 +1,6 @@
 package v1alpha1
 
 import (
-	"time"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -57,7 +55,7 @@ type FileIntegrityStatusConditions struct {
 
 type NodeStatus struct {
 	NodeName                 string                     `json:"nodeName"`
-	LastProbeTime            time.Time                  `json:"lastProbeTime"`
+	LastProbeTime            metav1.Time                `json:"lastProbeTime"`
 	Condition                FileIntegrityNodeCondition `json:"condition"`
 	ResultConfigMapName      string                     `json:"resultConfigMapName"`
 	ResultConfigMapNamespace string                     `json:"resultConfigMapNamespace"`
