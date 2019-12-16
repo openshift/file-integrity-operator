@@ -25,9 +25,6 @@ const (
 // FileIntegritySpec defines the desired state of FileIntegrity
 // +k8s:openapi-gen=true
 type FileIntegritySpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
-	// Add custom validation using kubebuilder tags: https://book-v1.book.kubebuilder.io/beyond_basics/generating_crd.html
 	Config FileIntegrityConfig `json:"config"`
 }
 
@@ -42,9 +39,6 @@ type FileIntegrityConfig struct {
 // FileIntegrityStatus defines the observed state of FileIntegrity
 // +k8s:openapi-gen=true
 type FileIntegrityStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
-	// Add custom validation using kubebuilder tags: https://book-v1.book.kubebuilder.io/beyond_basics/generating_crd.html
 	Phase      FileIntegrityStatusPhase      `json:"phase,omitempty"`
 	Conditions FileIntegrityStatusConditions `json:"conditions,omitempty"`
 }

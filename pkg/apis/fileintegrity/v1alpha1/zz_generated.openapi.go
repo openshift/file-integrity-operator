@@ -102,8 +102,7 @@ func schema_pkg_apis_fileintegrity_v1alpha1_FileIntegritySpec(ref common.Referen
 				Properties: map[string]spec.Schema{
 					"config": {
 						SchemaProps: spec.SchemaProps{
-							Description: "INSERT ADDITIONAL SPEC FIELDS - desired state of cluster Important: Run \"operator-sdk generate k8s\" to regenerate code after modifying this file Add custom validation using kubebuilder tags: https://book-v1.book.kubebuilder.io/beyond_basics/generating_crd.html",
-							Ref:         ref("github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1.FileIntegrityConfig"),
+							Ref: ref("github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1.FileIntegrityConfig"),
 						},
 					},
 				},
@@ -124,9 +123,8 @@ func schema_pkg_apis_fileintegrity_v1alpha1_FileIntegrityStatus(ref common.Refer
 				Properties: map[string]spec.Schema{
 					"phase": {
 						SchemaProps: spec.SchemaProps{
-							Description: "INSERT ADDITIONAL STATUS FIELD - define observed state of cluster Important: Run \"operator-sdk generate k8s\" to regenerate code after modifying this file Add custom validation using kubebuilder tags: https://book-v1.book.kubebuilder.io/beyond_basics/generating_crd.html",
-							Type:        []string{"string"},
-							Format:      "",
+							Type:   []string{"string"},
+							Format: "",
 						},
 					},
 					"conditions": {
