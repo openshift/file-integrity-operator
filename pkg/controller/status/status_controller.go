@@ -23,11 +23,6 @@ import (
 var log = logf.Log.WithName("controller_status")
 var statusRequeue = time.Second * 30
 
-/**
-* USER ACTION REQUIRED: This is a scaffold file intended for the user to modify with their own Controller
-* business logic.  Delete these comments after modifying this file.*
- */
-
 // Add creates a new FileIntegrity Controller and adds it to the Manager. The Manager will set fields on the Controller
 // and Start it when the Manager is Started.
 func Add(mgr manager.Manager) error {
@@ -146,6 +141,7 @@ func updateStatus(client client.Client, integrity *fileintegrityv1alpha1.FileInt
 	if integrity.Status.Phase != phase {
 		integrityCpy := integrity.DeepCopy()
 		integrityCpy.Status.Phase = phase
+
 		return client.Status().Update(context.TODO(), integrityCpy)
 	}
 	return nil

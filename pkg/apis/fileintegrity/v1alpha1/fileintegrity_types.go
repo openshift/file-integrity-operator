@@ -39,14 +39,12 @@ type FileIntegrityConfig struct {
 // FileIntegrityStatus defines the observed state of FileIntegrity
 // +k8s:openapi-gen=true
 type FileIntegrityStatus struct {
-	Phase      FileIntegrityStatusPhase      `json:"phase,omitempty"`
-	Conditions FileIntegrityStatusConditions `json:"conditions,omitempty"`
+	Phase    FileIntegrityStatusPhase `json:"phase,omitempty"`
+	Statuses []NodeStatus             `json:"nodeStatus,omitempty"`
 }
 
-type FileIntegrityStatusConditions struct {
-	Nodes []NodeStatus `json:"nodes"`
-}
-
+// NodeStatus defines the status of a specific node
+// +k8s:openapi-gen=true
 type NodeStatus struct {
 	NodeName                 string                     `json:"nodeName"`
 	LastProbeTime            metav1.Time                `json:"lastProbeTime"`

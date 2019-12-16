@@ -15,6 +15,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1.FileIntegrityConfig": schema_pkg_apis_fileintegrity_v1alpha1_FileIntegrityConfig(ref),
 		"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1.FileIntegritySpec":   schema_pkg_apis_fileintegrity_v1alpha1_FileIntegritySpec(ref),
 		"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1.FileIntegrityStatus": schema_pkg_apis_fileintegrity_v1alpha1_FileIntegrityStatus(ref),
+		"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1.NodeStatus":          schema_pkg_apis_fileintegrity_v1alpha1_NodeStatus(ref),
 	}
 }
 
@@ -127,15 +128,67 @@ func schema_pkg_apis_fileintegrity_v1alpha1_FileIntegrityStatus(ref common.Refer
 							Format: "",
 						},
 					},
-					"conditions": {
+					"nodeStatus": {
 						SchemaProps: spec.SchemaProps{
-							Ref: ref("github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1.FileIntegrityStatusConditions"),
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1.NodeStatus"),
+									},
+								},
+							},
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1.FileIntegrityStatusConditions"},
+			"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1.NodeStatus"},
+	}
+}
+
+func schema_pkg_apis_fileintegrity_v1alpha1_NodeStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "NodeStatus defines the status of a specific node",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"nodeName": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"lastProbeTime": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+					"condition": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"resultConfigMapName": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"resultConfigMapNamespace": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+				},
+				Required: []string{"nodeName", "lastProbeTime", "condition", "resultConfigMapName", "resultConfigMapNamespace"},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
 	}
 }

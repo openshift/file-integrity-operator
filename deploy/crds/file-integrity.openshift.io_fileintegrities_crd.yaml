@@ -48,33 +48,29 @@ spec:
         status:
           description: FileIntegrityStatus defines the observed state of FileIntegrity
           properties:
-            conditions:
-              properties:
-                nodes:
-                  items:
-                    properties:
-                      condition:
-                        type: string
-                      lastProbeTime:
-                        format: date-time
-                        type: string
-                      nodeName:
-                        type: string
-                      resultConfigMapName:
-                        type: string
-                      resultConfigMapNamespace:
-                        type: string
-                    required:
-                    - condition
-                    - lastProbeTime
-                    - nodeName
-                    - resultConfigMapName
-                    - resultConfigMapNamespace
-                    type: object
-                  type: array
-              required:
-              - nodes
-              type: object
+            nodeStatus:
+              items:
+                description: NodeStatus defines the status of a specific node
+                properties:
+                  condition:
+                    type: string
+                  lastProbeTime:
+                    format: date-time
+                    type: string
+                  nodeName:
+                    type: string
+                  resultConfigMapName:
+                    type: string
+                  resultConfigMapNamespace:
+                    type: string
+                required:
+                - condition
+                - lastProbeTime
+                - nodeName
+                - resultConfigMapName
+                - resultConfigMapNamespace
+                type: object
+              type: array
             phase:
               type: string
           type: object
