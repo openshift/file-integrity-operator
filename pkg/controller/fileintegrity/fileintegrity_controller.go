@@ -202,7 +202,7 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 					if defaultAideConfCopy.Annotations == nil {
 						defaultAideConfCopy.Annotations = annotations
 					}
-					defaultAideConfCopy.Annotations["fileintegrity.openshift.io/updated"] = "true"
+					defaultAideConfCopy.Annotations[common.AideConfigUpdatedAnnotationKey] = "true"
 
 					updateErr := r.client.Update(context.TODO(), defaultAideConfCopy)
 					if updateErr != nil {
@@ -265,6 +265,9 @@ func defaultAIDEConfigMap() *corev1.ConfigMap {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      common.DefaultConfigMapName,
 			Namespace: common.FileIntegrityNamespace,
+			Labels: map[string]string{
+				common.AideConfigLabelKey: "",
+			},
 		},
 		Data: map[string]string{
 			"aide.conf": DefaultAideConfig,

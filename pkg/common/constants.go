@@ -1,15 +1,19 @@
 package common
 
 const (
-	FileIntegrityNamespace        = "openshift-file-integrity"
-	DefaultConfDataKey            = "aide.conf"
-	DefaultConfigMapName          = "aide-conf"
-	DaemonSetName                 = "aide-ds"
-	ReinitDaemonSetName           = "aide-reinit-ds"
-	LogCollectorDaemonSetName     = "logcollector"
-	AideScriptConfigMapName       = "aide-script"
-	AideInitScriptConfigMapName   = "aide-init"
-	AideReinitScriptConfigMapName = "aide-reinit"
-	OperatorServiceAccountName    = "file-integrity-operator"
-	AideScriptPath                = "/scripts/aide.sh"
+	// AideConfigLabelKey tells us if a specific ConfigMap is an AIDE config
+	AideConfigLabelKey = "file-integrity.openshift.io/aide-conf"
+	// AideConfigUpdatedAnnotationKey tells us if an aide config needs updating
+	AideConfigUpdatedAnnotationKey = "file-integrity.openshift.io/updated"
+	AideInitScriptConfigMapName    = "aide-init"
+	AideReinitScriptConfigMapName  = "aide-reinit"
+	AideScriptConfigMapName        = "aide-script"
+	AideScriptPath                 = "/scripts/aide.sh"
+	DaemonSetName                  = "aide-ds"
+	DefaultConfDataKey             = "aide.conf"
+	DefaultConfigMapName           = "aide-conf"
+	FileIntegrityNamespace         = "openshift-file-integrity"
+	LogCollectorDaemonSetName      = "logcollector"
+	OperatorServiceAccountName     = "file-integrity-operator"
+	ReinitDaemonSetName            = "aide-reinit-ds"
 )
