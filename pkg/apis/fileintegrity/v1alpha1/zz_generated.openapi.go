@@ -15,6 +15,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1.FileIntegrityConfig": schema_pkg_apis_fileintegrity_v1alpha1_FileIntegrityConfig(ref),
 		"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1.FileIntegritySpec":   schema_pkg_apis_fileintegrity_v1alpha1_FileIntegritySpec(ref),
 		"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1.FileIntegrityStatus": schema_pkg_apis_fileintegrity_v1alpha1_FileIntegrityStatus(ref),
+		"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1.NodeStatus":          schema_pkg_apis_fileintegrity_v1alpha1_NodeStatus(ref),
 	}
 }
 
@@ -27,14 +28,14 @@ func schema_pkg_apis_fileintegrity_v1alpha1_FileIntegrity(ref common.ReferenceCa
 				Properties: map[string]spec.Schema{
 					"kind": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds",
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"apiVersion": {
 						SchemaProps: spec.SchemaProps{
-							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources",
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -102,8 +103,7 @@ func schema_pkg_apis_fileintegrity_v1alpha1_FileIntegritySpec(ref common.Referen
 				Properties: map[string]spec.Schema{
 					"config": {
 						SchemaProps: spec.SchemaProps{
-							Description: "INSERT ADDITIONAL SPEC FIELDS - desired state of cluster Important: Run \"operator-sdk generate k8s\" to regenerate code after modifying this file Add custom validation using kubebuilder tags: https://book-v1.book.kubebuilder.io/beyond_basics/generating_crd.html",
-							Ref:         ref("github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1.FileIntegrityConfig"),
+							Ref: ref("github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1.FileIntegrityConfig"),
 						},
 					},
 				},
@@ -124,13 +124,71 @@ func schema_pkg_apis_fileintegrity_v1alpha1_FileIntegrityStatus(ref common.Refer
 				Properties: map[string]spec.Schema{
 					"phase": {
 						SchemaProps: spec.SchemaProps{
-							Description: "INSERT ADDITIONAL STATUS FIELD - define observed state of cluster Important: Run \"operator-sdk generate k8s\" to regenerate code after modifying this file Add custom validation using kubebuilder tags: https://book-v1.book.kubebuilder.io/beyond_basics/generating_crd.html",
-							Type:        []string{"string"},
-							Format:      "",
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"nodeStatus": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1.NodeStatus"),
+									},
+								},
+							},
 						},
 					},
 				},
 			},
 		},
+		Dependencies: []string{
+			"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1.NodeStatus"},
+	}
+}
+
+func schema_pkg_apis_fileintegrity_v1alpha1_NodeStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "NodeStatus defines the status of a specific node",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"nodeName": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"lastProbeTime": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+					"condition": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"resultConfigMapName": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"resultConfigMapNamespace": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+				},
+				Required: []string{"nodeName", "lastProbeTime", "condition", "resultConfigMapName", "resultConfigMapNamespace"},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
 	}
 }

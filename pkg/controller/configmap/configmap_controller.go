@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -74,16 +75,10 @@ type ReconcileConfigMap struct {
 
 // Reconcile reads that state of the cluster for a ConfigMap object and makes changes based on the state read
 // and what is in the ConfigMap.Spec
-// TODO(user): Modify this Reconcile function to implement your Controller logic.  This example creates
-// a Pod as an example
 // Note:
 // The Controller will requeue the Request to be processed again if the returned error is non-nil or
 // Result.Requeue is true, otherwise upon completion it will remove the work from the queue.
 func (r *ReconcileConfigMap) Reconcile(request reconcile.Request) (reconcile.Result, error) {
-	if request.Namespace != "openshift-file-integrity" || request.Name != "aide-conf" {
-		return reconcile.Result{}, nil
-	}
-
 	reqLogger := log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
 	reqLogger.Info("Reconciling ConfigMap")
 
@@ -101,9 +96,20 @@ func (r *ReconcileConfigMap) Reconcile(request reconcile.Request) (reconcile.Res
 		return reconcile.Result{}, err
 	}
 
+	// status_condition TODO: The rest of this should be moved to its own function (reconcileConfigReinit) and branch with a new function
+	// to handle the logcollector-created temporary configmaps.
+
+	if common.IsAideConfig(instance.Labels) {
+		return r.reconcileAideConf(instance, reqLogger)
+	}
+
+	return reconcile.Result{}, nil
+}
+
+func (r *ReconcileConfigMap) reconcileAideConf(instance *corev1.ConfigMap, logger logr.Logger) (reconcile.Result, error) {
 	// only continue if the configmap received an update through the user-provided config
-	if _, ok := instance.Annotations["fileintegrity.openshift.io/updated"]; !ok {
-		reqLogger.Info("DBG: updated annotation not found - removing from queue")
+	if _, ok := instance.Annotations[common.AideConfigUpdatedAnnotationKey]; !ok {
+		logger.Info("DBG: updated annotation not found - removing from queue")
 		return reconcile.Result{}, nil
 	}
 
@@ -112,19 +118,19 @@ func (r *ReconcileConfigMap) Reconcile(request reconcile.Request) (reconcile.Res
 	// daemonSets that they need to back up and re-initialize the AIDE database. So once we've confirmed that the
 	// re-init daemonSets have started running we can delete them and continue with the rollout of the AIDE pods.
 	reinitDS := &appsv1.DaemonSet{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: common.ReinitDaemonSetName, Namespace: common.FileIntegrityNamespace}, reinitDS)
+	err := r.client.Get(context.TODO(), types.NamespacedName{Name: common.ReinitDaemonSetName, Namespace: common.FileIntegrityNamespace}, reinitDS)
 	if err != nil {
 		// includes notFound, we will requeue here at least once.
-		reqLogger.Error(err, "error getting reinit daemonSet")
+		logger.Error(err, "error getting reinit daemonSet")
 		return reconcile.Result{}, err
 	}
 	// not ready, requeue
 	if !common.DaemonSetIsReady(reinitDS) {
-		reqLogger.Info("DBG: requeue of DS")
+		logger.Info("DBG: requeue of DS")
 		return reconcile.Result{RequeueAfter: time.Duration(5 * time.Second)}, nil // guessing on 5 seconds as acceptable requeue rate
 	}
 
-	reqLogger.Info("reinitDaemonSet statuses", "Status", reinitDS.Status)
+	logger.Info("reinitDaemonSet statuses", "Status", reinitDS.Status)
 
 	// reinit daemonSet is ready, so we're finished with it
 	if err := r.client.Delete(context.TODO(), reinitDS); err != nil {
@@ -134,24 +140,23 @@ func (r *ReconcileConfigMap) Reconcile(request reconcile.Request) (reconcile.Res
 	ds := &appsv1.DaemonSet{}
 	err = r.client.Get(context.TODO(), types.NamespacedName{Name: common.DaemonSetName, Namespace: common.FileIntegrityNamespace}, ds)
 	if err != nil {
-		reqLogger.Error(err, "error getting daemonSet")
+		logger.Error(err, "error getting daemonSet")
 		return reconcile.Result{}, err
 	}
 
 	if err := triggerDaemonSetRollout(r.client, ds); err != nil {
-		reqLogger.Error(err, "error triggering daemonSet rollout")
+		logger.Error(err, "error triggering daemonSet rollout")
 		return reconcile.Result{}, err
 	}
 
-	reqLogger.Info("DBG: rollout triggered, clearing update annotation")
+	logger.Info("DBG: rollout triggered, clearing update annotation")
 	// unset update annotation
 	conf := instance.DeepCopy()
 	conf.Annotations = nil
 	if err := r.client.Update(context.TODO(), conf); err != nil {
-		reqLogger.Error(err, "error clearing configMap annotations")
+		logger.Error(err, "error clearing configMap annotations")
 		return reconcile.Result{}, err
 	}
-
 	return reconcile.Result{}, nil
 }
 

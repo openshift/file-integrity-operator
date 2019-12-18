@@ -19,12 +19,12 @@ spec:
         apiVersion:
           description: 'APIVersion defines the versioned schema of this representation
             of an object. Servers should convert recognized schemas to the latest
-            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources'
+            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
           type: string
         kind:
           description: 'Kind is a string value representing the REST resource this
             object represents. Servers may infer this from the endpoint the client
-            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds'
+            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
           type: string
         metadata:
           type: object
@@ -32,10 +32,8 @@ spec:
           description: FileIntegritySpec defines the desired state of FileIntegrity
           properties:
             config:
-              description: 'INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-                Important: Run "operator-sdk generate k8s" to regenerate code after
-                modifying this file Add custom validation using kubebuilder tags:
-                https://book-v1.book.kubebuilder.io/beyond_basics/generating_crd.html'
+              description: FileIntegrityConfig defines the name, namespace, and data
+                key for an AIDE config to use for integrity checking.
               properties:
                 key:
                   type: string
@@ -50,11 +48,30 @@ spec:
         status:
           description: FileIntegrityStatus defines the observed state of FileIntegrity
           properties:
+            nodeStatus:
+              items:
+                description: NodeStatus defines the status of a specific node
+                properties:
+                  condition:
+                    type: string
+                  lastProbeTime:
+                    format: date-time
+                    type: string
+                  nodeName:
+                    type: string
+                  resultConfigMapName:
+                    type: string
+                  resultConfigMapNamespace:
+                    type: string
+                required:
+                - condition
+                - lastProbeTime
+                - nodeName
+                - resultConfigMapName
+                - resultConfigMapNamespace
+                type: object
+              type: array
             phase:
-              description: 'INSERT ADDITIONAL STATUS FIELD - define observed state
-                of cluster Important: Run "operator-sdk generate k8s" to regenerate
-                code after modifying this file Add custom validation using kubebuilder
-                tags: https://book-v1.book.kubebuilder.io/beyond_basics/generating_crd.html'
               type: string
           type: object
       type: object

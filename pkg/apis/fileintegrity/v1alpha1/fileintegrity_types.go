@@ -15,12 +15,16 @@ const (
 	PhasePending      FileIntegrityStatusPhase = "Pending"
 )
 
+type FileIntegrityNodeCondition string
+
+const (
+	NodeConditionSucceeded FileIntegrityNodeCondition = "Succeeded"
+	NodeConditionFailed    FileIntegrityNodeCondition = "Failed"
+)
+
 // FileIntegritySpec defines the desired state of FileIntegrity
 // +k8s:openapi-gen=true
 type FileIntegritySpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
-	// Add custom validation using kubebuilder tags: https://book-v1.book.kubebuilder.io/beyond_basics/generating_crd.html
 	Config FileIntegrityConfig `json:"config"`
 }
 
@@ -35,10 +39,18 @@ type FileIntegrityConfig struct {
 // FileIntegrityStatus defines the observed state of FileIntegrity
 // +k8s:openapi-gen=true
 type FileIntegrityStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
-	// Add custom validation using kubebuilder tags: https://book-v1.book.kubebuilder.io/beyond_basics/generating_crd.html
-	Phase FileIntegrityStatusPhase `json:"phase,omitempty"`
+	Phase    FileIntegrityStatusPhase `json:"phase,omitempty"`
+	Statuses []NodeStatus             `json:"nodeStatus,omitempty"`
+}
+
+// NodeStatus defines the status of a specific node
+// +k8s:openapi-gen=true
+type NodeStatus struct {
+	NodeName                 string                     `json:"nodeName"`
+	LastProbeTime            metav1.Time                `json:"lastProbeTime"`
+	Condition                FileIntegrityNodeCondition `json:"condition"`
+	ResultConfigMapName      string                     `json:"resultConfigMapName"`
+	ResultConfigMapNamespace string                     `json:"resultConfigMapNamespace"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
