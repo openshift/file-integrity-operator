@@ -1,6 +1,7 @@
 # Operator variables
 # ==================
 export APP_NAME=file-integrity-operator
+LOG_COLLECTOR=file-integrity-logcollector
 
 # Container image variables
 # =========================
@@ -11,6 +12,8 @@ RUNTIME?=podman
 # or your e2e tests. This is overwritten if we bulid the image and push it to
 # the cluster or if we're on CI.
 IMAGE_PATH?=$(IMAGE_REPO)/$(APP_NAME)
+LOGCOLLECTOR_IMAGE_PATH?=$(IMAGE_REPO)/$(LOG_COLLECTOR)
+LOGCOLLECTOR_DOCKERFILE_PATH?=./images/logcollector/Dockerfile
 
 # Image tag to use. Set this if you want to use a specific tag for building
 # or your e2e tests.
@@ -23,7 +26,8 @@ TARGET_DIR=$(CURPATH)/build/_output
 GO=GOFLAGS=-mod=vendor GO111MODULE=auto go
 GOBUILD=$(GO) build
 BUILD_GOPATH=$(TARGET_DIR):$(CURPATH)/cmd
-TARGET=$(TARGET_DIR)/bin/$(APP_NAME)
+TARGET_OPERATOR=$(TARGET_DIR)/bin/$(APP_NAME)
+TARGET_LOGCOLLECTOR=$(TARGET_DIR)/bin/$(LOG_COLLECTOR)
 MAIN_PKG=cmd/manager/main.go
 PKGS=$(shell go list ./... | grep -v -E '/vendor/|/test|/examples')
 
@@ -65,12 +69,22 @@ help: ## Show this help screen
 
 
 .PHONY: image
-image: fmt operator-sdk ## Build the file-integrity-operator container image
+image: operator-image logcollector-image fmt operator-sdk ## Build the file-integrity-operator container image
+
+operator-image:
 	$(GOPATH)/bin/operator-sdk build $(IMAGE_PATH) --image-builder $(RUNTIME)
 
+logcollector-image:
+	$(RUNTIME) build -f $(LOGCOLLECTOR_DOCKERFILE_PATH) -t $(LOGCOLLECTOR_IMAGE_PATH):$(TAG) .
+
 .PHONY: build
-build: ## Build the file-integrity-operator binary
-	$(GO) build -o $(TARGET) github.com/openshift/file-integrity-operator/cmd/manager
+build: operator-bin logcollector-bin ## Build the file-integrity-operator binaries
+
+operator-bin:
+	$(GO) build -o $(TARGET_OPERATOR) github.com/openshift/file-integrity-operator/cmd/manager
+
+logcollector-bin:
+	$(GO) build -o $(TARGET_LOGCOLLECTOR) github.com/openshift/file-integrity-operator/cmd/logcollector
 
 .PHONY: operator-sdk
 operator-sdk:
@@ -178,7 +192,8 @@ image-to-cluster: namespace openshift-user image
 	@echo "Pushing image $(IMAGE_PATH):$(TAG) to the image registry"
 	IMAGE_REGISTRY_HOST=$$(oc get route default-route -n openshift-image-registry --template='{{ .spec.host }}'); \
 		$(RUNTIME) login --tls-verify=false -u $(OPENSHIFT_USER) -p $(shell oc whoami -t) $${IMAGE_REGISTRY_HOST}; \
-		$(RUNTIME) push --tls-verify=false $(IMAGE_PATH):$(TAG) $${IMAGE_REGISTRY_HOST}/$(NAMESPACE)/$(APP_NAME):$(TAG)
+		$(RUNTIME) push --tls-verify=false $(IMAGE_PATH):$(TAG) $${IMAGE_REGISTRY_HOST}/$(NAMESPACE)/$(APP_NAME):$(TAG); \
+		$(RUNTIME) push --tls-verify=false $(LOGCOLLECTOR_IMAGE_PATH):$(TAG) $${IMAGE_REGISTRY_HOST}/$(NAMESPACE)/$(LOG_COLLECTOR):$(TAG)
 	@echo "Removing the route from the image registry"
 	@oc patch configs.imageregistry.operator.openshift.io/cluster --patch '{"spec":{"defaultRoute":false}}' --type=merge
 	$(eval IMAGE_PATH = image-registry.openshift-image-registry.svc:5000/$(NAMESPACE)/$(APP_NAME):$(TAG))

@@ -7,7 +7,7 @@ ENV GOFLAGS="-mod=vendor"
 
 COPY . .
 
-RUN make
+RUN make operator-bin
 
 # Step two: containerize file-integrity-operator
 FROM registry.access.redhat.com/ubi8/ubi-minimal:latest

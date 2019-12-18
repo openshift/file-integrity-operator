@@ -3,10 +3,12 @@ module github.com/openshift/file-integrity-operator
 go 1.13
 
 require (
+	github.com/cenkalti/backoff/v3 v3.1.1
 	github.com/go-logr/logr v0.1.0
 	github.com/go-openapi/spec v0.19.2
 	github.com/operator-framework/operator-sdk v0.13.0
 	github.com/securego/gosec v0.0.0-20191119104125-df484bfa9e9f
+	github.com/spf13/cobra v0.0.5
 	github.com/spf13/pflag v1.0.5
 	k8s.io/api v0.0.0
 	k8s.io/apimachinery v0.0.0
