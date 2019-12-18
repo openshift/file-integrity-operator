@@ -54,6 +54,8 @@ spec:
                 properties:
                   condition:
                     type: string
+                  errorMesssage:
+                    type: string
                   lastProbeTime:
                     format: date-time
                     type: string
@@ -67,8 +69,6 @@ spec:
                 - condition
                 - lastProbeTime
                 - nodeName
-                - resultConfigMapName
-                - resultConfigMapNamespace
                 type: object
               type: array
             phase:

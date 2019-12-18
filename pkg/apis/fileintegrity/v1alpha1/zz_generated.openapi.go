@@ -184,8 +184,14 @@ func schema_pkg_apis_fileintegrity_v1alpha1_NodeStatus(ref common.ReferenceCallb
 							Format: "",
 						},
 					},
+					"errorMesssage": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
 				},
-				Required: []string{"nodeName", "lastProbeTime", "condition", "resultConfigMapName", "resultConfigMapNamespace"},
+				Required: []string{"nodeName", "lastProbeTime", "condition"},
 			},
 		},
 		Dependencies: []string{

@@ -246,7 +246,7 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 			return reconcile.Result{}, err
 		}
 		// create
-		ds := aideDaemonset()
+		ds := aideDaemonset(common.DaemonSetName, instance)
 
 		if ownerErr := controllerutil.SetControllerReference(instance, ds, r.scheme); ownerErr != nil {
 			log.Error(ownerErr, "Failed to set daemonset ownership", "DaemonSet", ds)
@@ -254,7 +254,7 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 		}
 		if createErr := r.client.Create(context.TODO(), ds); createErr != nil {
 			reqLogger.Error(createErr, "error creating daemonSet")
-			return reconcile.Result{}, createErr
+			return reconcile.Result{}, common.IgnoreAlreadyExists(createErr)
 		}
 	}
 	return reconcile.Result{}, nil
@@ -399,26 +399,26 @@ func reinitAideDaemonset() *appsv1.DaemonSet {
 	}
 }
 
-func aideDaemonset() *appsv1.DaemonSet {
+func aideDaemonset(dsName string, fi *fileintegrityv1alpha1.FileIntegrity) *appsv1.DaemonSet {
 	priv := true
 	runAs := int64(0)
 	mode := int32(0744)
 
 	return &appsv1.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      common.DaemonSetName,
+			Name:      dsName,
 			Namespace: common.FileIntegrityNamespace,
 		},
 		Spec: appsv1.DaemonSetSpec{
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
-					"app": common.DaemonSetName,
+					"app": dsName,
 				},
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						"app": common.DaemonSetName,
+						"app": dsName,
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -477,6 +477,35 @@ func aideDaemonset() *appsv1.DaemonSet {
 								{
 									Name:      common.AideScriptConfigMapName,
 									MountPath: "/scripts",
+								},
+							},
+						},
+						{
+							SecurityContext: &corev1.SecurityContext{
+								Privileged: &priv,
+							},
+							Name:  "logcollector",
+							Image: "image-registry.openshift-image-registry.svc:5000/openshift-file-integrity/file-integrity-logcollector:latest",
+							Args: []string{
+								"--file=" + aideLogPath,
+								"--config-map-prefix=" + dsName,
+								"--owner=" + fi.Name,
+								"--namespace=" + fi.Namespace,
+							},
+							Env: []corev1.EnvVar{
+								{
+									Name: "NODE_NAME",
+									ValueFrom: &corev1.EnvVarSource{
+										FieldRef: &corev1.ObjectFieldSelector{
+											FieldPath: "spec.nodeName",
+										},
+									},
+								},
+							},
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      "hostroot",
+									MountPath: "/hostroot",
 								},
 							},
 						},
