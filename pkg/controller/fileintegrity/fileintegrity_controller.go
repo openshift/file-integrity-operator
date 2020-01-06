@@ -491,6 +491,10 @@ func aideDaemonset(dsName string, fi *fileintegrityv1alpha1.FileIntegrity) *apps
 								"--config-map-prefix=" + dsName,
 								"--owner=" + fi.Name,
 								"--namespace=" + fi.Namespace,
+								"--timeout=120",
+								"--interval=480",
+								// TODO: remove this for production
+								"--debug=true",
 							},
 							Env: []corev1.EnvVar{
 								{

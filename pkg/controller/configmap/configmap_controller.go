@@ -198,8 +198,7 @@ func (r *ReconcileConfigMap) handleIntegrityLog(cm *corev1.ConfigMap, logger log
 			LastProbeTime: cm.GetCreationTimestamp(),
 			ErrorMsg:      errorMsg,
 		}
-		fi.Status.Statuses = append(fi.Status.Statuses, status)
-		if err = r.client.Update(context.TODO(), fi); err != nil {
+		if err := r.updateStatus(fi, status); err != nil {
 			return reconcile.Result{}, err
 		}
 	} else if common.IsIntegrityLogAFailure(cm) {
@@ -214,6 +213,7 @@ func (r *ReconcileConfigMap) handleIntegrityLog(cm *corev1.ConfigMap, logger log
 				return reconcile.Result{}, err
 			}
 		}
+
 		status := fileintegrityv1alpha1.NodeStatus{
 			Condition:                fileintegrityv1alpha1.NodeConditionFailed,
 			NodeName:                 node,
@@ -221,8 +221,7 @@ func (r *ReconcileConfigMap) handleIntegrityLog(cm *corev1.ConfigMap, logger log
 			ResultConfigMapName:      failedCM.Name,
 			ResultConfigMapNamespace: failedCM.Namespace,
 		}
-		fi.Status.Statuses = append(fi.Status.Statuses, status)
-		if err = r.client.Update(context.TODO(), fi); err != nil {
+		if err := r.updateStatus(fi, status); err != nil {
 			return reconcile.Result{}, err
 		}
 	} else {
@@ -231,8 +230,7 @@ func (r *ReconcileConfigMap) handleIntegrityLog(cm *corev1.ConfigMap, logger log
 			NodeName:      node,
 			LastProbeTime: cm.GetCreationTimestamp(),
 		}
-		fi.Status.Statuses = append(fi.Status.Statuses, status)
-		if err = r.client.Update(context.TODO(), fi); err != nil {
+		if err := r.updateStatus(fi, status); err != nil {
 			return reconcile.Result{}, err
 		}
 	}
@@ -245,6 +243,24 @@ func (r *ReconcileConfigMap) handleIntegrityLog(cm *corev1.ConfigMap, logger log
 	return reconcile.Result{}, nil
 }
 
+func (r *ReconcileConfigMap) updateStatus(fi *fileintegrityv1alpha1.FileIntegrity, status fileintegrityv1alpha1.NodeStatus) error {
+	statuses := make([]fileintegrityv1alpha1.NodeStatus, 0)
+
+	// Collect all the status entries except for those containing the current node and == cond argument. We'll be
+	// updating that entry below. We want to keep entries for the current node that do not match cond, so that the
+	// last status timestamp of a previous condition remains.
+	for i, _ := range fi.Status.Statuses {
+		if fi.Status.Statuses[i].NodeName == status.NodeName && fi.Status.Statuses[i].Condition == status.Condition {
+			continue
+		}
+		statuses = append(statuses, fi.Status.Statuses[i])
+	}
+	statuses = append(statuses, status)
+	fi.Status.Statuses = statuses
+
+	return r.client.Status().Update(context.TODO(), fi)
+}
+
 func getConfigMapForFailureLog(cm *corev1.ConfigMap) *corev1.ConfigMap {
 	failedCM := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -252,6 +268,7 @@ func getConfigMapForFailureLog(cm *corev1.ConfigMap) *corev1.ConfigMap {
 			Namespace: cm.Namespace,
 			Labels:    cm.Labels,
 		},
+		Data: cm.Data,
 	}
 	// We remove the log label so we don't queue the new ConfigMap
 	delete(failedCM.Labels, common.IntegrityLogLabelKey)

@@ -54,7 +54,7 @@ spec:
                 properties:
                   condition:
                     type: string
-                  errorMesssage:
+                  errorMessage:
                     type: string
                   lastProbeTime:
                     format: date-time

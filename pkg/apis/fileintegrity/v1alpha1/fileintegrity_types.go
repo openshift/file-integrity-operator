@@ -52,7 +52,7 @@ type NodeStatus struct {
 	Condition                FileIntegrityNodeCondition `json:"condition"`
 	ResultConfigMapName      string                     `json:"resultConfigMapName,omitempty"`
 	ResultConfigMapNamespace string                     `json:"resultConfigMapNamespace,omitempty"`
-	ErrorMsg                 string                     `json:"errorMesssage,omitempty"`
+	ErrorMsg                 string                     `json:"errorMessage,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

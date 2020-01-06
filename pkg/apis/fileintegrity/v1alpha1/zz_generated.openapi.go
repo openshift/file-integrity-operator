@@ -184,7 +184,7 @@ func schema_pkg_apis_fileintegrity_v1alpha1_NodeStatus(ref common.ReferenceCallb
 							Format: "",
 						},
 					},
-					"errorMesssage": {
+					"errorMessage": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"string"},
 							Format: "",

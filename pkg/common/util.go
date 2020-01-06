@@ -26,8 +26,7 @@ func IsIntegrityLog(labels map[string]string) bool {
 // from an integrity check logcollector contains an error
 func IsIntegrityLogAnError(cm *corev1.ConfigMap) bool {
 	_, containsErrorAnnotation := cm.Annotations[IntegrityLogErrorAnnotationKey]
-	_, containsContentKey := cm.Data[IntegrityLogContentKey]
-	return containsErrorAnnotation || !containsContentKey
+	return containsErrorAnnotation
 }
 
 // IsIntegrityLogAFailure returns whether the given map coming
