@@ -59,6 +59,16 @@ E2E_SKIP_CONTAINER_PUSH?=false
 # 	make e2e E2E_GO_TEST_FLAGS="-v -run TestE2E/TestScanWithNodeSelectorFiltersCorrectly"
 E2E_GO_TEST_FLAGS?=-v -timeout 30m
 
+# operator-courier arguments for `make publish`.
+# Before running `make publish`, install operator-courier with `pip3 install operator-courier` and create
+# ~/.quay containing your quay.io token.
+COURIER_CMD=operator-courier
+COURIER_PACKAGE_NAME=file-integrity-operator-bundle
+COURIER_OPERATOR_DIR=deploy/olm-catalog/file-integrity-operator
+COURIER_QUAY_NAMESPACE=file-integrity-operator
+COURIER_PACKAGE_VERSION="0.1.0"
+COURIER_QUAY_TOKEN?= $(shell cat ~/.quay)
+
 .PHONY: all
 all: build ## Test and Build the file-integrity-operator
 
@@ -223,3 +233,7 @@ endif
 push: image
 	$(RUNTIME) tag $(IMAGE_PATH) $(IMAGE_PATH):$(TAG)
 	$(RUNTIME) push $(IMAGE_PATH):$(TAG)
+
+.PHONY: publish
+publish:
+	$(COURIER_CMD) push "$(COURIER_OPERATOR_DIR)" "$(COURIER_QUAY_NAMESPACE)" "$(COURIER_PACKAGE_NAME)" "$(COURIER_PACKAGE_VERSION)" "basic $(COURIER_QUAY_TOKEN)"
