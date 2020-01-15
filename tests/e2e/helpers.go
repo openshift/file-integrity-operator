@@ -22,7 +22,7 @@ import (
 const (
 	pollInterval         = time.Second * 2
 	retryInterval        = time.Second * 5
-	timeout              = time.Minute * 15
+	timeout              = time.Minute * 30
 	cleanupRetryInterval = time.Second * 1
 	cleanupTimeout       = time.Minute * 5
 )
