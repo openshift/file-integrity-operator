@@ -6,7 +6,6 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -98,13 +97,13 @@ func setupTest(t *testing.T) (*framework.Framework, *framework.TestCtx, string) 
 
 	err = waitForDaemonSet(daemonSetIsReady(f.KubeClient, common.DaemonSetName, namespace))
 	if err != nil {
-		t.Error(err)
+		t.Errorf("Timed out waiting for DaemonSet %s", common.DaemonSetName)
 	}
 
 	// wait to go active
 	err = waitForScanStatus(t, f, namespace, testIntegrityName, fileintv1alpha1.PhaseActive)
 	if err != nil {
-		t.Error(err)
+		t.Error("Timed out waiting for scan status to go Active")
 	}
 	return f, testctx, namespace
 }
@@ -151,34 +150,24 @@ func createTestConfigMap(t *testing.T, f *framework.Framework, integrityName, co
 
 func waitForScanStatusWithTimeout(t *testing.T, f *framework.Framework, namespace, name string, targetStatus fileintv1alpha1.FileIntegrityStatusPhase, interval, timeout time.Duration) error {
 	exampleFileIntegrity := &fileintv1alpha1.FileIntegrity{}
-	var lastErr error
 	// retry and ignore errors until timeout
-	timeouterr := wait.Poll(interval, timeout, func() (bool, error) {
-		lastErr = f.Client.Get(goctx.TODO(), types.NamespacedName{Name: name, Namespace: namespace}, exampleFileIntegrity)
-		if lastErr != nil {
-			if apierrors.IsNotFound(lastErr) {
-				t.Logf("Waiting for availability of %s compliancescan\n", name)
-				return false, nil
-			}
-			t.Logf("Retrying. Got error: %v\n", lastErr)
+	err := wait.Poll(interval, timeout, func() (bool, error) {
+		getErr := f.Client.Get(goctx.TODO(), types.NamespacedName{Name: name, Namespace: namespace}, exampleFileIntegrity)
+		if getErr != nil {
+			t.Logf("Retrying. Got error: %v\n", getErr)
 			return false, nil
 		}
 
 		if exampleFileIntegrity.Status.Phase == targetStatus {
 			return true, nil
 		}
-		t.Logf("Waiting for run of %s fileintegrity (%s)\n", name, exampleFileIntegrity.Status.Phase)
 		return false, nil
 	})
-	// Error in function call
-	if lastErr != nil {
-		return lastErr
+	if err != nil {
+		t.Logf("FileIntegrity never reached expected phase (%s)\n", targetStatus)
+		return err
 	}
-	// Timeout
-	if timeouterr != nil {
-		return timeouterr
-	}
-	t.Logf("ComplianceScan ready (%s)\n", exampleFileIntegrity.Status.Phase)
+	t.Logf("FileIntegrity ready (%s)\n", exampleFileIntegrity.Status.Phase)
 	return nil
 }
 
@@ -192,13 +181,29 @@ func pollUntilConfigMapDataMatches(t *testing.T, f *framework.Framework, namespa
 	return wait.PollImmediate(interval, timeout, func() (bool, error) {
 		cm, getErr := f.KubeClient.CoreV1().ConfigMaps(namespace).Get(name, metav1.GetOptions{})
 		if getErr != nil {
-			return false, getErr
+			t.Logf("Retrying. Got error: %v\n", getErr)
+			return false, nil
 		}
 		if cm.Data[key] == expected {
 			return true, nil
 		}
 		return false, nil
 	})
+}
+
+func cleanNodes(f *framework.Framework, namespace string) error {
+	if _, err := f.KubeClient.AppsV1().DaemonSets(namespace).Create(cleanAideDaemonset(namespace)); err != nil {
+		return err
+	}
+
+	if err := waitForDaemonSet(daemonSetWasScheduled(f.KubeClient, "aide-clean", namespace)); err != nil {
+		return err
+	}
+
+	if err := f.KubeClient.AppsV1().DaemonSets(namespace).Delete("aide-clean", &metav1.DeleteOptions{}); err != nil {
+		return err
+	}
+	return nil
 }
 
 // TestFileIntegrityConfigurationStatus tests the following:
@@ -209,18 +214,23 @@ func pollUntilConfigMapDataMatches(t *testing.T, f *framework.Framework, namespa
 func TestFileIntegrityConfigurationStatus(t *testing.T) {
 	f, testctx, namespace := setupTest(t)
 	defer testctx.Cleanup()
+	defer func() {
+		if err := cleanNodes(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+	}()
 
 	createTestConfigMap(t, f, testIntegrityName, testConfName, namespace, testConfDataKey, testAideConfig)
 
 	// wait to go active.
 	err := waitForScanStatus(t, f, namespace, testIntegrityName, fileintv1alpha1.PhaseActive)
 	if err != nil {
-		t.Error(err)
+		t.Errorf("Timeout waiting for scan status")
 	}
 
 	if err := pollUntilConfigMapDataMatches(t, f, namespace, common.DefaultConfigMapName, common.DefaultConfDataKey,
 		testAideConfig, time.Second*5, time.Minute*5); err != nil {
-		t.Error(err)
+		t.Errorf("Timeout waiting for configMap data to match")
 	}
 }
 
@@ -232,7 +242,11 @@ func TestFileIntegrityConfigurationStatus(t *testing.T) {
 func TestFileIntegrityConfigurationIgnoreMissing(t *testing.T) {
 	f, testctx, namespace := setupTest(t)
 	defer testctx.Cleanup()
-
+	defer func() {
+		if err := cleanNodes(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+	}()
 	// Non-existent conf
 	updateFileIntegrityConfig(t, f, testIntegrityName, "fooconf", namespace, "fookey")
 
@@ -250,6 +264,6 @@ func TestFileIntegrityConfigurationIgnoreMissing(t *testing.T) {
 
 	if err := pollUntilConfigMapDataMatches(t, f, namespace, common.DefaultConfigMapName, common.DefaultConfDataKey,
 		fileintegrity.DefaultAideConfig, time.Second*5, time.Minute*5); err != nil {
-		t.Error(err)
+		t.Errorf("Timeout waiting for configMap data to match")
 	}
 }
