@@ -2,6 +2,7 @@
 # ==================
 export APP_NAME=file-integrity-operator
 LOG_COLLECTOR=file-integrity-logcollector
+AIDE=file-integrity-aide
 
 # Container image variables
 # =========================
@@ -14,6 +15,8 @@ RUNTIME?=podman
 IMAGE_PATH?=$(IMAGE_REPO)/$(APP_NAME)
 LOGCOLLECTOR_IMAGE_PATH?=$(IMAGE_REPO)/$(LOG_COLLECTOR)
 LOGCOLLECTOR_DOCKERFILE_PATH?=./images/logcollector/Dockerfile
+AIDE_IMAGE_PATH?=$(IMAGE_REPO)/$(AIDE)
+AIDE_DOCKERFILE_PATH?=./images/aide/Dockerfile
 
 # Image tag to use. Set this if you want to use a specific tag for building
 # or your e2e tests.
@@ -69,13 +72,16 @@ help: ## Show this help screen
 
 
 .PHONY: image
-image: operator-image logcollector-image fmt operator-sdk ## Build the file-integrity-operator container image
+image: operator-image logcollector-image aide-image fmt operator-sdk ## Build the file-integrity-operator container image
 
 operator-image:
 	$(GOPATH)/bin/operator-sdk build $(IMAGE_PATH) --image-builder $(RUNTIME)
 
 logcollector-image:
 	$(RUNTIME) build -f $(LOGCOLLECTOR_DOCKERFILE_PATH) -t $(LOGCOLLECTOR_IMAGE_PATH):$(TAG) .
+
+aide-image:
+	$(RUNTIME) build -f $(AIDE_DOCKERFILE_PATH) -t $(AIDE_IMAGE_PATH):$(TAG) .
 
 .PHONY: build
 build: operator-bin logcollector-bin ## Build the file-integrity-operator binaries
@@ -193,7 +199,8 @@ image-to-cluster: namespace openshift-user image
 	IMAGE_REGISTRY_HOST=$$(oc get route default-route -n openshift-image-registry --template='{{ .spec.host }}'); \
 		$(RUNTIME) login --tls-verify=false -u $(OPENSHIFT_USER) -p $(shell oc whoami -t) $${IMAGE_REGISTRY_HOST}; \
 		$(RUNTIME) push --tls-verify=false $(IMAGE_PATH):$(TAG) $${IMAGE_REGISTRY_HOST}/$(NAMESPACE)/$(APP_NAME):$(TAG); \
-		$(RUNTIME) push --tls-verify=false $(LOGCOLLECTOR_IMAGE_PATH):$(TAG) $${IMAGE_REGISTRY_HOST}/$(NAMESPACE)/$(LOG_COLLECTOR):$(TAG)
+		$(RUNTIME) push --tls-verify=false $(LOGCOLLECTOR_IMAGE_PATH):$(TAG) $${IMAGE_REGISTRY_HOST}/$(NAMESPACE)/$(LOG_COLLECTOR):$(TAG); \
+		$(RUNTIME) push --tls-verify=false $(AIDE_IMAGE_PATH):$(TAG) $${IMAGE_REGISTRY_HOST}/$(NAMESPACE)/$(AIDE):$(TAG)
 	@echo "Removing the route from the image registry"
 	@oc patch configs.imageregistry.operator.openshift.io/cluster --patch '{"spec":{"defaultRoute":false}}' --type=merge
 	$(eval IMAGE_PATH = image-registry.openshift-image-registry.svc:5000/$(NAMESPACE)/$(APP_NAME):$(TAG))
