@@ -31,21 +31,15 @@ func cleanUp(t *testing.T, namespace string) func() error {
 	return func() error {
 		f := framework.Global
 
-		if _, err := f.KubeClient.AppsV1().DaemonSets(namespace).Create(cleanAideDaemonset(namespace)); err != nil {
+		list, err := f.KubeClient.CoreV1().ConfigMaps(namespace).List(metav1.ListOptions{})
+		if err != nil {
 			return err
 		}
-
-		if err := waitForDaemonSet(daemonSetWasScheduled(f.KubeClient, "aide-clean", namespace)); err != nil {
-			return err
-		}
-
-		if err := f.KubeClient.AppsV1().DaemonSets(namespace).Delete("aide-clean", &metav1.DeleteOptions{}); err != nil {
-			return err
-		}
-
-		if err := f.KubeClient.CoreV1().ConfigMaps(namespace).Delete(common.DefaultConfigMapName, &metav1.DeleteOptions{}); err != nil {
-			if !kerr.IsNotFound(err) {
-				return err
+		for _, cm := range list.Items {
+			if err := f.KubeClient.CoreV1().ConfigMaps(namespace).Delete(cm.Name, &metav1.DeleteOptions{}); err != nil {
+				if !kerr.IsNotFound(err) {
+					return err
+				}
 			}
 		}
 		return nil
