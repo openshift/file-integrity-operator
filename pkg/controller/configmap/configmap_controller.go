@@ -9,6 +9,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -19,6 +20,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
+	fileintegrityv1alpha1 "github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
 	"github.com/openshift/file-integrity-operator/pkg/common"
 )
 
@@ -96,11 +98,10 @@ func (r *ReconcileConfigMap) Reconcile(request reconcile.Request) (reconcile.Res
 		return reconcile.Result{}, err
 	}
 
-	// status_condition TODO: The rest of this should be moved to its own function (reconcileConfigReinit) and branch with a new function
-	// to handle the logcollector-created temporary configmaps.
-
 	if common.IsAideConfig(instance.Labels) {
 		return r.reconcileAideConf(instance, reqLogger)
+	} else if common.IsIntegrityLog(instance.Labels) {
+		return r.handleIntegrityLog(instance, reqLogger)
 	}
 
 	return reconcile.Result{}, nil
@@ -158,6 +159,122 @@ func (r *ReconcileConfigMap) reconcileAideConf(instance *corev1.ConfigMap, logge
 		return reconcile.Result{}, err
 	}
 	return reconcile.Result{}, nil
+}
+
+func (r *ReconcileConfigMap) handleIntegrityLog(cm *corev1.ConfigMap, logger logr.Logger) (reconcile.Result, error) {
+	owner, err := common.GetConfigMapOwnerName(cm)
+	if err != nil {
+		logger.Error(err, "Malformed ConfigMap: Could not get owner. Cannot retry.")
+		return reconcile.Result{}, nil
+	}
+
+	node, err := common.GetConfigMapNodeName(cm)
+	if err != nil {
+		logger.Error(err, "Malformed ConfigMap: Could not get node. Cannot retry.")
+		return reconcile.Result{}, nil
+	}
+
+	cachedfi := &fileintegrityv1alpha1.FileIntegrity{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: owner, Namespace: cm.Namespace}, cachedfi)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+	fi := cachedfi.DeepCopy()
+
+	if common.IsIntegrityLogAnError(cm) {
+		errorMsg, containsErrorAnnotation := cm.Annotations[common.IntegrityLogErrorAnnotationKey]
+		if !containsErrorAnnotation {
+			_, containsContentKey := cm.Data[common.IntegrityLogContentKey]
+			if !containsContentKey {
+				errorMsg = "log ConfigMap doesn't contain content"
+			} else {
+				errorMsg = "unknown error"
+			}
+		}
+
+		status := fileintegrityv1alpha1.NodeStatus{
+			Condition:     fileintegrityv1alpha1.NodeConditionErrored,
+			NodeName:      node,
+			LastProbeTime: cm.GetCreationTimestamp(),
+			ErrorMsg:      errorMsg,
+		}
+		if err := r.updateStatus(fi, status); err != nil {
+			return reconcile.Result{}, err
+		}
+	} else if common.IsIntegrityLogAFailure(cm) {
+		failedCM := getConfigMapForFailureLog(cm)
+		if err = r.client.Create(context.TODO(), failedCM); err != nil {
+			// Update if it already existed
+			if errors.IsAlreadyExists(err) {
+				if err = r.client.Update(context.TODO(), failedCM); err != nil {
+					return reconcile.Result{}, err
+				}
+			} else {
+				return reconcile.Result{}, err
+			}
+		}
+
+		status := fileintegrityv1alpha1.NodeStatus{
+			Condition:                fileintegrityv1alpha1.NodeConditionFailed,
+			NodeName:                 node,
+			LastProbeTime:            cm.GetCreationTimestamp(),
+			ResultConfigMapName:      failedCM.Name,
+			ResultConfigMapNamespace: failedCM.Namespace,
+		}
+		if err := r.updateStatus(fi, status); err != nil {
+			return reconcile.Result{}, err
+		}
+	} else {
+		status := fileintegrityv1alpha1.NodeStatus{
+			Condition:     fileintegrityv1alpha1.NodeConditionSucceeded,
+			NodeName:      node,
+			LastProbeTime: cm.GetCreationTimestamp(),
+		}
+		if err := r.updateStatus(fi, status); err != nil {
+			return reconcile.Result{}, err
+		}
+	}
+
+	// No need to keep the ConfigMap, the log collector will try to create
+	// another one on its next run
+	if err = r.client.Delete(context.TODO(), cm); err != nil {
+		return reconcile.Result{}, err
+	}
+	return reconcile.Result{}, nil
+}
+
+func (r *ReconcileConfigMap) updateStatus(fi *fileintegrityv1alpha1.FileIntegrity, status fileintegrityv1alpha1.NodeStatus) error {
+	statuses := make([]fileintegrityv1alpha1.NodeStatus, 0)
+
+	// Collect all the status entries except for those containing the current node and == cond argument. We'll be
+	// updating that entry below. We want to keep entries for the current node that do not match cond, so that the
+	// last status timestamp of a previous condition remains.
+	for i, _ := range fi.Status.Statuses {
+		if fi.Status.Statuses[i].NodeName == status.NodeName && fi.Status.Statuses[i].Condition == status.Condition {
+			continue
+		}
+		statuses = append(statuses, fi.Status.Statuses[i])
+	}
+	statuses = append(statuses, status)
+	fi.Status.Statuses = statuses
+
+	return r.client.Status().Update(context.TODO(), fi)
+}
+
+func getConfigMapForFailureLog(cm *corev1.ConfigMap) *corev1.ConfigMap {
+	failedCM := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      cm.Name + "-failed",
+			Namespace: cm.Namespace,
+			Labels:    cm.Labels,
+		},
+		Data: cm.Data,
+	}
+	// We remove the log label so we don't queue the new ConfigMap
+	delete(failedCM.Labels, common.IntegrityLogLabelKey)
+	// We mark is as a result
+	failedCM.Labels[common.IntegrityLogResultLabelKey] = ""
+	return failedCM
 }
 
 // triggerDaemonSetRollout restarts the daemonSet pods by adding an annotation to the spec template.

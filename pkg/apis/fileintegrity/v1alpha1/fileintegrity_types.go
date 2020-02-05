@@ -20,6 +20,7 @@ type FileIntegrityNodeCondition string
 const (
 	NodeConditionSucceeded FileIntegrityNodeCondition = "Succeeded"
 	NodeConditionFailed    FileIntegrityNodeCondition = "Failed"
+	NodeConditionErrored   FileIntegrityNodeCondition = "Errored"
 )
 
 // FileIntegritySpec defines the desired state of FileIntegrity
@@ -49,8 +50,9 @@ type NodeStatus struct {
 	NodeName                 string                     `json:"nodeName"`
 	LastProbeTime            metav1.Time                `json:"lastProbeTime"`
 	Condition                FileIntegrityNodeCondition `json:"condition"`
-	ResultConfigMapName      string                     `json:"resultConfigMapName"`
-	ResultConfigMapNamespace string                     `json:"resultConfigMapNamespace"`
+	ResultConfigMapName      string                     `json:"resultConfigMapName,omitempty"`
+	ResultConfigMapNamespace string                     `json:"resultConfigMapNamespace,omitempty"`
+	ErrorMsg                 string                     `json:"errorMessage,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

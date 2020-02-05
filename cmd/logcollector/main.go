@@ -23,11 +23,13 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
 	backoff "github.com/cenkalti/backoff/v3"
 	"github.com/spf13/cobra"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -44,10 +46,16 @@ const (
 	crdAPIVersion = "v1alpha1"
 	crdPlurals    = "fileintegrities"
 	maxRetries    = 15
+	// These need to be lessened for normal use.
+	defaultTimeout       = 600
+	defaultInterval      = 1800
+	defaultIndicatorFile = "/hostroot/etc/kubernetes/aide.latest-result.log"
+	uncompressedMaxSize  = 1048570 // 1MB for etcd limit
 )
 
 type config struct {
 	File              string
+	IndicatorFile     string
 	FileIntegrityName string
 	ConfigMapName     string
 	Namespace         string
@@ -64,14 +72,34 @@ type runtime struct {
 	readoffset int64
 }
 
+var debugLog bool
+
+func LOG(format string, a ...interface{}) {
+	fmt.Printf(format+"\n", a...)
+}
+
+func DBG(format string, a ...interface{}) {
+	if debugLog {
+		LOG("debug: "+format, a...)
+	}
+}
+
+func FATAL(format string, a ...interface{}) {
+	fmt.Fprintf(os.Stderr, "FATAL:"+format+"\n", a...)
+	os.Exit(1)
+}
+
 func defineFlags(cmd *cobra.Command) {
-	cmd.Flags().String("file", "", "The file to watch.")
-	cmd.Flags().String("owner", "", "The compliance scan that owns the configMap objects.")
-	cmd.Flags().String("config-map-prefix", "", "The configMap prefix to upload, typically the podname.")
+	cmd.Flags().String("file", "", "The log file to collect.")
+	cmd.Flags().String("indicator-file", defaultIndicatorFile,
+		"The path to a file containing a return code value. The return code value determines if the log file should be collected.")
+	cmd.Flags().String("owner", "", "The FileIntegrity object to set as owner of the created configMap objects.")
+	cmd.Flags().String("config-map-prefix", "", "Prefix for the configMap name, typically the podname.")
 	cmd.Flags().String("namespace", "Running pod namespace.", ".")
-	cmd.Flags().Int64("timeout", 600, "How long to wait for the file.")
-	cmd.Flags().Int64("interval", 1800, "every how often does the log collector run.")
-	cmd.Flags().Bool("compress", false, "Always compress the results.")
+	cmd.Flags().Int64("timeout", defaultTimeout, "How long to poll for the log and indicator files in seconds.")
+	cmd.Flags().Int64("interval", defaultInterval, "How often to recheck for .")
+	cmd.Flags().Bool("compress", false, "Use gzip+base64 to compress the log file contents.")
+	cmd.Flags().Bool("debug", false, "Print debug messages")
 }
 
 func getConfigMapName(prefix, nodeName string) string {
@@ -81,6 +109,7 @@ func getConfigMapName(prefix, nodeName string) string {
 func parseConfig(cmd *cobra.Command) *config {
 	var conf config
 	conf.File = getValidStringArg(cmd, "file")
+	conf.IndicatorFile = getValidStringArg(cmd, "indicator-file")
 	conf.FileIntegrityName = getValidStringArg(cmd, "owner")
 	conf.Namespace = getValidStringArg(cmd, "namespace")
 	conf.Node = os.Getenv("NODE_NAME")
@@ -88,29 +117,28 @@ func parseConfig(cmd *cobra.Command) *config {
 	conf.Timeout, _ = cmd.Flags().GetInt64("timeout")
 	conf.Interval, _ = cmd.Flags().GetInt64("interval")
 	conf.Compress, _ = cmd.Flags().GetBool("compress")
+	debugLog, _ = cmd.Flags().GetBool("debug")
 	return &conf
 }
 
 func getValidStringArg(cmd *cobra.Command, name string) string {
 	val, _ := cmd.Flags().GetString(name)
 	if val == "" {
-		fmt.Fprintf(os.Stderr, "The command line argument '%s' is mandatory.\n", name)
-		os.Exit(1)
+		FATAL("The command line argument '%s' is mandatory", name)
 	}
 	return val
 }
 
 func getFileIntegrityInstance(name, namespace string, dynclient dynamic.Interface) (*unstructured.Unstructured, error) {
+	DBG("Getting FileIntegrity %s/%s", namespace, name)
+
 	fiResource := schema.GroupVersionResource{
 		Group:    crdGroup,
 		Version:  crdAPIVersion,
 		Resource: crdPlurals,
 	}
-
-	fmt.Printf("Getting FileIntegrity %s/%s\n", namespace, name)
 	fi, err := dynclient.Resource(fiResource).Namespace(namespace).Get(name, metav1.GetOptions{})
 	if err != nil {
-		fmt.Println(err)
 		return nil, err
 	}
 
@@ -118,7 +146,8 @@ func getFileIntegrityInstance(name, namespace string, dynclient dynamic.Interfac
 }
 
 func waitForFile(filename string, timeout int64) (*os.File, uint64) {
-	fmt.Printf("Waiting for %s.\n", filename)
+	DBG("Waiting for %s", filename)
+
 	readFileTimeoutChan := make(chan *os.File, 1)
 	// G304 (CWE-22) is addressed by this.
 	cleanFileName := filepath.Clean(filename)
@@ -141,8 +170,7 @@ func waitForFile(filename string, timeout int64) (*os.File, uint64) {
 					readFileTimeoutChan <- file
 				}
 			} else if !os.IsNotExist(err) {
-				fmt.Println(err)
-				os.Exit(1)
+				FATAL("Error opening %s, %v", cleanFileName, err)
 			}
 			time.Sleep(1 * time.Second)
 		}
@@ -150,17 +178,17 @@ func waitForFile(filename string, timeout int64) (*os.File, uint64) {
 
 	select {
 	case file := <-readFileTimeoutChan:
-		fmt.Printf("File '%s' found, will upload it.\n", filename)
+		DBG("File '%s' found", filename)
 		return file, inode
 	case <-time.After(time.Duration(timeout) * time.Second):
-		fmt.Println("Timeout. The integrity check hasn't reported anything. This is good!")
+		DBG("Timed out")
 	}
 
 	return nil, inode
 }
 
 func needsCompression(contents []byte) bool {
-	return len(contents) > 1048570
+	return len(contents) > uncompressedMaxSize // Magic number?
 }
 
 func compress(contents []byte) []byte {
@@ -235,7 +263,27 @@ func getInformationalConfigMap(owner *unstructured.Unstructured, configMapName s
 	}
 }
 
+// reportOK creates a blank configMap with no error annotation. This is treated by the controller as an OK signal.
+func reportOK(conf *config, rt *runtime) {
+	DBG("Creating configMap '%s' to report OK", conf.ConfigMapName)
+	err := backoff.Retry(func() error {
+		fi, err := getFileIntegrityInstance(conf.FileIntegrityName, conf.Namespace, rt.dynclient)
+		if err != nil {
+			return err
+		}
+		confMap := getInformationalConfigMap(fi, conf.ConfigMapName, conf.Node, nil)
+		_, err = rt.clientset.CoreV1().ConfigMaps(conf.Namespace).Create(confMap)
+		return err
+	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries))
+
+	if err != nil {
+		FATAL("Can't create configMap to report OK: '%v', aborting", err)
+	}
+	LOG("Created OK configMap '%s'", conf.ConfigMapName)
+}
+
 func reportError(msg string, conf *config, rt *runtime) {
+	DBG("Creating configMap '%s' to report error message '%s'", conf.ConfigMapName, msg)
 	err := backoff.Retry(func() error {
 		fi, err := getFileIntegrityInstance(conf.FileIntegrityName, conf.Namespace, rt.dynclient)
 		if err != nil {
@@ -250,29 +298,27 @@ func reportError(msg string, conf *config, rt *runtime) {
 	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries))
 
 	if err != nil {
-		fmt.Println(err)
-		fmt.Println("Can't report the failure by creating a config map... Aborting")
-		os.Exit(1)
+		FATAL("Can't create configMap to report failure '%v', aborting", err)
 	}
+	LOG("Created error configMap '%s'", conf.ConfigMapName)
 }
 
 func uploadLog(contents []byte, compressed bool, conf *config, rt *runtime) {
+	DBG("Creating configMap '%s' to collect logs", conf.ConfigMapName)
 	err := backoff.Retry(func() error {
 		fi, err := getFileIntegrityInstance(conf.FileIntegrityName, conf.Namespace, rt.dynclient)
 		if err != nil {
 			return err
 		}
 		confMap := getLogConfigMap(fi, conf.ConfigMapName, common.IntegrityLogContentKey, conf.Node, contents, compressed)
-		fmt.Println("Creating configmap")
 		_, err = rt.clientset.CoreV1().ConfigMaps(conf.Namespace).Create(confMap)
 		return err
 	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries))
 
 	if err != nil {
-		fmt.Println(err)
-		fmt.Println("Can't create the log config map... Aborting")
-		os.Exit(1)
+		FATAL("Can't create log configMap with error '%v', aborting", err)
 	}
+	LOG("Created log configMap '%s'", conf.ConfigMapName)
 }
 
 func handleRotationOrInit(rt *runtime, inode uint64) {
@@ -280,7 +326,7 @@ func handleRotationOrInit(rt *runtime, inode uint64) {
 		// first read (set inode initially)
 		rt.inode = inode
 	} else if rt.inode != inode {
-		// Rotation has happened
+		DBG("Rotation happened")
 		rt.readoffset = 0
 	}
 }
@@ -304,25 +350,19 @@ func updateReadOffset(rt *runtime, file *os.File, contents []byte) error {
 
 func doMainLoop(cmd *cobra.Command, args []string) {
 	conf := parseConfig(cmd)
-	fmt.Println("Starting log collector.")
+	LOG("Starting the file-integrity log collector")
 
 	config, err := rest.InClusterConfig()
 	if err != nil {
-		fmt.Println(err)
-		// Fatal error
-		os.Exit(1)
+		FATAL("%v", err)
 	}
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		fmt.Println(err)
-		// Fatal error
-		os.Exit(1)
+		FATAL("%v", err)
 	}
 	dynclient, err := dynamic.NewForConfig(config)
 	if err != nil {
-		fmt.Println(err)
-		// Fatal error
-		os.Exit(1)
+		FATAL("%v", err)
 	}
 
 	rt := &runtime{
@@ -331,6 +371,27 @@ func doMainLoop(cmd *cobra.Command, args []string) {
 	}
 
 	for {
+		// Checking the indicator file for the last return code lets us determine if we should collect the aide log.
+		indicatorFile, _ := waitForFile(conf.IndicatorFile, conf.Timeout)
+		if indicatorFile == nil {
+			DBG("Indicator file '%s' doesn't exist, trying again", conf.IndicatorFile)
+			continue
+		}
+
+		// containsReturnCodeZero closes indicatorFile here.
+		checkPassed, err := containsReturnCodeZero(indicatorFile)
+		if err != nil {
+			reportError(fmt.Sprintf("Return code file error: %s", err), conf, rt)
+			continue
+		}
+		if checkPassed {
+			DBG("Integrity check returned 0, sleeping and starting over")
+			reportOK(conf, rt)
+			time.Sleep(time.Duration(conf.Interval) * time.Second)
+			continue
+		}
+
+		DBG("Integrity check failed, continuing to collect log file")
 		file, inode := waitForFile(conf.File, conf.Timeout)
 
 		handleRotationOrInit(rt, inode)
@@ -338,12 +399,12 @@ func doMainLoop(cmd *cobra.Command, args []string) {
 		contents := []byte{}
 		if file != nil {
 			if contents, err = ioutil.ReadAll(file); err != nil {
-				reportError("Couldn't read the log file", conf, rt)
+				reportError(fmt.Sprintf("Error reading the log file: %v", err), conf, rt)
 				file.Close()
 				continue
 			}
 			if err = updateReadOffset(rt, file, contents); err != nil {
-				reportError("Error setting read offset for log file", conf, rt)
+				reportError(fmt.Sprintf("Error setting read offset for log file: %v", err), conf, rt)
 				file.Close()
 				continue
 			}
@@ -352,14 +413,36 @@ func doMainLoop(cmd *cobra.Command, args []string) {
 
 		compressed := false
 		if needsCompression(contents) || conf.Compress {
+			DBG("Compressing log contents")
 			contents = compress(contents)
 			compressed = true
-			fmt.Println("Needs compression.")
 		}
 
 		uploadLog(contents, compressed, conf, rt)
+		DBG("Log uploaded, sleeping and starting over")
 		time.Sleep(time.Duration(conf.Interval) * time.Second)
 	}
+}
+
+// containsReturnCodeZero returns true, nil if the file contents starts with a single return code == 0, or err if there is
+// a problem reading the file. Closes file.
+func containsReturnCodeZero(file *os.File) (bool, error) {
+	defer file.Close()
+	contents, err := ioutil.ReadAll(file)
+	if err != nil {
+		return false, err
+	}
+
+	retCode, err := strconv.Atoi(string(contents[0]))
+	if err != nil {
+		return false, err
+	}
+
+	if retCode == 0 {
+		return true, nil
+	}
+
+	return false, nil
 }
 
 func main() {

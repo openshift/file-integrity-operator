@@ -1,5 +1,7 @@
 package fileintegrity
 
+const aideLogPath = "/hostroot/etc/kubernetes/aide.log"
+
 var aideInitContainerScript = `#!/bin/sh
     if test ! -f /hostroot/etc/kubernetes/aide.db.gz; then
       echo "initializing AIDE db"
@@ -22,7 +24,9 @@ var aideScript = `#!/bin/sh
     while true; do
       echo "running AIDE check.."
       aide -c /tmp/aide.conf
-      echo "AIDE check returned $?.. sleeping"
+      result=$?
+      echo "$result" > /hostroot/etc/kubernetes/aide.latest-result.log
+      echo "AIDE check returned $result.. sleeping"
       sleep 5m
     done
     exit 1`

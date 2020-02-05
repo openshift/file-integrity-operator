@@ -1,7 +1,11 @@
 package common
 
 import (
+	"fmt"
+
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	kerr "k8s.io/apimachinery/pkg/api/errors"
 )
 
 // IsAideConfig returns whether the given map contains a
@@ -11,6 +15,46 @@ func IsAideConfig(labels map[string]string) bool {
 	return ok
 }
 
+// IsIntegrityLog returns whether the given map contains a
+// log from the integrity check
+func IsIntegrityLog(labels map[string]string) bool {
+	_, ok := labels[IntegrityLogLabelKey]
+	return ok
+}
+
+// IsIntegrityLogAnError returns whether the given map coming
+// from an integrity check logcollector contains an error
+func IsIntegrityLogAnError(cm *corev1.ConfigMap) bool {
+	_, containsErrorAnnotation := cm.Annotations[IntegrityLogErrorAnnotationKey]
+	return containsErrorAnnotation
+}
+
+// IsIntegrityLogAFailure returns whether the given map coming
+// from an integrity check logcollector contains an failure
+func IsIntegrityLogAFailure(cm *corev1.ConfigMap) bool {
+	return cm.Data[IntegrityLogContentKey] != ""
+}
+
+// GetConfigMapOwnerName gets the name of the FileIntegrity that owns
+// the config map from the Labels
+func GetConfigMapOwnerName(cm *corev1.ConfigMap) (string, error) {
+	owner, ok := cm.Labels[IntegrityConfigMapOwnerLabelKey]
+	if !ok {
+		return "", fmt.Errorf("ConfigMap '%s' had no owner label", cm.Name)
+	}
+	return owner, nil
+}
+
+// GetConfigMapNodeName gets the name of the node where
+// the config map was generated from
+func GetConfigMapNodeName(cm *corev1.ConfigMap) (string, error) {
+	owner, ok := cm.Labels[IntegrityConfigMapNodeLabelKey]
+	if !ok {
+		return "", fmt.Errorf("ConfigMap '%s' had no node label", cm.Name)
+	}
+	return owner, nil
+}
+
 func DaemonSetIsReady(ds *appsv1.DaemonSet) bool {
 	return ds.Status.DesiredNumberScheduled == ds.Status.NumberAvailable
 }
@@ -18,4 +62,13 @@ func DaemonSetIsReady(ds *appsv1.DaemonSet) bool {
 func DaemonSetIsUpdating(ds *appsv1.DaemonSet) bool {
 	return ds.Status.UpdatedNumberScheduled > 0 &&
 		(ds.Status.UpdatedNumberScheduled < ds.Status.DesiredNumberScheduled || ds.Status.NumberUnavailable > 0)
+}
+
+// IgnoreAlreadyExists will not return an error if the error is that the resource
+// already exists.
+func IgnoreAlreadyExists(err error) error {
+	if kerr.IsAlreadyExists(err) {
+		return nil
+	}
+	return err
 }
