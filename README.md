@@ -1,93 +1,156 @@
 # file-integrity-operator
-The file-integrity-operator is a OpenShift/Kubernetes Operator that continually runs file integrity checks on the cluster nodes. It deploys a DaemonSet that initializes and runs privileged AIDE ([Advanced Intrusion Detection Environment](https://aide.github.io)) containers on each node, providing a log of files that have been modified since the initial run of the DaemonSet pods.
+The file-integrity-operator is a OpenShift Operator that continually runs file integrity checks on the cluster nodes. It deploys a DaemonSet that initializes and runs privileged AIDE ([Advanced Intrusion Detection Environment](https://aide.github.io)) containers on each node, providing a log of files that have been modified since the initial run of the DaemonSet pods.
 
-This repo is a POC for host file integrity monitoring that is a work-in-progress.
-
-### Deploying:
+### Deploying from source:
 ```
 $ (clone repo)
-$ oc create -f deploy/ns.yaml
+$ oc login -u kubeadmin -p <pw>
+$ make image-to-cluster
 $ oc create -f deploy/
 $ oc create -f deploy/crds
-
-$ oc get all -n openshift-file-integrity
-NAME                                           READY   STATUS    RESTARTS   AGE
-pod/aiderunner-ccfbh                           1/1     Running   9          4h30m
-pod/aiderunner-jb2q8                           1/1     Running   9          4h30m
-pod/aiderunner-l2f7v                           1/1     Running   9          4h30m
-pod/file-integrity-operator-65c8b579f5-vsstn   1/1     Running   0          4h31m
-
-NAME                                      TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)             AGE
-service/file-integrity-operator-metrics   ClusterIP   172.30.114.139   <none>        8383/TCP,8686/TCP   4h52m
-
-NAME                        DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE
-daemonset.apps/aiderunner   3         3         3       3            3           <none>          4h30m
-
-NAME                                      READY   UP-TO-DATE   AVAILABLE   AGE
-deployment.apps/file-integrity-operator   1/1     1            1           4h53m
-
-NAME                                                 DESIRED   CURRENT   READY   AGE
-replicaset.apps/file-integrity-operator-65c8b579f5   1         1         1       4h53m
 ```
 
-Viewing the AIDE log
+### Usage:
+
+Viewing the scan phase: An "Active" phase indicates that on each node, the AIDE database has been initialized and periodic scanning is enabled:
 ```
-$ oc logs -n openshift-file-integrity pod/aiderunner-ccfbh
-....
+$ oc get fileintegrities -n openshift-file-integrity
+NAME                    AGE
+example-fileintegrity   11m
+
+$ oc get fileintegrities/example-fileintegrity -n openshift-file-integrity -o jsonpath="{ .status.phase }"
+Active
+```
+
+The nodeStatus reports the latest scan results for each node:
+```
+$ oc get fileintegrities/example-fileintegrity -n openshift-file-integrity -o yaml
+apiVersion: file-integrity.openshift.io/v1alpha1
+kind: FileIntegrity
+metadata:
+  creationTimestamp: "2020-02-05T21:06:23Z"
+  generation: 1
+  name: example-fileintegrity
+  namespace: openshift-file-integrity
+  resourceVersion: "72304"
+  selfLink: /apis/file-integrity.openshift.io/v1alpha1/namespaces/openshift-file-integrity/fileintegrities/example-fileintegrity
+  uid: 4de0bc89-b273-4572-ac67-f1c26d70eeff
+spec:
+  config: {}
+status:
+  nodeStatus:
+  - condition: Succeeded
+    lastProbeTime: "2020-02-05T21:08:26Z"
+    nodeName: ip-10-0-130-20.ec2.internal
+  - condition: Succeeded
+    lastProbeTime: "2020-02-05T21:08:28Z"
+    nodeName: ip-10-0-154-5.ec2.internal
+  - condition: Succeeded
+    lastProbeTime: "2020-02-05T21:08:29Z"
+    nodeName: ip-10-0-172-210.ec2.internal
+  - condition: Succeeded
+    lastProbeTime: "2020-02-05T21:08:38Z"
+    nodeName: ip-10-0-166-163.ec2.internal
+  - condition: Succeeded
+    lastProbeTime: "2020-02-05T21:08:39Z"
+    nodeName: ip-10-0-143-91.ec2.internal
+  - condition: Succeeded
+    lastProbeTime: "2020-02-05T21:08:44Z"
+    nodeName: ip-10-0-156-193.ec2.internal
+  phase: Active
+```
+
+If the AIDE check fails on a node, a Failed entry is added to nodeStatus, with the name of a configMap containing the AIDE log.
+```
+$ oc get fileintegrities/example-fileintegrity -n openshift-file-integrity -o  yaml
+apiVersion: file-integrity.openshift.io/v1alpha1
+kind: FileIntegrity
+metadata:
+  creationTimestamp: "2020-02-05T21:06:23Z"
+  generation: 1
+  name: example-fileintegrity
+  namespace: openshift-file-integrity
+  resourceVersion: "350107"
+  selfLink: /apis/file-integrity.openshift.io/v1alpha1/namespaces/openshift-file-integrity/fileintegrities/example-fileintegrity
+  uid: 4de0bc89-b273-4572-ac67-f1c26d70eeff
+spec:
+  config: {}
+status:
+  nodeStatus:
+  - condition: Succeeded
+    lastProbeTime: "2020-02-05T21:08:38Z"
+    nodeName: ip-10-0-166-163.ec2.internal
+  - condition: Succeeded
+    lastProbeTime: "2020-02-05T21:08:39Z"
+    nodeName: ip-10-0-143-91.ec2.internal
+  - condition: Succeeded
+    lastProbeTime: "2020-02-06T12:28:46Z"
+    nodeName: ip-10-0-156-193.ec2.internal
+  - condition: Failed
+    lastProbeTime: "2020-02-06T13:49:06Z"
+    nodeName: ip-10-0-143-91.ec2.internal
+    resultConfigMapName: aide-ds-ip-10-0-143-91.ec2.internal-failed
+    resultConfigMapNamespace: openshift-file-integrity
+  - condition: Failed
+    lastProbeTime: "2020-02-06T13:50:13Z"
+    nodeName: ip-10-0-166-163.ec2.internal
+    resultConfigMapName: aide-ds-ip-10-0-166-163.ec2.internal-failed
+    resultConfigMapNamespace: openshift-file-integrity
+  - condition: Succeeded
+    lastProbeTime: "2020-02-06T13:56:29Z"
+    nodeName: ip-10-0-130-20.ec2.internal
+  - condition: Succeeded
+    lastProbeTime: "2020-02-06T13:56:31Z"
+    nodeName: ip-10-0-172-210.ec2.internal
+  - condition: Succeeded
+    lastProbeTime: "2020-02-06T13:56:32Z"
+    nodeName: ip-10-0-154-5.ec2.internal
+  - condition: Failed
+    lastProbeTime: "2020-02-06T13:56:58Z"
+    nodeName: ip-10-0-156-193.ec2.internal
+    resultConfigMapName: aide-ds-ip-10-0-156-193.ec2.internal-failed
+    resultConfigMapNamespace: openshift-file-integrity
+  phase: Active 
+
+$ oc get cm/aide-ds-ip-10-0-143-91.ec2.internal-failed -n openshift-file-integrity -o jsonpath="{ .data.integritylog }"
+AIDE 0.15.1 found differences between database and filesystem!!
+Start timestamp: 2020-02-06 14:00:17
+
 Summary:
-  Total number of files:        30519
-  Added files:                  6
-  Removed files:                2
-  Changed files:                1
+  Total number of files:        28455
+  Added files:                  0
+  Removed files:                0
+  Changed files:                2
 
-
----------------------------------------------------
-Added files:
----------------------------------------------------
-
-added: /hostroot/var/log/containers/aide-59cg9_foo_aide-252e84cc4108c2476644f075d863ec046b9ebc47efb57fe829c09706dad5c98d.log
-added: /hostroot/var/log/containers/aiderunner-ccfbh_openshift-file-integrity_aide-38e4c424c6abdb7b89370164a71847daa94aad36a08248ac63dae562e4fb1c4e.log
-added: /hostroot/var/log/containers/aiderunner-ccfbh_openshift-file-integrity_aide-3a21bfdb289764b23765aae7658493f6247491a00a9d14551cb0226311f53bfb.log
-added: /hostroot/var/log/journal/25731cc7fea54646bf64d369b5008032/system@bc4cdafcf78343c2addc2e6dbde4fa71-000000000001ec91-000592b376af4e05.journal
-added: /hostroot/var/log/journal/25731cc7fea54646bf64d369b5008032/system@bc4cdafcf78343c2addc2e6dbde4fa71-000000000003db0a-000592b9c1ea6a41.journal
-added: /hostroot/var/log/journal/25731cc7fea54646bf64d369b5008032/system@bc4cdafcf78343c2addc2e6dbde4fa71-000000000005c927-000592bfe964d6e2.journal
-
----------------------------------------------------
-Removed files:
----------------------------------------------------
-
-removed: /hostroot/var/log/containers/aide-xskxw_foo_aide-162eb356e39d39b24f7431dadac8916d76e257265627693e949c01a6ea883bc4.log
-removed: /hostroot/var/log/containers/prometheus-adapter-8578f46566-9nw29_openshift-monitoring_prometheus-adapter-98b63f2426615f07da862d802555437f27a70a537b1d90c4eb530579b12f111c.log
 
 ---------------------------------------------------
 Changed files:
 ---------------------------------------------------
 
-changed: /hostroot/var/log/journal/25731cc7fea54646bf64d369b5008032/system.journal
+changed: /hostroot/etc/kubernetes/manifests/kube-apiserver-pod.yaml
+changed: /hostroot/etc/kubernetes/manifests/kube-controller-manager-pod.yaml
 
 ---------------------------------------------------
 Detailed information about changes:
 ---------------------------------------------------
 
 
-File: /hostroot/var/log/journal/25731cc7fea54646bf64d369b5008032/system.journal
- Size     : 117440512                        , 25165824
- Inode    : 25220101                         , 25799166
- XAttrs   : old = num=1
-             [1] user.crtime_usec <=> AFSvdrOSBQA=
-            new = num=1
-             [1] user.crtime_usec <=> XorIGMaSBQA=
-AIDE check returned 7.. sleeping
+File: /hostroot/etc/kubernetes/manifests/kube-apiserver-pod.yaml
+ SHA512   : 1ommsBCFpCYbgbks6NDDOc6jdscCwpAy , v1vmOX0S7M59LCVi8vfW8fP0BsQl14k+
+
+File: /hostroot/etc/kubernetes/manifests/kube-controller-manager-pod.yaml
+ SHA512   : +yS3z7KOFSPNT+nIRMWXkry4qM4swwDG , OJgRKucyDdAMlPzloWetrn3cEO7mfM94
 ```
-The AIDE logs are also available on the host filesystem at /etc/kubernetes/aide.log.
-### Building
-This repo was established using the operator-sdk. Making changes and rebuilding calls for the following commands:
+
+### Local testing
 ```
-$ operator-sdk build docker.io/mrogers950/file-integrity-operator
-$ docker push docker.io/mrogers950/file-integrity-operator:latest
-``` 
-When forking the repo and making your own changes you should adjust the docker image repo name and paths to push to your own repo, and then change deploy/operator.yaml to refer to your image.
-The operand AIDE container is located at `docker.io/mrogers950/aide`.
+$ make run
+```
+
+### Running the end-to-end suite
+```
+$ make e2e
+```
 
 ## Applying an AIDE config
 It's possible to provide the file-integrity-operator with an existing aide.conf. The provided aide.conf will be automatically converted to run in a pod, so there is no need to adjust the database and file directives to accommodate the operator.
@@ -111,6 +174,3 @@ spec:
     key: aide-conf
 ```
 * At this point the operator will update the active AIDE config and perform a re-initialization of the AIDE database, as well as a restart of the AIDE pods to begin scanning with the new configuration. A backup of the logs and database from the previously applied configurations are left available on the nodes under /etc/kubernetes.
-
-## TODO
-- Fine-tune the AIDE rules in the aide.conf ConfigMap. The above deployment example shows the rules cover the host's /var/log/ for attributes and added/removed files, which should be corrected.
