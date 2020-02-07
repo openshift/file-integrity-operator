@@ -72,3 +72,15 @@ func IgnoreAlreadyExists(err error) error {
 	}
 	return err
 }
+
+// GetDaemonSetName gets the name of the owner (usually a FileIntegrity CR) and
+// returns an appropriate name for the DaemonSet that's owned by it.
+func GetDaemonSetName(name string) string {
+	return DaemonSetPrefix + "-" + name
+}
+
+// GetReinitDaemonSetName gets the name of the owner (usually a FileIntegrity CR) and
+// returns an appropriate name for the DaemonSet that's owned by it.
+func GetReinitDaemonSetName(name string) string {
+	return ReinitDaemonSetPrefix + "-" + name
+}

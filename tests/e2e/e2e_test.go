@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	framework "github.com/operator-framework/operator-sdk/pkg/test"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -13,7 +14,6 @@ import (
 	fileintv1alpha1 "github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
 	"github.com/openshift/file-integrity-operator/pkg/common"
 	"github.com/openshift/file-integrity-operator/pkg/controller/fileintegrity"
-	framework "github.com/operator-framework/operator-sdk/pkg/test"
 )
 
 const (
@@ -95,9 +95,10 @@ func setupTest(t *testing.T) (*framework.Framework, *framework.TestCtx, string) 
 		t.Errorf("could not create fileintegrity object: %v", err)
 	}
 
-	err = waitForDaemonSet(daemonSetIsReady(f.KubeClient, common.DaemonSetName, namespace))
+	dsName := common.GetDaemonSetName(testIntegrityCheck.Name)
+	err = waitForDaemonSet(daemonSetIsReady(f.KubeClient, dsName, namespace))
 	if err != nil {
-		t.Errorf("Timed out waiting for DaemonSet %s", common.DaemonSetName)
+		t.Errorf("Timed out waiting for DaemonSet %s", dsName)
 	}
 
 	// wait to go active
@@ -228,7 +229,7 @@ func TestFileIntegrityConfigurationStatus(t *testing.T) {
 		t.Errorf("Timeout waiting for scan status")
 	}
 
-	if err := pollUntilConfigMapDataMatches(t, f, namespace, common.DefaultConfigMapName, common.DefaultConfDataKey,
+	if err := pollUntilConfigMapDataMatches(t, f, namespace, testIntegrityName, common.DefaultConfDataKey,
 		testAideConfig, time.Second*5, time.Minute*5); err != nil {
 		t.Errorf("Timeout waiting for configMap data to match")
 	}
@@ -262,7 +263,7 @@ func TestFileIntegrityConfigurationIgnoreMissing(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err := pollUntilConfigMapDataMatches(t, f, namespace, common.DefaultConfigMapName, common.DefaultConfDataKey,
+	if err := pollUntilConfigMapDataMatches(t, f, namespace, testIntegrityName, common.DefaultConfDataKey,
 		fileintegrity.DefaultAideConfig, time.Second*5, time.Minute*5); err != nil {
 		t.Errorf("Timeout waiting for configMap data to match")
 	}

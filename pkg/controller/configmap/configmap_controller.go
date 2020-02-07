@@ -119,7 +119,8 @@ func (r *ReconcileConfigMap) reconcileAideConf(instance *corev1.ConfigMap, logge
 	// daemonSets that they need to back up and re-initialize the AIDE database. So once we've confirmed that the
 	// re-init daemonSets have started running we can delete them and continue with the rollout of the AIDE pods.
 	reinitDS := &appsv1.DaemonSet{}
-	err := r.client.Get(context.TODO(), types.NamespacedName{Name: common.ReinitDaemonSetName, Namespace: common.FileIntegrityNamespace}, reinitDS)
+	reinitDSName := common.GetReinitDaemonSetName(instance.Name)
+	err := r.client.Get(context.TODO(), types.NamespacedName{Name: reinitDSName, Namespace: common.FileIntegrityNamespace}, reinitDS)
 	if err != nil {
 		// includes notFound, we will requeue here at least once.
 		logger.Error(err, "error getting reinit daemonSet")
@@ -139,7 +140,8 @@ func (r *ReconcileConfigMap) reconcileAideConf(instance *corev1.ConfigMap, logge
 	}
 
 	ds := &appsv1.DaemonSet{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: common.DaemonSetName, Namespace: common.FileIntegrityNamespace}, ds)
+	dsName := common.GetDaemonSetName(instance.Name)
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: dsName, Namespace: common.FileIntegrityNamespace}, ds)
 	if err != nil {
 		logger.Error(err, "error getting daemonSet")
 		return reconcile.Result{}, err
