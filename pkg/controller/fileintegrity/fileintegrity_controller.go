@@ -24,11 +24,6 @@ import (
 
 var log = logf.Log.WithName("controller_fileintegrity")
 
-/**
-* USER ACTION REQUIRED: This is a scaffold file intended for the user to modify with their own Controller
-* business logic.  Delete these comments after modifying this file.*
- */
-
 // Add creates a new FileIntegrity Controller and adds it to the Manager. The Manager will set fields on the Controller
 // and Start it when the Manager is Started.
 func Add(mgr manager.Manager) error {
@@ -70,7 +65,7 @@ type ReconcileFileIntegrity struct {
 
 // handleDefaultConfigMaps creates the inital configMaps needed by the operator and aide pods. It returns the
 // active AIDE configuration configMap
-func (r *ReconcileFileIntegrity) handleDefaultConfigMaps() (*corev1.ConfigMap, error) {
+func (r *ReconcileFileIntegrity) handleDefaultConfigMaps(f *fileintegrityv1alpha1.FileIntegrity) (*corev1.ConfigMap, error) {
 	cm := &corev1.ConfigMap{}
 	if err := r.client.Get(context.TODO(), types.NamespacedName{
 		Name:      common.AideScriptConfigMapName,
@@ -112,19 +107,19 @@ func (r *ReconcileFileIntegrity) handleDefaultConfigMaps() (*corev1.ConfigMap, e
 	}
 
 	if err := r.client.Get(context.TODO(), types.NamespacedName{
-		Name:      common.DefaultConfigMapName,
+		Name:      f.Name,
 		Namespace: common.FileIntegrityNamespace,
 	}, cm); err != nil {
 		if !kerr.IsNotFound(err) {
 			return nil, err
 		}
 		// does not exist, create
-		if err := r.client.Create(context.TODO(), defaultAIDEConfigMap()); err != nil {
+		if err := r.client.Create(context.TODO(), defaultAIDEConfigMap(f.Name)); err != nil {
 			return nil, err
 		}
 	} else if _, ok := cm.Data[common.DefaultConfDataKey]; !ok {
 		// we had the configMap but its data was missing for some reason, so restore it.
-		if err := r.client.Update(context.TODO(), defaultAIDEConfigMap()); err != nil {
+		if err := r.client.Update(context.TODO(), defaultAIDEConfigMap(f.Name)); err != nil {
 			return nil, err
 		}
 	}
@@ -154,7 +149,10 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 		return reconcile.Result{}, err
 	}
 
-	defaultAideConf, err := r.handleDefaultConfigMaps()
+	daemonSetName := common.GetDaemonSetName(instance.Name)
+	reinitDaemonSetName := common.GetReinitDaemonSetName(instance.Name)
+
+	defaultAideConf, err := r.handleDefaultConfigMaps(instance)
 	if err != nil {
 		reqLogger.Error(err, "error handling default configMaps")
 		return reconcile.Result{}, err
@@ -212,7 +210,7 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 					// create the daemonSets for the re-initialize pods.
 					daemonSet := &appsv1.DaemonSet{}
 					err = r.client.Get(context.TODO(), types.NamespacedName{
-						Name:      common.ReinitDaemonSetName,
+						Name:      reinitDaemonSetName,
 						Namespace: common.FileIntegrityNamespace,
 					}, daemonSet)
 					if err != nil {
@@ -221,7 +219,7 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 							return reconcile.Result{}, err
 						}
 						// create
-						ds := reinitAideDaemonset()
+						ds := reinitAideDaemonset(reinitDaemonSetName)
 
 						if ownerErr := controllerutil.SetControllerReference(instance, ds, r.scheme); ownerErr != nil {
 							log.Error(ownerErr, "Failed to set daemonset ownership", "DaemonSet", ds)
@@ -239,14 +237,14 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 
 	reqLogger.Info("reconciling daemonSets")
 	daemonSet := &appsv1.DaemonSet{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: common.DaemonSetName, Namespace: common.FileIntegrityNamespace}, daemonSet)
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: daemonSetName, Namespace: common.FileIntegrityNamespace}, daemonSet)
 	if err != nil {
 		if !kerr.IsNotFound(err) {
 			reqLogger.Error(err, "error getting daemonSet")
 			return reconcile.Result{}, err
 		}
 		// create
-		ds := aideDaemonset(common.DaemonSetName, instance)
+		ds := aideDaemonset(daemonSetName, instance)
 
 		if ownerErr := controllerutil.SetControllerReference(instance, ds, r.scheme); ownerErr != nil {
 			log.Error(ownerErr, "Failed to set daemonset ownership", "DaemonSet", ds)
@@ -260,10 +258,10 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 	return reconcile.Result{}, nil
 }
 
-func defaultAIDEConfigMap() *corev1.ConfigMap {
+func defaultAIDEConfigMap(name string) *corev1.ConfigMap {
 	return &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      common.DefaultConfigMapName,
+			Name:      name,
 			Namespace: common.FileIntegrityNamespace,
 			Labels: map[string]string{
 				common.AideConfigLabelKey: "",
@@ -313,26 +311,26 @@ func aideReinitScript() *corev1.ConfigMap {
 
 // reinitAideDaemonset returns a DaemonSet that runs a one-shot pod on each node. This pod touches a file
 // on the host OS that informs the AIDE init container script to back up and reinitialize the AIDE db.
-func reinitAideDaemonset() *appsv1.DaemonSet {
+func reinitAideDaemonset(reinitDaemonSetName string) *appsv1.DaemonSet {
 	priv := true
 	runAs := int64(0)
 	mode := int32(0744)
 
 	return &appsv1.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      common.ReinitDaemonSetName,
+			Name:      reinitDaemonSetName,
 			Namespace: common.FileIntegrityNamespace,
 		},
 		Spec: appsv1.DaemonSetSpec{
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
-					"app": common.ReinitDaemonSetName,
+					"app": reinitDaemonSetName,
 				},
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						"app": common.ReinitDaemonSetName,
+						"app": reinitDaemonSetName,
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -528,7 +526,7 @@ func aideDaemonset(dsName string, fi *fileintegrityv1alpha1.FileIntegrity) *apps
 							VolumeSource: corev1.VolumeSource{
 								ConfigMap: &corev1.ConfigMapVolumeSource{
 									LocalObjectReference: corev1.LocalObjectReference{
-										Name: "aide-conf",
+										Name: fi.Name,
 									},
 								},
 							},

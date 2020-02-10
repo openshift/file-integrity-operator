@@ -23,11 +23,9 @@ const (
 	AideReinitScriptConfigMapName   = "aide-reinit"
 	AideScriptConfigMapName         = "aide-script"
 	AideScriptPath                  = "/scripts/aide.sh"
-	DaemonSetName                   = "aide-ds"
+	DaemonSetPrefix                 = "aide-ds"
 	DefaultConfDataKey              = "aide.conf"
-	DefaultConfigMapName            = "aide-conf"
 	FileIntegrityNamespace          = "openshift-file-integrity"
-	LogCollectorDaemonSetName       = "logcollector"
 	OperatorServiceAccountName      = "file-integrity-operator"
-	ReinitDaemonSetName             = "aide-reinit-ds"
+	ReinitDaemonSetPrefix           = "aide-reinit-ds"
 )

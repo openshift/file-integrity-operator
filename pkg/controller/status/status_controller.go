@@ -87,7 +87,8 @@ func (r *ReconcileFileIntegrityStatus) Reconcile(request reconcile.Request) (rec
 
 	// first check is for the reinit daemonset, when this exists at all we are in an initialization phase.
 	reinitDS := &appsv1.DaemonSet{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: common.ReinitDaemonSetName, Namespace: common.FileIntegrityNamespace}, reinitDS)
+	reinitDSName := common.GetReinitDaemonSetName(instance.Name)
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: reinitDSName, Namespace: common.FileIntegrityNamespace}, reinitDS)
 	if err != nil && !kerr.IsNotFound(err) {
 		reqLogger.Error(err, "error getting reinit daemonSet")
 		return reconcile.Result{}, err
@@ -103,7 +104,8 @@ func (r *ReconcileFileIntegrityStatus) Reconcile(request reconcile.Request) (rec
 	}
 
 	ds := &appsv1.DaemonSet{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: common.DaemonSetName, Namespace: common.FileIntegrityNamespace}, ds)
+	dsName := common.GetDaemonSetName(instance.Name)
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: dsName, Namespace: common.FileIntegrityNamespace}, ds)
 	if err != nil && !kerr.IsNotFound(err) {
 		reqLogger.Error(err, "error getting daemonSet")
 		return reconcile.Result{}, err
