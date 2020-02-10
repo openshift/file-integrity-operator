@@ -101,6 +101,20 @@ func schema_pkg_apis_fileintegrity_v1alpha1_FileIntegritySpec(ref common.Referen
 				Description: "FileIntegritySpec defines the desired state of FileIntegrity",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
+					"nodeSelector": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Type:   []string{"string"},
+										Format: "",
+									},
+								},
+							},
+						},
+					},
 					"config": {
 						SchemaProps: spec.SchemaProps{
 							Ref: ref("github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1.FileIntegrityConfig"),

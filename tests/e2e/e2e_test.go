@@ -82,6 +82,9 @@ func setupTest(t *testing.T) (*framework.Framework, *framework.TestCtx, string) 
 			Namespace: namespace,
 		},
 		Spec: fileintv1alpha1.FileIntegritySpec{
+			NodeSelector: map[string]string{
+				"node-role.kubernetes.io/worker": "",
+			},
 			Config: fileintv1alpha1.FileIntegrityConfig{},
 		},
 	}
@@ -99,6 +102,19 @@ func setupTest(t *testing.T) (*framework.Framework, *framework.TestCtx, string) 
 	err = waitForDaemonSet(daemonSetIsReady(f.KubeClient, dsName, namespace))
 	if err != nil {
 		t.Errorf("Timed out waiting for DaemonSet %s", dsName)
+	}
+
+	numWorkers, err := getNumberOfWorkerNodes(f.KubeClient)
+	if err != nil {
+		t.Errorf("could not get worker nodes: %v", err)
+	}
+	numReplicas, err := getDSReplicas(f.KubeClient, dsName, namespace)
+	if err != nil {
+		t.Errorf("could not get ds replicas: %v", err)
+	}
+
+	if numWorkers != numReplicas {
+		t.Errorf("The number of worker nodes (%d) doesn't match the DS replicas (%d)", numWorkers, numReplicas)
 	}
 
 	// wait to go active
