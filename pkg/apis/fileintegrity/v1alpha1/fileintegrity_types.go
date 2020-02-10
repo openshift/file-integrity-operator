@@ -26,7 +26,8 @@ const (
 // FileIntegritySpec defines the desired state of FileIntegrity
 // +k8s:openapi-gen=true
 type FileIntegritySpec struct {
-	Config FileIntegrityConfig `json:"config"`
+	NodeSelector map[string]string   `json:"nodeSelector,omitempty"`
+	Config       FileIntegrityConfig `json:"config"`
 }
 
 // FileIntegrityConfig defines the name, namespace, and data key for an AIDE config to use for integrity checking.

@@ -420,6 +420,7 @@ func aideDaemonset(dsName string, fi *fileintegrityv1alpha1.FileIntegrity) *apps
 					},
 				},
 				Spec: corev1.PodSpec{
+					NodeSelector: fi.Spec.NodeSelector,
 					Tolerations: []corev1.Toleration{
 						{
 							Key:      "node-role.kubernetes.io/master",

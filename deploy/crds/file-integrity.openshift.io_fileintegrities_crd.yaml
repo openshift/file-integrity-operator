@@ -42,6 +42,10 @@ spec:
                 namespace:
                   type: string
               type: object
+            nodeSelector:
+              additionalProperties:
+                type: string
+              type: object
           required:
           - config
           type: object

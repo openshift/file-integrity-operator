@@ -206,3 +206,22 @@ func cleanAideDaemonset(namespace string) *appsv1.DaemonSet {
 		},
 	}
 }
+
+func getDSReplicas(c kubernetes.Interface, name, namespace string) (int, error) {
+	daemonSet, err := c.AppsV1().DaemonSets(namespace).Get(name, metav1.GetOptions{})
+	if err != nil {
+		return 0, err
+	}
+	return int(daemonSet.Status.NumberAvailable), nil
+}
+
+func getNumberOfWorkerNodes(c kubernetes.Interface) (int, error) {
+	listopts := metav1.ListOptions{
+		LabelSelector: "node-role.kubernetes.io/worker",
+	}
+	nodes, err := c.CoreV1().Nodes().List(listopts)
+	if err != nil {
+		return 0, err
+	}
+	return len(nodes.Items), nil
+}
