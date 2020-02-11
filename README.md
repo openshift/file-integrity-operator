@@ -10,6 +10,14 @@ $ oc create -f deploy/
 $ oc create -f deploy/crds
 ```
 
+### Deploying from OLM:
+```
+$ (clone repo)
+$ oc login -u kubeadmin -p <pw>
+$ oc create namespace openshift-file-integrity
+$ oc create -f deploy/olm-catalog/operator-source.yaml
+```
+
 ### Usage:
 
 Viewing the scan phase: An "Active" phase indicates that on each node, the AIDE database has been initialized and periodic scanning is enabled:
