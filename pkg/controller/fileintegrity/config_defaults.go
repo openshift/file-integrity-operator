@@ -27,7 +27,7 @@ var aideScript = `#!/bin/sh
       result=$?
       echo "$result" > /hostroot/etc/kubernetes/aide.latest-result.log
       echo "AIDE check returned $result.. sleeping"
-      sleep 5m
+      sleep 10s
     done
     exit 1`
 
