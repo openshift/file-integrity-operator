@@ -219,7 +219,7 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 							return reconcile.Result{}, err
 						}
 						// create
-						ds := reinitAideDaemonset(reinitDaemonSetName)
+						ds := reinitAideDaemonset(reinitDaemonSetName, instance)
 
 						if ownerErr := controllerutil.SetControllerReference(instance, ds, r.scheme); ownerErr != nil {
 							log.Error(ownerErr, "Failed to set daemonset ownership", "DaemonSet", ds)
@@ -311,7 +311,7 @@ func aideReinitScript() *corev1.ConfigMap {
 
 // reinitAideDaemonset returns a DaemonSet that runs a one-shot pod on each node. This pod touches a file
 // on the host OS that informs the AIDE init container script to back up and reinitialize the AIDE db.
-func reinitAideDaemonset(reinitDaemonSetName string) *appsv1.DaemonSet {
+func reinitAideDaemonset(reinitDaemonSetName string, fi *fileintegrityv1alpha1.FileIntegrity) *appsv1.DaemonSet {
 	priv := true
 	runAs := int64(0)
 	mode := int32(0744)
@@ -334,6 +334,7 @@ func reinitAideDaemonset(reinitDaemonSetName string) *appsv1.DaemonSet {
 					},
 				},
 				Spec: corev1.PodSpec{
+					NodeSelector: fi.Spec.NodeSelector,
 					Tolerations: []corev1.Toleration{
 						{
 							Key:      "node-role.kubernetes.io/master",
