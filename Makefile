@@ -6,7 +6,7 @@ AIDE=file-integrity-aide
 
 # Container image variables
 # =========================
-IMAGE_REPO?=docker.io/mrogers950
+IMAGE_REPO?=quay.io/file-integrity-operator
 RUNTIME?=podman
 
 # Image path to use. Set this if you want to use a specific path for building
