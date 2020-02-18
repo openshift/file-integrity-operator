@@ -2,7 +2,7 @@
 # ==================
 export APP_NAME=file-integrity-operator
 LOG_COLLECTOR=file-integrity-logcollector
-AIDE=file-integrity-aide
+AIDE=aide
 
 # Container image variables
 # =========================
