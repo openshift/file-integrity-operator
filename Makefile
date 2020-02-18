@@ -12,7 +12,7 @@ RUNTIME?=podman
 # Image path to use. Set this if you want to use a specific path for building
 # or your e2e tests. This is overwritten if we bulid the image and push it to
 # the cluster or if we're on CI.
-IMAGE_PATH?=$(IMAGE_REPO)/$(APP_NAME)
+OPERATOR_IMAGE_PATH?=$(IMAGE_REPO)/$(APP_NAME)
 LOGCOLLECTOR_IMAGE_PATH?=$(IMAGE_REPO)/$(LOG_COLLECTOR)
 LOGCOLLECTOR_DOCKERFILE_PATH?=./images/logcollector/Dockerfile
 AIDE_IMAGE_PATH?=$(IMAGE_REPO)/$(AIDE)
@@ -85,7 +85,7 @@ help: ## Show this help screen
 image: operator-image logcollector-image aide-image fmt operator-sdk ## Build the file-integrity-operator container image
 
 operator-image:
-	$(GOPATH)/bin/operator-sdk build $(IMAGE_PATH) --image-builder $(RUNTIME)
+	$(GOPATH)/bin/operator-sdk build $(OPERATOR_IMAGE_PATH) --image-builder $(RUNTIME)
 
 logcollector-image:
 	$(RUNTIME) build -f $(LOGCOLLECTOR_DOCKERFILE_PATH) -t $(LOGCOLLECTOR_IMAGE_PATH):$(TAG) .
@@ -173,7 +173,7 @@ else
 e2e: namespace operator-sdk check-if-ci
 endif
 	@echo "Running e2e tests"
-	unset GOFLAGS && $(GOPATH)/bin/operator-sdk test local ./tests/e2e --image "$(IMAGE_PATH)" --namespace "$(NAMESPACE)" --go-test-flags "$(E2E_GO_TEST_FLAGS)"
+	unset GOFLAGS && $(GOPATH)/bin/operator-sdk test local ./tests/e2e --image "$(OPERATOR_IMAGE_PATH)" --namespace "$(NAMESPACE)" --go-test-flags "$(E2E_GO_TEST_FLAGS)"
 
 # This checks if we're in a CI environment by checking the IMAGE_FORMAT
 # environmnet variable. if we are, lets ues the image from CI and use this
@@ -182,13 +182,13 @@ endif
 # The IMAGE_FORMAT variable comes from CI. It is of the format:
 #     <image path in CI registry>:${component}
 # Here define the `component` variable, so, when we overwrite the
-# IMAGE_PATH variable, it'll expand to the component we need.
+# OPERATOR_IMAGE_PATH variable, it'll expand to the component we need.
 .PHONY: check-if-ci
 check-if-ci:
 ifdef IMAGE_FORMAT
 	@echo "IMAGE_FORMAT variable detected. We're in a CI enviornment."
 	$(eval component = $(APP_NAME))
-	$(eval IMAGE_PATH = $(IMAGE_FORMAT))
+	$(eval OPERATOR_IMAGE_PATH = $(IMAGE_FORMAT))
 else
 	@echo "IMAGE_FORMAT variable missing. We're in local enviornment."
 endif
@@ -205,15 +205,15 @@ else
 image-to-cluster: namespace openshift-user image
 	@echo "Temporarily exposing the default route to the image registry"
 	@oc patch configs.imageregistry.operator.openshift.io/cluster --patch '{"spec":{"defaultRoute":true}}' --type=merge
-	@echo "Pushing image $(IMAGE_PATH):$(TAG) to the image registry"
+	@echo "Pushing image $(OPERATOR_IMAGE_PATH):$(TAG) to the image registry"
 	IMAGE_REGISTRY_HOST=$$(oc get route default-route -n openshift-image-registry --template='{{ .spec.host }}'); \
 		$(RUNTIME) login --tls-verify=false -u $(OPENSHIFT_USER) -p $(shell oc whoami -t) $${IMAGE_REGISTRY_HOST}; \
-		$(RUNTIME) push --tls-verify=false $(IMAGE_PATH):$(TAG) $${IMAGE_REGISTRY_HOST}/$(NAMESPACE)/$(APP_NAME):$(TAG); \
+		$(RUNTIME) push --tls-verify=false $(OPERATOR_IMAGE_PATH):$(TAG) $${IMAGE_REGISTRY_HOST}/$(NAMESPACE)/$(APP_NAME):$(TAG); \
 		$(RUNTIME) push --tls-verify=false $(LOGCOLLECTOR_IMAGE_PATH):$(TAG) $${IMAGE_REGISTRY_HOST}/$(NAMESPACE)/$(LOG_COLLECTOR):$(TAG); \
 		$(RUNTIME) push --tls-verify=false $(AIDE_IMAGE_PATH):$(TAG) $${IMAGE_REGISTRY_HOST}/$(NAMESPACE)/$(AIDE):$(TAG)
 	@echo "Removing the route from the image registry"
 	@oc patch configs.imageregistry.operator.openshift.io/cluster --patch '{"spec":{"defaultRoute":false}}' --type=merge
-	$(eval IMAGE_PATH = image-registry.openshift-image-registry.svc:5000/$(NAMESPACE)/$(APP_NAME):$(TAG))
+	$(eval OPERATOR_IMAGE_PATH = image-registry.openshift-image-registry.svc:5000/$(NAMESPACE)/$(APP_NAME):$(TAG))
 endif
 
 .PHONY: namespace
@@ -231,8 +231,8 @@ endif
 
 .PHONY: push
 push: image
-	$(RUNTIME) tag $(IMAGE_PATH) $(IMAGE_PATH):$(TAG)
-	$(RUNTIME) push $(IMAGE_PATH):$(TAG)
+	$(RUNTIME) tag $(OPERATOR_IMAGE_PATH) $(OPERATOR_IMAGE_PATH):$(TAG)
+	$(RUNTIME) push $(OPERATOR_IMAGE_PATH):$(TAG)
 
 .PHONY: publish
 publish:
