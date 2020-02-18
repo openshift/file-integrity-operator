@@ -349,7 +349,7 @@ func reinitAideDaemonset(reinitDaemonSetName string) *appsv1.DaemonSet {
 								RunAsUser:  &runAs,
 							},
 							Name:    "aide",
-							Image:   "quay.io/mrogers950/aide:latest",
+							Image:   GetComponentImage(AIDE),
 							Command: []string{common.AideScriptPath},
 							VolumeMounts: []corev1.VolumeMount{
 								{
@@ -437,7 +437,7 @@ func aideDaemonset(dsName string, fi *fileintegrityv1alpha1.FileIntegrity) *apps
 								RunAsUser:  &runAs,
 							},
 							Name:    "aide-ds-init",
-							Image:   "quay.io/mrogers950/aide:latest",
+							Image:   GetComponentImage(AIDE),
 							Command: []string{common.AideScriptPath},
 							VolumeMounts: []corev1.VolumeMount{
 								{
@@ -462,7 +462,7 @@ func aideDaemonset(dsName string, fi *fileintegrityv1alpha1.FileIntegrity) *apps
 								RunAsUser:  &runAs,
 							},
 							Name:    "aide",
-							Image:   "quay.io/mrogers950/aide:latest",
+							Image:   GetComponentImage(AIDE),
 							Command: []string{common.AideScriptPath},
 							VolumeMounts: []corev1.VolumeMount{
 								{
@@ -484,7 +484,7 @@ func aideDaemonset(dsName string, fi *fileintegrityv1alpha1.FileIntegrity) *apps
 								Privileged: &priv,
 							},
 							Name:  "logcollector",
-							Image: "quay.io/mrogers950/file-integrity-logcollector:latest",
+							Image: GetComponentImage(LOGCOLLECTOR),
 							Args: []string{
 								"--file=" + aideLogPath,
 								"--config-map-prefix=" + dsName,
