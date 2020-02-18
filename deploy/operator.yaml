@@ -16,8 +16,7 @@ spec:
       serviceAccountName: file-integrity-operator
       containers:
         - name: file-integrity-operator
-          # Replace this with the built image name
-          image: image-registry.openshift-image-registry.svc:5000/openshift-file-integrity/file-integrity-operator:latest
+          image: "quay.io/file-integrity-operator/file-integrity-operator:latest"
           command:
           - file-integrity-operator
           imagePullPolicy: Always
