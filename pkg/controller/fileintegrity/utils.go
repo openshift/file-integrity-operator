@@ -15,8 +15,8 @@ var componentDefaults = []struct {
 	defaultImage string
 	envVar       string
 }{
-	{"quay.io/mrogers950/aide:latest", "AIDE_IMAGE"},
-	{"quay.io/mrogers950/file-integrity-logcollector:latest", "LOGCOLLECTOR_IMAGE"},
+	{"quay.io/file-integrity-operator/aide:latest", "AIDE_IMAGE"},
+	{"quay.io/file-integrity-operator/file-integrity-logcollector:latest", "LOGCOLLECTOR_IMAGE"},
 }
 
 // GetComponentImage returns a full image pull spec for a given component
