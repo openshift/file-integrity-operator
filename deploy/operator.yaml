@@ -16,8 +16,7 @@ spec:
       serviceAccountName: file-integrity-operator
       containers:
         - name: file-integrity-operator
-          # Replace this with the built image name
-          image: image-registry.openshift-image-registry.svc:5000/openshift-file-integrity/file-integrity-operator:latest
+          image: "quay.io/file-integrity-operator/file-integrity-operator:latest"
           command:
           - file-integrity-operator
           imagePullPolicy: Always
@@ -33,9 +32,9 @@ spec:
             - name: OPERATOR_NAME
               value: "file-integrity-operator"
             - name: AIDE_IMAGE
-              value: "quay.io/mrogers950/aide:latest"
+              value: "quay.io/file-integrity-operator/aide:latest"
             - name: LOGCOLLECTOR_IMAGE
-              value: "quay.io/mrogers950/file-integrity-logcollector:latest"
+              value: "quay.io/file-integrity-operator/file-integrity-logcollector:latest"
       nodeSelector:
         node-role.kubernetes.io/master: ""
       tolerations:
