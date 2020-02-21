@@ -2,6 +2,9 @@ package fileintegrity
 
 import (
 	"context"
+	"fmt"
+
+	"github.com/go-logr/logr"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -127,6 +130,94 @@ func (r *ReconcileFileIntegrity) handleDefaultConfigMaps(f *fileintegrityv1alpha
 	return cm, nil
 }
 
+func (r *ReconcileFileIntegrity) createReinitDaemonSet(instance *fileintegrityv1alpha1.FileIntegrity) error {
+	daemonSet := &appsv1.DaemonSet{}
+	dsName := common.GetReinitDaemonSetName(instance.Name)
+	dsNamespace := common.FileIntegrityNamespace
+
+	err := r.client.Get(context.TODO(), types.NamespacedName{Name: dsName, Namespace: dsNamespace}, daemonSet)
+	if err == nil {
+		// Exists, so continue.
+		return nil
+	}
+
+	if !kerr.IsNotFound(err) {
+		return err
+	}
+
+	ds := reinitAideDaemonset(common.GetReinitDaemonSetName(instance.Name), instance)
+	if err := controllerutil.SetControllerReference(instance, ds, r.scheme); err != nil {
+		return err
+	}
+
+	return r.client.Create(context.TODO(), ds)
+}
+
+func (r *ReconcileFileIntegrity) updateAideConfig(conf *corev1.ConfigMap, data string) error {
+	confCopy := conf.DeepCopy()
+	confCopy.Data[common.DefaultConfDataKey] = data
+
+	if confCopy.Annotations == nil {
+		confCopy.Annotations = map[string]string{}
+	}
+
+	// Mark the configMap as updated by the user-provided config, for the configMap-controller to trigger an update.
+	confCopy.Annotations[common.AideConfigUpdatedAnnotationKey] = "true"
+
+	return r.client.Update(context.TODO(), confCopy)
+}
+
+func (r *ReconcileFileIntegrity) reconcileUserConfig(instance *fileintegrityv1alpha1.FileIntegrity, reqLogger logr.Logger, currentConfig *corev1.ConfigMap) error {
+	if len(instance.Spec.Config.Name) == 0 || len(instance.Spec.Config.Namespace) == 0 {
+		return nil
+	}
+
+	reqLogger.Info("reconciling user-provided configMap")
+
+	userConfigMap := &corev1.ConfigMap{}
+	err := r.client.Get(context.TODO(), types.NamespacedName{Name: instance.Spec.Config.Name, Namespace: instance.Spec.Config.Namespace}, userConfigMap)
+	if err != nil {
+		if !kerr.IsNotFound(err) {
+			reqLogger.Error(err, "error getting aide config configMap")
+			return err
+		}
+		reqLogger.Info(fmt.Sprintf("warning: user-specified configMap %s/%s does not exist", instance.Spec.Config.Namespace, instance.Spec.Config.Name))
+		return nil
+	}
+
+	key := common.DefaultConfDataKey
+	if instance.Spec.Config.Key != "" {
+		key = instance.Spec.Config.Key
+	}
+
+	conf, ok := userConfigMap.Data[key]
+	if !ok || len(conf) == 0 {
+		reqLogger.Info(fmt.Sprintf("warning: user-specified configMap %s/%s does not have data '%s'",
+			instance.Spec.Config.Namespace, instance.Spec.Config.Name, key))
+		return nil
+	}
+
+	preparedConf, err := prepareAideConf(conf)
+	if err != nil {
+		return err
+	}
+
+	// Config is the same - we're done
+	if preparedConf == currentConfig.Data[common.DefaultConfDataKey] {
+		return nil
+	}
+
+	if err := r.updateAideConfig(currentConfig, preparedConf); err != nil {
+		return err
+	}
+
+	if err := r.createReinitDaemonSet(instance); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // Note:
 // The Controller will requeue the Request to be processed again if the returned error is non-nil or
 // Result.Requeue is true, otherwise upon completion it will remove the work from the queue.
@@ -150,7 +241,6 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 	}
 
 	daemonSetName := common.GetDaemonSetName(instance.Name)
-	reinitDaemonSetName := common.GetReinitDaemonSetName(instance.Name)
 
 	defaultAideConf, err := r.handleDefaultConfigMaps(instance)
 	if err != nil {
@@ -162,77 +252,9 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 		return reconcile.Result{Requeue: true}, nil
 	}
 
-	// handle user-provided configmap
-	reqLogger.Info("instance spec", "Instance.Spec", instance.Spec)
-	if len(instance.Spec.Config.Name) > 0 && len(instance.Spec.Config.Namespace) > 0 {
-		reqLogger.Info("checking for configmap update")
-
-		cm := &corev1.ConfigMap{}
-		cfErr := r.client.Get(context.TODO(), types.NamespacedName{Name: instance.Spec.Config.Name, Namespace: instance.Spec.Config.Namespace}, cm)
-		if cfErr != nil {
-			if !kerr.IsNotFound(cfErr) {
-				reqLogger.Error(cfErr, "error getting aide config configmap")
-				return reconcile.Result{}, cfErr
-			}
-		}
-
-		if cfErr == nil {
-			key := common.DefaultConfDataKey
-			if instance.Spec.Config.Key != "" {
-				key = instance.Spec.Config.Key
-			}
-			conf, ok := cm.Data[key]
-			if ok && len(conf) > 0 {
-				preparedConf, prepErr := prepareAideConf(conf)
-				if prepErr != nil {
-					reqLogger.Error(prepErr, "error preparing provided aide conf")
-					return reconcile.Result{}, prepErr
-				}
-				// the converted config is different than the currently installed config - update it
-				// TODO - refactor this
-				if preparedConf != defaultAideConf.Data[common.DefaultConfDataKey] {
-					reqLogger.Info("updating aide conf")
-					defaultAideConfCopy := defaultAideConf.DeepCopy()
-					defaultAideConfCopy.Data[common.DefaultConfDataKey] = preparedConf
-					// mark the configMap as updated by the user-provided config, for the
-					// configmap-controller to trigger a rolling update.
-					annotations := map[string]string{}
-					if defaultAideConfCopy.Annotations == nil {
-						defaultAideConfCopy.Annotations = annotations
-					}
-					defaultAideConfCopy.Annotations[common.AideConfigUpdatedAnnotationKey] = "true"
-
-					updateErr := r.client.Update(context.TODO(), defaultAideConfCopy)
-					if updateErr != nil {
-						reqLogger.Error(updateErr, "error updating default configmap")
-						return reconcile.Result{}, updateErr
-					}
-					// create the daemonSets for the re-initialize pods.
-					daemonSet := &appsv1.DaemonSet{}
-					err = r.client.Get(context.TODO(), types.NamespacedName{
-						Name:      reinitDaemonSetName,
-						Namespace: common.FileIntegrityNamespace,
-					}, daemonSet)
-					if err != nil {
-						if !kerr.IsNotFound(err) {
-							reqLogger.Error(err, "error getting reinit daemonSet")
-							return reconcile.Result{}, err
-						}
-						// create
-						ds := reinitAideDaemonset(reinitDaemonSetName, instance)
-
-						if ownerErr := controllerutil.SetControllerReference(instance, ds, r.scheme); ownerErr != nil {
-							log.Error(ownerErr, "Failed to set daemonset ownership", "DaemonSet", ds)
-							return reconcile.Result{}, err
-						}
-						if createErr := r.client.Create(context.TODO(), ds); createErr != nil {
-							reqLogger.Error(createErr, "error creating reinit daemonSet")
-							return reconcile.Result{}, createErr
-						}
-					}
-				}
-			}
-		}
+	// handle user-provided configMap
+	if err := r.reconcileUserConfig(instance, reqLogger, defaultAideConf); err != nil {
+		return reconcile.Result{}, err
 	}
 
 	reqLogger.Info("reconciling daemonSets")
