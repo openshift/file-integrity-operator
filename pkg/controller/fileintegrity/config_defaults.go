@@ -65,6 +65,7 @@ DATAONLY =  p+n+u+g+s+acl+selinux+xattrs+sha512
 !/hostroot/etc/.*~
 !/hostroot/etc/kubernetes/static-pod-resources
 !/hostroot/etc/kubernetes/aide.*
+!/hostroot/etc/kubernetes/manifests
 !/hostroot/etc/docker/certs.d
 !/hostroot/etc/selinux/targeted
 
