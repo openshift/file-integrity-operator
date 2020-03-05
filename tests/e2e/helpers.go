@@ -72,6 +72,7 @@ DATAONLY =  p+n+u+g+s+acl+selinux+xattrs+sha512
 !/hostroot/etc/.*~
 !/hostroot/etc/kubernetes/static-pod-resources
 !/hostroot/etc/kubernetes/aide.*
+!/hostroot/etc/kubernetes/manifests
 !/hostroot/etc/docker/certs.d
 !/hostroot/etc/selinux/targeted
 
@@ -216,7 +217,7 @@ func cleanAideDaemonset(namespace string) *appsv1.DaemonSet {
 
 func modifyFileDaemonset(namespace string) *appsv1.DaemonSet {
 	return privCommandDaemonset(namespace, "aide-modify-file",
-		"echo foobar >> /hostroot/etc/kubernetes/cloud.conf || true",
+		"echo '#foobar' >> /hostroot/etc/resolv.conf || true",
 	)
 }
 
@@ -517,7 +518,7 @@ func containsUncompressedScanFailLog(data map[string]string) bool {
 	if !ok {
 		return false
 	}
-	return strings.Contains(content, "/hostroot/etc/kubernetes/cloud.conf")
+	return strings.Contains(content, "/hostroot/etc/resolv.conf")
 }
 
 func editFileOnNodes(f *framework.Framework, namespace string) error {

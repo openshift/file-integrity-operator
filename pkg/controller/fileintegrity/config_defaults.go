@@ -31,6 +31,7 @@ var aideScript = `#!/bin/sh
     done
     exit 1`
 
+// NOTE: Needs to be in sync with `testAideConfig` in test/e2e/helpers.go, except for the heading comment.
 var DefaultAideConfig = `@@define DBDIR /hostroot/etc/kubernetes
 @@define LOGDIR /hostroot/etc/kubernetes
 database=file:@@{DBDIR}/aide.db.gz
