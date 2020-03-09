@@ -427,6 +427,8 @@ func doMainLoop(cmd *cobra.Command, args []string) {
 // containsReturnCodeZero returns true, nil if the file contents starts with a single return code == 0, or err if there is
 // a problem reading the file. Closes file.
 func containsReturnCodeZero(file *os.File) (bool, error) {
+	// Ignore warning about defer on file.Close().
+	// #nosec
 	defer file.Close()
 	contents, err := ioutil.ReadAll(file)
 	if err != nil {

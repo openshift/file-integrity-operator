@@ -45,7 +45,7 @@ export NAMESPACE?=openshift-file-integrity
 
 # Operator-sdk variables
 # ======================
-SDK_VERSION?=v0.14.1
+SDK_VERSION?=v0.15.2
 OPERATOR_SDK_URL=https://github.com/operator-framework/operator-sdk/releases/download/$(SDK_VERSION)/operator-sdk-$(SDK_VERSION)-x86_64-linux-gnu
 
 # Test variables
@@ -53,6 +53,8 @@ OPERATOR_SDK_URL=https://github.com/operator-framework/operator-sdk/releases/dow
 TEST_OPTIONS?=
 # Skip pushing the container to your cluster
 E2E_SKIP_CONTAINER_PUSH?=false
+# Use default images in the e2e test run. Note that this takes precedence over E2E_SKIP_CONTAINER_PUSH
+E2E_USE_DEFAULT_IMAGES?=false
 
 # Pass extra flags to the e2e test run.
 # e.g. to run a specific test in the e2e test suite, do:
@@ -66,7 +68,8 @@ COURIER_CMD=operator-courier
 COURIER_PACKAGE_NAME=file-integrity-operator-bundle
 COURIER_OPERATOR_DIR=deploy/olm-catalog/file-integrity-operator
 COURIER_QUAY_NAMESPACE=file-integrity-operator
-COURIER_PACKAGE_VERSION="0.1.0"
+COURIER_PACKAGE_VERSION=0.1.1
+OLD_COURIER_PACKAGE_VERSION=0.1.0
 COURIER_QUAY_TOKEN?= $(shell cat ~/.quay)
 
 .PHONY: all
@@ -114,7 +117,7 @@ run: operator-sdk ## Run the file-integrity-operator locally
 	WATCH_NAMESPACE=$(NAMESPACE) \
 	KUBERNETES_CONFIG=$(KUBECONFIG) \
 	OPERATOR_NAME=$(APP_NAME) \
-	$(GOPATH)/bin/operator-sdk up local --namespace $(NAMESPACE)
+	$(GOPATH)/bin/operator-sdk run --local --namespace $(NAMESPACE)
 
 .PHONY: clean
 clean: clean-modcache clean-cache clean-output ## Clean the golang environment
@@ -168,7 +171,7 @@ test-unit: fmt ## Run the unit tests
 # avoided with the E2E_SKIP_CONTAINER_PUSH environment variable.
 .PHONY: e2e
 ifeq ($(E2E_SKIP_CONTAINER_PUSH), false)
-e2e: namespace operator-sdk image-to-cluster ## Run the end-to-end tests
+e2e: namespace operator-sdk image-to-cluster openshift-user ## Run the end-to-end tests
 else
 e2e: namespace operator-sdk
 endif
@@ -191,6 +194,13 @@ endif
 #     <image path in CI registry>:${component}
 # Here define the `component` variable, so, when we overwrite the
 # OPERATOR_IMAGE_PATH variable, it'll expand to the component we need.
+#
+# If the E2E_SKIP_CONTAINER_PUSH environment variable is used, the target will
+# assume that you've pushed images beforehand, and will merely set the
+# necessary variables to use them.
+#
+# If the E2E_USE_DEFAULT_IMAGES environment variable is used, this will do
+# nothing, and the default images will be used.
 .PHONY: image-to-cluster
 ifdef IMAGE_FORMAT
 image-to-cluster:
@@ -201,6 +211,15 @@ image-to-cluster:
 	$(eval component = file-integrity-logcollector)
 	$(eval LOGCOLLECTOR_IMAGE_PATH = $(IMAGE_FORMAT))
 	# TODO(jaosorior): Add AIDE image to release repo and subsequently add it here.
+else ifeq ($(E2E_USE_DEFAULT_IMAGES), true)
+image-to-cluster:
+	@echo "E2E_USE_DEFAULT_IMAGES variable detected. Using default images."
+else ifeq ($(E2E_SKIP_CONTAINER_PUSH), true)
+image-to-cluster:
+	@echo "E2E_SKIP_CONTAINER_PUSH variable detected. Using previously pushed images."
+	$(eval OPERATOR_IMAGE_PATH = image-registry.openshift-image-registry.svc:5000/$(NAMESPACE)/$(APP_NAME):$(TAG))
+	$(eval LOGCOLLECTOR_IMAGE_PATH = image-registry.openshift-image-registry.svc:5000/$(NAMESPACE)/$(LOG_COLLECTOR):$(TAG))
+	$(eval AIDE_IMAGE_PATH = image-registry.openshift-image-registry.svc:5000/$(NAMESPACE)/$(AIDE):$(TAG))
 else
 image-to-cluster: namespace openshift-user image
 	@echo "IMAGE_FORMAT variable missing. We're in local enviornment."
@@ -242,5 +261,12 @@ push: image
 	$(RUNTIME) push $(AIDE_IMAGE_PATH):$(TAG)
 
 .PHONY: publish
-publish:
+publish: csv publish-bundle
+
+.PHONY: csv
+csv: operator-sdk
+	$(GOPATH)/bin/operator-sdk generate csv --csv-version "$(COURIER_PACKAGE_VERSION)" --from-version "$(OLD_COURIER_PACKAGE_VERSION)" --update-crds
+
+.PHONY: publish-bundle
+publish-bundle:
 	$(COURIER_CMD) push "$(COURIER_OPERATOR_DIR)" "$(COURIER_QUAY_NAMESPACE)" "$(COURIER_PACKAGE_NAME)" "$(COURIER_PACKAGE_VERSION)" "basic $(COURIER_QUAY_TOKEN)"
