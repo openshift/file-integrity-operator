@@ -68,9 +68,10 @@ COURIER_CMD=operator-courier
 COURIER_PACKAGE_NAME=file-integrity-operator-bundle
 COURIER_OPERATOR_DIR=deploy/olm-catalog/file-integrity-operator
 COURIER_QUAY_NAMESPACE=file-integrity-operator
-COURIER_PACKAGE_VERSION=0.1.1
-OLD_COURIER_PACKAGE_VERSION=0.1.0
+COURIER_PACKAGE_VERSION?=
+OLD_COURIER_PACKAGE_VERSION=$(shell ls -t deploy/olm-catalog/file-integrity-operator/ | grep -v package.yaml | head -1)
 COURIER_QUAY_TOKEN?= $(shell cat ~/.quay)
+PACKAGE_CHANNEL=?alpha
 
 .PHONY: all
 all: build ## Test and Build the file-integrity-operator
@@ -87,7 +88,7 @@ help: ## Show this help screen
 .PHONY: image
 image: operator-image logcollector-image aide-image fmt operator-sdk ## Build the file-integrity-operator container image
 
-operator-image:
+operator-image: operator-sdk
 	$(GOPATH)/bin/operator-sdk build $(OPERATOR_IMAGE_PATH) --image-builder $(RUNTIME)
 
 logcollector-image:
@@ -106,11 +107,11 @@ logcollector-bin:
 	$(GO) build -o $(TARGET_LOGCOLLECTOR) github.com/openshift/file-integrity-operator/cmd/logcollector
 
 .PHONY: operator-sdk
-operator-sdk:
-ifeq ("$(wildcard $(GOPATH)/bin/operator-sdk)","")
+operator-sdk: $(GOPATH)/bin/operator-sdk
+
+$(GOPATH)/bin/operator-sdk:
 	wget -nv $(OPERATOR_SDK_URL) -O $(GOPATH)/bin/operator-sdk || (echo "wget returned $$? trying to fetch operator-sdk. please install operator-sdk and try again"; exit 1)
 	chmod +x $(GOPATH)/bin/operator-sdk
-endif
 
 .PHONY: run
 run: operator-sdk ## Run the file-integrity-operator locally
@@ -253,20 +254,55 @@ endif
 
 .PHONY: push
 push: image
-	$(RUNTIME) tag $(OPERATOR_IMAGE_PATH) $(OPERATOR_IMAGE_PATH):$(TAG)
 	$(RUNTIME) push $(OPERATOR_IMAGE_PATH):$(TAG)
-	$(RUNTIME) tag $(LOGCOLLECTOR_IMAGE_PATH) $(LOGCOLLECTOR_IMAGE_PATH):$(TAG)
 	$(RUNTIME) push $(LOGCOLLECTOR_IMAGE_PATH):$(TAG)
-	$(RUNTIME) tag $(AIDE_IMAGE_PATH) $(AIDE_IMAGE_PATH):$(TAG)
 	$(RUNTIME) push $(AIDE_IMAGE_PATH):$(TAG)
 
 .PHONY: publish
 publish: csv publish-bundle
 
+.PHONY: check-package-version
+check-package-version:
+ifndef COURIER_PACKAGE_VERSION
+	$(error COURIER_PACKAGE_VERSION must be defined)
+endif
+
 .PHONY: csv
-csv: operator-sdk
-	$(GOPATH)/bin/operator-sdk generate csv --csv-version "$(COURIER_PACKAGE_VERSION)" --from-version "$(OLD_COURIER_PACKAGE_VERSION)" --update-crds
+csv: deploy/olm-catalog/file-integrity-operator/$(COURIER_PACKAGE_VERSION) check-package-version operator-sdk ## Generate the CSV and packaging for the specific version (NOTE: Gotta specify the version with the COURIER_PACKAGE_VERSION environment variable)
+
+deploy/olm-catalog/file-integrity-operator/$(COURIER_PACKAGE_VERSION):
+	$(GOPATH)/bin/operator-sdk generate csv --csv-channel $(PACKAGE_CHANNEL) --csv-version "$(COURIER_PACKAGE_VERSION)" --from-version "$(OLD_COURIER_PACKAGE_VERSION)" --update-crds
 
 .PHONY: publish-bundle
-publish-bundle:
+publish-bundle: check-package-version
 	$(COURIER_CMD) push "$(COURIER_OPERATOR_DIR)" "$(COURIER_QUAY_NAMESPACE)" "$(COURIER_PACKAGE_NAME)" "$(COURIER_PACKAGE_VERSION)" "basic $(COURIER_QUAY_TOKEN)"
+
+.PHONY: package-version-to-tag
+package-version-to-tag: check-package-version
+	@echo "Overriding default tag '$(TAG)' with release tag '$(COURIER_PACKAGE_VERSION)'"
+	$(eval TAG = $(COURIER_PACKAGE_VERSION))
+
+.PHONY: release-tag-image
+release-tag-image: package-version-to-tag
+	@echo "Temporarily overriding image tags in deploy/operator.yaml"
+	@sed -i 's%$(IMAGE_REPO)/$(LOG_COLLECTOR):latest%$(LOGCOLLECTOR_IMAGE_PATH):$(TAG)%' deploy/operator.yaml
+	@sed -i 's%$(IMAGE_REPO)/$(AIDE):latest%$(AIDE_IMAGE_PATH):$(TAG)%' deploy/operator.yaml
+
+.PHONY: undo-deploy-tag-image
+undo-deploy-tag-image: package-version-to-tag
+	@echo "Restoring image tags in deploy/operator.yaml"
+	@sed -i 's%$(LOGCOLLECTOR_IMAGE_PATH):$(TAG)%$(IMAGE_REPO)/$(LOG_COLLECTOR):latest%' deploy/operator.yaml
+	@sed -i 's%$(AIDE_IMAGE_PATH):$(TAG)%$(IMAGE_REPO)/$(AIDE):latest%' deploy/operator.yaml
+
+.PHONY: git-release
+git-release: package-version-to-tag
+	git checkout -b "release-v$(TAG)"
+	git add "deploy/olm-catalog/file-integrity-operator/$(TAG)"
+	git add "deploy/olm-catalog/file-integrity-operator/file-integrity-operator.package.yaml"
+	git commit -m "Release v$(TAG)"
+	git tag "v$(TAG)"
+	git push origin "v$(TAG)"
+	git push origin "release-v$(TAG)"
+
+.PHONY: release
+release: release-tag-image push publish undo-deploy-tag-image git-release ## Do an official release (Requires permissions)
