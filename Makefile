@@ -89,7 +89,7 @@ help: ## Show this help screen
 image: operator-image logcollector-image aide-image fmt operator-sdk ## Build the file-integrity-operator container image
 
 operator-image: operator-sdk
-	$(GOPATH)/bin/operator-sdk build $(OPERATOR_IMAGE_PATH) --image-builder $(RUNTIME)
+	$(GOPATH)/bin/operator-sdk build $(OPERATOR_IMAGE_PATH):$(TAG) --image-builder $(RUNTIME)
 
 logcollector-image:
 	$(RUNTIME) build -f $(LOGCOLLECTOR_DOCKERFILE_PATH) -t $(LOGCOLLECTOR_IMAGE_PATH):$(TAG) .
