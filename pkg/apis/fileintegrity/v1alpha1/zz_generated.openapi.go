@@ -204,6 +204,24 @@ func schema_pkg_apis_fileintegrity_v1alpha1_NodeStatus(ref common.ReferenceCallb
 							Format: "",
 						},
 					},
+					"filesAdded": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int32",
+						},
+					},
+					"filesChanged": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int32",
+						},
+					},
+					"filesRemoved": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int32",
+						},
+					},
 				},
 				Required: []string{"nodeName", "lastProbeTime", "condition"},
 			},

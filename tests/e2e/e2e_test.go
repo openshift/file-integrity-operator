@@ -45,6 +45,9 @@ func TestFileIntegrityLog(t *testing.T) {
 		if err != nil {
 			t.Errorf("Timeout waiting for a failed status condition for node '%s'", node.Name)
 		} else {
+			if status.FilesChanged != 1 {
+				t.Errorf("Expected one file to change, got %d", status.FilesChanged)
+			}
 			data, err := pollUntilConfigMapExists(t, f, status.ResultConfigMapNamespace, status.ResultConfigMapName, time.Second, time.Minute*5)
 			if err != nil {
 				t.Errorf("Timeout waiting for log configMap '%s'", status.ResultConfigMapName)
