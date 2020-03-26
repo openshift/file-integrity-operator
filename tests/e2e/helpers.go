@@ -2,7 +2,6 @@ package e2e
 
 import (
 	goctx "context"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -173,35 +172,6 @@ func daemonSetWasScheduled(c kubernetes.Interface, name, namespace string) wait.
 		}
 		return true, nil
 	}
-}
-
-func podRunning(c kubernetes.Interface, podName, namespace string) wait.ConditionFunc {
-	return func() (bool, error) {
-		pod, err := c.CoreV1().Pods(namespace).Get(podName, metav1.GetOptions{})
-		if err != nil {
-			return false, err
-		}
-		switch pod.Status.Phase {
-		case corev1.PodRunning:
-			return true, nil
-		case corev1.PodFailed, corev1.PodSucceeded:
-			return false, fmt.Errorf("pod ran to completion")
-		}
-		return false, nil
-	}
-}
-
-// Waits default amount of time (PodStartTimeout) for the specified pod to become running.
-// Returns an error if timeout occurs first, or pod goes in to failed state.
-func waitForPodRunningInNamespace(c kubernetes.Interface, pod *corev1.Pod) error {
-	if pod.Status.Phase == corev1.PodRunning {
-		return nil
-	}
-	return waitTimeoutForPodRunningInNamespace(c, pod.Name, pod.Namespace, timeout)
-}
-
-func waitTimeoutForPodRunningInNamespace(c kubernetes.Interface, podName, namespace string, timeout time.Duration) error {
-	return wait.PollImmediate(pollInterval, timeout, podRunning(c, podName, namespace))
 }
 
 func waitForDaemonSet(daemonSetCallback wait.ConditionFunc) error {
