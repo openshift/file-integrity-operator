@@ -1,9 +1,11 @@
 package e2e
 
 import (
+	"context"
 	"testing"
 	"time"
 
+	framework "github.com/operator-framework/operator-sdk/pkg/test"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	fileintv1alpha1 "github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
@@ -37,7 +39,7 @@ func TestFileIntegrityLogAndReinitDatabase(t *testing.T) {
 
 	// log collection should create a configmap for each node's report after the scan runs again
 	nodes, err := f.KubeClient.CoreV1().Nodes().List(metav1.ListOptions{
-		LabelSelector: "node-role.kubernetes.io/worker",
+		LabelSelector: mcWorkerRoleLabelKey,
 	})
 	if err != nil {
 		t.Error(err)
@@ -133,4 +135,60 @@ func TestFileIntegrityConfigurationIgnoreMissing(t *testing.T) {
 		fileintegrity.DefaultAideConfig, time.Second*5, time.Minute*5); err != nil {
 		t.Errorf("Timeout waiting for configMap data to match")
 	}
+}
+
+// This is meant to test that the operator can react to expected changes (MCO changes)
+// in such a way that it'll automatically re-initialize the database after the changes
+// have taken place.
+// This will:
+// - Create a FileIntegrity object
+// - assert that the status is success
+// - Create a MachineConfig object
+// - Wait for the nodes to be ready
+// - assert that the status is success
+//
+// NOTE: This test is run last because it modifies the node and causes restarts
+func TestFileIntegrityAcceptsExpectedChange(t *testing.T) {
+	f, testctx, namespace := setupTest(t)
+	defer testctx.Cleanup()
+	defer func() {
+		if err := cleanNodes(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	// wait to go active.
+	err := waitForScanStatus(t, f, namespace, testIntegrityName, fileintv1alpha1.PhaseActive)
+	if err != nil {
+		t.Errorf("Timeout waiting for scan status")
+	}
+
+	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
+	assertNodesConditionIsSuccess(t, f, namespace, testIntegrityName, 2*time.Second, 5*time.Minute)
+
+	// Create MCFG
+	mcfg := getTestMcfg(t)
+	cleanupOptions := framework.CleanupOptions{
+		TestContext:   testctx,
+		Timeout:       cleanupTimeout,
+		RetryInterval: cleanupRetryInterval,
+	}
+	f.Client.Create(context.TODO(), mcfg, &cleanupOptions)
+
+	// Wait some time... The machineConfigs take some time to kick in.
+	time.Sleep(30 * time.Second)
+
+	// Wait for nodes to be ready
+	if err = waitForNodesToBeReady(f); err != nil {
+		t.Errorf("Timeout waiting for nodes")
+	}
+
+	// wait to go active.
+	err = waitForScanStatus(t, f, namespace, testIntegrityName, fileintv1alpha1.PhaseActive)
+	if err != nil {
+		t.Errorf("Timeout waiting for scan status")
+	}
+
+	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after expected changes")
+	assertNodesConditionIsSuccess(t, f, namespace, testIntegrityName, 5*time.Second, 5*time.Minute)
 }
