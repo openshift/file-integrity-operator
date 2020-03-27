@@ -11,7 +11,7 @@ import (
 	"github.com/openshift/file-integrity-operator/pkg/controller/fileintegrity"
 )
 
-func TestFileIntegrityLog(t *testing.T) {
+func TestFileIntegrityLogAndReinitDatabase(t *testing.T) {
 	f, testctx, namespace := setupTest(t)
 	defer testctx.Cleanup()
 	defer func() {
@@ -54,6 +54,13 @@ func TestFileIntegrityLog(t *testing.T) {
 				t.Errorf("configMap '%s' does not have a failure log. Got: %#v", status.ResultConfigMapName, data)
 			}
 		}
+	}
+	reinitFileIntegrityDatabase(t, f, testIntegrityName, namespace, time.Second, 2*time.Minute)
+
+	// wait to go active.
+	err = waitForScanStatus(t, f, namespace, testIntegrityName, fileintv1alpha1.PhaseActive)
+	if err != nil {
+		t.Errorf("Timeout waiting for scan status")
 	}
 }
 

@@ -379,6 +379,31 @@ func updateFileIntegrityConfig(t *testing.T, f *framework.Framework, integrityNa
 	}
 }
 
+func reinitFileIntegrityDatabase(t *testing.T, f *framework.Framework, integrityName, namespace string, interval, timeout time.Duration) {
+	var lastErr error
+	pollErr := wait.PollImmediate(interval, timeout, func() (bool, error) {
+		fileIntegrity := &fileintv1alpha1.FileIntegrity{}
+		err := f.Client.Get(goctx.TODO(), types.NamespacedName{Name: integrityName, Namespace: namespace}, fileIntegrity)
+		if err != nil {
+			lastErr = err
+			return false, nil
+		}
+		fileIntegrityCopy := fileIntegrity.DeepCopy()
+		fileIntegrityCopy.Annotations = map[string]string{
+			common.AideDatabaseReinitAnnotationKey: "",
+		}
+		err = f.Client.Update(goctx.TODO(), fileIntegrityCopy)
+		if err != nil {
+			lastErr = err
+			return false, nil
+		}
+		return true, nil
+	})
+	if pollErr != nil {
+		t.Errorf("Error adding re-init annotation to FileIntegrity: (%s) (%s)", pollErr, lastErr)
+	}
+}
+
 func createTestConfigMap(t *testing.T, f *framework.Framework, integrityName, configMapName, namespace, key, data string) {
 	// create a test AIDE config configMap
 	cm := &corev1.ConfigMap{
