@@ -167,9 +167,19 @@ func (r *ReconcileFileIntegrity) updateAideConfig(conf *corev1.ConfigMap, data s
 	return r.client.Update(context.TODO(), confCopy)
 }
 
-func (r *ReconcileFileIntegrity) reconcileUserConfig(instance *fileintegrityv1alpha1.FileIntegrity, reqLogger logr.Logger, currentConfig *corev1.ConfigMap) error {
+func (r *ReconcileFileIntegrity) retrieveAndAnnotateAideConfig(conf *corev1.ConfigMap) error {
+	cachedconf := &corev1.ConfigMap{}
+	// Get the latest config...
+	r.client.Get(context.TODO(), types.NamespacedName{Name: conf.Name, Namespace: conf.Namespace}, cachedconf)
+
+	return r.updateAideConfig(cachedconf, cachedconf.Data[common.DefaultConfDataKey])
+}
+
+// reconcileUserConfig checks if the user provided a configuration of their own and preapres it
+// returns true if new configuration was added and false if not.
+func (r *ReconcileFileIntegrity) reconcileUserConfig(instance *fileintegrityv1alpha1.FileIntegrity, reqLogger logr.Logger, currentConfig *corev1.ConfigMap) (bool, error) {
 	if len(instance.Spec.Config.Name) == 0 || len(instance.Spec.Config.Namespace) == 0 {
-		return nil
+		return false, nil
 	}
 
 	reqLogger.Info("reconciling user-provided configMap")
@@ -179,10 +189,11 @@ func (r *ReconcileFileIntegrity) reconcileUserConfig(instance *fileintegrityv1al
 	if err != nil {
 		if !kerr.IsNotFound(err) {
 			reqLogger.Error(err, "error getting aide config configMap")
-			return err
+			return false, err
 		}
+		// FIXME(jaosorior): This should probably be an error instead
 		reqLogger.Info(fmt.Sprintf("warning: user-specified configMap %s/%s does not exist", instance.Spec.Config.Namespace, instance.Spec.Config.Name))
-		return nil
+		return false, nil
 	}
 
 	key := common.DefaultConfDataKey
@@ -194,28 +205,24 @@ func (r *ReconcileFileIntegrity) reconcileUserConfig(instance *fileintegrityv1al
 	if !ok || len(conf) == 0 {
 		reqLogger.Info(fmt.Sprintf("warning: user-specified configMap %s/%s does not have data '%s'",
 			instance.Spec.Config.Namespace, instance.Spec.Config.Name, key))
-		return nil
+		return false, nil
 	}
 
 	preparedConf, err := prepareAideConf(conf)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	// Config is the same - we're done
 	if preparedConf == currentConfig.Data[common.DefaultConfDataKey] {
-		return nil
+		return false, nil
 	}
 
 	if err := r.updateAideConfig(currentConfig, preparedConf); err != nil {
-		return err
+		return false, err
 	}
 
-	if err := r.createReinitDaemonSet(instance); err != nil {
-		return err
-	}
-
-	return nil
+	return true, nil
 }
 
 // Note:
@@ -253,8 +260,35 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 	}
 
 	// handle user-provided configMap
-	if err := r.reconcileUserConfig(instance, reqLogger, defaultAideConf); err != nil {
+	hasNewConfig, err := r.reconcileUserConfig(instance, reqLogger, defaultAideConf)
+	if err != nil {
 		return reconcile.Result{}, err
+	}
+
+	_, forceReinit := instance.Annotations[common.AideDatabaseReinitAnnotationKey]
+	if hasNewConfig || forceReinit {
+		if forceReinit {
+			reqLogger.Info("Re-init annotation found. Spawning reinit DS.")
+		}
+		// This daemonset re-inits the database
+		// TODO(jaosorior): Add status about the re-init happening.
+		if err := r.createReinitDaemonSet(instance); err != nil {
+			return reconcile.Result{}, err
+		}
+	}
+
+	// Remove re-init annotation
+	if forceReinit {
+		reqLogger.Info("Annotating AIDE config to be updated.")
+		if err := r.retrieveAndAnnotateAideConfig(defaultAideConf); err != nil {
+			return reconcile.Result{}, err
+		}
+		fiCopy := instance.DeepCopy()
+		delete(fiCopy.Annotations, common.AideDatabaseReinitAnnotationKey)
+		reqLogger.Info("Removing re-init DS.")
+		if err := r.client.Update(context.TODO(), fiCopy); err != nil {
+			return reconcile.Result{}, err
+		}
 	}
 
 	reqLogger.Info("reconciling daemonSets")
