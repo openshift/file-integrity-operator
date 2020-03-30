@@ -54,6 +54,9 @@ type NodeStatus struct {
 	ResultConfigMapName      string                     `json:"resultConfigMapName,omitempty"`
 	ResultConfigMapNamespace string                     `json:"resultConfigMapNamespace,omitempty"`
 	ErrorMsg                 string                     `json:"errorMessage,omitempty"`
+	FilesAdded               int                        `json:"filesAdded,omitempty"`
+	FilesChanged             int                        `json:"filesChanged,omitempty"`
+	FilesRemoved             int                        `json:"filesRemoved,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

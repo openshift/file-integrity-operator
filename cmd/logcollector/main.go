@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"syscall"
 	"time"
@@ -187,6 +188,26 @@ func waitForFile(filename string, timeout int64) (*os.File, uint64) {
 	return nil, inode
 }
 
+func matchFileChangeRegex(contents []byte, regex string) string {
+	re := regexp.MustCompile(regex)
+	match := re.FindSubmatch(contents)
+	if len(match) < 2 {
+		return "0"
+	}
+
+	return string(match[1])
+}
+
+func annotateFileChangeSummary(contents []byte, annotations map[string]string) {
+	annotations[common.IntegrityLogFilesAddedAnnotation] = matchFileChangeRegex(contents, `\s+Added files:\s+(?P<num_added>\d+)`)
+	annotations[common.IntegrityLogFilesChangedAnnotation] = matchFileChangeRegex(contents, `\s+Changed files:\s+(?P<num_changed>\d+)`)
+	annotations[common.IntegrityLogFilesRemovedAnnotation] = matchFileChangeRegex(contents, `\s+Removed files:\s+(?P<num_removed>\d+)`)
+	DBG("added %s changed %s removed %s",
+		annotations[common.IntegrityLogFilesAddedAnnotation],
+		annotations[common.IntegrityLogFilesChangedAnnotation],
+		annotations[common.IntegrityLogFilesRemovedAnnotation])
+}
+
 func needsCompression(contents []byte) bool {
 	return len(contents) > uncompressedMaxSize // Magic number?
 }
@@ -208,6 +229,8 @@ func getLogConfigMap(owner *unstructured.Unstructured, configMapName, contentkey
 			common.CompressedLogsIndicatorLabelKey: "",
 		}
 	}
+
+	annotateFileChangeSummary(contents, annotations)
 
 	return &corev1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{

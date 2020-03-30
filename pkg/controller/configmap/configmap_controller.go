@@ -2,6 +2,7 @@ package configmap
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -223,6 +224,11 @@ func (r *ReconcileConfigMap) handleIntegrityLog(cm *corev1.ConfigMap, logger log
 			ResultConfigMapName:      failedCM.Name,
 			ResultConfigMapNamespace: failedCM.Namespace,
 		}
+
+		status.FilesAdded, _ = strconv.Atoi(failedCM.Annotations[common.IntegrityLogFilesAddedAnnotation])
+		status.FilesRemoved, _ = strconv.Atoi(failedCM.Annotations[common.IntegrityLogFilesRemovedAnnotation])
+		status.FilesChanged, _ = strconv.Atoi(failedCM.Annotations[common.IntegrityLogFilesChangedAnnotation])
+
 		if err := r.updateStatus(fi, status); err != nil {
 			return reconcile.Result{}, err
 		}
@@ -266,9 +272,10 @@ func (r *ReconcileConfigMap) updateStatus(fi *fileintegrityv1alpha1.FileIntegrit
 func getConfigMapForFailureLog(cm *corev1.ConfigMap) *corev1.ConfigMap {
 	failedCM := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      cm.Name + "-failed",
-			Namespace: cm.Namespace,
-			Labels:    cm.Labels,
+			Name:        cm.Name + "-failed",
+			Namespace:   cm.Namespace,
+			Labels:      cm.Labels,
+			Annotations: cm.Annotations,
 		},
 		Data: cm.Data,
 	}

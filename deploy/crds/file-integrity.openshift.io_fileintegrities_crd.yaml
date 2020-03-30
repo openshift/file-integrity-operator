@@ -60,6 +60,12 @@ spec:
                     type: string
                   errorMessage:
                     type: string
+                  filesAdded:
+                    type: integer
+                  filesChanged:
+                    type: integer
+                  filesRemoved:
+                    type: integer
                   lastProbeTime:
                     format: date-time
                     type: string
