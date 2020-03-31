@@ -7,9 +7,9 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/go-logr/logr v0.1.0
 	github.com/go-openapi/spec v0.19.4
-	github.com/operator-framework/operator-sdk v0.15.2
+	github.com/operator-framework/operator-sdk v0.16.0
 	github.com/pkg/errors v0.8.1
-	github.com/securego/gosec v0.0.0-20200302134848-c998389da2ac
+	github.com/securego/gosec v0.0.0-20200330112059-e030aa4f768b
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/pflag v1.0.5
 	k8s.io/api v0.0.0

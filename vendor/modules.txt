@@ -121,7 +121,7 @@ github.com/nbutton23/zxcvbn-go/match
 github.com/nbutton23/zxcvbn-go/matching
 github.com/nbutton23/zxcvbn-go/scoring
 github.com/nbutton23/zxcvbn-go/utils/math
-# github.com/operator-framework/operator-sdk v0.15.2
+# github.com/operator-framework/operator-sdk v0.16.0
 github.com/operator-framework/operator-sdk/internal/scaffold
 github.com/operator-framework/operator-sdk/internal/scaffold/input
 github.com/operator-framework/operator-sdk/internal/scaffold/internal/deps
@@ -160,7 +160,7 @@ github.com/prometheus/procfs/internal/util
 github.com/rogpeppe/go-internal/modfile
 github.com/rogpeppe/go-internal/module
 github.com/rogpeppe/go-internal/semver
-# github.com/securego/gosec v0.0.0-20200302134848-c998389da2ac
+# github.com/securego/gosec v0.0.0-20200330112059-e030aa4f768b
 github.com/securego/gosec
 github.com/securego/gosec/cmd/gosec
 github.com/securego/gosec/output
