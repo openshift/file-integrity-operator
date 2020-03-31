@@ -26,6 +26,9 @@ func TestFileIntegrityLogAndReinitDatabase(t *testing.T) {
 		t.Errorf("Timeout waiting for scan status")
 	}
 
+	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
+	assertNodesConditionIsSuccess(t, f, namespace, testIntegrityName, 2*time.Second, 5*time.Minute)
+
 	// modify a file on a node
 	err = editFileOnNodes(f, namespace)
 	if err != nil {
@@ -65,6 +68,9 @@ func TestFileIntegrityLogAndReinitDatabase(t *testing.T) {
 	if err != nil {
 		t.Errorf("Timeout waiting for scan status")
 	}
+
+	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after re-initializing the database")
+	assertNodesConditionIsSuccess(t, f, namespace, testIntegrityName, 2*time.Second, 5*time.Minute)
 }
 
 // TestFileIntegrityConfigurationStatus tests the following:

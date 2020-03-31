@@ -2,6 +2,7 @@ package e2e
 
 import (
 	goctx "context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -472,6 +473,30 @@ func waitForFailedStatusForNode(t *testing.T, f *framework.Framework, namespace,
 	}
 
 	return foundStatus, nil
+}
+
+func assertNodesConditionIsSuccess(t *testing.T, f *framework.Framework, namespace, name string, interval, timeout time.Duration) {
+	fi := &fileintv1alpha1.FileIntegrity{}
+	var lastErr error
+	wait.Poll(interval, timeout, func() (bool, error) {
+		getErr := f.Client.Get(goctx.TODO(), types.NamespacedName{Name: name, Namespace: namespace}, fi)
+		if getErr != nil {
+			t.Logf("Retrying. Got error: %v\n", getErr)
+			lastErr = getErr
+			return false, nil
+		}
+
+		for _, status := range fi.Status.Statuses {
+			if status.Condition != fileintv1alpha1.NodeConditionSucceeded {
+				lastErr = fmt.Errorf("status.nodeStatus for node %s NOT SUCCESS: But instead %s", status.NodeName, status.Condition)
+				return false, nil
+			}
+		}
+		return true, nil
+	})
+	if lastErr != nil {
+		t.Errorf("ERROR: nodes weren't in good state: %s", lastErr)
+	}
 }
 
 // waitForScanStatus will poll until the fileintegrity that we're looking for reaches a certain status, or until
