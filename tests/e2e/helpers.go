@@ -97,15 +97,15 @@ func cleanUp(t *testing.T, namespace string) func() error {
 	}
 }
 
-func setupTestRequirements(t *testing.T) *framework.TestCtx {
+func setupTestRequirements(t *testing.T) *framework.Context {
 	fileIntegrities := &fileintv1alpha1.FileIntegrityList{}
 	err := framework.AddToFrameworkScheme(apis.AddToScheme, fileIntegrities)
 	if err != nil {
 		t.Fatalf("TEST SETUP: failed to add custom resource scheme to framework: %v", err)
 	}
-	return framework.NewTestCtx(t)
+	return framework.NewContext(t)
 }
-func setupFileIntegrityOperatorCluster(t *testing.T, ctx *framework.TestCtx) {
+func setupFileIntegrityOperatorCluster(t *testing.T, ctx *framework.Context) {
 	cleanupOptions := framework.CleanupOptions{
 		TestContext:   ctx,
 		Timeout:       cleanupTimeout,
@@ -278,7 +278,7 @@ func getNumberOfWorkerNodes(c kubernetes.Interface) (int, error) {
 }
 
 // setupTest sets up the operator and waits for AIDE to roll out
-func setupTest(t *testing.T) (*framework.Framework, *framework.TestCtx, string) {
+func setupTest(t *testing.T) (*framework.Framework, *framework.Context, string) {
 	testctx := setupTestRequirements(t)
 	namespace, err := testctx.GetNamespace()
 	if err != nil {
