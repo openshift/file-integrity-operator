@@ -181,7 +181,7 @@ endif
 	@echo "Replacing workload references in deploy/operator.yaml"
 	@sed -i 's%$(IMAGE_REPO)/$(LOG_COLLECTOR):latest%$(LOGCOLLECTOR_IMAGE_PATH)%' deploy/operator.yaml
 	@sed -i 's%$(IMAGE_REPO)/$(AIDE):latest%$(AIDE_IMAGE_PATH)%' deploy/operator.yaml
-	unset GOFLAGS && $(GOPATH)/bin/operator-sdk test local ./tests/e2e --image "$(OPERATOR_IMAGE_PATH)" --namespace "$(NAMESPACE)" --go-test-flags "$(E2E_GO_TEST_FLAGS)"
+	unset GOFLAGS && $(GOPATH)/bin/operator-sdk test local ./tests/e2e --skip-cleanup-error --image "$(OPERATOR_IMAGE_PATH)" --namespace "$(NAMESPACE)" --go-test-flags "$(E2E_GO_TEST_FLAGS)"
 	@echo "Restoring image references in deploy/operator.yaml"
 	@sed -i 's%$(LOGCOLLECTOR_IMAGE_PATH)%$(IMAGE_REPO)/$(LOG_COLLECTOR):latest%' deploy/operator.yaml
 	@sed -i 's%$(AIDE_IMAGE_PATH)%$(IMAGE_REPO)/$(AIDE):latest%' deploy/operator.yaml
