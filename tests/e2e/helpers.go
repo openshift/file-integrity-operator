@@ -7,12 +7,14 @@ import (
 	"testing"
 	"time"
 
+	backoff "github.com/cenkalti/backoff/v3"
+	igntypes "github.com/coreos/ignition/config/v2_2/types"
 	"github.com/davecgh/go-spew/spew"
-	"github.com/pkg/errors"
-
+	mcfgv1 "github.com/openshift/machine-config-operator/pkg/apis/machineconfiguration.openshift.io/v1"
+	mcfgconst "github.com/openshift/machine-config-operator/pkg/daemon/constants"
 	framework "github.com/operator-framework/operator-sdk/pkg/test"
 	"github.com/operator-framework/operator-sdk/pkg/test/e2eutil"
-
+	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
@@ -35,7 +37,12 @@ const (
 	testIntegrityName    = "test-check"
 	testConfName         = "test-conf"
 	testConfDataKey      = "conf"
+	mcWorkerRoleLabelKey = "node-role.kubernetes.io/worker"
 )
+
+var mcLabelForWorkerRole = map[string]string{
+	mcWorkerRoleLabelKey: "",
+}
 
 var testAideConfig = `@@define DBDIR /hostroot/etc/kubernetes
 # Comment added to differ from default and trigger a re-init
@@ -250,9 +257,7 @@ func privCommandDaemonset(namespace, name, command string) *appsv1.DaemonSet {
 							},
 						},
 					},
-					NodeSelector: map[string]string{
-						"node-role.kubernetes.io/worker": "",
-					},
+					NodeSelector: mcLabelForWorkerRole,
 				},
 			},
 		},
@@ -269,7 +274,7 @@ func getDSReplicas(c kubernetes.Interface, name, namespace string) (int, error) 
 
 func getNumberOfWorkerNodes(c kubernetes.Interface) (int, error) {
 	listopts := metav1.ListOptions{
-		LabelSelector: "node-role.kubernetes.io/worker",
+		LabelSelector: mcWorkerRoleLabelKey,
 	}
 	nodes, err := c.CoreV1().Nodes().List(listopts)
 	if err != nil {
@@ -297,10 +302,8 @@ func setupTest(t *testing.T) (*framework.Framework, *framework.Context, string) 
 			Namespace: namespace,
 		},
 		Spec: fileintv1alpha1.FileIntegritySpec{
-			NodeSelector: map[string]string{
-				"node-role.kubernetes.io/worker": "",
-			},
-			Config: fileintv1alpha1.FileIntegrityConfig{},
+			NodeSelector: mcLabelForWorkerRole,
+			Config:       fileintv1alpha1.FileIntegrityConfig{},
 		},
 	}
 	cleanupOptions := framework.CleanupOptions{
@@ -611,4 +614,77 @@ func cleanNodes(f *framework.Framework, namespace string) error {
 		return err
 	}
 	return nil
+}
+
+func getTestMcfg(t *testing.T) *mcfgv1.MachineConfig {
+	mcfg := &mcfgv1.MachineConfig{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "50-" + strings.ToLower(t.Name()),
+			Labels: mcLabelForWorkerRole,
+		},
+		Spec: mcfgv1.MachineConfigSpec{
+			Config: igntypes.Config{
+				Ignition: igntypes.Ignition{
+					Version: igntypes.MaxVersion.String(),
+				},
+			},
+		},
+	}
+	mode := 420
+	ignFile := igntypes.File{
+		FileEmbedded1: igntypes.FileEmbedded1{
+			Contents: igntypes.FileContents{
+				Source: "data:,file-integrity-operator-was-here",
+			},
+			Mode: &mode,
+		},
+		Node: igntypes.Node{
+			Filesystem: "root",
+			Path:       "/etc/fi-test-file",
+		},
+	}
+	mcfg.Spec.Config.Storage.Files = append(mcfg.Spec.Config.Storage.Files, ignFile)
+	return mcfg
+}
+
+func waitForNodesToBeReady(f *framework.Framework) error {
+	nodeList := &corev1.NodeList{}
+	// A long time...
+	bo := backoff.WithMaxRetries(backoff.NewConstantBackOff(15*time.Second), 360)
+
+	err := backoff.RetryNotify(
+		func() error {
+			err := f.Client.List(goctx.TODO(), nodeList)
+			if err != nil {
+				// Returning an error merely makes this retry after the interval
+				return err
+			}
+			for _, node := range nodeList.Items {
+				if isNodeReady(node) {
+					continue
+				}
+				return fmt.Errorf("The node '%s' is not ready yet", node.Name)
+			}
+			return nil
+		},
+		bo,
+		func(err error, d time.Duration) {
+			// TODO(jaosorior): Change this for a log call
+			fmt.Printf("Nodes not ready yet after %s: %s\n", d.String(), err)
+		})
+	if err != nil {
+		return fmt.Errorf("The nodes were never ready: %s", err)
+	}
+	return nil
+}
+
+func isNodeReady(node corev1.Node) bool {
+	for _, condition := range node.Status.Conditions {
+		if condition.Type == corev1.NodeReady &&
+			condition.Status == corev1.ConditionTrue &&
+			node.Annotations[mcfgconst.MachineConfigDaemonStateAnnotationKey] == mcfgconst.MachineConfigDaemonStateDone {
+			return true
+		}
+	}
+	return false
 }

@@ -20,8 +20,16 @@ var aideReinitContainerScript = `#!/bin/sh
     touch /hostroot/etc/kubernetes/aide.reinit
 `
 
+// An AIDE run is executed every 10s and the output is set in the
+// /hostroot/etc/kubernetes/aide.latest-result.log file.
+// If the file /hostroot/etc/kubernetes/holdoff is found, the check
+// is skipped
+// TODO: Make time configurable
 var aideScript = `#!/bin/sh
     while true; do
+      if [ -f /hostroot/etc/kubernetes/holdoff ]; then
+        continue
+      fi
       echo "running AIDE check.."
       aide -c /tmp/aide.conf
       result=$?
