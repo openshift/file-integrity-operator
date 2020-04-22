@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"time"
 
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -195,13 +197,13 @@ func (r *ReconcileConfigMap) handleIntegrityLog(cm *corev1.ConfigMap, logger log
 			}
 		}
 
-		status := fileintegrityv1alpha1.NodeStatus{
+		status := fileintegrityv1alpha1.FileIntegrityScanResult{
 			Condition:     fileintegrityv1alpha1.NodeConditionErrored,
-			NodeName:      node,
 			LastProbeTime: cm.GetCreationTimestamp(),
 			ErrorMsg:      errorMsg,
 		}
-		if err := r.updateStatus(fi, status); err != nil {
+
+		if err := r.createOrUpdateNodeStatus(node, fi, status); err != nil {
 			return reconcile.Result{}, err
 		}
 	} else if common.IsIntegrityLogAFailure(cm) {
@@ -217,9 +219,8 @@ func (r *ReconcileConfigMap) handleIntegrityLog(cm *corev1.ConfigMap, logger log
 			}
 		}
 
-		status := fileintegrityv1alpha1.NodeStatus{
+		status := fileintegrityv1alpha1.FileIntegrityScanResult{
 			Condition:                fileintegrityv1alpha1.NodeConditionFailed,
-			NodeName:                 node,
 			LastProbeTime:            cm.GetCreationTimestamp(),
 			ResultConfigMapName:      failedCM.Name,
 			ResultConfigMapNamespace: failedCM.Namespace,
@@ -229,16 +230,15 @@ func (r *ReconcileConfigMap) handleIntegrityLog(cm *corev1.ConfigMap, logger log
 		status.FilesRemoved, _ = strconv.Atoi(failedCM.Annotations[common.IntegrityLogFilesRemovedAnnotation])
 		status.FilesChanged, _ = strconv.Atoi(failedCM.Annotations[common.IntegrityLogFilesChangedAnnotation])
 
-		if err := r.updateStatus(fi, status); err != nil {
+		if err := r.createOrUpdateNodeStatus(node, fi, status); err != nil {
 			return reconcile.Result{}, err
 		}
 	} else {
-		status := fileintegrityv1alpha1.NodeStatus{
+		status := fileintegrityv1alpha1.FileIntegrityScanResult{
 			Condition:     fileintegrityv1alpha1.NodeConditionSucceeded,
-			NodeName:      node,
 			LastProbeTime: cm.GetCreationTimestamp(),
 		}
-		if err := r.updateStatus(fi, status); err != nil {
+		if err := r.createOrUpdateNodeStatus(node, fi, status); err != nil {
 			return reconcile.Result{}, err
 		}
 	}
@@ -251,22 +251,47 @@ func (r *ReconcileConfigMap) handleIntegrityLog(cm *corev1.ConfigMap, logger log
 	return reconcile.Result{}, nil
 }
 
-func (r *ReconcileConfigMap) updateStatus(fi *fileintegrityv1alpha1.FileIntegrity, status fileintegrityv1alpha1.NodeStatus) error {
-	statuses := make([]fileintegrityv1alpha1.NodeStatus, 0)
-
-	// Collect all the status entries except for those containing the current node and == cond argument. We'll be
-	// updating that entry below. We want to keep entries for the current node that do not match cond, so that the
-	// last status timestamp of a previous condition remains.
-	for i, _ := range fi.Status.Statuses {
-		if fi.Status.Statuses[i].NodeName == status.NodeName && fi.Status.Statuses[i].Condition == status.Condition {
-			continue
-		}
-		statuses = append(statuses, fi.Status.Statuses[i])
+// Creates or updates a FileIntegrityNodeStatus object for the node. If a result exists for a node matching the new result, we update that result.
+// At the most there will be three results per status. One for each condition type. The most recently updated reflects the current result.
+func (r *ReconcileConfigMap) createOrUpdateNodeStatus(node string, instance *fileintegrityv1alpha1.FileIntegrity, new fileintegrityv1alpha1.FileIntegrityScanResult) error {
+	nodeStatus := &fileintegrityv1alpha1.FileIntegrityNodeStatus{}
+	err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: instance.Namespace, Name: instance.Name + "-" + node}, nodeStatus)
+	if err != nil && !errors.IsNotFound(err) {
+		return err
 	}
-	statuses = append(statuses, status)
-	fi.Status.Statuses = statuses
 
-	return r.client.Status().Update(context.TODO(), fi)
+	if errors.IsNotFound(err) {
+		// This node does not have a corresponding FileIntegrityNodeStatus yet, create with this initial result.
+		nodeStatus = &fileintegrityv1alpha1.FileIntegrityNodeStatus{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      instance.Name + "-" + node,
+				Namespace: instance.Namespace,
+			},
+			NodeName: node,
+			Results:  []fileintegrityv1alpha1.FileIntegrityScanResult{},
+		}
+		nodeStatus.Results = append(nodeStatus.Results, new)
+		refErr := controllerutil.SetControllerReference(instance, nodeStatus, r.scheme)
+		if refErr != nil {
+			return refErr
+		}
+
+		return r.client.Create(context.TODO(), nodeStatus)
+	}
+
+	updateResults := make([]fileintegrityv1alpha1.FileIntegrityScanResult, 0)
+	// Filter to keep the other results. We only want to replace one of the same.
+	for _, result := range nodeStatus.Results {
+		if result.Condition != new.Condition {
+			updateResults = append(updateResults, result)
+		}
+	}
+
+	statusCopy := nodeStatus.DeepCopy()
+
+	updateResults = append(updateResults, new)
+	statusCopy.Results = updateResults
+	return r.client.Update(context.TODO(), statusCopy)
 }
 
 func getConfigMapForFailureLog(cm *corev1.ConfigMap) *corev1.ConfigMap {

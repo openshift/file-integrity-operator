@@ -41,14 +41,23 @@ type FileIntegrityConfig struct {
 // FileIntegrityStatus defines the observed state of FileIntegrity
 // +k8s:openapi-gen=true
 type FileIntegrityStatus struct {
-	Phase    FileIntegrityStatusPhase `json:"phase,omitempty"`
-	Statuses []NodeStatus             `json:"nodeStatus,omitempty"`
+	Phase FileIntegrityStatusPhase `json:"phase,omitempty"`
 }
 
-// NodeStatus defines the status of a specific node
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// FileIntegrityNodeStatus defines the status of a specific node
 // +k8s:openapi-gen=true
-type NodeStatus struct {
-	NodeName                 string                     `json:"nodeName"`
+type FileIntegrityNodeStatus struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+	NodeName          string                    `json:"nodeName"`
+	Results           []FileIntegrityScanResult `json:"results"`
+}
+
+// FileIntegrityScanResult defines the one-time result of a scan.
+// +k8s:openapi-gen=true
+type FileIntegrityScanResult struct {
 	LastProbeTime            metav1.Time                `json:"lastProbeTime"`
 	Condition                FileIntegrityNodeCondition `json:"condition"`
 	ResultConfigMapName      string                     `json:"resultConfigMapName,omitempty"`
@@ -82,6 +91,20 @@ type FileIntegrityList struct {
 	Items           []FileIntegrity `json:"items"`
 }
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// FileIntegrityNodeStatusList contains a list of FileIntegrityNodeStatus
+type FileIntegrityNodeStatusList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []FileIntegrityNodeStatus `json:"items"`
+}
+
 func init() {
-	SchemeBuilder.Register(&FileIntegrity{}, &FileIntegrityList{})
+	SchemeBuilder.Register(
+		&FileIntegrity{},
+		&FileIntegrityList{},
+		&FileIntegrityNodeStatus{},
+		&FileIntegrityNodeStatusList{},
+	)
 }
