@@ -307,7 +307,7 @@ func newGenericHoldOffIntegrityCheckPod(holdoffCmName, holdoffScriptName string,
 	priv := true
 	runAs := int64(0)
 	mode := int32(0744)
-	labels := map[string]string{
+	podLabels := map[string]string{
 		common.IntegrityPodLabelKey: "",
 	}
 
@@ -315,7 +315,7 @@ func newGenericHoldOffIntegrityCheckPod(holdoffCmName, holdoffScriptName string,
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      holdoffCmName,
 			Namespace: common.FileIntegrityNamespace,
-			Labels:    labels,
+			Labels:    podLabels,
 		},
 		Spec: corev1.PodSpec{
 			// Schedule directly to the node (skip the scheduler)
