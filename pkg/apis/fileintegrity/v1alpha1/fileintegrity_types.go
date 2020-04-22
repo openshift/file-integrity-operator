@@ -36,6 +36,8 @@ type FileIntegrityConfig struct {
 	Name      string `json:"name,omitempty"`
 	Namespace string `json:"namespace,omitempty"`
 	Key       string `json:"key,omitempty"`
+	// Time between individual aide scans
+	GracePeriod int `json:"gracePeriod,omitempty"`
 }
 
 // FileIntegrityStatus defines the observed state of FileIntegrity

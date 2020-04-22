@@ -3,6 +3,8 @@ package common
 const (
 	// AideConfigLabelKey tells us if a specific ConfigMap is an AIDE config
 	AideConfigLabelKey = "file-integrity.openshift.io/aide-conf"
+	// AideScriptLabelKey tells us if a specific ConfigMap is an AIDE script
+	AideScriptLabelKey = "file-integrity.openshift.io/aide-script"
 	// AideConfigUpdatedAnnotationKey tells us if an aide config needs updating
 	AideConfigUpdatedAnnotationKey = "file-integrity.openshift.io/updated"
 	// AideDatabaseReinitAnnotationKey tells us if an aide config needs updating
@@ -33,9 +35,11 @@ const (
 	AideScriptConfigMapName            = "aide-script"
 	PauseConfigMapName                 = "aide-pause"
 	PausePath                          = "/scripts/pause.sh"
+	AideScriptConfigMapPrefix          = "aide-script"
 	AideScriptPath                     = "/scripts/aide.sh"
 	DaemonSetPrefix                    = "aide-ds"
 	DefaultConfDataKey                 = "aide.conf"
+	AideScriptKey                      = "aide.sh"
 	OperatorServiceAccountName         = "file-integrity-operator"
 	ReinitDaemonSetPrefix              = "aide-reinit-ds"
 	// IntegrityCheckHoldoffFilePath specified the path to the file that tells
@@ -43,4 +47,6 @@ const (
 	IntegrityCheckHoldoffFilePath = "/hostroot/etc/kubernetes/holdoff"
 	// IntegrityHoldoffAnnotationKey indicates that there was an error in the logcollector
 	IntegrityHoldoffAnnotationKey = "file-integrity.openshift.io/holdoff"
+	// The minimal and at the same time default gracePeriod
+	DefaultGracePeriod = 10
 )

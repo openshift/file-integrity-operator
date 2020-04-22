@@ -49,7 +49,6 @@ const (
 	maxRetries    = 15
 	// These need to be lessened for normal use.
 	defaultTimeout       = 600
-	defaultInterval      = 1800
 	defaultIndicatorFile = "/hostroot/etc/kubernetes/aide.latest-result.log"
 	uncompressedMaxSize  = 1048570 // 1MB for etcd limit
 )
@@ -109,7 +108,7 @@ func defineFlags(cmd *cobra.Command) {
 	cmd.Flags().String("config-map-prefix", "", "Prefix for the configMap name, typically the podname.")
 	cmd.Flags().String("namespace", "Running pod namespace.", ".")
 	cmd.Flags().Int64("timeout", defaultTimeout, "How long to poll for the log and indicator files in seconds.")
-	cmd.Flags().Int64("interval", defaultInterval, "How often to recheck for .")
+	cmd.Flags().Int64("interval", common.DefaultGracePeriod, "How often to recheck for AIDE results.")
 	cmd.Flags().Bool("compress", false, "Use gzip+base64 to compress the log file contents.")
 	cmd.Flags().Bool("debug", false, "Print debug messages")
 }

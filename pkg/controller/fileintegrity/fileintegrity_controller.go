@@ -3,6 +3,7 @@ package fileintegrity
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/go-logr/logr"
 
@@ -71,14 +72,14 @@ type ReconcileFileIntegrity struct {
 func (r *ReconcileFileIntegrity) handleDefaultConfigMaps(f *fileintegrityv1alpha1.FileIntegrity) (*corev1.ConfigMap, error) {
 	cm := &corev1.ConfigMap{}
 	if err := r.client.Get(context.TODO(), types.NamespacedName{
-		Name:      common.AideScriptConfigMapName,
+		Name:      common.GetScriptName(f.Name),
 		Namespace: common.FileIntegrityNamespace,
 	}, cm); err != nil {
 		if !kerr.IsNotFound(err) {
 			return nil, err
 		}
 		// does not exist, create
-		if err := r.client.Create(context.TODO(), defaultAIDEScript()); err != nil {
+		if err := r.client.Create(context.TODO(), getAIDEScriptCm(f.Name, f.Spec.Config.GracePeriod)); err != nil {
 			return nil, err
 		}
 	}
@@ -180,12 +181,51 @@ func (r *ReconcileFileIntegrity) updateAideConfig(conf *corev1.ConfigMap, data s
 	return r.client.Update(context.TODO(), confCopy)
 }
 
+func (r *ReconcileFileIntegrity) updateAideScript(conf *corev1.ConfigMap, data string) error {
+	confCopy := conf.DeepCopy()
+	confCopy.Data[common.AideScriptKey] = data
+
+	if confCopy.Annotations == nil {
+		confCopy.Annotations = map[string]string{}
+	}
+
+	// Mark the configMap as updated by the user-provided config, for the configMap-controller to trigger an update.
+	confCopy.Annotations[common.AideConfigUpdatedAnnotationKey] = "true"
+
+	return r.client.Update(context.TODO(), confCopy)
+}
+
 func (r *ReconcileFileIntegrity) retrieveAndAnnotateAideConfig(conf *corev1.ConfigMap) error {
 	cachedconf := &corev1.ConfigMap{}
 	// Get the latest config...
 	r.client.Get(context.TODO(), types.NamespacedName{Name: conf.Name, Namespace: conf.Namespace}, cachedconf)
 
 	return r.updateAideConfig(cachedconf, cachedconf.Data[common.DefaultConfDataKey])
+}
+
+func (r *ReconcileFileIntegrity) reconcileUserAideScriptChanges(instance *fileintegrityv1alpha1.FileIntegrity, reqLogger logr.Logger) error {
+	reqLogger.Info("reconciling user-provided configuration of the aide script")
+
+	currentAideScriptCm := &corev1.ConfigMap{}
+	err := r.client.Get(context.TODO(), types.NamespacedName{Name: common.GetScriptName(instance.Name), Namespace: common.FileIntegrityNamespace}, currentAideScriptCm)
+	if err != nil {
+		reqLogger.Error(err, "error getting aide script configMap: %v", err)
+		return err
+	}
+
+	newAideScript := aideScriptContents(instance.Spec.Config.GracePeriod)
+	if newAideScript == currentAideScriptCm.Data[common.AideScriptKey] {
+		reqLogger.Info("No change to aide script")
+		return nil
+	}
+
+	reqLogger.Info("Aide script changed")
+	err = r.updateAideScript(currentAideScriptCm, newAideScript)
+	if err != nil {
+		reqLogger.Error(err, "couldn't update the aide script\n")
+	}
+
+	return nil
 }
 
 // reconcileUserConfig checks if the user provided a configuration of their own and preapres it
@@ -272,6 +312,12 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 		return reconcile.Result{Requeue: true}, nil
 	}
 
+	// handle user-provided script changes
+	err = r.reconcileUserAideScriptChanges(instance, reqLogger)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
 	// handle user-provided configMap
 	hasNewConfig, err := r.reconcileUserConfig(instance, reqLogger, defaultAideConf)
 	if err != nil {
@@ -342,14 +388,24 @@ func defaultAIDEConfigMap(name string) *corev1.ConfigMap {
 	}
 }
 
-func defaultAIDEScript() *corev1.ConfigMap {
+func aideScriptContents(gracePeriod int) string {
+	if gracePeriod < common.DefaultGracePeriod {
+		gracePeriod = common.DefaultGracePeriod
+	}
+	return fmt.Sprintf(aideScriptTemplate, gracePeriod)
+}
+
+func getAIDEScriptCm(fiName string, gracePeriod int) *corev1.ConfigMap {
 	return &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      common.AideScriptConfigMapName,
+			Name:      common.GetScriptName(fiName),
 			Namespace: common.FileIntegrityNamespace,
+			Labels: map[string]string{
+				common.AideScriptLabelKey: fiName,
+			},
 		},
 		Data: map[string]string{
-			"aide.sh": aideScript,
+			common.AideScriptKey: aideScriptContents(gracePeriod),
 		},
 	}
 }
@@ -361,7 +417,7 @@ func aideInitScript() *corev1.ConfigMap {
 			Namespace: common.FileIntegrityNamespace,
 		},
 		Data: map[string]string{
-			"aide.sh": aideInitContainerScript,
+			common.AideScriptKey: aideInitContainerScript,
 		},
 	}
 }
@@ -373,7 +429,7 @@ func aideReinitScript() *corev1.ConfigMap {
 			Namespace: common.FileIntegrityNamespace,
 		},
 		Data: map[string]string{
-			"aide.sh": aideReinitContainerScript,
+			common.AideScriptKey: aideReinitContainerScript,
 		},
 	}
 }
@@ -502,6 +558,13 @@ func aideDaemonset(dsName string, fi *fileintegrityv1alpha1.FileIntegrity) *apps
 	runAs := int64(0)
 	mode := int32(0744)
 
+	gracePeriod := fi.Spec.Config.GracePeriod
+	if gracePeriod < 10 {
+		gracePeriod = 10
+	}
+
+	scriptCmName := common.GetScriptName(fi.Name)
+
 	return &appsv1.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      dsName,
@@ -574,7 +637,7 @@ func aideDaemonset(dsName string, fi *fileintegrityv1alpha1.FileIntegrity) *apps
 									MountPath: "/tmp",
 								},
 								{
-									Name:      common.AideScriptConfigMapName,
+									Name:      scriptCmName,
 									MountPath: "/scripts",
 								},
 							},
@@ -591,7 +654,7 @@ func aideDaemonset(dsName string, fi *fileintegrityv1alpha1.FileIntegrity) *apps
 								"--owner=" + fi.Name,
 								"--namespace=" + fi.Namespace,
 								"--timeout=2",
-								"--interval=10",
+								"--interval=" + strconv.Itoa(gracePeriod),
 								// TODO: remove this for production
 								"--debug=true",
 							},
@@ -633,11 +696,11 @@ func aideDaemonset(dsName string, fi *fileintegrityv1alpha1.FileIntegrity) *apps
 							},
 						},
 						{
-							Name: common.AideScriptConfigMapName,
+							Name: scriptCmName,
 							VolumeSource: corev1.VolumeSource{
 								ConfigMap: &corev1.ConfigMapVolumeSource{
 									LocalObjectReference: corev1.LocalObjectReference{
-										Name: common.AideScriptConfigMapName,
+										Name: scriptCmName,
 									},
 									DefaultMode: &mode,
 								},

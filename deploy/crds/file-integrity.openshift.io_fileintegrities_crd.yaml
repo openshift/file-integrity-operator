@@ -35,6 +35,9 @@ spec:
               description: FileIntegrityConfig defines the name, namespace, and data
                 key for an AIDE config to use for integrity checking.
               properties:
+                gracePeriod:
+                  description: Time between individual aide scans
+                  type: integer
                 key:
                   type: string
                 name:
