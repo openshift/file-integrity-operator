@@ -167,21 +167,23 @@ func (r *ReconcileNode) reconcileRemoveHoldOff(node *corev1.Node, reqLogger logr
 
 func (r *ReconcileNode) reconcileCreateWorkloadForNode(name, script string, node *corev1.Node, reqLogger logr.Logger) (reconcile.Result, error) {
 	cmToBeCreated := newGenericHoldOffCM(name, script, node)
+	reqLogger.Info("Creating CM", "name", cmToBeCreated)
 	if res, err := r.reconcileCreateObjForNode(cmToBeCreated.Name, cmToBeCreated, reqLogger); err != nil {
 		return res, err
 	}
 
-	podToBeCreated := newGenericHoldOffIntegrityCheckPod(name, node)
+	podToBeCreated := newGenericHoldOffIntegrityCheckPod(cmToBeCreated.Name, name, node)
 	return r.reconcileCreateObjForNode(podToBeCreated.Name, podToBeCreated, reqLogger)
 }
 
 func (r *ReconcileNode) reconcileDeleteWorkloadForNode(name, script string, node *corev1.Node, reqLogger logr.Logger) (reconcile.Result, error) {
 	cmToBeDeleted := newGenericHoldOffCM(name, script, node)
+	reqLogger.Info("Deleting CM", "name", cmToBeDeleted)
 	if res, err := r.reconcileDeleteObjForNode(cmToBeDeleted.Name, cmToBeDeleted, reqLogger); err != nil {
 		return res, err
 	}
 
-	podToBeDeleted := newGenericHoldOffIntegrityCheckPod(name, node)
+	podToBeDeleted := newGenericHoldOffIntegrityCheckPod(cmToBeDeleted.Name, name, node)
 	return r.reconcileDeleteObjForNode(podToBeDeleted.Name, podToBeDeleted, reqLogger)
 }
 
@@ -301,16 +303,17 @@ func newGenericHoldOffCM(name, script string, node *corev1.Node) *corev1.ConfigM
 	}
 }
 
-func newGenericHoldOffIntegrityCheckPod(holdoffScriptName string, node *corev1.Node) *corev1.Pod {
+func newGenericHoldOffIntegrityCheckPod(holdoffCmName, holdoffScriptName string, node *corev1.Node) *corev1.Pod {
 	priv := true
 	runAs := int64(0)
 	mode := int32(0744)
 	labels := map[string]string{
 		common.IntegrityPodLabelKey: "",
 	}
+
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      node.Name + "-" + holdoffScriptName,
+			Name:      holdoffCmName,
 			Namespace: common.FileIntegrityNamespace,
 			Labels:    labels,
 		},
@@ -342,7 +345,7 @@ func newGenericHoldOffIntegrityCheckPod(holdoffScriptName string, node *corev1.N
 							MountPath: "/hostroot",
 						},
 						{
-							Name:      holdoffScriptName,
+							Name:      "holdoffscript",
 							MountPath: "/scripts",
 						},
 					},
@@ -358,11 +361,11 @@ func newGenericHoldOffIntegrityCheckPod(holdoffScriptName string, node *corev1.N
 					},
 				},
 				{
-					Name: holdoffScriptName,
+					Name: "holdoffscript",
 					VolumeSource: corev1.VolumeSource{
 						ConfigMap: &corev1.ConfigMapVolumeSource{
 							LocalObjectReference: corev1.LocalObjectReference{
-								Name: holdoffScriptName,
+								Name: holdoffCmName,
 							},
 							DefaultMode: &mode,
 						},
