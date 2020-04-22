@@ -328,13 +328,13 @@ func newGenericHoldOffIntegrityCheckPod(holdoffScriptName string, node *corev1.N
 			},
 			ServiceAccountName: common.OperatorServiceAccountName,
 			RestartPolicy:      corev1.RestartPolicyOnFailure,
-			InitContainers: []corev1.Container{
+			Containers: []corev1.Container{
 				{
 					SecurityContext: &corev1.SecurityContext{
 						Privileged: &priv,
 						RunAsUser:  &runAs,
 					},
-					Name: "aide",
+					Name: "integrity-holdoff",
 					// FIXME(jaosorior): Can we use UBI instead?
 					Image:   common.GetComponentImage(common.AIDE),
 					Command: []string{"/scripts/" + holdoffScriptName},
