@@ -32,8 +32,7 @@ const (
 
 var (
 	// Script that makes sure that the holdoff file exists.
-	addHoldOffScript = fmt.Sprintf(`
-	#!/bin/bash
+	addHoldOffScript = fmt.Sprintf(`#!/bin/bash
 
 	touch %s
 	`, common.IntegrityCheckHoldoffFilePath)
@@ -41,8 +40,7 @@ var (
 	// Script that makes sure that the holdoff file doesn't exist.
 	// If the file is not there, we're good. If the file is there
 	// we gotta remove it.
-	removeHoldOffScript = fmt.Sprintf(`
-	#!/bin/bash
+	removeHoldOffScript = fmt.Sprintf(`#!/bin/bash
 
 	if [ -f %[1]s ]; then
 		rm %[1]s
