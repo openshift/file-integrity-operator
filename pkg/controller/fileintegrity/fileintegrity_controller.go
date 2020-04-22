@@ -653,7 +653,6 @@ func aideDaemonset(dsName string, fi *fileintegrityv1alpha1.FileIntegrity) *apps
 								"--config-map-prefix=" + dsName,
 								"--owner=" + fi.Name,
 								"--namespace=" + fi.Namespace,
-								"--timeout=2",
 								"--interval=" + strconv.Itoa(gracePeriod),
 								// TODO: remove this for production
 								"--debug=true",
