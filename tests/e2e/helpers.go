@@ -37,11 +37,16 @@ const (
 	testIntegrityName    = "test-check"
 	testConfName         = "test-conf"
 	testConfDataKey      = "conf"
-	mcWorkerRoleLabelKey = "node-role.kubernetes.io/worker"
+	nodeWorkerRoleLabelKey  = "node-role.kubernetes.io/worker"
+	mcWorkerRoleLabelKey = "machineconfiguration.openshift.io/role"
 )
 
 var mcLabelForWorkerRole = map[string]string{
-	mcWorkerRoleLabelKey: "",
+	mcWorkerRoleLabelKey: "worker",
+}
+
+var nodeLabelForWorkerRole = map[string]string {
+	nodeWorkerRoleLabelKey: "",
 }
 
 var testAideConfig = `@@define DBDIR /hostroot/etc/kubernetes
@@ -257,7 +262,7 @@ func privCommandDaemonset(namespace, name, command string) *appsv1.DaemonSet {
 							},
 						},
 					},
-					NodeSelector: mcLabelForWorkerRole,
+					NodeSelector: nodeLabelForWorkerRole,
 				},
 			},
 		},
@@ -274,7 +279,7 @@ func getDSReplicas(c kubernetes.Interface, name, namespace string) (int, error) 
 
 func getNumberOfWorkerNodes(c kubernetes.Interface) (int, error) {
 	listopts := metav1.ListOptions{
-		LabelSelector: mcWorkerRoleLabelKey,
+		LabelSelector: nodeWorkerRoleLabelKey,
 	}
 	nodes, err := c.CoreV1().Nodes().List(listopts)
 	if err != nil {
@@ -302,7 +307,7 @@ func setupTest(t *testing.T) (*framework.Framework, *framework.Context, string) 
 			Namespace: namespace,
 		},
 		Spec: fileintv1alpha1.FileIntegritySpec{
-			NodeSelector: mcLabelForWorkerRole,
+			NodeSelector: nodeLabelForWorkerRole,
 			Config:       fileintv1alpha1.FileIntegrityConfig{},
 		},
 	}
