@@ -10,6 +10,7 @@ import (
 	backoff "github.com/cenkalti/backoff/v3"
 	igntypes "github.com/coreos/ignition/config/v2_2/types"
 	"github.com/davecgh/go-spew/spew"
+	mcfgapi "github.com/openshift/machine-config-operator/pkg/apis/machineconfiguration.openshift.io"
 	mcfgv1 "github.com/openshift/machine-config-operator/pkg/apis/machineconfiguration.openshift.io/v1"
 	mcfgconst "github.com/openshift/machine-config-operator/pkg/daemon/constants"
 	framework "github.com/operator-framework/operator-sdk/pkg/test"
@@ -37,11 +38,16 @@ const (
 	testIntegrityName    = "test-check"
 	testConfName         = "test-conf"
 	testConfDataKey      = "conf"
-	mcWorkerRoleLabelKey = "node-role.kubernetes.io/worker"
+	nodeWorkerRoleLabelKey  = "node-role.kubernetes.io/worker"
+	mcWorkerRoleLabelKey = "machineconfiguration.openshift.io/role"
 )
 
 var mcLabelForWorkerRole = map[string]string{
-	mcWorkerRoleLabelKey: "",
+	mcWorkerRoleLabelKey: "worker",
+}
+
+var nodeLabelForWorkerRole = map[string]string {
+	nodeWorkerRoleLabelKey: "",
 }
 
 var testAideConfig = `@@define DBDIR /hostroot/etc/kubernetes
@@ -111,8 +117,15 @@ func setupTestRequirements(t *testing.T) *framework.Context {
 	if err != nil {
 		t.Fatalf("TEST SETUP: failed to add custom resource scheme to framework: %v", err)
 	}
+
+	mcList := &mcfgv1.MachineConfigList{}
+	err = framework.AddToFrameworkScheme(mcfgapi.Install, mcList)
+	if err != nil {
+		t.Fatalf("TEST SETUP: failed to add custom resource scheme to framework: %v", err)
+	}
 	return framework.NewContext(t)
 }
+
 func setupFileIntegrityOperatorCluster(t *testing.T, ctx *framework.Context) {
 	cleanupOptions := framework.CleanupOptions{
 		TestContext:   ctx,
@@ -257,7 +270,7 @@ func privCommandDaemonset(namespace, name, command string) *appsv1.DaemonSet {
 							},
 						},
 					},
-					NodeSelector: mcLabelForWorkerRole,
+					NodeSelector: nodeLabelForWorkerRole,
 				},
 			},
 		},
@@ -274,7 +287,7 @@ func getDSReplicas(c kubernetes.Interface, name, namespace string) (int, error) 
 
 func getNumberOfWorkerNodes(c kubernetes.Interface) (int, error) {
 	listopts := metav1.ListOptions{
-		LabelSelector: mcWorkerRoleLabelKey,
+		LabelSelector: nodeWorkerRoleLabelKey,
 	}
 	nodes, err := c.CoreV1().Nodes().List(listopts)
 	if err != nil {
@@ -302,7 +315,7 @@ func setupTest(t *testing.T) (*framework.Framework, *framework.Context, string) 
 			Namespace: namespace,
 		},
 		Spec: fileintv1alpha1.FileIntegritySpec{
-			NodeSelector: mcLabelForWorkerRole,
+			NodeSelector: nodeLabelForWorkerRole,
 			Config:       fileintv1alpha1.FileIntegrityConfig{},
 		},
 	}

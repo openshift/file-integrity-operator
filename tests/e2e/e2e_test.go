@@ -39,7 +39,7 @@ func TestFileIntegrityLogAndReinitDatabase(t *testing.T) {
 
 	// log collection should create a configmap for each node's report after the scan runs again
 	nodes, err := f.KubeClient.CoreV1().Nodes().List(metav1.ListOptions{
-		LabelSelector: mcWorkerRoleLabelKey,
+		LabelSelector: nodeWorkerRoleLabelKey,
 	})
 	if err != nil {
 		t.Error(err)
@@ -173,7 +173,10 @@ func TestFileIntegrityAcceptsExpectedChange(t *testing.T) {
 		Timeout:       cleanupTimeout,
 		RetryInterval: cleanupRetryInterval,
 	}
-	f.Client.Create(context.TODO(), mcfg, &cleanupOptions)
+	err = f.Client.Create(context.TODO(), mcfg, &cleanupOptions)
+	if err != nil {
+		t.Errorf("Cannot create a test MC: %v", err)
+	}
 
 	// Wait some time... The machineConfigs take some time to kick in.
 	time.Sleep(30 * time.Second)
