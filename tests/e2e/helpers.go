@@ -53,15 +53,8 @@ gzip_dbout=yes
 verbose=5
 report_url=file:@@{LOGDIR}/aide.log
 report_url=stdout
-ALLXTRAHASHES = sha1+rmd160+sha256+sha512+tiger
-EVERYTHING = R+ALLXTRAHASHES
-NORMAL = p+i+n+u+g+s+m+c+acl+selinux+xattrs+sha512
-DIR = p+i+n+u+g+acl+selinux+xattrs
 PERMS = p+u+g+acl+selinux+xattrs
-LOG = p+u+g+n+S+acl+selinux+xattrs
-CONTENT = sha512+ftype
 CONTENT_EX = sha512+ftype+p+u+g+n+acl+selinux+xattrs
-DATAONLY =  p+n+u+g+s+acl+selinux+xattrs+sha512
 
 /hostroot/boot/        CONTENT_EX
 /hostroot/root/\..* PERMS
