@@ -19,6 +19,8 @@ spec:
           image: "quay.io/file-integrity-operator/file-integrity-operator:latest"
           command:
           - file-integrity-operator
+          args:
+          - operator
           imagePullPolicy: Always
           env:
             - name: WATCH_NAMESPACE
@@ -34,7 +36,7 @@ spec:
             - name: AIDE_IMAGE
               value: "quay.io/file-integrity-operator/aide:latest"
             - name: LOGCOLLECTOR_IMAGE
-              value: "quay.io/file-integrity-operator/file-integrity-logcollector:latest"
+              value: "quay.io/file-integrity-operator/file-integrity-operator:latest"
       nodeSelector:
         node-role.kubernetes.io/master: ""
       tolerations:

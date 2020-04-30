@@ -542,7 +542,7 @@ func aideDaemonset(dsName string, fi *fileintegrityv1alpha1.FileIntegrity) *apps
 							},
 							Name:  "logcollector",
 							Image: common.GetComponentImage(common.LOGCOLLECTOR),
-							Args: []string{
+							Args: []string{"logcollector",
 								"--file=" + aideLogPath,
 								"--config-map-prefix=" + dsName,
 								"--owner=" + fi.Name,
