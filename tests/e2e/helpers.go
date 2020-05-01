@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	backoff "github.com/cenkalti/backoff/v3"
+	"github.com/cenkalti/backoff/v3"
 	igntypes "github.com/coreos/ignition/config/v2_2/types"
-	"github.com/davecgh/go-spew/spew"
+
 	mcfgapi "github.com/openshift/machine-config-operator/pkg/apis/machineconfiguration.openshift.io"
 	mcfgv1 "github.com/openshift/machine-config-operator/pkg/apis/machineconfiguration.openshift.io/v1"
 	mcfgconst "github.com/openshift/machine-config-operator/pkg/daemon/constants"
@@ -30,23 +30,23 @@ import (
 )
 
 const (
-	pollInterval         = time.Second * 2
-	retryInterval        = time.Second * 5
-	timeout              = time.Minute * 30
-	cleanupRetryInterval = time.Second * 1
-	cleanupTimeout       = time.Minute * 5
-	testIntegrityName    = "test-check"
-	testConfName         = "test-conf"
-	testConfDataKey      = "conf"
-	nodeWorkerRoleLabelKey  = "node-role.kubernetes.io/worker"
-	mcWorkerRoleLabelKey = "machineconfiguration.openshift.io/role"
+	pollInterval           = time.Second * 2
+	retryInterval          = time.Second * 5
+	timeout                = time.Minute * 30
+	cleanupRetryInterval   = time.Second * 1
+	cleanupTimeout         = time.Minute * 5
+	testIntegrityName      = "test-check"
+	testConfName           = "test-conf"
+	testConfDataKey        = "conf"
+	nodeWorkerRoleLabelKey = "node-role.kubernetes.io/worker"
+	mcWorkerRoleLabelKey   = "machineconfiguration.openshift.io/role"
 )
 
 var mcLabelForWorkerRole = map[string]string{
 	mcWorkerRoleLabelKey: "worker",
 }
 
-var nodeLabelForWorkerRole = map[string]string {
+var nodeLabelForWorkerRole = map[string]string{
 	nodeWorkerRoleLabelKey: "",
 }
 
@@ -106,6 +106,8 @@ func cleanUp(t *testing.T, namespace string) func() error {
 
 func setupTestRequirements(t *testing.T) *framework.Context {
 	fileIntegrities := &fileintv1alpha1.FileIntegrityList{}
+	nodeStatus := &fileintv1alpha1.FileIntegrityNodeStatus{}
+
 	err := framework.AddToFrameworkScheme(apis.AddToScheme, fileIntegrities)
 	if err != nil {
 		t.Fatalf("TEST SETUP: failed to add custom resource scheme to framework: %v", err)
@@ -113,6 +115,11 @@ func setupTestRequirements(t *testing.T) *framework.Context {
 
 	mcList := &mcfgv1.MachineConfigList{}
 	err = framework.AddToFrameworkScheme(mcfgapi.Install, mcList)
+	if err != nil {
+		t.Fatalf("TEST SETUP: failed to add custom resource scheme to framework: %v", err)
+	}
+
+	err = framework.AddToFrameworkScheme(apis.AddToScheme, nodeStatus)
 	if err != nil {
 		t.Fatalf("TEST SETUP: failed to add custom resource scheme to framework: %v", err)
 	}
@@ -457,20 +464,23 @@ func waitForScanStatusWithTimeout(t *testing.T, f *framework.Framework, namespac
 	return nil
 }
 
-func waitForFailedStatusForNode(t *testing.T, f *framework.Framework, namespace, name, node string, interval, timeout time.Duration) (*fileintv1alpha1.NodeStatus, error) {
-	exampleFileIntegrity := &fileintv1alpha1.FileIntegrity{}
-	foundStatus := &fileintv1alpha1.NodeStatus{}
+func waitForFailedResultForNode(t *testing.T, f *framework.Framework, namespace, name, node string, interval, timeout time.Duration) (*fileintv1alpha1.FileIntegrityScanResult, error) {
+	var foundResult *fileintv1alpha1.FileIntegrityScanResult
 	// retry and ignore errors until timeout
 	err := wait.Poll(interval, timeout, func() (bool, error) {
-		getErr := f.Client.Get(goctx.TODO(), types.NamespacedName{Name: name, Namespace: namespace}, exampleFileIntegrity)
+		nodeStatus := &fileintv1alpha1.FileIntegrityNodeStatus{}
+		getErr := f.Client.Get(goctx.TODO(), types.NamespacedName{Name: name + "-" + node, Namespace: namespace}, nodeStatus)
 		if getErr != nil {
 			t.Logf("Retrying. Got error: %v\n", getErr)
 			return false, nil
 		}
 
-		for _, status := range exampleFileIntegrity.Status.Statuses {
-			if status.Condition == fileintv1alpha1.NodeConditionFailed && status.NodeName == node {
-				foundStatus = &status
+		t.Logf("waitForFailedResultForNode: found nodeStatus: %#v", nodeStatus)
+
+		for i, _ := range nodeStatus.Results {
+			t.Logf("dbg: wait for fail, result %#v", nodeStatus.Results[i])
+			if nodeStatus.Results[i].Condition == fileintv1alpha1.NodeConditionFailed {
+				foundResult = &nodeStatus.Results[i]
 				return true, nil
 			}
 		}
@@ -481,39 +491,51 @@ func waitForFailedStatusForNode(t *testing.T, f *framework.Framework, namespace,
 		return nil, err
 	}
 
-	return foundStatus, nil
+	return foundResult, nil
 }
 
 func assertNodesConditionIsSuccess(t *testing.T, f *framework.Framework, namespace, name string, interval, timeout time.Duration) {
-	fi := &fileintv1alpha1.FileIntegrity{}
 	var lastErr error
 	type nodeStatus struct {
 		LastProbeTime metav1.Time
 		Condition     fileintv1alpha1.FileIntegrityNodeCondition
 	}
-	// Node names are the key
-	latestStatuses := map[string]nodeStatus{}
-	wait.Poll(interval, timeout, func() (bool, error) {
-		getErr := f.Client.Get(goctx.TODO(), types.NamespacedName{Name: name, Namespace: namespace}, fi)
-		if getErr != nil {
-			t.Logf("Retrying. Got error: %v\n", getErr)
-			lastErr = getErr
-			return false, nil
-		}
 
-		// gather statuses
-		for _, status := range fi.Status.Statuses {
-			t.Logf("Iterating through statuses: Found node status: %s - %s", status.NodeName, status.Condition)
-			recordedStatus, ok := latestStatuses[status.NodeName]
-			if !ok {
-				latestStatuses[status.NodeName] = nodeStatus{
-					LastProbeTime: status.LastProbeTime,
-					Condition:     status.Condition,
-				}
-			} else if recordedStatus.LastProbeTime.Before(&status.LastProbeTime) {
-				latestStatuses[status.NodeName] = nodeStatus{
-					LastProbeTime: status.LastProbeTime,
-					Condition:     status.Condition,
+	nodes, err := f.KubeClient.CoreV1().Nodes().List(metav1.ListOptions{LabelSelector: mcWorkerRoleLabelKey})
+	if err != nil {
+		t.Errorf("error listing nodes: %v", err)
+	}
+
+	wait.Poll(interval, timeout, func() (bool, error) {
+		// Node names are the key
+		latestStatuses := map[string]nodeStatus{}
+
+		for _, node := range nodes.Items {
+			fileIntegNodeStatus := &fileintv1alpha1.FileIntegrityNodeStatus{}
+			getErr := f.Client.Get(goctx.TODO(), types.NamespacedName{Name: testIntegrityName + "-" + node.Name, Namespace: namespace}, fileIntegNodeStatus)
+			if getErr != nil {
+				t.Logf("Retrying. Got error: %v\n", getErr)
+				lastErr = getErr
+				return false, nil
+			}
+
+			t.Logf("assertNodesConditionIsSuccess: found nodeStatus: %#v", fileIntegNodeStatus)
+
+			// gather statuses
+			for _, status := range fileIntegNodeStatus.Results {
+				t.Logf("dbg: wait for success %#v", status)
+				t.Logf("Iterating through statuses: Found node status: %s - %s", fileIntegNodeStatus.NodeName, status.Condition)
+				recordedStatus, ok := latestStatuses[fileIntegNodeStatus.NodeName]
+				if !ok {
+					latestStatuses[fileIntegNodeStatus.NodeName] = nodeStatus{
+						LastProbeTime: status.LastProbeTime,
+						Condition:     status.Condition,
+					}
+				} else if recordedStatus.LastProbeTime.Before(&status.LastProbeTime) {
+					latestStatuses[fileIntegNodeStatus.NodeName] = nodeStatus{
+						LastProbeTime: status.LastProbeTime,
+						Condition:     status.Condition,
+					}
 				}
 			}
 		}
@@ -583,7 +605,6 @@ func editFileOnNodes(f *framework.Framework, namespace string) error {
 		return err
 	}
 
-	spew.Printf("modifyDS created: %#v\n", daemonSet)
 	err = waitForDaemonSet(daemonSetExists(f.KubeClient, daemonSet.Name, namespace))
 	if err != nil {
 		return err
@@ -605,7 +626,6 @@ func cleanNodes(f *framework.Framework, namespace string) error {
 		return err
 	}
 
-	spew.Printf("cleanDS created: %#v\n", ds)
 	err = waitForDaemonSet(daemonSetExists(f.KubeClient, ds.Name, namespace))
 	if err != nil {
 		return err

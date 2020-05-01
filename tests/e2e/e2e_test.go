@@ -46,20 +46,20 @@ func TestFileIntegrityLogAndReinitDatabase(t *testing.T) {
 	}
 	for _, node := range nodes.Items {
 		// check the FI status for a failed condition for the node
-		status, err := waitForFailedStatusForNode(t, f, namespace, testIntegrityName, node.Name, time.Second, time.Minute*5)
+		result, err := waitForFailedResultForNode(t, f, namespace, testIntegrityName, node.Name, time.Second, time.Minute*5)
 		if err != nil {
 			t.Errorf("Timeout waiting for a failed status condition for node '%s'", node.Name)
 		} else {
-			if status.FilesChanged != 1 {
-				t.Errorf("Expected one file to change, got %d", status.FilesChanged)
+			if result.FilesChanged != 1 {
+				t.Errorf("Expected one file to change, got %d", result.FilesChanged)
 			}
-			data, err := pollUntilConfigMapExists(t, f, status.ResultConfigMapNamespace, status.ResultConfigMapName, time.Second, time.Minute*5)
+			data, err := pollUntilConfigMapExists(t, f, result.ResultConfigMapNamespace, result.ResultConfigMapName, time.Second, time.Minute*5)
 			if err != nil {
-				t.Errorf("Timeout waiting for log configMap '%s'", status.ResultConfigMapName)
+				t.Errorf("Timeout waiting for log configMap '%s'", result.ResultConfigMapName)
 			}
 
 			if !containsUncompressedScanFailLog(data) {
-				t.Errorf("configMap '%s' does not have a failure log. Got: %#v", status.ResultConfigMapName, data)
+				t.Errorf("configMap '%s' does not have a failure log. Got: %#v", result.ResultConfigMapName, data)
 			}
 		}
 	}
