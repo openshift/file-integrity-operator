@@ -84,7 +84,7 @@ func GetConfigMapNodeName(cm *corev1.ConfigMap) (string, error) {
 }
 
 func DaemonSetIsReady(ds *appsv1.DaemonSet) bool {
-	return ds.Status.DesiredNumberScheduled == ds.Status.NumberAvailable
+	return ds.Status.DesiredNumberScheduled > 0 && ds.Status.DesiredNumberScheduled == ds.Status.NumberAvailable
 }
 
 func DaemonSetIsUpdating(ds *appsv1.DaemonSet) bool {
