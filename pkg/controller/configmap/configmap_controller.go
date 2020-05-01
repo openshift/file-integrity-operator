@@ -290,7 +290,7 @@ func deleteDaemonSetPods(c client.Client, ds *appsv1.DaemonSet) error {
 	var pods corev1.PodList
 
 	if err := c.List(context.TODO(), &pods, &client.ListOptions{
-		LabelSelector: labels.SelectorFromSet(ds.GetLabels()),
+		LabelSelector: labels.SelectorFromSet(labels.Set{"app": ds.Name}),
 		Namespace:     common.FileIntegrityNamespace,
 	}); err != nil {
 		return err
