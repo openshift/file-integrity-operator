@@ -11,6 +11,7 @@ var aideInitContainerScript = `#!/bin/sh
       echo "reinitializing AIDE db"
       mv /hostroot/etc/kubernetes/aide.db.gz /hostroot/etc/kubernetes/aide.db.gz.backup-$(date +%s)
       mv /hostroot/etc/kubernetes/aide.log /hostroot/etc/kubernetes/aide.log.backup-$(date +%s)
+	  mv /hostroot/etc/kubernetes/aide.latest-result.log /hostroot/etc/kubernetes/aide.latest-result.log-$(date +%s)
       aide -c /tmp/aide.conf -i
       rm -f /hostroot/etc/kubernetes/aide.reinit
     fi
