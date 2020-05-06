@@ -31,6 +31,8 @@ const (
 	AideInitScriptConfigMapName        = "aide-init"
 	AideReinitScriptConfigMapName      = "aide-reinit"
 	AideScriptConfigMapName            = "aide-script"
+	PauseConfigMapName                 = "aide-pause"
+	PausePath                          = "/scripts/pause.sh"
 	AideScriptPath                     = "/scripts/aide.sh"
 	DaemonSetPrefix                    = "aide-ds"
 	DefaultConfDataKey                 = "aide.conf"

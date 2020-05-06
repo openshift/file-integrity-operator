@@ -21,6 +21,12 @@ var aideReinitContainerScript = `#!/bin/sh
     touch /hostroot/etc/kubernetes/aide.reinit
 `
 
+var aidePauseContainerScript = `#!/bin/sh
+	sleep infinity & PID=$!
+	trap "kill $PID" INT TERM
+	wait $PID || true
+`
+
 // An AIDE run is executed every 10s and the output is set in the
 // /hostroot/etc/kubernetes/aide.latest-result.log file.
 // If the file /hostroot/etc/kubernetes/holdoff is found, the check

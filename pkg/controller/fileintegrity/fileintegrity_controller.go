@@ -110,6 +110,19 @@ func (r *ReconcileFileIntegrity) handleDefaultConfigMaps(f *fileintegrityv1alpha
 	}
 
 	if err := r.client.Get(context.TODO(), types.NamespacedName{
+		Name:      common.PauseConfigMapName,
+		Namespace: common.FileIntegrityNamespace,
+	}, cm); err != nil {
+		if !kerr.IsNotFound(err) {
+			return nil, err
+		}
+		// does not exist, create
+		if err := r.client.Create(context.TODO(), aidePauseScript()); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := r.client.Get(context.TODO(), types.NamespacedName{
 		Name:      f.Name,
 		Namespace: common.FileIntegrityNamespace,
 	}, cm); err != nil {
@@ -365,6 +378,18 @@ func aideReinitScript() *corev1.ConfigMap {
 	}
 }
 
+func aidePauseScript() *corev1.ConfigMap {
+	return &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      common.PauseConfigMapName,
+			Namespace: common.FileIntegrityNamespace,
+		},
+		Data: map[string]string{
+			"pause.sh": aidePauseContainerScript,
+		},
+	}
+}
+
 // reinitAideDaemonset returns a DaemonSet that runs a one-shot pod on each node. This pod touches a file
 // on the host OS that informs the AIDE init container script to back up and reinitialize the AIDE db.
 func reinitAideDaemonset(reinitDaemonSetName string, fi *fileintegrityv1alpha1.FileIntegrity) *appsv1.DaemonSet {
@@ -423,8 +448,15 @@ func reinitAideDaemonset(reinitDaemonSetName string, fi *fileintegrityv1alpha1.F
 					// make this an endless loop
 					Containers: []corev1.Container{
 						{
-							Name:  "pause",
-							Image: "gcr.io/google_containers/pause",
+							Name:    "pause",
+							Command: []string{common.PausePath},
+							Image:   common.GetComponentImage(common.AIDE),
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      common.PauseConfigMapName,
+									MountPath: "/scripts",
+								},
+							},
 						},
 					},
 					Volumes: []corev1.Volume{
@@ -442,6 +474,17 @@ func reinitAideDaemonset(reinitDaemonSetName string, fi *fileintegrityv1alpha1.F
 								ConfigMap: &corev1.ConfigMapVolumeSource{
 									LocalObjectReference: corev1.LocalObjectReference{
 										Name: common.AideReinitScriptConfigMapName,
+									},
+									DefaultMode: &mode,
+								},
+							},
+						},
+						{
+							Name: common.PauseConfigMapName,
+							VolumeSource: corev1.VolumeSource{
+								ConfigMap: &corev1.ConfigMapVolumeSource{
+									LocalObjectReference: corev1.LocalObjectReference{
+										Name: common.PauseConfigMapName,
 									},
 									DefaultMode: &mode,
 								},
