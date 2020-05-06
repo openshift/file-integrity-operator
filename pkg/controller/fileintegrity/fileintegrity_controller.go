@@ -654,8 +654,7 @@ func aideDaemonset(dsName string, fi *fileintegrityv1alpha1.FileIntegrity) *apps
 								"--owner=" + fi.Name,
 								"--namespace=" + fi.Namespace,
 								"--interval=" + strconv.Itoa(gracePeriod),
-								// TODO: remove this for production
-								"--debug=true",
+								"--debug=" + strconv.FormatBool(fi.Spec.Debug),
 							},
 							Env: []corev1.EnvVar{
 								{

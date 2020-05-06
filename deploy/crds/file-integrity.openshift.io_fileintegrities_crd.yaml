@@ -45,6 +45,8 @@ spec:
                 namespace:
                   type: string
               type: object
+            debug:
+              type: boolean
             nodeSelector:
               additionalProperties:
                 type: string

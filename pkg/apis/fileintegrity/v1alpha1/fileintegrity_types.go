@@ -28,6 +28,7 @@ const (
 type FileIntegritySpec struct {
 	NodeSelector map[string]string   `json:"nodeSelector,omitempty"`
 	Config       FileIntegrityConfig `json:"config"`
+	Debug        bool                `json:"debug,omitempty"`
 }
 
 // FileIntegrityConfig defines the name, namespace, and data key for an AIDE config to use for integrity checking.
