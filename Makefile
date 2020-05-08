@@ -118,7 +118,7 @@ run: operator-sdk ## Run the file-integrity-operator locally
 	WATCH_NAMESPACE=$(NAMESPACE) \
 	KUBERNETES_CONFIG=$(KUBECONFIG) \
 	OPERATOR_NAME=$(APP_NAME) \
-	$(GOPATH)/bin/operator-sdk run --local --namespace $(NAMESPACE)
+	$(GOPATH)/bin/operator-sdk run --local --watch-namespace $(NAMESPACE) --operator-flags operator
 
 .PHONY: clean
 clean: clean-modcache clean-cache clean-output ## Clean the golang environment
