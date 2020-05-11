@@ -23,6 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/openshift/file-integrity-operator/pkg/apis"
 	fileintv1alpha1 "github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
@@ -713,4 +714,54 @@ func isNodeReady(node corev1.Node) bool {
 		}
 	}
 	return false
+}
+
+func assertLineInScript(t *testing.T, f *framework.Framework, fiName, namespace, expectedLine string, interval, timeout time.Duration) error {
+	return wait.PollImmediate(interval, timeout, func() (bool, error) {
+		cm, getErr := f.KubeClient.CoreV1().ConfigMaps(namespace).Get(common.GetScriptName(fiName), metav1.GetOptions{})
+		if getErr != nil {
+			t.Logf("Retrying. Got error: %v\n", getErr)
+			return false, nil
+		}
+
+		cmVal := cm.Data[common.AideScriptKey]
+		if idx := strings.Index(cmVal, expectedLine); idx == 1 {
+			t.Logf("expected line not found in, retrying")
+		}
+		return true, nil
+	})
+}
+
+func getFiDsPods(f *framework.Framework, fileIntegrityName, namespace string) (*corev1.PodList, error) {
+	dsName := common.GetDaemonSetName(fileIntegrityName)
+	ds, err := f.KubeClient.AppsV1().DaemonSets(namespace).Get(dsName, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	lo := metav1.ListOptions{LabelSelector: "app=" + ds.Name}
+	pods, err := f.KubeClient.CoreV1().Pods(namespace).List(lo)
+	if err != nil {
+		return nil, err
+	}
+
+	return pods, nil
+}
+
+func waitUntilPodsAreGone(t *testing.T, c client.Client, pods *corev1.PodList, interval, timeout time.Duration) error {
+	return wait.PollImmediate(interval, timeout, func() (bool, error) {
+		for _, pod := range pods.Items {
+			var getPod corev1.Pod
+			err := c.Get(goctx.TODO(), types.NamespacedName{Name: pod.Name, Namespace: pod.Namespace}, &getPod)
+			if err == nil {
+				t.Logf("looping again, pod %s still exists\n", pod.Name)
+				return false, nil
+			} else if !kerr.IsNotFound(err) {
+				return false, err
+			}
+		}
+
+		t.Log("All previous pods have exited")
+		return true, nil
+	})
 }

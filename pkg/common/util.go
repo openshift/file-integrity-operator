@@ -2,11 +2,10 @@ package common
 
 import (
 	"fmt"
-	"os"
-
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
+	"os"
 )
 
 type FileIntegrityComponent uint
@@ -40,6 +39,13 @@ func GetComponentImage(component FileIntegrityComponent) string {
 // label that indicates that this is an AIDE config.
 func IsAideConfig(labels map[string]string) bool {
 	_, ok := labels[AideConfigLabelKey]
+	return ok
+}
+
+// IsAideScript returns whether the given map contains a
+// label that indicates that this is an AIDE script
+func IsAideScript(labels map[string]string) bool {
+	_, ok := labels[AideScriptLabelKey]
 	return ok
 }
 
@@ -99,6 +105,12 @@ func IgnoreAlreadyExists(err error) error {
 		return nil
 	}
 	return err
+}
+
+// GetScriptName returns the name of a configMap for a FI object with a
+// given name
+func GetScriptName(fiName string) string {
+	return AideScriptConfigMapPrefix + "-" + fiName
 }
 
 // GetDaemonSetName gets the name of the owner (usually a FileIntegrity CR) and

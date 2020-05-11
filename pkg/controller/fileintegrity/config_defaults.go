@@ -31,8 +31,7 @@ var aidePauseContainerScript = `#!/bin/sh
 // /hostroot/etc/kubernetes/aide.latest-result.log file.
 // If the file /hostroot/etc/kubernetes/holdoff is found, the check
 // is skipped
-// TODO: Make time configurable
-var aideScript = `#!/bin/sh
+var aideScriptTemplate = `#!/bin/sh
     while true; do
       if [ -f /hostroot/etc/kubernetes/holdoff ]; then
         continue
@@ -41,8 +40,8 @@ var aideScript = `#!/bin/sh
       aide -c /tmp/aide.conf
       result=$?
       echo "$result" > /hostroot/etc/kubernetes/aide.latest-result.log
-      echo "AIDE check returned $result.. sleeping"
-      sleep 10s
+      echo "AIDE check returned $result.. sleeping for %[1]d seconds"
+      sleep %[1]d
     done
     exit 1`
 

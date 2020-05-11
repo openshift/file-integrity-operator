@@ -4,4 +4,7 @@ metadata:
   name: example-fileintegrity
   namespace: openshift-file-integrity
 spec:
+  # Change to debug: true to enable more verbose logging from the logcollector
+  # container in the aide pods
+  debug: false
   config: {}

@@ -103,6 +103,8 @@ func (r *ReconcileConfigMap) Reconcile(request reconcile.Request) (reconcile.Res
 
 	if common.IsAideConfig(instance.Labels) {
 		return r.reconcileAideConf(instance, reqLogger)
+	} else if common.IsAideScript(instance.Labels) {
+		return r.reconcileAideScript(instance, reqLogger)
 	} else if common.IsIntegrityLog(instance.Labels) {
 		return r.handleIntegrityLog(instance, reqLogger)
 	}
@@ -142,20 +144,43 @@ func (r *ReconcileConfigMap) reconcileAideConf(instance *corev1.ConfigMap, logge
 		return reconcile.Result{}, err
 	}
 
-	ds := &appsv1.DaemonSet{}
-	dsName := common.GetDaemonSetName(instance.Name)
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: dsName, Namespace: common.FileIntegrityNamespace}, ds)
+	err = restartFileIntegrityDs(r.client, common.GetDaemonSetName(instance.Name))
 	if err != nil {
-		logger.Error(err, "error getting daemonSet")
+		logger.Error(err, "error restarting daemonSet")
 		return reconcile.Result{}, err
 	}
 
-	if err := deleteDaemonSetPods(r.client, ds); err != nil {
-		logger.Error(err, "error deleting daemonSet pods")
+	logger.Info("DBG: DS pods restarted, clearing update annotation")
+	// unset update annotation
+	conf := instance.DeepCopy()
+	conf.Annotations = nil
+	if err := r.client.Update(context.TODO(), conf); err != nil {
+		logger.Error(err, "error clearing configMap annotations")
 		return reconcile.Result{}, err
 	}
+	return reconcile.Result{}, nil
+}
 
-	logger.Info("DBG: rollout triggered, clearing update annotation")
+func (r *ReconcileConfigMap) reconcileAideScript(instance *corev1.ConfigMap, logger logr.Logger) (reconcile.Result, error) {
+	// only continue if the configmap received an update through the user-provided config
+	if _, ok := instance.Annotations[common.AideConfigUpdatedAnnotationKey]; !ok {
+		logger.Info("DBG: updated annotation not found - removing from queue")
+		return reconcile.Result{}, nil
+	}
+
+	fiName, ok := instance.Labels[common.AideScriptLabelKey]
+	if ok {
+		err := restartFileIntegrityDs(r.client, common.GetDaemonSetName(fiName))
+		if err != nil {
+			logger.Error(err, "error restarting daemonSet")
+			return reconcile.Result{}, err
+		}
+		logger.Info("DBG: DS pods restarted")
+	} else {
+		logger.Info("Could not figure out the FI to update, will just clear the annotation")
+	}
+
+	logger.Info("DBG: clearing update annotation")
 	// unset update annotation
 	conf := instance.DeepCopy()
 	conf.Annotations = nil
@@ -309,6 +334,23 @@ func getConfigMapForFailureLog(cm *corev1.ConfigMap) *corev1.ConfigMap {
 	// We mark is as a result
 	failedCM.Labels[common.IntegrityLogResultLabelKey] = ""
 	return failedCM
+}
+
+// restartFileIntegrityDs restarts all pods that belong to a given DaemonSet. This can be
+// used to e.g. remount a configmap after it had changed or restart a FI DS after a re-init
+// had happened
+func restartFileIntegrityDs(c client.Client, dsName string) error {
+	ds := &appsv1.DaemonSet{}
+	err := c.Get(context.TODO(), types.NamespacedName{Name: dsName, Namespace: common.FileIntegrityNamespace}, ds)
+	if err != nil {
+		return err
+	}
+
+	if err := deleteDaemonSetPods(c, ds); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func deleteDaemonSetPods(c client.Client, ds *appsv1.DaemonSet) error {
