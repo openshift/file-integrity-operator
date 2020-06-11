@@ -55,7 +55,7 @@ rules:
   verbs:
   - get
 - apiGroups:
-  - file-integrity.openshift.io
+  - fileintegrity.openshift.io
   resources:
   - '*'
   verbs:
