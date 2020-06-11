@@ -1,8 +1,8 @@
 // NOTE: Boilerplate only.  Ignore this file.
 
-// Package v1alpha1 contains API Schema definitions for the file-integrity v1alpha1 API group
+// Package v1alpha1 contains API Schema definitions for the fileintegrity v1alpha1 API group
 // +k8s:deepcopy-gen=package,register
-// +groupName=file-integrity.openshift.io
+// +groupName=fileintegrity.openshift.io
 package v1alpha1
 
 import (
@@ -12,7 +12,7 @@ import (
 
 var (
 	// SchemeGroupVersion is group version used to register these objects
-	SchemeGroupVersion = schema.GroupVersion{Group: "file-integrity.openshift.io", Version: "v1alpha1"}
+	SchemeGroupVersion = schema.GroupVersion{Group: "fileintegrity.openshift.io", Version: "v1alpha1"}
 
 	// SchemeBuilder is used to add go types to the GroupVersionKind scheme
 	SchemeBuilder = &scheme.Builder{GroupVersion: SchemeGroupVersion}

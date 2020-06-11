@@ -174,5 +174,4 @@ spec:
   maintainers:
     - email: mrogers@redhat.com
       name: Matt Rogers
-  replaces: file-integrity-operator.v0.0.0
   version: 0.1.0
