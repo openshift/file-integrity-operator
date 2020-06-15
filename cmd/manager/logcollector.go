@@ -43,7 +43,7 @@ import (
 )
 
 const (
-	crdGroup      = "file-integrity.openshift.io"
+	crdGroup      = "fileintegrity.openshift.io"
 	crdAPIVersion = "v1alpha1"
 	crdPlurals    = "fileintegrities"
 	maxRetries    = 15
