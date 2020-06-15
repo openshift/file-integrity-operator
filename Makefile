@@ -71,7 +71,7 @@ COURIER_QUAY_NAMESPACE=file-integrity-operator
 COURIER_PACKAGE_VERSION?=
 OLD_COURIER_PACKAGE_VERSION=$(shell ls -t deploy/olm-catalog/file-integrity-operator/ | grep -v package.yaml | head -1)
 COURIER_QUAY_TOKEN?= $(shell cat ~/.quay)
-PACKAGE_CHANNEL=?alpha
+PACKAGE_CHANNEL?=alpha
 
 .PHONY: all
 all: build ## Test and Build the file-integrity-operator
@@ -282,11 +282,13 @@ package-version-to-tag: check-package-version
 release-tag-image: package-version-to-tag
 	@echo "Temporarily overriding image tags in deploy/operator.yaml"
 	@sed -i 's%$(IMAGE_REPO)/$(AIDE):latest%$(AIDE_IMAGE_PATH):$(TAG)%' deploy/operator.yaml
+	@sed -i 's%$(IMAGE_REPO)/$(APP_NAME):latest%$(OPERATOR_IMAGE_PATH):$(TAG)%' deploy/operator.yaml
 
 .PHONY: undo-deploy-tag-image
 undo-deploy-tag-image: package-version-to-tag
 	@echo "Restoring image tags in deploy/operator.yaml"
 	@sed -i 's%$(AIDE_IMAGE_PATH):$(TAG)%$(IMAGE_REPO)/$(AIDE):latest%' deploy/operator.yaml
+	@sed -i 's%$(OPERATOR_IMAGE_PATH):$(TAG)%$(IMAGE_REPO)/$(APP_NAME):latest%' deploy/operator.yaml
 
 .PHONY: git-release
 git-release: package-version-to-tag

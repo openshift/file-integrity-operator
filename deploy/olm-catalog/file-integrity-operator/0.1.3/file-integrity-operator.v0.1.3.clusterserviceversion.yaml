@@ -2,43 +2,69 @@ apiVersion: operators.coreos.com/v1alpha1
 kind: ClusterServiceVersion
 metadata:
   annotations:
-    description: An operator that manages file integrity checks on nodes.
-    categories: Security
-    certified: 'False'
-    containerImage: 'quay.io/file-integrity-operator/file-integrity-operator:0.1.0'
-    createdAt: 2012-01-01 00:00:00
-    repository: 'https://github.com/openshift/file-integrity-operator'
-    support: Red Hat
     alm-examples: |-
       [
         {
-          "apiVersion": "file-integrity.openshift.io/v1alpha1",
+          "apiVersion": "fileintegrity.openshift.io/v1alpha1",
           "kind": "FileIntegrity",
           "metadata": {
             "name": "example-fileintegrity",
             "namespace": "openshift-file-integrity"
           },
           "spec": {
-            "config": {}
+            "config": {},
+            "debug": false
           }
         }
       ]
     capabilities: Basic Install
-  name: file-integrity-operator.v0.1.0
+    categories: Security
+    certified: "False"
+    containerImage: quay.io/file-integrity-operator/file-integrity-operator:0.1.0
+    createdAt: "2012-01-01 00:00:00"
+    description: An operator that manages file integrity checks on nodes.
+    repository: https://github.com/openshift/file-integrity-operator
+    support: Red Hat
+  name: file-integrity-operator.v0.1.3
   namespace: openshift-file-integrity
 spec:
   apiservicedefinitions: {}
   customresourcedefinitions:
     owned:
-    - name: fileintegrities.file-integrity.openshift.io
-      version: v1alpha1
+    - description: FileIntegrity is the Schema for the fileintegrities API
       kind: FileIntegrity
-      displayName: FileIntegrity
-      description: An instance of file integrity checks
+      name: fileintegrities.fileintegrity.openshift.io
+      version: v1alpha1
+    - description: FileIntegrity is the Schema for the fileintegrities API
+      kind: FileIntegrity
+      name: fileintegrities.fileintegrity.openshift.io
+      version: v1alpha1
+    - description: FileIntegrityNodeStatus defines the status of a specific node
+      kind: FileIntegrityNodeStatus
+      name: fileintegritynodestatuses.fileintegrity.openshift.io
+      version: v1alpha1
+    - description: FileIntegrityNodeStatus defines the status of a specific node
+      kind: FileIntegrityNodeStatus
+      name: fileintegritynodestatuses.fileintegrity.openshift.io
+      version: v1alpha1
   description: An operator that manages file integrity checks on nodes.
   displayName: File Integrity Operator
+  icon:
+  - base64data: ""
+    mediatype: ""
   install:
     spec:
+      clusterPermissions:
+      - rules:
+        - apiGroups:
+          - ""
+          resources:
+          - nodes
+          verbs:
+          - get
+          - list
+          - watch
+        serviceAccountName: file-integrity-operator
       deployments:
       - name: file-integrity-operator
         spec:
@@ -53,7 +79,9 @@ spec:
                 name: file-integrity-operator
             spec:
               containers:
-              - command:
+              - args:
+                - operator
+                command:
                 - file-integrity-operator
                 env:
                 - name: WATCH_NAMESPACE
@@ -66,7 +94,11 @@ spec:
                       fieldPath: metadata.name
                 - name: OPERATOR_NAME
                   value: file-integrity-operator
-                image: quay.io/file-integrity-operator/file-integrity-operator:0.1.0
+                - name: AIDE_IMAGE
+                  value: quay.io/file-integrity-operator/aide:0.1.3
+                - name: LOGCOLLECTOR_IMAGE
+                  value: quay.io/file-integrity-operator/file-integrity-operator:0.1.3
+                image: quay.io/file-integrity-operator/file-integrity-operator:0.1.3
                 imagePullPolicy: Always
                 name: file-integrity-operator
                 resources: {}
@@ -137,13 +169,11 @@ spec:
           verbs:
           - get
         - apiGroups:
-          - file-integrity.openshift.io
+          - fileintegrity.openshift.io
           resources:
           - '*'
           verbs:
           - '*'
-        serviceAccountName: file-integrity-operator
-      - rules:
         - apiGroups:
           - security.openshift.io
           resourceNames:
@@ -163,15 +193,16 @@ spec:
     type: MultiNamespace
   - supported: false
     type: AllNamespaces
-  maturity: alpha
   keywords:
-    - Integrity
+  - Integrity
   links:
-    - name: Documentation
-      url: https://github.com/openshift/file-integrity-operator/README.md
+  - name: Documentation
+    url: https://github.com/openshift/file-integrity-operator/README.md
+  maintainers:
+  - email: mrogers@redhat.com
+    name: Matt Rogers
+  maturity: alpha
   provider:
     name: Red Hat
-  maintainers:
-    - email: mrogers@redhat.com
-      name: Matt Rogers
-  version: 0.1.0
+  replaces: file-integrity-operator.v0.1.2
+  version: 0.1.3

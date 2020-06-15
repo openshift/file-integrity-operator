@@ -1,5 +1,5 @@
 channels:
-- currentCSV: file-integrity-operator.v0.1.0
+- currentCSV: file-integrity-operator.v0.1.3
   name: alpha
 defaultChannel: alpha
 packageName: file-integrity-operator-bundle

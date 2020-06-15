@@ -5,34 +5,66 @@ metadata:
     alm-examples: |-
       [
         {
-          "apiVersion": "file-integrity.openshift.io/v1alpha1",
+          "apiVersion": "fileintegrity.openshift.io/v1alpha1",
           "kind": "FileIntegrity",
           "metadata": {
             "name": "example-fileintegrity",
             "namespace": "openshift-file-integrity"
           },
           "spec": {
-            "config": {}
+            "config": {},
+            "debug": false
           }
         }
       ]
     capabilities: Basic Install
     categories: Security
     certified: "False"
-    containerImage: quay.io/file-integrity-operator/file-integrity-operator:0.1.1
+    containerImage: quay.io/file-integrity-operator/file-integrity-operator:0.1.0
     createdAt: "2012-01-01 00:00:00"
     description: An operator that manages file integrity checks on nodes.
     repository: https://github.com/openshift/file-integrity-operator
     support: Red Hat
-  name: file-integrity-operator.v0.1.1
+  name: file-integrity-operator.v0.1.2
   namespace: openshift-file-integrity
 spec:
   apiservicedefinitions: {}
-  customresourcedefinitions: {}
+  customresourcedefinitions:
+    owned:
+    - description: FileIntegrity is the Schema for the fileintegrities API
+      kind: FileIntegrity
+      name: fileintegrities.fileintegrity.openshift.io
+      version: v1alpha1
+    - description: FileIntegrity is the Schema for the fileintegrities API
+      kind: FileIntegrity
+      name: fileintegrities.fileintegrity.openshift.io
+      version: v1alpha1
+    - description: FileIntegrityNodeStatus defines the status of a specific node
+      kind: FileIntegrityNodeStatus
+      name: fileintegritynodestatuses.fileintegrity.openshift.io
+      version: v1alpha1
+    - description: FileIntegrityNodeStatus defines the status of a specific node
+      kind: FileIntegrityNodeStatus
+      name: fileintegritynodestatuses.fileintegrity.openshift.io
+      version: v1alpha1
   description: An operator that manages file integrity checks on nodes.
   displayName: File Integrity Operator
+  icon:
+  - base64data: ""
+    mediatype: ""
   install:
     spec:
+      clusterPermissions:
+      - rules:
+        - apiGroups:
+          - ""
+          resources:
+          - nodes
+          verbs:
+          - get
+          - list
+          - watch
+        serviceAccountName: file-integrity-operator
       deployments:
       - name: file-integrity-operator
         spec:
@@ -47,7 +79,9 @@ spec:
                 name: file-integrity-operator
             spec:
               containers:
-              - command:
+              - args:
+                - operator
+                command:
                 - file-integrity-operator
                 env:
                 - name: WATCH_NAMESPACE
@@ -61,10 +95,10 @@ spec:
                 - name: OPERATOR_NAME
                   value: file-integrity-operator
                 - name: AIDE_IMAGE
-                  value: quay.io/file-integrity-operator/aide:0.1.1
+                  value: quay.io/file-integrity-operator/aide:0.1.2
                 - name: LOGCOLLECTOR_IMAGE
-                  value: quay.io/file-integrity-operator/file-integrity-logcollector:0.1.1
-                image: quay.io/file-integrity-operator/file-integrity-operator:0.1.1
+                  value: quay.io/file-integrity-operator/file-integrity-operator:0.1.2
+                image: quay.io/file-integrity-operator/file-integrity-operator:0.1.2
                 imagePullPolicy: Always
                 name: file-integrity-operator
                 resources: {}
@@ -140,8 +174,6 @@ spec:
           - '*'
           verbs:
           - '*'
-        serviceAccountName: file-integrity-operator
-      - rules:
         - apiGroups:
           - security.openshift.io
           resourceNames:
@@ -168,9 +200,9 @@ spec:
     url: https://github.com/openshift/file-integrity-operator/README.md
   maintainers:
   - email: mrogers@redhat.com
-    name: Red Hat, Inc.
+    name: Matt Rogers
   maturity: alpha
   provider:
-    name: Red Hat, Inc.
+    name: Red Hat
   replaces: file-integrity-operator.v0.1.0
-  version: 0.1.1
+  version: 0.1.2
