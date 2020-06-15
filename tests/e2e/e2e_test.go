@@ -3,9 +3,11 @@ package e2e
 import (
 	"context"
 	"fmt"
-	"k8s.io/apimachinery/pkg/types"
+	"strconv"
 	"testing"
 	"time"
+
+	"k8s.io/apimachinery/pkg/types"
 
 	framework "github.com/operator-framework/operator-sdk/pkg/test"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -218,13 +220,13 @@ func TestFileIntegrityChangeGracePeriod(t *testing.T) {
 		t.Errorf("Error retrieving DS pods")
 	}
 
-	// get aide script, make sure there's the default sleep
-	defaultSleep := fmt.Sprintf("sleep %d", common.DefaultGracePeriod)
-	err = assertLineInScript(t, f, testIntegrityName, namespace, defaultSleep, time.Second * 5, time.Minute * 5)
+	// get daemonSet, make sure there's the default sleep
+	defaultSleep := fmt.Sprintf("--interval=%d", common.DefaultGracePeriod)
+	err = assertDSPodHasArg(t, f, testIntegrityName, namespace, defaultSleep, time.Second*5, time.Minute*5)
 	if err != nil {
-		t.Errorf("script didn't contain the expected sleep: %v\n", err)
+		t.Errorf("pod spec didn't contain the expected sleep: %v\n", err)
 	}
-	t.Log("The script configmap contains the default grace period")
+	t.Log("The pod spec contains the default grace period")
 
 	// change the config
 	fileIntegrity := &fileintv1alpha1.FileIntegrity{}
@@ -246,17 +248,84 @@ func TestFileIntegrityChangeGracePeriod(t *testing.T) {
 		t.Errorf("failed to update FI object: %v\n", err)
 	}
 
-	// make sure the script now has the sleep we want
-	modifiedSleep := fmt.Sprintf("sleep %d", newGracePeriod)
-	err = assertLineInScript(t, f, testIntegrityName, namespace, modifiedSleep, time.Second * 5, time.Minute * 5)
+	// make sure the daemonSet pods now has the sleep we want
+	modifiedSleep := fmt.Sprintf("--interval=%d", newGracePeriod)
+	err = assertDSPodHasArg(t, f, testIntegrityName, namespace, modifiedSleep, time.Second*5, time.Minute*5)
 	if err != nil {
-		t.Errorf("script didn't contain the expected sleep: %v\n", err)
+		t.Errorf("spec didn't contain the expected sleep: %v\n", err)
 	}
-	t.Log("The script configmap contains the modified grace period")
+	t.Log("The spec contains the modified grace period")
 
 	// make sure the DS restarted by first making sure at least one of the original pods
 	// went away, then waiting until the DS is ready again
-	err = waitUntilPodsAreGone(t, f.Client.Client, oldPodList, time.Second * 5, time.Minute * 5)
+	err = waitUntilPodsAreGone(t, f.Client.Client, oldPodList, time.Second*5, time.Minute*5)
+	if err != nil {
+		t.Errorf("The old pods were not shut down\n")
+	}
+
+	dsName := common.GetDaemonSetName(testIntegrityName)
+	err = waitForDaemonSet(daemonSetIsReady(f.KubeClient, dsName, namespace))
+	if err != nil {
+		t.Errorf("Timed out waiting for DaemonSet %s", dsName)
+	}
+}
+
+func TestFileIntegrityChangeDebug(t *testing.T) {
+	f, testctx, namespace := setupTest(t)
+	defer testctx.Cleanup()
+	defer func() {
+		if err := cleanNodes(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	// wait to go active.
+	err := waitForScanStatus(t, f, namespace, testIntegrityName, fileintv1alpha1.PhaseActive)
+	if err != nil {
+		t.Errorf("Timeout waiting for scan status")
+	}
+
+	oldPodList, err := getFiDsPods(f, testIntegrityName, namespace)
+	if err != nil {
+		t.Errorf("Error retrieving DS pods")
+	}
+
+	// get daemonSet, make sure there's the default debug
+	defaultDebug := fmt.Sprintf("--debug=%s", strconv.FormatBool(false))
+	err = assertDSPodHasArg(t, f, testIntegrityName, namespace, defaultDebug, time.Second*5, time.Minute*5)
+	if err != nil {
+		t.Errorf("pod spec didn't contain the expected debug setting: %v\n", err)
+	}
+	t.Log("The pod spec contains the default debug setting")
+
+	// change the config
+	fileIntegrity := &fileintv1alpha1.FileIntegrity{}
+	err = f.Client.Get(context.TODO(), types.NamespacedName{Name: testIntegrityName, Namespace: namespace}, fileIntegrity)
+	if err != nil {
+		t.Errorf("failed to retrieve FI object: %v\n", err)
+	}
+
+	fileIntegrityCopy := fileIntegrity.DeepCopy()
+	fileIntegrityCopy.Spec = fileintv1alpha1.FileIntegritySpec{
+		Debug: true,
+	}
+
+	err = f.Client.Update(context.TODO(), fileIntegrityCopy)
+	if err != nil {
+		t.Errorf("failed to update FI object: %v\n", err)
+	}
+
+	// make sure the daemonSet pods now has the debug setting we want
+	modifiedDebug := fmt.Sprintf("--debug=%s", strconv.FormatBool(true))
+	err = assertDSPodHasArg(t, f, testIntegrityName, namespace, modifiedDebug, time.Second*5, time.Minute*5)
+	if err != nil {
+		t.Errorf("spec didn't contain the expected debug setting: %v\n", err)
+	}
+	t.Log("The spec contains the modified debug setting")
+
+	// make sure the DS restarted by first making sure at least one of the original pods
+	// went away, then waiting until the DS is ready again
+	err = waitUntilPodsAreGone(t, f.Client.Client, oldPodList, time.Second*5, time.Minute*5)
 	if err != nil {
 		t.Errorf("The old pods were not shut down\n")
 	}

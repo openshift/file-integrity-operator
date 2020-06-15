@@ -1,8 +1,14 @@
 package common
 
 import (
+	"context"
 	"fmt"
 	"os"
+
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
+
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -40,13 +46,6 @@ func GetComponentImage(component FileIntegrityComponent) string {
 // label that indicates that this is an AIDE config.
 func IsAideConfig(labels map[string]string) bool {
 	_, ok := labels[AideConfigLabelKey]
-	return ok
-}
-
-// IsAideScript returns whether the given map contains a
-// label that indicates that this is an AIDE script
-func IsAideScript(labels map[string]string) bool {
-	_, ok := labels[AideScriptLabelKey]
 	return ok
 }
 
@@ -124,4 +123,41 @@ func GetDaemonSetName(name string) string {
 // returns an appropriate name for the DaemonSet that's owned by it.
 func GetReinitDaemonSetName(name string) string {
 	return ReinitDaemonSetPrefix + "-" + name
+}
+
+// RestartFileIntegrityDs restarts all pods that belong to a given DaemonSet. This can be
+// used to e.g. remount a configMap after it had changed or restart a FI DS after a re-init
+// had happened
+func RestartFileIntegrityDs(c client.Client, dsName string) error {
+	ds := &appsv1.DaemonSet{}
+	err := c.Get(context.TODO(), types.NamespacedName{Name: dsName, Namespace: FileIntegrityNamespace}, ds)
+	if err != nil {
+		return err
+	}
+
+	if err := deleteDaemonSetPods(c, ds); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func deleteDaemonSetPods(c client.Client, ds *appsv1.DaemonSet) error {
+	var pods corev1.PodList
+
+	if err := c.List(context.TODO(), &pods, &client.ListOptions{
+		LabelSelector: labels.SelectorFromSet(labels.Set{"app": ds.Name}),
+		Namespace:     FileIntegrityNamespace,
+	}); err != nil {
+		return err
+	}
+
+	for _, pod := range pods.Items {
+		err := c.Delete(context.TODO(), &pod, &client.DeleteOptions{})
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

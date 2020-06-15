@@ -3,8 +3,6 @@ package common
 const (
 	// AideConfigLabelKey tells us if a specific ConfigMap is an AIDE config
 	AideConfigLabelKey = "file-integrity.openshift.io/aide-conf"
-	// AideScriptLabelKey tells us if a specific ConfigMap is an AIDE script
-	AideScriptLabelKey = "file-integrity.openshift.io/aide-script"
 	// AideConfigUpdatedAnnotationKey tells us if an aide config needs updating
 	AideConfigUpdatedAnnotationKey = "file-integrity.openshift.io/updated"
 	// AideDatabaseReinitAnnotationKey tells us if an aide config needs updating

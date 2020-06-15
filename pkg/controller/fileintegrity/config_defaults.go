@@ -2,21 +2,6 @@ package fileintegrity
 
 const aideLogPath = "/hostroot/etc/kubernetes/aide.log"
 
-var aideInitContainerScript = `#!/bin/sh
-    if test ! -f /hostroot/etc/kubernetes/aide.db.gz; then
-      echo "initializing AIDE db"
-      aide -c /tmp/aide.conf -i
-    fi
-    if test -f /hostroot/etc/kubernetes/aide.reinit; then
-      echo "reinitializing AIDE db"
-      mv /hostroot/etc/kubernetes/aide.db.gz /hostroot/etc/kubernetes/aide.db.gz.backup-$(date +%s)
-      mv /hostroot/etc/kubernetes/aide.log /hostroot/etc/kubernetes/aide.log.backup-$(date +%s)
-	  mv /hostroot/etc/kubernetes/aide.latest-result.log /hostroot/etc/kubernetes/aide.latest-result.log-$(date +%s)
-      aide -c /tmp/aide.conf -i
-      rm -f /hostroot/etc/kubernetes/aide.reinit
-    fi
-`
-
 var aideReinitContainerScript = `#!/bin/sh
     touch /hostroot/etc/kubernetes/aide.reinit
 `
@@ -26,24 +11,6 @@ var aidePauseContainerScript = `#!/bin/sh
 	trap "kill $PID" INT TERM
 	wait $PID || true
 `
-
-// An AIDE run is executed every 10s and the output is set in the
-// /hostroot/etc/kubernetes/aide.latest-result.log file.
-// If the file /hostroot/etc/kubernetes/holdoff is found, the check
-// is skipped
-var aideScriptTemplate = `#!/bin/sh
-    while true; do
-      if [ -f /hostroot/etc/kubernetes/holdoff ]; then
-        continue
-      fi
-      echo "running AIDE check.."
-      aide -c /tmp/aide.conf
-      result=$?
-      echo "$result" > /hostroot/etc/kubernetes/aide.latest-result.log
-      echo "AIDE check returned $result.. sleeping for %[1]d seconds"
-      sleep %[1]d
-    done
-    exit 1`
 
 // NOTE: Needs to be in sync with `testAideConfig` in test/e2e/helpers.go, except for the heading comment.
 var DefaultAideConfig = `@@define DBDIR /hostroot/etc/kubernetes

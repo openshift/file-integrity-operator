@@ -123,7 +123,7 @@ func (r *ReconcileNode) Reconcile(request reconcile.Request) (reconcile.Result, 
 	if nodeHasMCOAnnotations(node) {
 		fis := r.findRelevantFileIntegrities(node)
 		if isNodeBeingUpdateByMCO(currentConfig, desiredConfig, mcdState) {
-			reqLogger.Info("Adding holdoff annotation",
+			reqLogger.Info("Node is currently updating.",
 				"currentConfig", currentConfig, "desiredConfig", desiredConfig)
 			// An update is about to take place or already taking place
 			if err := r.addHoldOffAnnotations(fis); err != nil {
@@ -132,11 +132,11 @@ func (r *ReconcileNode) Reconcile(request reconcile.Request) (reconcile.Result, 
 			return r.reconcileAddHoldOff(node, reqLogger)
 		} else if isNodeUpToDateWithMCO(currentConfig, desiredConfig, mcdState) ||
 			isNodeDegraded(mcdState) {
-			reqLogger.Info("Removing holdoff annotation and re-initializing database",
+			reqLogger.Info(fmt.Sprintf("Node is up-to-date. Degraded: %v", isNodeDegraded(mcdState)),
 				"currentConfig", currentConfig, "desiredConfig", desiredConfig,
 				"mcdState", mcdState)
 			// No update is taking place or it's done already or
-			// MCO can't udpate a host, might as well not hold the integrity checks
+			// MCO can't update a host, might as well not hold the integrity checks
 			relevantFIs := r.getAnnotatedFileIntegrities(fis)
 			if err := r.removeHoldoffAnnotationAndReinitFileIntegrityDatabases(relevantFIs); err != nil {
 				return reconcile.Result{}, err
@@ -167,7 +167,6 @@ func (r *ReconcileNode) reconcileRemoveHoldOff(node *corev1.Node, reqLogger logr
 
 func (r *ReconcileNode) reconcileCreateWorkloadForNode(name, script string, node *corev1.Node, reqLogger logr.Logger) (reconcile.Result, error) {
 	cmToBeCreated := newGenericHoldOffCM(name, script, node)
-	reqLogger.Info("Creating CM", "name", cmToBeCreated)
 	if res, err := r.reconcileCreateObjForNode(cmToBeCreated.Name, cmToBeCreated, reqLogger); err != nil {
 		return res, err
 	}
@@ -178,7 +177,6 @@ func (r *ReconcileNode) reconcileCreateWorkloadForNode(name, script string, node
 
 func (r *ReconcileNode) reconcileDeleteWorkloadForNode(name, script string, node *corev1.Node, reqLogger logr.Logger) (reconcile.Result, error) {
 	cmToBeDeleted := newGenericHoldOffCM(name, script, node)
-	reqLogger.Info("Deleting CM", "name", cmToBeDeleted)
 	if res, err := r.reconcileDeleteObjForNode(cmToBeDeleted.Name, cmToBeDeleted, reqLogger); err != nil {
 		return res, err
 	}
@@ -209,11 +207,11 @@ func (r *ReconcileNode) reconcileCreateObjForNode(name string, obj runtime.Objec
 	err := r.client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: common.FileIntegrityNamespace}, found)
 	if err != nil && errors.IsNotFound(err) {
 		kind := getKind(obj)
-		reqLogger.Info(fmt.Sprintf("Creating %s", kind), "Name", name)
 		err = r.client.Create(context.TODO(), obj)
 		if err != nil {
 			return reconcile.Result{}, err
 		}
+		reqLogger.Info(fmt.Sprintf("%s created", kind), "Name", name)
 
 		// Object created successfully - don't requeue
 		return reconcile.Result{}, nil
@@ -276,11 +274,14 @@ func (r *ReconcileNode) getAnnotatedFileIntegrities(fis []*fiv1alpha1.FileIntegr
 
 func (r *ReconcileNode) removeHoldoffAnnotationAndReinitFileIntegrityDatabases(fis []*fiv1alpha1.FileIntegrity) error {
 	for _, fi := range fis {
-		fiCopy := fi.DeepCopy()
-		fiCopy.Annotations[common.AideDatabaseReinitAnnotationKey] = ""
-		delete(fiCopy.Annotations, common.IntegrityHoldoffAnnotationKey)
-		if err := r.client.Update(context.TODO(), fiCopy); err != nil {
-			return err
+		// Only reinit for FIs that were previously in holdoff.
+		if _, ok := fi.Annotations[common.IntegrityHoldoffAnnotationKey]; ok {
+			fiCopy := fi.DeepCopy()
+			fiCopy.Annotations[common.AideDatabaseReinitAnnotationKey] = ""
+			delete(fiCopy.Annotations, common.IntegrityHoldoffAnnotationKey)
+			if err := r.client.Update(context.TODO(), fiCopy); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -290,6 +291,10 @@ func (r *ReconcileNode) removeHoldoffAnnotationAndReinitFileIntegrityDatabases(f
 // hold-off file for the integrity checks.
 func newGenericHoldOffCM(name, script string, node *corev1.Node) *corev1.ConfigMap {
 	return &corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ConfigMap",
+			APIVersion: "v1",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      node.Name + "-" + name,
 			Namespace: common.FileIntegrityNamespace,
@@ -312,6 +317,10 @@ func newGenericHoldOffIntegrityCheckPod(holdoffCmName, holdoffScriptName string,
 	}
 
 	return &corev1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      holdoffCmName,
 			Namespace: common.FileIntegrityNamespace,

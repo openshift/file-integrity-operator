@@ -9,8 +9,9 @@ COPY . .
 
 RUN make operator-bin
 
-# Step two: containerize file-integrity-operator
-FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
+# Step two: containerize file-integrity-operator and AIDE together
+FROM centos:centos7
+RUN yum -y install aide && yum clean all
 
 ENV OPERATOR=/usr/local/bin/file-integrity-operator \
     USER_UID=1001 \
@@ -18,7 +19,6 @@ ENV OPERATOR=/usr/local/bin/file-integrity-operator \
 
 # install operator binary
 COPY --from=builder /go/src/github.com/openshift/file-integrity-operator/build/_output/bin/file-integrity-operator ${OPERATOR}
-
 COPY build/bin /usr/local/bin
 RUN  /usr/local/bin/user_setup
 
