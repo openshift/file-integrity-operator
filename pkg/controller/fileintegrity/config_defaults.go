@@ -43,6 +43,7 @@ CONTENT_EX = sha512+ftype+p+u+g+n+acl+selinux+xattrs
 !/hostroot/etc/kubernetes/manifests
 !/hostroot/etc/docker/certs.d
 !/hostroot/etc/selinux/targeted
+!/hostroot/etc/openvswitch/conf.db
 
 # Catch everything else in /etc
 /hostroot/etc/    CONTENT_EX`
