@@ -35,7 +35,7 @@ spec:
               value: "file-integrity-operator"
             - name: AIDE_IMAGE
               value: "quay.io/file-integrity-operator/aide:latest"
-            - name: LOGCOLLECTOR_IMAGE
+            - name: OPERATOR_IMAGE
               value: "quay.io/file-integrity-operator/file-integrity-operator:latest"
       nodeSelector:
         node-role.kubernetes.io/master: ""
