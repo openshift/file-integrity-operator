@@ -35,14 +35,6 @@ spec:
       kind: FileIntegrity
       name: fileintegrities.fileintegrity.openshift.io
       version: v1alpha1
-    - description: FileIntegrity is the Schema for the fileintegrities API
-      kind: FileIntegrity
-      name: fileintegrities.fileintegrity.openshift.io
-      version: v1alpha1
-    - description: FileIntegrityNodeStatus defines the status of a specific node
-      kind: FileIntegrityNodeStatus
-      name: fileintegritynodestatuses.fileintegrity.openshift.io
-      version: v1alpha1
     - description: FileIntegrityNodeStatus defines the status of a specific node
       kind: FileIntegrityNodeStatus
       name: fileintegritynodestatuses.fileintegrity.openshift.io
