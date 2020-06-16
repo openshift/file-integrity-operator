@@ -1,7 +1,6 @@
 # Operator variables
 # ==================
 export APP_NAME=file-integrity-operator
-LOG_COLLECTOR=file-integrity-logcollector
 AIDE=aide
 
 # Container image variables
@@ -13,8 +12,6 @@ RUNTIME?=podman
 # or your e2e tests. This is overwritten if we bulid the image and push it to
 # the cluster or if we're on CI.
 OPERATOR_IMAGE_PATH?=$(IMAGE_REPO)/$(APP_NAME)
-LOGCOLLECTOR_IMAGE_PATH?=$(IMAGE_REPO)/$(LOG_COLLECTOR)
-LOGCOLLECTOR_DOCKERFILE_PATH?=./images/logcollector/Dockerfile
 AIDE_IMAGE_PATH?=$(IMAGE_REPO)/$(AIDE)
 AIDE_DOCKERFILE_PATH?=./images/aide/Dockerfile
 
@@ -30,7 +27,6 @@ GO=GOFLAGS=-mod=vendor GO111MODULE=auto go
 GOBUILD=$(GO) build
 BUILD_GOPATH=$(TARGET_DIR):$(CURPATH)/cmd
 TARGET_OPERATOR=$(TARGET_DIR)/bin/$(APP_NAME)
-TARGET_LOGCOLLECTOR=$(TARGET_DIR)/bin/$(LOG_COLLECTOR)
 MAIN_PKG=cmd/manager/main.go
 PKGS=$(shell go list ./... | grep -v -E '/vendor/|/test|/examples')
 
@@ -86,25 +82,19 @@ help: ## Show this help screen
 
 
 .PHONY: image
-image: operator-image logcollector-image aide-image fmt operator-sdk ## Build the file-integrity-operator container image
+image: operator-image aide-image fmt operator-sdk ## Build the file-integrity-operator container image
 
 operator-image: operator-sdk
 	$(GOPATH)/bin/operator-sdk build $(OPERATOR_IMAGE_PATH):$(TAG) --image-builder $(RUNTIME)
-
-logcollector-image:
-	$(RUNTIME) build -f $(LOGCOLLECTOR_DOCKERFILE_PATH) -t $(LOGCOLLECTOR_IMAGE_PATH):$(TAG) .
 
 aide-image:
 	$(RUNTIME) build -f $(AIDE_DOCKERFILE_PATH) -t $(AIDE_IMAGE_PATH):$(TAG) .
 
 .PHONY: build
-build: operator-bin logcollector-bin ## Build the file-integrity-operator binaries
+build: operator-bin ## Build the file-integrity-operator binaries
 
 operator-bin:
 	$(GO) build -o $(TARGET_OPERATOR) github.com/openshift/file-integrity-operator/cmd/manager
-
-logcollector-bin:
-	$(GO) build -o $(TARGET_LOGCOLLECTOR) github.com/openshift/file-integrity-operator/cmd/logcollector
 
 .PHONY: operator-sdk
 operator-sdk: $(GOPATH)/bin/operator-sdk
@@ -167,6 +157,27 @@ generate: operator-sdk ## Run operator-sdk's code generation (k8s and crds)
 test-unit: fmt ## Run the unit tests
 	@$(GO) test $(TEST_OPTIONS) $(PKGS)
 
+.PHONY: deploy-to-cluster
+ifeq ($(E2E_SKIP_CONTAINER_PUSH), false)
+deploy-to-cluster: namespace image-to-cluster openshift-user
+else
+deploy-to-cluster: namespace
+endif
+	@echo "Deploying the local branch to cluster"
+	@echo "WARNING: This will temporarily modify deploy/operator.yaml"
+	@echo "Replacing workload references in deploy/operator.yaml"
+	@sed -i 's%$(IMAGE_REPO)/$(AIDE):latest%$(AIDE_IMAGE_PATH)%' deploy/operator.yaml
+	@sed -i 's%$(IMAGE_REPO)/$(APP_NAME):latest%$(OPERATOR_IMAGE_PATH)%' deploy/operator.yaml
+	@oc create -f deploy/crds/fileintegrity.openshift.io_fileintegrities_crd.yaml || true
+	@oc create -f deploy/crds/fileintegrity.openshift.io_fileintegritynodestatuses_crd.yaml || true
+	@oc create -f deploy/role.yaml || true
+	@oc create -f deploy/role_binding.yaml || true
+	@oc create -f deploy/service_account.yaml || true
+	@oc create -f deploy/operator.yaml || true
+	@echo "Restoring image references in deploy/operator.yaml"
+	@sed -i 's%$(AIDE_IMAGE_PATH)%$(IMAGE_REPO)/$(AIDE):latest%' deploy/operator.yaml
+	@sed -i 's%$(OPERATOR_IMAGE_PATH)%$(IMAGE_REPO)/$(APP_NAME):latest%' deploy/operator.yaml
+
 # This runs the end-to-end tests. If not running this on CI, it'll try to
 # push the operator image to the cluster's registry. This behavior can be
 # avoided with the E2E_SKIP_CONTAINER_PUSH environment variable.
@@ -217,7 +228,6 @@ else ifeq ($(E2E_SKIP_CONTAINER_PUSH), true)
 image-to-cluster:
 	@echo "E2E_SKIP_CONTAINER_PUSH variable detected. Using previously pushed images."
 	$(eval OPERATOR_IMAGE_PATH = image-registry.openshift-image-registry.svc:5000/$(NAMESPACE)/$(APP_NAME):$(TAG))
-	$(eval LOGCOLLECTOR_IMAGE_PATH = image-registry.openshift-image-registry.svc:5000/$(NAMESPACE)/$(APP_NAME):$(TAG))
 	$(eval AIDE_IMAGE_PATH = image-registry.openshift-image-registry.svc:5000/$(NAMESPACE)/$(AIDE):$(TAG))
 else
 image-to-cluster: namespace openshift-user image
@@ -232,7 +242,6 @@ image-to-cluster: namespace openshift-user image
 	@echo "Removing the route from the image registry"
 	@oc patch configs.imageregistry.operator.openshift.io/cluster --patch '{"spec":{"defaultRoute":false}}' --type=merge
 	$(eval OPERATOR_IMAGE_PATH = image-registry.openshift-image-registry.svc:5000/$(NAMESPACE)/$(APP_NAME):$(TAG))
-	$(eval LOGCOLLECTOR_IMAGE_PATH = image-registry.openshift-image-registry.svc:5000/$(NAMESPACE)/$(APP_NAME):$(TAG))
 	$(eval AIDE_IMAGE_PATH = image-registry.openshift-image-registry.svc:5000/$(NAMESPACE)/$(AIDE):$(TAG))
 endif
 

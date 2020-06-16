@@ -2,17 +2,18 @@ package common
 
 import (
 	"fmt"
+	"os"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
-	"os"
 )
 
 type FileIntegrityComponent uint
 
 const (
 	AIDE = iota
-	LOGCOLLECTOR
+	OPERATOR
 )
 
 var componentDefaults = []struct {
@@ -20,7 +21,7 @@ var componentDefaults = []struct {
 	envVar       string
 }{
 	{"quay.io/file-integrity-operator/aide:latest", "AIDE_IMAGE"},
-	{"quay.io/file-integrity-operator/file-integrity-logcollector:latest", "LOGCOLLECTOR_IMAGE"},
+	{"quay.io/file-integrity-operator/file-integrity-operator:latest", "OPERATOR_IMAGE"},
 }
 
 // GetComponentImage returns a full image pull spec for a given component

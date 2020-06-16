@@ -647,7 +647,7 @@ func aideDaemonset(dsName string, fi *fileintegrityv1alpha1.FileIntegrity) *apps
 								Privileged: &priv,
 							},
 							Name:  "logcollector",
-							Image: common.GetComponentImage(common.LOGCOLLECTOR),
+							Image: common.GetComponentImage(common.OPERATOR),
 							Args: []string{"logcollector",
 								"--file=" + aideLogPath,
 								"--config-map-prefix=" + dsName,
