@@ -94,7 +94,7 @@ aide-image:
 build: operator-bin ## Build the file-integrity-operator binaries
 
 operator-bin:
-	$(GO) build -o $(TARGET_OPERATOR) github.com/openshift/file-integrity-operator/cmd/manager
+	$(GO) build -race -o $(TARGET_OPERATOR) github.com/openshift/file-integrity-operator/cmd/manager
 
 .PHONY: operator-sdk
 operator-sdk: $(GOPATH)/bin/operator-sdk
