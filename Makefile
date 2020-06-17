@@ -65,7 +65,7 @@ COURIER_PACKAGE_NAME=file-integrity-operator-bundle
 COURIER_OPERATOR_DIR=deploy/olm-catalog/file-integrity-operator
 COURIER_QUAY_NAMESPACE=file-integrity-operator
 COURIER_PACKAGE_VERSION?=
-OLD_COURIER_PACKAGE_VERSION=$(shell ls -t deploy/olm-catalog/file-integrity-operator/ | grep -v package.yaml | head -1)
+OLD_COURIER_PACKAGE_VERSION=$(shell find deploy/olm-catalog/file-integrity-operator/ -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort -r | head -1)
 COURIER_QUAY_TOKEN?= $(shell cat ~/.quay)
 PACKAGE_CHANNEL?=alpha
 
