@@ -2,12 +2,20 @@
 The file-integrity-operator is a OpenShift Operator that continually runs file integrity checks on the cluster nodes. It deploys a DaemonSet that initializes and runs privileged AIDE ([Advanced Intrusion Detection Environment](https://aide.github.io)) containers on each node, providing a log of files that have been modified since the initial run of the DaemonSet pods.
 
 ### Deploying from source:
+Default upstream images:
 ```
 $ (clone repo)
 $ oc login -u kubeadmin -p <pw>
 $ make image-to-cluster
 $ oc create -f deploy/
 $ oc create -f deploy/crds
+```
+
+Images built from HEAD:
+```
+$ (clone repo)
+$ oc login -u kubeadmin -p <pw>
+$ make deploy-to-cluster
 ```
 
 ### Deploying from OLM:
@@ -20,6 +28,17 @@ $ oc create -f deploy/olm-catalog/operator-source.yaml
 
 ### Usage:
 
+After deploying the operator, you must create a FileIntegrity object. The following example will enable scanning on all nodes.
+```
+apiVersion: fileintegrity.openshift.io/v1alpha1
+kind: FileIntegrity
+metadata:
+  name: example-fileintegrity
+  namespace: openshift-file-integrity
+spec:
+  config: {}
+```
+
 Viewing the scan phase: An "Active" phase indicates that on each node, the AIDE database has been initialized and periodic scanning is enabled:
 ```
 $ oc get fileintegrities -n openshift-file-integrity
@@ -30,124 +49,67 @@ $ oc get fileintegrities/example-fileintegrity -n openshift-file-integrity -o js
 Active
 ```
 
-The nodeStatus reports the latest scan results for each node:
+Each node will have a corresponding FileIntegrityNodeStatus object:
 ```
-$ oc get fileintegrities/example-fileintegrity -n openshift-file-integrity -o yaml
-apiVersion: file-integrity.openshift.io/v1alpha1
-kind: FileIntegrity
-metadata:
-  creationTimestamp: "2020-02-05T21:06:23Z"
-  generation: 1
-  name: example-fileintegrity
-  namespace: openshift-file-integrity
-  resourceVersion: "72304"
-  selfLink: /apis/file-integrity.openshift.io/v1alpha1/namespaces/openshift-file-integrity/fileintegrities/example-fileintegrity
-  uid: 4de0bc89-b273-4572-ac67-f1c26d70eeff
-spec:
-  config: {}
-status:
-  nodeStatus:
-  - condition: Succeeded
-    lastProbeTime: "2020-02-05T21:08:26Z"
-    nodeName: ip-10-0-130-20.ec2.internal
-  - condition: Succeeded
-    lastProbeTime: "2020-02-05T21:08:28Z"
-    nodeName: ip-10-0-154-5.ec2.internal
-  - condition: Succeeded
-    lastProbeTime: "2020-02-05T21:08:29Z"
-    nodeName: ip-10-0-172-210.ec2.internal
-  - condition: Succeeded
-    lastProbeTime: "2020-02-05T21:08:38Z"
-    nodeName: ip-10-0-166-163.ec2.internal
-  - condition: Succeeded
-    lastProbeTime: "2020-02-05T21:08:39Z"
-    nodeName: ip-10-0-143-91.ec2.internal
-  - condition: Succeeded
-    lastProbeTime: "2020-02-05T21:08:44Z"
-    nodeName: ip-10-0-156-193.ec2.internal
-  phase: Active
+$ oc get fileintegritynodestatuses
+NAME                                                               AGE
+example-fileintegrity-ip-10-0-139-137.us-east-2.compute.internal   4h24m
+example-fileintegrity-ip-10-0-140-35.us-east-2.compute.internal    4h24m
+example-fileintegrity-ip-10-0-162-216.us-east-2.compute.internal   4h24m
+example-fileintegrity-ip-10-0-172-188.us-east-2.compute.internal   4h24m
+example-fileintegrity-ip-10-0-210-181.us-east-2.compute.internal   4h24m
+example-fileintegrity-ip-10-0-210-89.us-east-2.compute.internal    4h24m
 ```
 
-If the AIDE check fails on a node, a Failed entry is added to nodeStatus, with the name of a configMap containing the AIDE log.
-```
-$ oc get fileintegrities/example-fileintegrity -n openshift-file-integrity -o  yaml
-apiVersion: file-integrity.openshift.io/v1alpha1
-kind: FileIntegrity
-metadata:
-  creationTimestamp: "2020-02-05T21:06:23Z"
-  generation: 1
-  name: example-fileintegrity
-  namespace: openshift-file-integrity
-  resourceVersion: "350107"
-  selfLink: /apis/file-integrity.openshift.io/v1alpha1/namespaces/openshift-file-integrity/fileintegrities/example-fileintegrity
-  uid: 4de0bc89-b273-4572-ac67-f1c26d70eeff
-spec:
-  config: {}
-status:
-  nodeStatus:
-  - condition: Succeeded
-    lastProbeTime: "2020-02-05T21:08:38Z"
-    nodeName: ip-10-0-166-163.ec2.internal
-  - condition: Succeeded
-    lastProbeTime: "2020-02-05T21:08:39Z"
-    nodeName: ip-10-0-143-91.ec2.internal
-  - condition: Succeeded
-    lastProbeTime: "2020-02-06T12:28:46Z"
-    nodeName: ip-10-0-156-193.ec2.internal
-  - condition: Failed
-    lastProbeTime: "2020-02-06T13:49:06Z"
-    nodeName: ip-10-0-143-91.ec2.internal
-    resultConfigMapName: aide-ds-ip-10-0-143-91.ec2.internal-failed
-    resultConfigMapNamespace: openshift-file-integrity
-  - condition: Failed
-    lastProbeTime: "2020-02-06T13:50:13Z"
-    nodeName: ip-10-0-166-163.ec2.internal
-    resultConfigMapName: aide-ds-ip-10-0-166-163.ec2.internal-failed
-    resultConfigMapNamespace: openshift-file-integrity
-  - condition: Succeeded
-    lastProbeTime: "2020-02-06T13:56:29Z"
-    nodeName: ip-10-0-130-20.ec2.internal
-  - condition: Succeeded
-    lastProbeTime: "2020-02-06T13:56:31Z"
-    nodeName: ip-10-0-172-210.ec2.internal
-  - condition: Succeeded
-    lastProbeTime: "2020-02-06T13:56:32Z"
-    nodeName: ip-10-0-154-5.ec2.internal
-  - condition: Failed
-    lastProbeTime: "2020-02-06T13:56:58Z"
-    nodeName: ip-10-0-156-193.ec2.internal
-    resultConfigMapName: aide-ds-ip-10-0-156-193.ec2.internal-failed
-    resultConfigMapNamespace: openshift-file-integrity
-  phase: Active 
+The `results` field can contain up to three entries. The most recent Successful scan, the most recent Failed scan (if any), and the most recent Errored scan (if any). When there are multiple entries, the newest `lastProbeTime` indicates the current status.
 
-$ oc get cm/aide-ds-ip-10-0-143-91.ec2.internal-failed -n openshift-file-integrity -o jsonpath="{ .data.integritylog }"
+A Failed scan indicates that there were changes to the files that AIDE monitors, and displays a brief status. The `resultConfigMap` fields point to a configMap containing a more detailed report.
+```
+$ oc get fileintegritynodestatus/example-fileintegrity-ip-10-0-139-137.us-east-2.compute.internal -o yaml
+apiVersion: fileintegrity.openshift.io/v1alpha1
+kind: FileIntegrityNodeStatus
+...
+nodeName: ip-10-0-139-137.us-east-2.compute.internal
+results:
+- condition: Succeeded
+  lastProbeTime: "2020-06-18T01:17:14Z"
+- condition: Failed
+  filesAdded: 1
+  filesChanged: 1
+  lastProbeTime: "2020-06-18T01:28:57Z"
+  resultConfigMapName: aide-ds-example-fileintegrity-ip-10-0-139-137.us-east-2.compute.internal-failed
+  resultConfigMapNamespace: openshift-file-integrity
+
+$ oc get cm/aide-ds-example-fileintegrity-ip-10-0-139-137.us-east-2.compute.internal-failed -n openshift-file-integrity -o jsonpath="{ .data.integritylog }"
 AIDE 0.15.1 found differences between database and filesystem!!
-Start timestamp: 2020-02-06 14:00:17
+Start timestamp: 2020-06-18 02:00:39
 
 Summary:
-  Total number of files:        28455
-  Added files:                  0
+  Total number of files:        29447
+  Added files:                  1
   Removed files:                0
-  Changed files:                2
+  Changed files:                1
 
+
+---------------------------------------------------
+Added files:
+---------------------------------------------------
+
+added: /hostroot/root/.bash_history
 
 ---------------------------------------------------
 Changed files:
 ---------------------------------------------------
 
-changed: /hostroot/etc/kubernetes/manifests/kube-apiserver-pod.yaml
-changed: /hostroot/etc/kubernetes/manifests/kube-controller-manager-pod.yaml
+changed: /hostroot/etc/resolv.conf
 
 ---------------------------------------------------
 Detailed information about changes:
 ---------------------------------------------------
 
 
-File: /hostroot/etc/kubernetes/manifests/kube-apiserver-pod.yaml
- SHA512   : 1ommsBCFpCYbgbks6NDDOc6jdscCwpAy , v1vmOX0S7M59LCVi8vfW8fP0BsQl14k+
-
-File: /hostroot/etc/kubernetes/manifests/kube-controller-manager-pod.yaml
- SHA512   : +yS3z7KOFSPNT+nIRMWXkry4qM4swwDG , OJgRKucyDdAMlPzloWetrn3cEO7mfM94
+File: /hostroot/etc/resolv.conf
+ SHA512   : Xl2pzxjmRPtW8bl6Kj49SkKOSBVJgsCI , tebxD8QZd/5/SqsVkExCwVqVO22zxmcq
 ```
 
 ### Local testing
