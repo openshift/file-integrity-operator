@@ -5,10 +5,8 @@ The file-integrity-operator is a OpenShift Operator that continually runs file i
 Default upstream images:
 ```
 $ (clone repo)
-$ oc login -u kubeadmin -p <pw>
-$ make image-to-cluster
+$ oc create -f deploy/crds/
 $ oc create -f deploy/
-$ oc create -f deploy/crds
 ```
 
 Images built from HEAD:
