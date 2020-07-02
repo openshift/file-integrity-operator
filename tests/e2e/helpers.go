@@ -91,12 +91,12 @@ func cleanUp(t *testing.T, namespace string) func() error {
 	return func() error {
 		f := framework.Global
 
-		list, err := f.KubeClient.CoreV1().ConfigMaps(namespace).List(metav1.ListOptions{})
+		list, err := f.KubeClient.CoreV1().ConfigMaps(namespace).List(goctx.TODO(), metav1.ListOptions{})
 		if err != nil {
 			return err
 		}
 		for _, cm := range list.Items {
-			if err := f.KubeClient.CoreV1().ConfigMaps(namespace).Delete(cm.Name, &metav1.DeleteOptions{}); err != nil {
+			if err := f.KubeClient.CoreV1().ConfigMaps(namespace).Delete(goctx.TODO(), cm.Name, metav1.DeleteOptions{}); err != nil {
 				if !kerr.IsNotFound(err) {
 					return err
 				}
@@ -154,7 +154,7 @@ func setupFileIntegrityOperatorCluster(t *testing.T, ctx *framework.Context) {
 
 func daemonSetExists(c kubernetes.Interface, name, namespace string) wait.ConditionFunc {
 	return func() (bool, error) {
-		_, err := c.AppsV1().DaemonSets(namespace).Get(name, metav1.GetOptions{})
+		_, err := c.AppsV1().DaemonSets(namespace).Get(goctx.TODO(), name, metav1.GetOptions{})
 		if err != nil && !kerr.IsNotFound(err) {
 			return false, err
 		}
@@ -167,7 +167,7 @@ func daemonSetExists(c kubernetes.Interface, name, namespace string) wait.Condit
 
 func daemonSetIsReady(c kubernetes.Interface, name, namespace string) wait.ConditionFunc {
 	return func() (bool, error) {
-		daemonSet, err := c.AppsV1().DaemonSets(namespace).Get(name, metav1.GetOptions{})
+		daemonSet, err := c.AppsV1().DaemonSets(namespace).Get(goctx.TODO(), name, metav1.GetOptions{})
 		if err != nil && !kerr.IsNotFound(err) {
 			return false, err
 		}
@@ -183,7 +183,7 @@ func daemonSetIsReady(c kubernetes.Interface, name, namespace string) wait.Condi
 
 func daemonSetWasScheduled(c kubernetes.Interface, name, namespace string) wait.ConditionFunc {
 	return func() (bool, error) {
-		daemonSet, err := c.AppsV1().DaemonSets(namespace).Get(name, metav1.GetOptions{})
+		daemonSet, err := c.AppsV1().DaemonSets(namespace).Get(goctx.TODO(), name, metav1.GetOptions{})
 		if err != nil && !kerr.IsNotFound(err) {
 			return false, err
 		}
@@ -280,7 +280,7 @@ func privCommandDaemonset(namespace, name, command string) *appsv1.DaemonSet {
 }
 
 func getDSReplicas(c kubernetes.Interface, name, namespace string) (int, error) {
-	daemonSet, err := c.AppsV1().DaemonSets(namespace).Get(name, metav1.GetOptions{})
+	daemonSet, err := c.AppsV1().DaemonSets(namespace).Get(goctx.TODO(), name, metav1.GetOptions{})
 	if err != nil {
 		return 0, err
 	}
@@ -291,7 +291,7 @@ func getNumberOfWorkerNodes(c kubernetes.Interface) (int, error) {
 	listopts := metav1.ListOptions{
 		LabelSelector: nodeWorkerRoleLabelKey,
 	}
-	nodes, err := c.CoreV1().Nodes().List(listopts)
+	nodes, err := c.CoreV1().Nodes().List(goctx.TODO(), listopts)
 	if err != nil {
 		return 0, err
 	}
@@ -434,7 +434,7 @@ func createTestConfigMap(t *testing.T, f *framework.Framework, integrityName, co
 			key: data,
 		},
 	}
-	_, err := f.KubeClient.CoreV1().ConfigMaps(namespace).Create(cm)
+	_, err := f.KubeClient.CoreV1().ConfigMaps(namespace).Create(goctx.TODO(), cm, metav1.CreateOptions{})
 	if err != nil {
 		t.Error(err)
 	}
@@ -503,7 +503,7 @@ func assertNodesConditionIsSuccess(t *testing.T, f *framework.Framework, namespa
 		Condition     fileintv1alpha1.FileIntegrityNodeCondition
 	}
 
-	nodes, err := f.KubeClient.CoreV1().Nodes().List(metav1.ListOptions{LabelSelector: mcWorkerRoleLabelKey})
+	nodes, err := f.KubeClient.CoreV1().Nodes().List(goctx.TODO(), metav1.ListOptions{LabelSelector: mcWorkerRoleLabelKey})
 	if err != nil {
 		t.Errorf("error listing nodes: %v", err)
 	}
@@ -567,7 +567,7 @@ func waitForScanStatus(t *testing.T, f *framework.Framework, namespace, name str
 
 func pollUntilConfigMapDataMatches(t *testing.T, f *framework.Framework, namespace, name, key, expected string, interval, timeout time.Duration) error {
 	return wait.PollImmediate(interval, timeout, func() (bool, error) {
-		cm, getErr := f.KubeClient.CoreV1().ConfigMaps(namespace).Get(name, metav1.GetOptions{})
+		cm, getErr := f.KubeClient.CoreV1().ConfigMaps(namespace).Get(goctx.TODO(), name, metav1.GetOptions{})
 		if getErr != nil {
 			t.Logf("Retrying. Got error: %v\n", getErr)
 			return false, nil
@@ -582,7 +582,7 @@ func pollUntilConfigMapDataMatches(t *testing.T, f *framework.Framework, namespa
 func pollUntilConfigMapExists(t *testing.T, f *framework.Framework, namespace, name string, interval, timeout time.Duration) (map[string]string, error) {
 	var data map[string]string
 	err := wait.PollImmediate(interval, timeout, func() (bool, error) {
-		cm, getErr := f.KubeClient.CoreV1().ConfigMaps(namespace).Get(name, metav1.GetOptions{})
+		cm, getErr := f.KubeClient.CoreV1().ConfigMaps(namespace).Get(goctx.TODO(), name, metav1.GetOptions{})
 		if getErr != nil {
 			t.Logf("Retrying. Got error: %v\n", getErr)
 			return false, nil
@@ -602,7 +602,7 @@ func containsUncompressedScanFailLog(data map[string]string) bool {
 }
 
 func editFileOnNodes(f *framework.Framework, namespace string) error {
-	daemonSet, err := f.KubeClient.AppsV1().DaemonSets(namespace).Create(modifyFileDaemonset(namespace))
+	daemonSet, err := f.KubeClient.AppsV1().DaemonSets(namespace).Create(goctx.TODO(), modifyFileDaemonset(namespace), metav1.CreateOptions{})
 	if err != nil {
 		return err
 	}
@@ -616,14 +616,14 @@ func editFileOnNodes(f *framework.Framework, namespace string) error {
 	}
 
 	time.Sleep(10 * time.Second)
-	if err := f.KubeClient.AppsV1().DaemonSets(namespace).Delete(daemonSet.Name, &metav1.DeleteOptions{}); err != nil {
+	if err := f.KubeClient.AppsV1().DaemonSets(namespace).Delete(goctx.TODO(), daemonSet.Name, metav1.DeleteOptions{}); err != nil {
 		return err
 	}
 	return nil
 }
 
 func cleanNodes(f *framework.Framework, namespace string) error {
-	ds, err := f.KubeClient.AppsV1().DaemonSets(namespace).Create(cleanAideDaemonset(namespace))
+	ds, err := f.KubeClient.AppsV1().DaemonSets(namespace).Create(goctx.TODO(), cleanAideDaemonset(namespace), metav1.CreateOptions{})
 	if err != nil {
 		return err
 	}
@@ -638,7 +638,7 @@ func cleanNodes(f *framework.Framework, namespace string) error {
 	}
 
 	time.Sleep(10 * time.Second)
-	if err := f.KubeClient.AppsV1().DaemonSets(namespace).Delete(ds.Name, &metav1.DeleteOptions{}); err != nil {
+	if err := f.KubeClient.AppsV1().DaemonSets(namespace).Delete(goctx.TODO(), ds.Name, metav1.DeleteOptions{}); err != nil {
 		return err
 	}
 	return nil
@@ -719,7 +719,7 @@ func isNodeReady(node corev1.Node) bool {
 
 func assertDSPodHasArg(t *testing.T, f *framework.Framework, fiName, namespace, expectedLine string, interval, timeout time.Duration) error {
 	return wait.PollImmediate(interval, timeout, func() (bool, error) {
-		ds, getErr := f.KubeClient.AppsV1().DaemonSets(namespace).Get(common.GetDaemonSetName(fiName), metav1.GetOptions{})
+		ds, getErr := f.KubeClient.AppsV1().DaemonSets(namespace).Get(goctx.TODO(), common.GetDaemonSetName(fiName), metav1.GetOptions{})
 		if getErr != nil {
 			t.Logf("Retrying. Got error: %v\n", getErr)
 			return false, nil
@@ -736,13 +736,13 @@ func assertDSPodHasArg(t *testing.T, f *framework.Framework, fiName, namespace, 
 
 func getFiDsPods(f *framework.Framework, fileIntegrityName, namespace string) (*corev1.PodList, error) {
 	dsName := common.GetDaemonSetName(fileIntegrityName)
-	ds, err := f.KubeClient.AppsV1().DaemonSets(namespace).Get(dsName, metav1.GetOptions{})
+	ds, err := f.KubeClient.AppsV1().DaemonSets(namespace).Get(goctx.TODO(), dsName, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
 
 	lo := metav1.ListOptions{LabelSelector: "app=" + ds.Name}
-	pods, err := f.KubeClient.CoreV1().Pods(namespace).List(lo)
+	pods, err := f.KubeClient.CoreV1().Pods(namespace).List(goctx.TODO(), lo)
 	if err != nil {
 		return nil, err
 	}
