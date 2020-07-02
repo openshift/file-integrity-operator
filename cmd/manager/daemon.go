@@ -16,6 +16,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -275,11 +276,11 @@ func reinitLoop(rt *daemonRuntime, conf *daemonConfig, exit chan bool) {
 
 			if err := backUpAideFiles(); err != nil {
 				LOG(err.Error())
-				_, eventErr := rt.clientset.EventsV1beta1().Events(conf.LogCollectorNamespace).Create(&v1beta1.Event{
+				_, eventErr := rt.clientset.EventsV1beta1().Events(conf.LogCollectorNamespace).Create(context.TODO(), &v1beta1.Event{
 					EventTime:           v1.NowMicro(),
 					ReportingController: "file-integrity-operator-daemon",
 					Reason:              fmt.Sprintf("Error backing up the aide files: %v", err),
-				})
+				}, v1.CreateOptions{})
 				if eventErr != nil {
 					LOG("error creating error event %v", eventErr)
 				}
@@ -290,11 +291,11 @@ func reinitLoop(rt *daemonRuntime, conf *daemonConfig, exit chan bool) {
 
 			if err := initAideLog(); err != nil {
 				LOG(err.Error())
-				_, eventErr := rt.clientset.EventsV1beta1().Events(conf.LogCollectorNamespace).Create(&v1beta1.Event{
+				_, eventErr := rt.clientset.EventsV1beta1().Events(conf.LogCollectorNamespace).Create(context.TODO(), &v1beta1.Event{
 					EventTime:           v1.NowMicro(),
 					ReportingController: "file-integrity-operator-daemon",
 					Reason:              fmt.Sprintf("Error initializing the aide log: %v", err),
-				})
+				}, v1.CreateOptions{})
 				if eventErr != nil {
 					LOG("error creating error event %v", eventErr)
 				}
@@ -311,11 +312,11 @@ func reinitLoop(rt *daemonRuntime, conf *daemonConfig, exit chan bool) {
 
 			if err := removeAideReinitFile(); err != nil {
 				LOG(err.Error())
-				_, eventErr := rt.clientset.EventsV1beta1().Events(conf.LogCollectorNamespace).Create(&v1beta1.Event{
+				_, eventErr := rt.clientset.EventsV1beta1().Events(conf.LogCollectorNamespace).Create(context.TODO(), &v1beta1.Event{
 					EventTime:           v1.NowMicro(),
 					ReportingController: "file-integrity-operator-daemon",
 					Reason:              fmt.Sprintf("Error removing the re-initialization file: %v", err),
-				})
+				}, v1.CreateOptions{})
 				if eventErr != nil {
 					LOG("error creating error event %v", eventErr)
 				}
