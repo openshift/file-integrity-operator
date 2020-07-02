@@ -18,6 +18,7 @@ package main
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/base64"
 	"fmt"
 	"io/ioutil"
@@ -86,7 +87,7 @@ func getFileIntegrityInstance(name, namespace string, dynclient dynamic.Interfac
 		Version:  crdAPIVersion,
 		Resource: crdPlurals,
 	}
-	fi, err := dynclient.Resource(fiResource).Namespace(namespace).Get(name, metav1.GetOptions{})
+	fi, err := dynclient.Resource(fiResource).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -230,7 +231,7 @@ func reportOK(conf *daemonConfig, rt *daemonRuntime) {
 			return err
 		}
 		confMap := getInformationalConfigMap(fi, conf.LogCollectorConfigMapName, conf.LogCollectorNode, nil)
-		_, err = rt.clientset.CoreV1().ConfigMaps(conf.LogCollectorNamespace).Create(confMap)
+		_, err = rt.clientset.CoreV1().ConfigMaps(conf.LogCollectorNamespace).Create(context.TODO(), confMap, metav1.CreateOptions{})
 		return err
 	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries))
 
@@ -250,7 +251,7 @@ func reportError(msg string, conf *daemonConfig, rt *daemonRuntime) {
 			common.IntegrityLogErrorAnnotationKey: msg,
 		}
 		confMap := getInformationalConfigMap(fi, conf.LogCollectorConfigMapName, conf.LogCollectorNode, annotations)
-		_, err = rt.clientset.CoreV1().ConfigMaps(conf.LogCollectorNamespace).Create(confMap)
+		_, err = rt.clientset.CoreV1().ConfigMaps(conf.LogCollectorNamespace).Create(context.TODO(), confMap, metav1.CreateOptions{})
 		return err
 	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries))
 
@@ -267,7 +268,7 @@ func uploadLog(contents []byte, compressed bool, conf *daemonConfig, rt *daemonR
 			return err
 		}
 		confMap := getLogConfigMap(fi, conf.LogCollectorConfigMapName, common.IntegrityLogContentKey, conf.LogCollectorNode, contents, compressed)
-		_, err = rt.clientset.CoreV1().ConfigMaps(conf.LogCollectorNamespace).Create(confMap)
+		_, err = rt.clientset.CoreV1().ConfigMaps(conf.LogCollectorNamespace).Create(context.TODO(), confMap, metav1.CreateOptions{})
 		return err
 	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries))
 
