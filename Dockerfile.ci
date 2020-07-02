@@ -9,8 +9,11 @@ COPY . .
 
 RUN make operator-bin
 
-# Step two: containerize file-integrity-operator
-FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
+# Step two: containerize file-integrity-operator and AIDE together
+# FROM registry.access.redhat.com/ubi8/ubi:latest
+# Use temporarily until AIDE is in ubi
+FROM centos:centos7
+RUN yum -y install aide && yum clean all
 
 ENV OPERATOR=/usr/local/bin/file-integrity-operator \
     USER_UID=1001 \

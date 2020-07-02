@@ -24,11 +24,10 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"syscall"
 	"time"
 
-	backoff "github.com/cenkalti/backoff/v3"
+	"github.com/cenkalti/backoff/v3"
 	"github.com/spf13/cobra"
 
 	corev1 "k8s.io/api/core/v1"
@@ -36,8 +35,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 
 	"github.com/openshift/file-integrity-operator/pkg/common"
 )
@@ -46,42 +43,11 @@ const (
 	crdGroup      = "fileintegrity.openshift.io"
 	crdAPIVersion = "v1alpha1"
 	crdPlurals    = "fileintegrities"
-	maxRetries    = 15
+	maxRetries    = 5
 	// These need to be lessened for normal use.
-	defaultTimeout       = 600
-	defaultIndicatorFile = "/hostroot/etc/kubernetes/aide.latest-result.log"
-	uncompressedMaxSize  = 1048570 // 1MB for etcd limit
+	defaultTimeout      = 600
+	uncompressedMaxSize = 1048570 // 1MB for etcd limit
 )
-
-var logCollectorCmd = &cobra.Command{
-	Use:   "logcollector",
-	Short: "logcollector",
-	Long:  `The file-integrity-operator logcollector subcommand.`,
-	Run:   logCollectorMainLoop,
-}
-
-func init() {
-	defineFlags(logCollectorCmd)
-}
-
-type config struct {
-	File              string
-	IndicatorFile     string
-	FileIntegrityName string
-	ConfigMapName     string
-	Namespace         string
-	Node              string
-	Timeout           int64
-	Interval          int64
-	Compress          bool
-}
-
-type runtime struct {
-	clientset  *kubernetes.Clientset
-	dynclient  dynamic.Interface
-	inode      uint64
-	readoffset int64
-}
 
 var debugLog bool
 
@@ -100,36 +66,8 @@ func FATAL(format string, a ...interface{}) {
 	os.Exit(1)
 }
 
-func defineFlags(cmd *cobra.Command) {
-	cmd.Flags().String("file", "", "The log file to collect.")
-	cmd.Flags().String("indicator-file", defaultIndicatorFile,
-		"The path to a file containing a return code value. The return code value determines if the log file should be collected.")
-	cmd.Flags().String("owner", "", "The FileIntegrity object to set as owner of the created configMap objects.")
-	cmd.Flags().String("config-map-prefix", "", "Prefix for the configMap name, typically the podname.")
-	cmd.Flags().String("namespace", "Running pod namespace.", ".")
-	cmd.Flags().Int64("timeout", defaultTimeout, "How long to poll for the log and indicator files in seconds.")
-	cmd.Flags().Int64("interval", common.DefaultGracePeriod, "How often to recheck for AIDE results.")
-	cmd.Flags().Bool("compress", false, "Use gzip+base64 to compress the log file contents.")
-	cmd.Flags().Bool("debug", false, "Print debug messages")
-}
-
 func getConfigMapName(prefix, nodeName string) string {
 	return prefix + "-" + nodeName
-}
-
-func parseConfig(cmd *cobra.Command) *config {
-	var conf config
-	conf.File = getValidStringArg(cmd, "file")
-	conf.IndicatorFile = getValidStringArg(cmd, "indicator-file")
-	conf.FileIntegrityName = getValidStringArg(cmd, "owner")
-	conf.Namespace = getValidStringArg(cmd, "namespace")
-	conf.Node = os.Getenv("NODE_NAME")
-	conf.ConfigMapName = getConfigMapName(getValidStringArg(cmd, "config-map-prefix"), conf.Node)
-	conf.Timeout, _ = cmd.Flags().GetInt64("timeout")
-	conf.Interval, _ = cmd.Flags().GetInt64("interval")
-	conf.Compress, _ = cmd.Flags().GetBool("compress")
-	debugLog, _ = cmd.Flags().GetBool("debug")
-	return &conf
 }
 
 func getValidStringArg(cmd *cobra.Command, name string) string {
@@ -156,43 +94,31 @@ func getFileIntegrityInstance(name, namespace string, dynclient dynamic.Interfac
 	return fi, nil
 }
 
-func waitForFile(filename string, timeout int64) (*os.File, uint64) {
-	DBG("Waiting for %s", filename)
+func getNonEmptyFileAndInode(filename string) (*os.File, uint64) {
+	DBG("Opening %s", filename)
 
-	readFileTimeoutChan := make(chan *os.File, 1)
 	// G304 (CWE-22) is addressed by this.
 	cleanFileName := filepath.Clean(filename)
 	var inode uint64
 
-	go func() {
-		for {
-			// Note that we're cleaning the filename path above.
-			// #nosec
-			file, err := os.Open(cleanFileName)
-			if err == nil {
-				fileinfo, err := file.Stat()
-				sysfileinfointerface := fileinfo.Sys()
-				sysfileinfo := sysfileinfointerface.(*syscall.Stat_t)
-				inode = sysfileinfo.Ino
-				// Only try to use the file if it already has contents.
-				// This way we avoid race conditions between the side-car and
-				// this script.
-				if err == nil && fileinfo.Size() > 0 {
-					readFileTimeoutChan <- file
-				}
-			} else if !os.IsNotExist(err) {
-				FATAL("Error opening %s, %v", cleanFileName, err)
-			}
-			time.Sleep(1 * time.Second)
-		}
-	}()
+	// Note that we're cleaning the filename path above.
+	// #nosec
+	file, err := os.Open(cleanFileName)
+	if err != nil {
+		LOG("error opening log file: %v", err)
+		return nil, 0
+	}
 
-	select {
-	case file := <-readFileTimeoutChan:
-		DBG("File '%s' found", filename)
+	fileinfo, err := file.Stat()
+	if err != nil {
+		return nil, 0
+	}
+	sysfileinfointerface := fileinfo.Sys()
+	sysfileinfo := sysfileinfointerface.(*syscall.Stat_t)
+	inode = sysfileinfo.Ino
+	// Only try to use the file if it already has contents.
+	if err == nil && fileinfo.Size() > 0 {
 		return file, inode
-	case <-time.After(time.Duration(timeout) * time.Second):
-		DBG("Timed out")
 	}
 
 	return nil, inode
@@ -297,77 +223,74 @@ func getInformationalConfigMap(owner *unstructured.Unstructured, configMapName s
 }
 
 // reportOK creates a blank configMap with no error annotation. This is treated by the controller as an OK signal.
-func reportOK(conf *config, rt *runtime) {
-	DBG("Creating configMap '%s' to report OK", conf.ConfigMapName)
+func reportOK(conf *daemonConfig, rt *daemonRuntime) {
 	err := backoff.Retry(func() error {
-		fi, err := getFileIntegrityInstance(conf.FileIntegrityName, conf.Namespace, rt.dynclient)
+		fi, err := getFileIntegrityInstance(conf.LogCollectorFileIntegrityName, conf.LogCollectorNamespace, rt.dynclient)
 		if err != nil {
 			return err
 		}
-		confMap := getInformationalConfigMap(fi, conf.ConfigMapName, conf.Node, nil)
-		_, err = rt.clientset.CoreV1().ConfigMaps(conf.Namespace).Create(confMap)
+		confMap := getInformationalConfigMap(fi, conf.LogCollectorConfigMapName, conf.LogCollectorNode, nil)
+		_, err = rt.clientset.CoreV1().ConfigMaps(conf.LogCollectorNamespace).Create(confMap)
 		return err
 	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries))
 
 	if err != nil {
 		FATAL("Can't create configMap to report OK: '%v', aborting", err)
 	}
-	LOG("Created OK configMap '%s'", conf.ConfigMapName)
+	LOG("Created OK configMap '%s'", conf.LogCollectorConfigMapName)
 }
 
-func reportError(msg string, conf *config, rt *runtime) {
-	DBG("Creating configMap '%s' to report error message '%s'", conf.ConfigMapName, msg)
+func reportError(msg string, conf *daemonConfig, rt *daemonRuntime) {
 	err := backoff.Retry(func() error {
-		fi, err := getFileIntegrityInstance(conf.FileIntegrityName, conf.Namespace, rt.dynclient)
+		fi, err := getFileIntegrityInstance(conf.LogCollectorFileIntegrityName, conf.LogCollectorNamespace, rt.dynclient)
 		if err != nil {
 			return err
 		}
 		annotations := map[string]string{
 			common.IntegrityLogErrorAnnotationKey: msg,
 		}
-		confMap := getInformationalConfigMap(fi, conf.ConfigMapName, conf.Node, annotations)
-		_, err = rt.clientset.CoreV1().ConfigMaps(conf.Namespace).Create(confMap)
+		confMap := getInformationalConfigMap(fi, conf.LogCollectorConfigMapName, conf.LogCollectorNode, annotations)
+		_, err = rt.clientset.CoreV1().ConfigMaps(conf.LogCollectorNamespace).Create(confMap)
 		return err
 	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries))
 
 	if err != nil {
 		FATAL("Can't create configMap to report failure '%v', aborting", err)
 	}
-	LOG("Created error configMap '%s'", conf.ConfigMapName)
+	LOG("Created error configMap '%s'", conf.LogCollectorConfigMapName)
 }
 
-func uploadLog(contents []byte, compressed bool, conf *config, rt *runtime) {
-	DBG("Creating configMap '%s' to collect logs", conf.ConfigMapName)
+func uploadLog(contents []byte, compressed bool, conf *daemonConfig, rt *daemonRuntime) {
 	err := backoff.Retry(func() error {
-		fi, err := getFileIntegrityInstance(conf.FileIntegrityName, conf.Namespace, rt.dynclient)
+		fi, err := getFileIntegrityInstance(conf.LogCollectorFileIntegrityName, conf.LogCollectorNamespace, rt.dynclient)
 		if err != nil {
 			return err
 		}
-		confMap := getLogConfigMap(fi, conf.ConfigMapName, common.IntegrityLogContentKey, conf.Node, contents, compressed)
-		_, err = rt.clientset.CoreV1().ConfigMaps(conf.Namespace).Create(confMap)
+		confMap := getLogConfigMap(fi, conf.LogCollectorConfigMapName, common.IntegrityLogContentKey, conf.LogCollectorNode, contents, compressed)
+		_, err = rt.clientset.CoreV1().ConfigMaps(conf.LogCollectorNamespace).Create(confMap)
 		return err
 	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries))
 
 	if err != nil {
 		FATAL("Can't create log configMap with error '%v', aborting", err)
 	}
-	LOG("Created log configMap '%s'", conf.ConfigMapName)
+	LOG("Created log configMap '%s'", conf.LogCollectorConfigMapName)
 }
 
-func handleRotationOrInit(rt *runtime, inode uint64) {
-	if rt.inode == 0 {
+func handleRotationOrInit(rt *daemonRuntime, inode uint64) {
+	if rt.logCollectorInode == 0 {
 		// first read (set inode initially)
-		rt.inode = inode
-	} else if rt.inode != inode {
+		rt.logCollectorInode = inode
+	} else if rt.logCollectorInode != inode {
 		DBG("Rotation happened")
-		rt.readoffset = 0
+		rt.logCollectorReadoffset = 0
 	}
 }
 
-func updateReadOffset(rt *runtime, file *os.File, contents []byte) error {
+func updateReadOffset(rt *daemonRuntime, file *os.File, contents []byte) error {
 	// We will start reading from the offset, so we'll read anything that's appended
 	// to the file
-	if _, err := file.Seek(rt.readoffset, 0); err != nil {
+	if _, err := file.Seek(rt.logCollectorReadoffset, 0); err != nil {
 		// The might have file changed size (shrinked) since we calulated the
 		// offset... Lets try to read from the beginning
 		if _, err := file.Seek(0, 0); err != nil {
@@ -375,107 +298,63 @@ func updateReadOffset(rt *runtime, file *os.File, contents []byte) error {
 		}
 
 		// reset the offset
-		rt.readoffset = 0
+		rt.logCollectorReadoffset = 0
 	}
-	rt.readoffset = rt.readoffset + int64(len(contents))
+	rt.logCollectorReadoffset = rt.logCollectorReadoffset + int64(len(contents))
 	return nil
 }
 
-func logCollectorMainLoop(cmd *cobra.Command, args []string) {
-	conf := parseConfig(cmd)
-	LOG("Starting the file-integrity log collector")
-
-	config, err := rest.InClusterConfig()
-	if err != nil {
-		FATAL("%v", err)
-	}
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		FATAL("%v", err)
-	}
-	dynclient, err := dynamic.NewForConfig(config)
-	if err != nil {
-		FATAL("%v", err)
-	}
-
-	rt := &runtime{
-		clientset: clientset,
-		dynclient: dynclient,
-	}
-
+// logCollectorMainLoop creates temporary status report configMaps for the configmap controller to pick up and turn
+// into permanent ones. It reads the last result reported from aide.
+func logCollectorMainLoop(rt *daemonRuntime, conf *daemonConfig, ch chan bool) {
 	for {
-		// Checking the indicator file for the last return code lets us determine if we should collect the aide log.
-		indicatorFile, _ := waitForFile(conf.IndicatorFile, conf.Timeout)
-		if indicatorFile == nil {
-			DBG("Indicator file '%s' doesn't exist, trying again", conf.IndicatorFile)
+		lastResult := rt.Result()
+		// We haven't received a result yet.
+		if lastResult == -1 {
+			DBG("No scan result available")
+			time.Sleep(time.Duration(conf.Interval) * time.Second)
 			continue
 		}
 
-		// containsReturnCodeZero closes indicatorFile here.
-		checkPassed, err := containsReturnCodeZero(indicatorFile)
-		if err != nil {
-			reportError(fmt.Sprintf("Return code file error: %s", err), conf, rt)
-			continue
-		}
-		if checkPassed {
-			DBG("Integrity check returned 0, sleeping and starting over")
+		if lastResult == 0 {
 			reportOK(conf, rt)
 			time.Sleep(time.Duration(conf.Interval) * time.Second)
 			continue
 		}
 
+		rt.LockAideFiles("logCollectorMainLoop")
 		DBG("Integrity check failed, continuing to collect log file")
-		file, inode := waitForFile(conf.File, conf.Timeout)
+		file, inode := getNonEmptyFileAndInode(conf.LogCollectorFile)
 
 		handleRotationOrInit(rt, inode)
 
 		contents := []byte{}
 		if file != nil {
+			var err error
 			if contents, err = ioutil.ReadAll(file); err != nil {
 				reportError(fmt.Sprintf("Error reading the log file: %v", err), conf, rt)
 				file.Close()
+				rt.UnlockAideFiles("logCollectorMainLoop")
 				continue
 			}
 			if err = updateReadOffset(rt, file, contents); err != nil {
 				reportError(fmt.Sprintf("Error setting read offset for log file: %v", err), conf, rt)
 				file.Close()
+				rt.UnlockAideFiles("logCollectorMainLoop")
 				continue
 			}
 			file.Close()
 		}
+		rt.UnlockAideFiles("logCollectorMainLoop")
 
 		compressed := false
-		if needsCompression(contents) || conf.Compress {
+		if needsCompression(contents) || conf.LogCollectorCompress {
 			DBG("Compressing log contents")
 			contents = compress(contents)
 			compressed = true
 		}
 
 		uploadLog(contents, compressed, conf, rt)
-		DBG("Log uploaded, sleeping and starting over")
 		time.Sleep(time.Duration(conf.Interval) * time.Second)
 	}
-}
-
-// containsReturnCodeZero returns true, nil if the file contents starts with a single return code == 0, or err if there is
-// a problem reading the file. Closes file.
-func containsReturnCodeZero(file *os.File) (bool, error) {
-	// Ignore warning about defer on file.Close().
-	// #nosec
-	defer file.Close()
-	contents, err := ioutil.ReadAll(file)
-	if err != nil {
-		return false, err
-	}
-
-	retCode, err := strconv.Atoi(string(contents[0]))
-	if err != nil {
-		return false, err
-	}
-
-	if retCode == 0 {
-		return true, nil
-	}
-
-	return false, nil
 }

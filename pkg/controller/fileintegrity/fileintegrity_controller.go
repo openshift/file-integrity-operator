@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/go-logr/logr"
 
@@ -71,32 +72,6 @@ type ReconcileFileIntegrity struct {
 // active AIDE configuration configMap
 func (r *ReconcileFileIntegrity) handleDefaultConfigMaps(f *fileintegrityv1alpha1.FileIntegrity) (*corev1.ConfigMap, error) {
 	cm := &corev1.ConfigMap{}
-	if err := r.client.Get(context.TODO(), types.NamespacedName{
-		Name:      common.GetScriptName(f.Name),
-		Namespace: common.FileIntegrityNamespace,
-	}, cm); err != nil {
-		if !kerr.IsNotFound(err) {
-			return nil, err
-		}
-		// does not exist, create
-		if err := r.client.Create(context.TODO(), getAIDEScriptCm(f.Name, f.Spec.Config.GracePeriod)); err != nil {
-			return nil, err
-		}
-	}
-
-	if err := r.client.Get(context.TODO(), types.NamespacedName{
-		Name:      common.AideInitScriptConfigMapName,
-		Namespace: common.FileIntegrityNamespace,
-	}, cm); err != nil {
-		if !kerr.IsNotFound(err) {
-			return nil, err
-		}
-		// does not exist, create
-		if err := r.client.Create(context.TODO(), aideInitScript()); err != nil {
-			return nil, err
-		}
-	}
-
 	if err := r.client.Get(context.TODO(), types.NamespacedName{
 		Name:      common.AideReinitScriptConfigMapName,
 		Namespace: common.FileIntegrityNamespace,
@@ -181,20 +156,6 @@ func (r *ReconcileFileIntegrity) updateAideConfig(conf *corev1.ConfigMap, data s
 	return r.client.Update(context.TODO(), confCopy)
 }
 
-func (r *ReconcileFileIntegrity) updateAideScript(conf *corev1.ConfigMap, data string) error {
-	confCopy := conf.DeepCopy()
-	confCopy.Data[common.AideScriptKey] = data
-
-	if confCopy.Annotations == nil {
-		confCopy.Annotations = map[string]string{}
-	}
-
-	// Mark the configMap as updated by the user-provided config, for the configMap-controller to trigger an update.
-	confCopy.Annotations[common.AideConfigUpdatedAnnotationKey] = "true"
-
-	return r.client.Update(context.TODO(), confCopy)
-}
-
 func (r *ReconcileFileIntegrity) retrieveAndAnnotateAideConfig(conf *corev1.ConfigMap) error {
 	cachedconf := &corev1.ConfigMap{}
 	// Get the latest config...
@@ -203,34 +164,10 @@ func (r *ReconcileFileIntegrity) retrieveAndAnnotateAideConfig(conf *corev1.Conf
 	return r.updateAideConfig(cachedconf, cachedconf.Data[common.DefaultConfDataKey])
 }
 
-func (r *ReconcileFileIntegrity) reconcileUserAideScriptChanges(instance *fileintegrityv1alpha1.FileIntegrity, reqLogger logr.Logger) error {
-	reqLogger.Info("reconciling user-provided configuration of the aide script")
-
-	currentAideScriptCm := &corev1.ConfigMap{}
-	err := r.client.Get(context.TODO(), types.NamespacedName{Name: common.GetScriptName(instance.Name), Namespace: common.FileIntegrityNamespace}, currentAideScriptCm)
-	if err != nil {
-		reqLogger.Error(err, "error getting aide script configMap: %v", err)
-		return err
-	}
-
-	newAideScript := aideScriptContents(instance.Spec.Config.GracePeriod)
-	if newAideScript == currentAideScriptCm.Data[common.AideScriptKey] {
-		reqLogger.Info("No change to aide script")
-		return nil
-	}
-
-	reqLogger.Info("Aide script changed")
-	err = r.updateAideScript(currentAideScriptCm, newAideScript)
-	if err != nil {
-		reqLogger.Error(err, "couldn't update the aide script\n")
-	}
-
-	return nil
-}
-
-// reconcileUserConfig checks if the user provided a configuration of their own and preapres it
-// returns true if new configuration was added and false if not.
-func (r *ReconcileFileIntegrity) reconcileUserConfig(instance *fileintegrityv1alpha1.FileIntegrity, reqLogger logr.Logger, currentConfig *corev1.ConfigMap) (bool, error) {
+// reconcileUserConfig checks if the user provided a configuration of their own and prepares it. Returns true if a new
+// configuration was added, false if not.
+func (r *ReconcileFileIntegrity) reconcileUserConfig(instance *fileintegrityv1alpha1.FileIntegrity,
+	reqLogger logr.Logger, currentConfig *corev1.ConfigMap) (bool, error) {
 	if len(instance.Spec.Config.Name) == 0 || len(instance.Spec.Config.Namespace) == 0 {
 		return false, nil
 	}
@@ -238,14 +175,18 @@ func (r *ReconcileFileIntegrity) reconcileUserConfig(instance *fileintegrityv1al
 	reqLogger.Info("reconciling user-provided configMap")
 
 	userConfigMap := &corev1.ConfigMap{}
-	err := r.client.Get(context.TODO(), types.NamespacedName{Name: instance.Spec.Config.Name, Namespace: instance.Spec.Config.Namespace}, userConfigMap)
+	err := r.client.Get(context.TODO(), types.NamespacedName{
+		Name:      instance.Spec.Config.Name,
+		Namespace: instance.Spec.Config.Namespace,
+	}, userConfigMap)
 	if err != nil {
 		if !kerr.IsNotFound(err) {
 			reqLogger.Error(err, "error getting aide config configMap")
 			return false, err
 		}
 		// FIXME(jaosorior): This should probably be an error instead
-		reqLogger.Info(fmt.Sprintf("warning: user-specified configMap %s/%s does not exist", instance.Spec.Config.Namespace, instance.Spec.Config.Name))
+		reqLogger.Info(fmt.Sprintf("warning: user-specified configMap %s/%s does not exist",
+			instance.Spec.Config.Namespace, instance.Spec.Config.Name))
 		return false, nil
 	}
 
@@ -312,12 +253,6 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 		return reconcile.Result{Requeue: true}, nil
 	}
 
-	// handle user-provided script changes
-	err = r.reconcileUserAideScriptChanges(instance, reqLogger)
-	if err != nil {
-		return reconcile.Result{}, err
-	}
-
 	// handle user-provided configMap
 	hasNewConfig, err := r.reconcileUserConfig(instance, reqLogger, defaultAideConf)
 	if err != nil {
@@ -327,7 +262,9 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 	_, forceReinit := instance.Annotations[common.AideDatabaseReinitAnnotationKey]
 	if hasNewConfig || forceReinit {
 		if forceReinit {
-			reqLogger.Info("Re-init annotation found. Spawning reinit DS.")
+			reqLogger.Info("Re-init forced, creating daemonSet.")
+		} else {
+			reqLogger.Info("Re-init triggered by configuration change, creating daemonSet.")
 		}
 		// This daemonset re-inits the database
 		// TODO(jaosorior): Add status about the re-init happening.
@@ -344,13 +281,12 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 		}
 		fiCopy := instance.DeepCopy()
 		delete(fiCopy.Annotations, common.AideDatabaseReinitAnnotationKey)
-		reqLogger.Info("Removing re-init DS.")
+		reqLogger.Info("Removing re-init annotation.")
 		if err := r.client.Update(context.TODO(), fiCopy); err != nil {
 			return reconcile.Result{}, err
 		}
 	}
 
-	reqLogger.Info("reconciling daemonSets")
 	daemonSet := &appsv1.DaemonSet{}
 	err = r.client.Get(context.TODO(), types.NamespacedName{Name: daemonSetName, Namespace: common.FileIntegrityNamespace}, daemonSet)
 	if err != nil {
@@ -369,8 +305,71 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 			reqLogger.Error(createErr, "error creating daemonSet")
 			return reconcile.Result{}, common.IgnoreAlreadyExists(createErr)
 		}
+	} else {
+		// Handle an update of the daemon arguments when Debug and GracePeriod are changed. If they constitute a change
+		// then the daemonSet spec is updated and the pods are restarted.
+		updated, newArgs, err := updateDaemonSetPodArgs(daemonSet, instance)
+		if err != nil {
+			return reconcile.Result{}, nil
+		}
+		if updated {
+			dsCopy := daemonSet.DeepCopy()
+			dsCopy.Spec.Template.Spec.Containers[0].Args = newArgs
+			if err := r.client.Update(context.TODO(), dsCopy); err != nil {
+				return reconcile.Result{}, err
+			}
+
+			err := common.RestartFileIntegrityDs(r.client, common.GetDaemonSetName(instance.Name))
+			if err != nil {
+				return reconcile.Result{}, err
+			}
+			reqLogger.Info("FileIntegrity daemon configuration changed - pods restarted.")
+		}
 	}
 	return reconcile.Result{}, nil
+}
+
+func intervalOpt(s string) bool {
+	return strings.HasPrefix(s, "--interval=")
+}
+
+func debugOpt(s string) bool {
+	return strings.HasPrefix(s, "--debug=")
+}
+
+// Returns true with the daemon pod args from fi (for --interval and --debug options) if they differ from the current DS.
+// Returns false if there was no difference.
+func updateDaemonSetPodArgs(currentDS *appsv1.DaemonSet, fi *fileintegrityv1alpha1.FileIntegrity) (bool, []string, error) {
+	var currentGracePeriod string
+	var currentDebug string
+
+	args := currentDS.Spec.Template.Spec.Containers[0].Args
+	newArgs := make([]string, 0)
+
+	for _, arg := range args {
+		if intervalOpt(arg) {
+			currentGracePeriod = arg[len("--interval="):]
+		} else if debugOpt(arg) {
+			currentDebug = arg[len("--debug="):]
+		}
+	}
+	if currentGracePeriod == "" || currentDebug == "" {
+		return false, newArgs, fmt.Errorf("bad daemon configuration")
+	}
+
+	newGracePeriod := getGracePeriod(fi)
+	newDebug := getDebug(fi)
+	if currentGracePeriod != newGracePeriod || currentDebug != newDebug {
+		for _, arg := range args {
+			if !intervalOpt(arg) && !debugOpt(arg) {
+				newArgs = append(newArgs, arg)
+			}
+		}
+		newArgs = append(newArgs, fmt.Sprintf("--interval=%s", newGracePeriod))
+		newArgs = append(newArgs, fmt.Sprintf("--debug=%s", newDebug))
+		return true, newArgs, nil
+	}
+	return false, newArgs, nil
 }
 
 func defaultAIDEConfigMap(name string) *corev1.ConfigMap {
@@ -384,40 +383,6 @@ func defaultAIDEConfigMap(name string) *corev1.ConfigMap {
 		},
 		Data: map[string]string{
 			"aide.conf": DefaultAideConfig,
-		},
-	}
-}
-
-func aideScriptContents(gracePeriod int) string {
-	if gracePeriod < common.DefaultGracePeriod {
-		gracePeriod = common.DefaultGracePeriod
-	}
-	return fmt.Sprintf(aideScriptTemplate, gracePeriod)
-}
-
-func getAIDEScriptCm(fiName string, gracePeriod int) *corev1.ConfigMap {
-	return &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      common.GetScriptName(fiName),
-			Namespace: common.FileIntegrityNamespace,
-			Labels: map[string]string{
-				common.AideScriptLabelKey: fiName,
-			},
-		},
-		Data: map[string]string{
-			common.AideScriptKey: aideScriptContents(gracePeriod),
-		},
-	}
-}
-
-func aideInitScript() *corev1.ConfigMap {
-	return &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      common.AideInitScriptConfigMapName,
-			Namespace: common.FileIntegrityNamespace,
-		},
-		Data: map[string]string{
-			common.AideScriptKey: aideInitContainerScript,
 		},
 	}
 }
@@ -447,7 +412,7 @@ func aidePauseScript() *corev1.ConfigMap {
 }
 
 // reinitAideDaemonset returns a DaemonSet that runs a one-shot pod on each node. This pod touches a file
-// on the host OS that informs the AIDE init container script to back up and reinitialize the AIDE db.
+// on the host OS that informs the AIDE daemon to back up and reinitialize the AIDE db.
 func reinitAideDaemonset(reinitDaemonSetName string, fi *fileintegrityv1alpha1.FileIntegrity) *appsv1.DaemonSet {
 	priv := true
 	runAs := int64(0)
@@ -556,15 +521,6 @@ func reinitAideDaemonset(reinitDaemonSetName string, fi *fileintegrityv1alpha1.F
 func aideDaemonset(dsName string, fi *fileintegrityv1alpha1.FileIntegrity) *appsv1.DaemonSet {
 	priv := true
 	runAs := int64(0)
-	mode := int32(0744)
-
-	gracePeriod := fi.Spec.Config.GracePeriod
-	if gracePeriod < 10 {
-		gracePeriod = 10
-	}
-
-	scriptCmName := common.GetScriptName(fi.Name)
-
 	return &appsv1.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      dsName,
@@ -592,70 +548,15 @@ func aideDaemonset(dsName string, fi *fileintegrityv1alpha1.FileIntegrity) *apps
 						},
 					},
 					ServiceAccountName: common.OperatorServiceAccountName,
-					// The init container handles the reinitialization of the aide db after a configuration change
-					InitContainers: []corev1.Container{
-						{
-							SecurityContext: &corev1.SecurityContext{
-								Privileged: &priv,
-								RunAsUser:  &runAs,
-							},
-							Name:    "aide-ds-init",
-							Image:   common.GetComponentImage(common.AIDE),
-							Command: []string{common.AideScriptPath},
-							VolumeMounts: []corev1.VolumeMount{
-								{
-									Name:      "hostroot",
-									MountPath: "/hostroot",
-								},
-								{
-									Name:      "config",
-									MountPath: "/tmp",
-								},
-								{
-									Name:      common.AideInitScriptConfigMapName,
-									MountPath: "/scripts",
-								},
-							},
-						},
-					},
 					Containers: []corev1.Container{
 						{
 							SecurityContext: &corev1.SecurityContext{
 								Privileged: &priv,
 								RunAsUser:  &runAs,
 							},
-							Name:    "aide",
-							Image:   common.GetComponentImage(common.AIDE),
-							Command: []string{common.AideScriptPath},
-							VolumeMounts: []corev1.VolumeMount{
-								{
-									Name:      "hostroot",
-									MountPath: "/hostroot",
-								},
-								{
-									Name:      "config",
-									MountPath: "/tmp",
-								},
-								{
-									Name:      scriptCmName,
-									MountPath: "/scripts",
-								},
-							},
-						},
-						{
-							SecurityContext: &corev1.SecurityContext{
-								Privileged: &priv,
-							},
-							Name:  "logcollector",
+							Name:  "daemon",
 							Image: common.GetComponentImage(common.OPERATOR),
-							Args: []string{"logcollector",
-								"--file=" + aideLogPath,
-								"--config-map-prefix=" + dsName,
-								"--owner=" + fi.Name,
-								"--namespace=" + fi.Namespace,
-								"--interval=" + strconv.Itoa(gracePeriod),
-								"--debug=" + strconv.FormatBool(fi.Spec.Debug),
-							},
+							Args:  daemonArgs(dsName, fi),
 							Env: []corev1.EnvVar{
 								{
 									Name: "NODE_NAME",
@@ -670,6 +571,10 @@ func aideDaemonset(dsName string, fi *fileintegrityv1alpha1.FileIntegrity) *apps
 								{
 									Name:      "hostroot",
 									MountPath: "/hostroot",
+								},
+								{
+									Name:      "config",
+									MountPath: "/tmp",
 								},
 							},
 						},
@@ -693,31 +598,32 @@ func aideDaemonset(dsName string, fi *fileintegrityv1alpha1.FileIntegrity) *apps
 								},
 							},
 						},
-						{
-							Name: scriptCmName,
-							VolumeSource: corev1.VolumeSource{
-								ConfigMap: &corev1.ConfigMapVolumeSource{
-									LocalObjectReference: corev1.LocalObjectReference{
-										Name: scriptCmName,
-									},
-									DefaultMode: &mode,
-								},
-							},
-						},
-						{
-							Name: common.AideInitScriptConfigMapName,
-							VolumeSource: corev1.VolumeSource{
-								ConfigMap: &corev1.ConfigMapVolumeSource{
-									LocalObjectReference: corev1.LocalObjectReference{
-										Name: common.AideInitScriptConfigMapName,
-									},
-									DefaultMode: &mode,
-								},
-							},
-						},
 					},
 				},
 			},
 		},
+	}
+}
+
+func getGracePeriod(fi *fileintegrityv1alpha1.FileIntegrity) string {
+	gracePeriod := fi.Spec.Config.GracePeriod
+	if gracePeriod < 10 {
+		gracePeriod = 10
+	}
+	return strconv.Itoa(gracePeriod)
+}
+
+func getDebug(fi *fileintegrityv1alpha1.FileIntegrity) string {
+	return strconv.FormatBool(fi.Spec.Debug)
+}
+
+func daemonArgs(dsName string, fi *fileintegrityv1alpha1.FileIntegrity) []string {
+	return []string{"daemon",
+		"--lc-file=" + aideLogPath,
+		"--lc-config-map-prefix=" + dsName,
+		"--lc-owner=" + fi.Name,
+		"--lc-namespace=" + fi.Namespace,
+		"--interval=" + getGracePeriod(fi),
+		"--debug=" + getDebug(fi),
 	}
 }

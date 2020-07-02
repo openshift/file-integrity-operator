@@ -82,6 +82,7 @@ CONTENT_EX = sha512+ftype+p+u+g+n+acl+selinux+xattrs
 !/hostroot/etc/kubernetes/manifests
 !/hostroot/etc/docker/certs.d
 !/hostroot/etc/selinux/targeted
+!/hostroot/etc/openvswitch/conf.db
 
 # Catch everything else in /etc
 /hostroot/etc/    CONTENT_EX`
@@ -716,19 +717,20 @@ func isNodeReady(node corev1.Node) bool {
 	return false
 }
 
-func assertLineInScript(t *testing.T, f *framework.Framework, fiName, namespace, expectedLine string, interval, timeout time.Duration) error {
+func assertDSPodHasArg(t *testing.T, f *framework.Framework, fiName, namespace, expectedLine string, interval, timeout time.Duration) error {
 	return wait.PollImmediate(interval, timeout, func() (bool, error) {
-		cm, getErr := f.KubeClient.CoreV1().ConfigMaps(namespace).Get(common.GetScriptName(fiName), metav1.GetOptions{})
+		ds, getErr := f.KubeClient.AppsV1().DaemonSets(namespace).Get(common.GetDaemonSetName(fiName), metav1.GetOptions{})
 		if getErr != nil {
 			t.Logf("Retrying. Got error: %v\n", getErr)
 			return false, nil
 		}
-
-		cmVal := cm.Data[common.AideScriptKey]
-		if idx := strings.Index(cmVal, expectedLine); idx == 1 {
-			t.Logf("expected line not found in, retrying")
+		for _, arg := range ds.Spec.Template.Spec.Containers[0].Args {
+			if arg == expectedLine {
+				return true, nil
+			}
 		}
-		return true, nil
+		t.Logf("Expected line not found, retrying")
+		return false, nil
 	})
 }
 

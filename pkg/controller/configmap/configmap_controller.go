@@ -12,7 +12,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -103,8 +102,6 @@ func (r *ReconcileConfigMap) Reconcile(request reconcile.Request) (reconcile.Res
 
 	if common.IsAideConfig(instance.Labels) {
 		return r.reconcileAideConf(instance, reqLogger)
-	} else if common.IsAideScript(instance.Labels) {
-		return r.reconcileAideScript(instance, reqLogger)
 	} else if common.IsIntegrityLog(instance.Labels) {
 		return r.handleIntegrityLog(instance, reqLogger)
 	}
@@ -115,7 +112,6 @@ func (r *ReconcileConfigMap) Reconcile(request reconcile.Request) (reconcile.Res
 func (r *ReconcileConfigMap) reconcileAideConf(instance *corev1.ConfigMap, logger logr.Logger) (reconcile.Result, error) {
 	// only continue if the configmap received an update through the user-provided config
 	if _, ok := instance.Annotations[common.AideConfigUpdatedAnnotationKey]; !ok {
-		logger.Info("DBG: updated annotation not found - removing from queue")
 		return reconcile.Result{}, nil
 	}
 
@@ -133,54 +129,23 @@ func (r *ReconcileConfigMap) reconcileAideConf(instance *corev1.ConfigMap, logge
 	}
 	// not ready, requeue
 	if !common.DaemonSetIsReady(reinitDS) {
-		logger.Info("DBG: requeue of DS")
-		return reconcile.Result{RequeueAfter: time.Duration(5 * time.Second)}, nil // guessing on 5 seconds as acceptable requeue rate
+		return reconcile.Result{RequeueAfter: time.Duration(time.Second)}, nil
 	}
 
-	logger.Info("reinitDaemonSet statuses", "Status", reinitDS.Status)
+	logger.Info("re-init daemonSet finished, removing")
 
 	// reinit daemonSet is ready, so we're finished with it
 	if err := r.client.Delete(context.TODO(), reinitDS); err != nil {
 		return reconcile.Result{}, err
 	}
 
-	err = restartFileIntegrityDs(r.client, common.GetDaemonSetName(instance.Name))
+	err = common.RestartFileIntegrityDs(r.client, common.GetDaemonSetName(instance.Name))
 	if err != nil {
 		logger.Error(err, "error restarting daemonSet")
 		return reconcile.Result{}, err
 	}
 
-	logger.Info("DBG: DS pods restarted, clearing update annotation")
-	// unset update annotation
-	conf := instance.DeepCopy()
-	conf.Annotations = nil
-	if err := r.client.Update(context.TODO(), conf); err != nil {
-		logger.Error(err, "error clearing configMap annotations")
-		return reconcile.Result{}, err
-	}
-	return reconcile.Result{}, nil
-}
-
-func (r *ReconcileConfigMap) reconcileAideScript(instance *corev1.ConfigMap, logger logr.Logger) (reconcile.Result, error) {
-	// only continue if the configmap received an update through the user-provided config
-	if _, ok := instance.Annotations[common.AideConfigUpdatedAnnotationKey]; !ok {
-		logger.Info("DBG: updated annotation not found - removing from queue")
-		return reconcile.Result{}, nil
-	}
-
-	fiName, ok := instance.Labels[common.AideScriptLabelKey]
-	if ok {
-		err := restartFileIntegrityDs(r.client, common.GetDaemonSetName(fiName))
-		if err != nil {
-			logger.Error(err, "error restarting daemonSet")
-			return reconcile.Result{}, err
-		}
-		logger.Info("DBG: DS pods restarted")
-	} else {
-		logger.Info("Could not figure out the FI to update, will just clear the annotation")
-	}
-
-	logger.Info("DBG: clearing update annotation")
+	logger.Info("daemon pods restarted")
 	// unset update annotation
 	conf := instance.DeepCopy()
 	conf.Annotations = nil
@@ -334,41 +299,4 @@ func getConfigMapForFailureLog(cm *corev1.ConfigMap) *corev1.ConfigMap {
 	// We mark is as a result
 	failedCM.Labels[common.IntegrityLogResultLabelKey] = ""
 	return failedCM
-}
-
-// restartFileIntegrityDs restarts all pods that belong to a given DaemonSet. This can be
-// used to e.g. remount a configmap after it had changed or restart a FI DS after a re-init
-// had happened
-func restartFileIntegrityDs(c client.Client, dsName string) error {
-	ds := &appsv1.DaemonSet{}
-	err := c.Get(context.TODO(), types.NamespacedName{Name: dsName, Namespace: common.FileIntegrityNamespace}, ds)
-	if err != nil {
-		return err
-	}
-
-	if err := deleteDaemonSetPods(c, ds); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func deleteDaemonSetPods(c client.Client, ds *appsv1.DaemonSet) error {
-	var pods corev1.PodList
-
-	if err := c.List(context.TODO(), &pods, &client.ListOptions{
-		LabelSelector: labels.SelectorFromSet(labels.Set{"app": ds.Name}),
-		Namespace:     common.FileIntegrityNamespace,
-	}); err != nil {
-		return err
-	}
-
-	for _, pod := range pods.Items {
-		err := c.Delete(context.TODO(), &pod, &client.DeleteOptions{})
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
 }

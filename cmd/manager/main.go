@@ -32,7 +32,7 @@ var rootCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(operatorCmd)
-	rootCmd.AddCommand(logCollectorCmd)
+	rootCmd.AddCommand(daemonCmd)
 }
 
 func main() {
