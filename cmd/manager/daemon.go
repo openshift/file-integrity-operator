@@ -75,8 +75,7 @@ type daemonRuntime struct {
 	initializingMux        sync.Mutex
 	holding                bool
 	holdingMux             sync.Mutex
-	result                 int
-	resultMux              sync.Mutex
+	result                 chan int
 	dbMux                  sync.Mutex
 }
 
@@ -93,21 +92,6 @@ func (rt *daemonRuntime) SetInitializing(fun string, initializing bool) {
 	}
 	rt.initializing = initializing
 	rt.initializingMux.Unlock()
-}
-
-func (rt *daemonRuntime) Result() int {
-	rt.resultMux.Lock()
-	defer rt.resultMux.Unlock()
-	return rt.result
-}
-
-func (rt *daemonRuntime) SetResult(fun string, result int) {
-	rt.resultMux.Lock()
-	if result != rt.result {
-		DBG("result set to %d by %s", result, fun)
-	}
-	rt.result = result
-	rt.resultMux.Unlock()
 }
 
 func (rt *daemonRuntime) Holding() bool {
@@ -182,8 +166,10 @@ func daemonMainLoop(cmd *cobra.Command, args []string) {
 		dynclient: dynclient,
 	}
 
+	rt.result = make(chan int)
+
 	// Set initial states so the loops do not race in the beginning.
-	rt.SetResult("main", -1)
+	rt.result <- -1
 	rt.SetInitializing("main", false)
 
 	reinitLoopDone := make(chan bool)
@@ -228,7 +214,7 @@ func aideLoop(rt *daemonRuntime, conf *daemonConfig, exit chan bool) {
 				}
 			}
 			LOG("aide check returned status %d", exitStatus)
-			rt.SetResult("aideLoop", exitStatus)
+			rt.result <- exitStatus
 			rt.UnlockAideFiles("aideLoop")
 		}
 		time.Sleep(time.Second * time.Duration(conf.Interval))
