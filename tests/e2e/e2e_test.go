@@ -42,7 +42,7 @@ func TestFileIntegrityLogAndReinitDatabase(t *testing.T) {
 	}
 
 	// log collection should create a configmap for each node's report after the scan runs again
-	nodes, err := f.KubeClient.CoreV1().Nodes().List(metav1.ListOptions{
+	nodes, err := f.KubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
 		LabelSelector: nodeWorkerRoleLabelKey,
 	})
 	if err != nil {
