@@ -309,7 +309,7 @@ func updateReadOffset(rt *daemonRuntime, file *os.File, contents []byte) error {
 // into permanent ones. It reads the last result reported from aide.
 func logCollectorMainLoop(rt *daemonRuntime, conf *daemonConfig, ch chan bool) {
 	for {
-		lastResult := rt.Result()
+		lastResult := <-rt.result
 		// We haven't received a result yet.
 		if lastResult == -1 {
 			DBG("No scan result available")
@@ -356,6 +356,5 @@ func logCollectorMainLoop(rt *daemonRuntime, conf *daemonConfig, ch chan bool) {
 		}
 
 		uploadLog(contents, compressed, conf, rt)
-		time.Sleep(time.Duration(conf.Interval) * time.Second)
 	}
 }
