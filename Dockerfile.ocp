@@ -9,8 +9,9 @@ COPY . .
 
 RUN make operator-bin
 
-# Step two: containerize file-integrity-operator
-FROM registry.svc.ci.openshift.org/openshift/origin-v4.0:base
+# Step two: containerize file-integrity-operator and AIDE together
+FROM rhel7
+RUN yum -y install aide && yum clean all
 
 ENV OPERATOR=/usr/local/bin/file-integrity-operator \
     USER_UID=1001 \
