@@ -166,7 +166,7 @@ func daemonMainLoop(cmd *cobra.Command, args []string) {
 		dynclient: dynclient,
 	}
 
-	rt.result = make(chan int)
+	rt.result = make(chan int, 50)
 
 	// Set initial states so the loops do not race in the beginning.
 	rt.result <- -1
