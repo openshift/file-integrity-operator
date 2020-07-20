@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"k8s.io/apimachinery/pkg/labels"
+
 	"github.com/cenkalti/backoff/v3"
 	igntypes "github.com/coreos/ignition/config/v2_2/types"
 
@@ -296,6 +298,91 @@ func getNumberOfWorkerNodes(c kubernetes.Interface) (int, error) {
 		return 0, err
 	}
 	return len(nodes.Items), nil
+}
+
+func setupTolerationTest(t *testing.T) (*framework.Framework, *framework.Context, string) {
+	testctx := setupTestRequirements(t)
+	namespace, err := testctx.GetNamespace()
+	if err != nil {
+		t.Errorf("could not get namespace: %v", err)
+	}
+	f := framework.Global
+	workerNodes := getNodesWithSelector(f, map[string]string{"node-role.kubernetes.io/worker": ""})
+	taintedNode := &workerNodes[0]
+	taintKey := "fi-e2e"
+	taintVal := "val"
+	taint := corev1.Taint{
+		Key:    taintKey,
+		Value:  taintVal,
+		Effect: corev1.TaintEffectNoSchedule,
+	}
+
+	testctx.AddCleanupFn(func() error {
+		return removeNodeTaint(t, f, taintedNode.Name, taintKey)
+	})
+	testctx.AddCleanupFn(cleanUp(t, namespace))
+	setupFileIntegrityOperatorCluster(t, testctx)
+
+	if err := taintNode(t, f, taintedNode, taint); err != nil {
+		t.Fatalf("Tainting node failed")
+	}
+
+	t.Log("Creating FileIntegrity object for Toleration tests")
+	testIntegrityCheck := &fileintv1alpha1.FileIntegrity{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      testIntegrityName,
+			Namespace: namespace,
+		},
+		Spec: fileintv1alpha1.FileIntegritySpec{
+			NodeSelector: map[string]string{
+				// Schedule on the tainted host
+				corev1.LabelHostname: taintedNode.Labels[corev1.LabelHostname],
+			},
+			Config: fileintv1alpha1.FileIntegrityConfig{},
+			Tolerations: []corev1.Toleration{
+				{
+					Key:      taintKey,
+					Operator: corev1.TolerationOpExists,
+					Effect:   corev1.TaintEffectNoSchedule,
+				},
+			},
+		},
+	}
+	cleanupOptions := framework.CleanupOptions{
+		TestContext:   testctx,
+		Timeout:       cleanupTimeout,
+		RetryInterval: cleanupRetryInterval,
+	}
+	err = f.Client.Create(goctx.TODO(), testIntegrityCheck, &cleanupOptions)
+	if err != nil {
+		t.Errorf("could not create fileintegrity object: %v", err)
+	}
+
+	dsName := common.GetDaemonSetName(testIntegrityCheck.Name)
+	err = waitForDaemonSet(daemonSetIsReady(f.KubeClient, dsName, namespace))
+	if err != nil {
+		t.Errorf("Timed out waiting for DaemonSet %s", dsName)
+	}
+
+	var lastErr error
+	pollErr := wait.PollImmediate(time.Second, 5*time.Minute, func() (bool, error) {
+		numReplicas, err := getDSReplicas(f.KubeClient, dsName, namespace)
+		if err != nil {
+			lastErr = err
+			return false, nil
+		}
+
+		if numReplicas != 1 {
+			lastErr = errors.Errorf("The number of worker nodes (1 tainted) doesn't match the DS replicas (%d)", numReplicas)
+			return false, nil
+		}
+		return true, nil
+	})
+	if pollErr != nil {
+		t.Errorf("error confirming DS replica amount: (%v) (%v)", pollErr, lastErr)
+	}
+
+	return f, testctx, namespace
 }
 
 // setupTest sets up the operator and waits for AIDE to roll out
@@ -766,4 +853,43 @@ func waitUntilPodsAreGone(t *testing.T, c client.Client, pods *corev1.PodList, i
 		t.Log("All previous pods have exited")
 		return true, nil
 	})
+}
+
+func taintNode(t *testing.T, f *framework.Framework, node *corev1.Node, taint corev1.Taint) error {
+	taintedNode := node.DeepCopy()
+	if taintedNode.Spec.Taints == nil {
+		taintedNode.Spec.Taints = []corev1.Taint{}
+	}
+	taintedNode.Spec.Taints = append(taintedNode.Spec.Taints, taint)
+	t.Logf("Tainting node: %s", taintedNode.Name)
+	return f.Client.Update(goctx.TODO(), taintedNode)
+}
+
+func removeNodeTaint(t *testing.T, f *framework.Framework, nodeName, taintKey string) error {
+	taintedNode := &corev1.Node{}
+	nodeKey := types.NamespacedName{Name: nodeName}
+	if err := f.Client.Get(goctx.TODO(), nodeKey, taintedNode); err != nil {
+		t.Logf("Couldn't get node: %s", nodeName)
+		return err
+	}
+	untaintedNode := taintedNode.DeepCopy()
+	untaintedNode.Spec.Taints = []corev1.Taint{}
+	for _, taint := range taintedNode.Spec.Taints {
+		if taint.Key != taintKey {
+			untaintedNode.Spec.Taints = append(untaintedNode.Spec.Taints, taint)
+		}
+	}
+
+	t.Logf("Removing taint from node: %s", nodeName)
+	return f.Client.Update(goctx.TODO(), untaintedNode)
+}
+
+// getNodesWithSelector lists nodes according to a specific selector
+func getNodesWithSelector(f *framework.Framework, labelselector map[string]string) []corev1.Node {
+	var nodes corev1.NodeList
+	lo := &client.ListOptions{
+		LabelSelector: labels.SelectorFromSet(labelselector),
+	}
+	f.Client.List(goctx.TODO(), &nodes, lo)
+	return nodes.Items
 }
