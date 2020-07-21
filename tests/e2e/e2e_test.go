@@ -336,3 +336,22 @@ func TestFileIntegrityChangeDebug(t *testing.T) {
 		t.Errorf("Timed out waiting for DaemonSet %s", dsName)
 	}
 }
+
+func TestFileIntegrityTolerations(t *testing.T) {
+	f, testctx, namespace := setupTolerationTest(t)
+	defer testctx.Cleanup()
+	defer func() {
+		if err := cleanNodes(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	// wait to go active.
+	err := waitForScanStatus(t, f, namespace, testIntegrityName, fileintv1alpha1.PhaseActive)
+	if err != nil {
+		t.Errorf("Timeout waiting for scan status")
+	}
+
+	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
+	assertNodesConditionIsSuccess(t, f, namespace, testIntegrityName, 2*time.Second, 5*time.Minute)
+}

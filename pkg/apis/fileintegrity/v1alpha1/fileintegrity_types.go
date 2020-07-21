@@ -1,6 +1,7 @@
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -29,6 +30,9 @@ type FileIntegritySpec struct {
 	NodeSelector map[string]string   `json:"nodeSelector,omitempty"`
 	Config       FileIntegrityConfig `json:"config"`
 	Debug        bool                `json:"debug,omitempty"`
+	// Specifies tolerations for custom taints. Defaults to allowing scheduling on master nodes.
+	// +kubebuilder:default={{key: "node-role.kubernetes.io/master", operator: "Exists", effect: "NoSchedule"}}
+	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
 }
 
 // FileIntegrityConfig defines the name, namespace, and data key for an AIDE config to use for integrity checking.

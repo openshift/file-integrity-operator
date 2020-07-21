@@ -24,9 +24,44 @@ $ oc create namespace openshift-file-integrity
 $ oc create -f deploy/olm-catalog/operator-source.yaml
 ```
 
+### FileIntegrity API:
+
+The operator works with `FileIntegrity` objects. Each of these objects represents a managed deployment of AIDE on one or more nodes.
+
+```
+apiVersion: fileintegrity.openshift.io/v1alpha1
+kind: FileIntegrity
+metadata:
+  name: example-fileintegrity
+  namespace: openshift-file-integrity
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: "ip-10-10-10-1"
+  tolerations:
+  - key: "myNode"
+    operator: "Exists"
+    effect: "NoSchedule"
+  config:
+    name: "myconfig"
+    namespace: "openshift-file-integrtiy"
+    key: "config"
+    gracePeriod: 20
+  debug: false
+status:
+  phase: Active
+```
+In the `spec`:
+* **nodeSelector**: Selector for nodes to schedule the scan instances on.
+* **tolerations**: Specify tolerations to schedule on nodes with custom taints. When not specified, a default toleration allowing running on master nodes is applied.
+* **config**: Point to a configMap containing an AIDE configuration to use instead of the CoreOS optimized default. See "Applying an AIDE config" below.
+* **config.gracePeriod**: The number of seconds to pause in between AIDE integrity checks. Frequent AIDE checks on a node may be resource intensive, so it can be useful to specify a longer interval. Defaults to 10.
+
+In the `status`:
+* **phase**: The running status of the `FileIntegrity` instance. Can be `Initializing`, `Pending`, or `Active`. `Initializing` is displayed if the FileIntegrity is currently initializing or re-initializing the AIDE database, `Pending` if the FileIntegrity deployment is still being created, and `Active` if the scans are active and ongoing. For node scan results, see the `FileIntegrityNodeStatus` objects explained below.
+
 ### Usage:
 
-After deploying the operator, you must create a FileIntegrity object. The following example will enable scanning on all nodes.
+After deploying the operator, you must create a `FileIntegrity` object. The following example will enable scanning on all nodes.
 ```
 apiVersion: fileintegrity.openshift.io/v1alpha1
 kind: FileIntegrity
@@ -37,7 +72,7 @@ spec:
   config: {}
 ```
 
-Viewing the scan phase: An "Active" phase indicates that on each node, the AIDE database has been initialized and periodic scanning is enabled:
+Viewing the scan phase: An `Active` phase indicates that on each node, the AIDE database has been initialized and periodic scanning is enabled:
 ```
 $ oc get fileintegrities -n openshift-file-integrity
 NAME                    AGE
@@ -47,7 +82,7 @@ $ oc get fileintegrities/example-fileintegrity -n openshift-file-integrity -o js
 Active
 ```
 
-Each node will have a corresponding FileIntegrityNodeStatus object:
+Each node will have a corresponding `FileIntegrityNodeStatus` object:
 ```
 $ oc get fileintegritynodestatuses
 NAME                                                               AGE
@@ -128,7 +163,7 @@ It's possible to provide the file-integrity-operator with an existing aide.conf.
 $ oc project openshift-file-integrity
 $ oc create configmap myconf --from-file=aide-conf=aide.conf.rhel8
 ```
-- Post the FileIntegrity CR containing the name, namespace, and data key containing the aide.conf in the spec.
+- Post the `FileIntegrity` CR containing the name, namespace, and data key containing the aide.conf in the spec.
 ```
 apiVersion: file-integrity.openshift.io/v1alpha1
 kind: FileIntegrity
