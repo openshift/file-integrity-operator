@@ -276,10 +276,13 @@ endif
 csv: deploy/olm-catalog/file-integrity-operator/$(COURIER_PACKAGE_VERSION) check-package-version operator-sdk ## Generate the CSV and packaging for the specific version (NOTE: Gotta specify the version with the COURIER_PACKAGE_VERSION environment variable)
 
 deploy/olm-catalog/file-integrity-operator/$(COURIER_PACKAGE_VERSION):
-	$(GOPATH)/bin/operator-sdk generate csv --csv-channel $(PACKAGE_CHANNEL) --csv-version "$(COURIER_PACKAGE_VERSION)" --from-version "$(OLD_COURIER_PACKAGE_VERSION)" --update-crds
+	$(GOPATH)/bin/operator-sdk generate csv --make-manifests=false --csv-channel $(PACKAGE_CHANNEL) --csv-version "$(COURIER_PACKAGE_VERSION)" --from-version "$(OLD_COURIER_PACKAGE_VERSION)" --update-crds
 
 .PHONY: publish-bundle
 publish-bundle: check-package-version
+	# If the validation fails, make sure you are running operator-courier
+	# 2.1.8, but also make sure the patches from https://github.com/operator-framework/operator-courier/pull/189
+	# are included. On Fedora, feel free to use https://copr.fedorainfracloud.org/coprs/jhrozek/python-operator-courier/
 	$(COURIER_CMD) push "$(COURIER_OPERATOR_DIR)" "$(COURIER_QUAY_NAMESPACE)" "$(COURIER_PACKAGE_NAME)" "$(COURIER_PACKAGE_VERSION)" "basic $(COURIER_QUAY_TOKEN)"
 
 .PHONY: package-version-to-tag
