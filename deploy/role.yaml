@@ -70,6 +70,34 @@ rules:
   - use
 ---
 apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: file-integrity-daemon
+  namespace: openshift-file-integrity
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - events
+  - configmaps
+  verbs:
+  - create
+- apiGroups:
+  - "fileintegrity.openshift.io"
+  resources:
+  - fileintegrities
+  verbs:
+  - get
+- apiGroups:
+  - security.openshift.io
+  resourceNames:
+  - privileged
+  resources:
+  - securitycontextconstraints
+  verbs:
+  - use
+---
+apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: file-integrity-operator

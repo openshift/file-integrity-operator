@@ -39,6 +39,7 @@ const (
 	DefaultConfDataKey                 = "aide.conf"
 	AideScriptKey                      = "aide.sh"
 	OperatorServiceAccountName         = "file-integrity-operator"
+	DaemonServiceAccountName           = "file-integrity-daemon"
 	ReinitDaemonSetPrefix              = "aide-reinit-ds"
 	// IntegrityCheckHoldoffFilePath specified the path to the file that tells
 	// the AIDE check to hold off
