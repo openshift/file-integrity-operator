@@ -11,6 +11,19 @@ roleRef:
   name: file-integrity-operator
   apiGroup: rbac.authorization.k8s.io
 ---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: file-integrity-daemon
+  namespace: openshift-file-integrity
+subjects:
+- kind: ServiceAccount
+  name: file-integrity-daemon
+roleRef:
+  kind: Role
+  name: file-integrity-daemon
+  apiGroup: rbac.authorization.k8s.io
+---
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
