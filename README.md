@@ -177,3 +177,4 @@ spec:
     key: aide-conf
 ```
 * At this point the operator will update the active AIDE config and perform a re-initialization of the AIDE database, as well as a restart of the AIDE pods to begin scanning with the new configuration. A backup of the logs and database from the previously applied configurations are left available on the nodes under /etc/kubernetes.
+* Removing the config section from the FileIntegrity resource when active reverts the running config to the default and re-initializes the database.

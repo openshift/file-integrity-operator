@@ -79,6 +79,86 @@ func TestFileIntegrityLogAndReinitDatabase(t *testing.T) {
 	assertNodesConditionIsSuccess(t, f, namespace, testIntegrityName, 2*time.Second, 5*time.Minute)
 }
 
+func TestFileIntegrityConfigurationRevert(t *testing.T) {
+	f, testctx, namespace := setupTest(t)
+	defer testctx.Cleanup()
+	defer func() {
+		if err := cleanNodes(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	// Install the different config
+	createTestConfigMap(t, f, testIntegrityName, testConfName, namespace, testConfDataKey, testAideConfig)
+
+	// wait to go active.
+	err := waitForScanStatus(t, f, namespace, testIntegrityName, fileintv1alpha1.PhaseActive)
+	if err != nil {
+		t.Errorf("Timeout waiting for scan status")
+	}
+
+	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
+	assertNodesConditionIsSuccess(t, f, namespace, testIntegrityName, 2*time.Second, 5*time.Minute)
+
+	// modify a file on a node
+	err = editFileOnNodes(f, namespace)
+	if err != nil {
+		t.Errorf("Timeout waiting on node file edit")
+	}
+
+	// log collection should create a configmap for each node's report after the scan runs again
+	nodes, err := f.KubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
+		LabelSelector: nodeWorkerRoleLabelKey,
+	})
+	if err != nil {
+		t.Error(err)
+	}
+	for _, node := range nodes.Items {
+		// check the FI status for a failed condition for the node
+		result, err := waitForFailedResultForNode(t, f, namespace, testIntegrityName, node.Name, time.Second, time.Minute*5)
+		if err != nil {
+			t.Errorf("Timeout waiting for a failed status condition for node '%s'", node.Name)
+		} else {
+			if result.FilesChanged != 1 {
+				t.Errorf("Expected one file to change, got %d", result.FilesChanged)
+			}
+			data, err := pollUntilConfigMapExists(t, f, result.ResultConfigMapNamespace, result.ResultConfigMapName, time.Second, time.Minute*5)
+			if err != nil {
+				t.Errorf("Timeout waiting for log configMap '%s'", result.ResultConfigMapName)
+			}
+
+			if !containsUncompressedScanFailLog(data) {
+				t.Errorf("configMap '%s' does not have a failure log. Got: %#v", result.ResultConfigMapName, data)
+			}
+		}
+	}
+
+	// We've staged a fail, now unset the config.
+	t.Log("Unsetting the config")
+	fileIntegrity := &fileintv1alpha1.FileIntegrity{}
+	err = f.Client.Get(context.TODO(), types.NamespacedName{Name: testIntegrityName, Namespace: namespace}, fileIntegrity)
+	if err != nil {
+		t.Errorf("failed to retrieve FI object: %v\n", err)
+	}
+
+	fileIntegrityCopy := fileIntegrity.DeepCopy()
+	fileIntegrityCopy.Spec.Config = fileintv1alpha1.FileIntegrityConfig{}
+
+	err = f.Client.Update(context.TODO(), fileIntegrityCopy)
+	if err != nil {
+		t.Errorf("failed to update FI object: %v\n", err)
+	}
+
+	// wait to go active.
+	err = waitForScanStatus(t, f, namespace, testIntegrityName, fileintv1alpha1.PhaseActive)
+	if err != nil {
+		t.Errorf("Timeout waiting for scan status")
+	}
+
+	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after a re-init")
+	assertNodesConditionIsSuccess(t, f, namespace, testIntegrityName, 2*time.Second, 5*time.Minute)
+}
+
 // TestFileIntegrityConfigurationStatus tests the following:
 // - Deployment of operator and resource
 // - Successful transition from Initializing to Active

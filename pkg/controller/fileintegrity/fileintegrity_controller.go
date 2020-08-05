@@ -164,11 +164,40 @@ func (r *ReconcileFileIntegrity) retrieveAndAnnotateAideConfig(conf *corev1.Conf
 	return r.updateAideConfig(cachedconf, cachedconf.Data[common.DefaultConfDataKey])
 }
 
+func (r *ReconcileFileIntegrity) aideConfigIsDefault(instance *fileintegrityv1alpha1.FileIntegrity) (bool, error) {
+	defaultConfigMap := defaultAIDEConfigMap(instance.Name)
+	currentConfigMap := &corev1.ConfigMap{}
+	err := r.client.Get(context.TODO(), types.NamespacedName{
+		Name:      defaultConfigMap.Name,
+		Namespace: defaultConfigMap.Namespace,
+	}, currentConfigMap)
+	if err != nil {
+		return false, err
+	}
+
+	currentConfig := currentConfigMap.Data[common.DefaultConfDataKey]
+	defaultConfig := defaultConfigMap.Data[common.DefaultConfDataKey]
+
+	return currentConfig == defaultConfig, nil
+}
+
 // reconcileUserConfig checks if the user provided a configuration of their own and prepares it. Returns true if a new
 // configuration was added, false if not.
 func (r *ReconcileFileIntegrity) reconcileUserConfig(instance *fileintegrityv1alpha1.FileIntegrity,
 	reqLogger logr.Logger, currentConfig *corev1.ConfigMap) (bool, error) {
 	if len(instance.Spec.Config.Name) == 0 || len(instance.Spec.Config.Namespace) == 0 {
+		hasDefaultConfig, err := r.aideConfigIsDefault(instance)
+		if err != nil {
+			return false, err
+		}
+		if !hasDefaultConfig {
+			// The configuration was previously replaced. We want to restore it now.
+			reqLogger.Info("Restoring the AIDE configuration defaults.")
+			if err := r.updateAideConfig(currentConfig, DefaultAideConfig); err != nil {
+				return false, err
+			}
+			return true, nil
+		}
 		return false, nil
 	}
 
@@ -382,7 +411,7 @@ func defaultAIDEConfigMap(name string) *corev1.ConfigMap {
 			},
 		},
 		Data: map[string]string{
-			"aide.conf": DefaultAideConfig,
+			common.DefaultConfDataKey: DefaultAideConfig,
 		},
 	}
 }
