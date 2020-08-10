@@ -90,7 +90,7 @@ func TestFileIntegrityConfigurationRevert(t *testing.T) {
 
 	// Install the different config
 	createTestConfigMap(t, f, testIntegrityName, testConfName, namespace, testConfDataKey, testAideConfig)
-	time.Sleep(100 * time.Second)
+
 	// wait to go active.
 	err := waitForScanStatus(t, f, namespace, testIntegrityName, fileintv1alpha1.PhaseActive)
 	if err != nil {
@@ -105,7 +105,6 @@ func TestFileIntegrityConfigurationRevert(t *testing.T) {
 	if err != nil {
 		t.Errorf("Timeout waiting on node file edit")
 	}
-	time.Sleep(100 * time.Second)
 
 	// log collection should create a configmap for each node's report after the scan runs again
 	nodes, err := f.KubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
