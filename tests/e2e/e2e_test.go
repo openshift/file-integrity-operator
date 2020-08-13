@@ -70,7 +70,7 @@ func TestFileIntegrityLogAndReinitDatabase(t *testing.T) {
 	reinitFileIntegrityDatabase(t, f, testIntegrityName, namespace, time.Second, 2*time.Minute)
 
 	// wait to go active.
-	err = waitForScanStatus(t, f, namespace, testIntegrityName, fileintv1alpha1.PhaseActive)
+	err = waitForSuccessiveScanStatus(t, f, namespace, testIntegrityName, fileintv1alpha1.PhaseActive)
 	if err != nil {
 		t.Errorf("Timeout waiting for scan status")
 	}
@@ -90,9 +90,8 @@ func TestFileIntegrityConfigurationRevert(t *testing.T) {
 
 	// Install the different config
 	createTestConfigMap(t, f, testIntegrityName, testConfName, namespace, testConfDataKey, testAideConfig)
-	time.Sleep(100 * time.Second)
 	// wait to go active.
-	err := waitForScanStatus(t, f, namespace, testIntegrityName, fileintv1alpha1.PhaseActive)
+	err := waitForSuccessiveScanStatus(t, f, namespace, testIntegrityName, fileintv1alpha1.PhaseActive)
 	if err != nil {
 		t.Errorf("Timeout waiting for scan status")
 	}
@@ -105,7 +104,6 @@ func TestFileIntegrityConfigurationRevert(t *testing.T) {
 	if err != nil {
 		t.Errorf("Timeout waiting on node file edit")
 	}
-	time.Sleep(100 * time.Second)
 
 	// log collection should create a configmap for each node's report after the scan runs again
 	nodes, err := f.KubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
@@ -151,7 +149,7 @@ func TestFileIntegrityConfigurationRevert(t *testing.T) {
 	}
 
 	// wait to go active.
-	err = waitForScanStatus(t, f, namespace, testIntegrityName, fileintv1alpha1.PhaseActive)
+	err = waitForSuccessiveScanStatus(t, f, namespace, testIntegrityName, fileintv1alpha1.PhaseActive)
 	if err != nil {
 		t.Errorf("Timeout waiting for scan status")
 	}
@@ -205,7 +203,7 @@ func TestFileIntegrityConfigurationIgnoreMissing(t *testing.T) {
 	updateFileIntegrityConfig(t, f, testIntegrityName, "fooconf", namespace, "fookey", time.Second, 2*time.Minute)
 
 	// No re-init should happen, let this error pass.
-	err := waitForScanStatusWithTimeout(t, f, namespace, testIntegrityName, fileintv1alpha1.PhaseInitializing, time.Second*5, time.Second*30)
+	err := waitForScanStatusWithTimeout(t, f, namespace, testIntegrityName, fileintv1alpha1.PhaseInitializing, time.Second*5, time.Second*30, 0)
 	if err == nil {
 		t.Errorf("status changed to initialization in error")
 	}

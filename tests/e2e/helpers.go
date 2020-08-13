@@ -530,8 +530,9 @@ func createTestConfigMap(t *testing.T, f *framework.Framework, integrityName, co
 	updateFileIntegrityConfig(t, f, integrityName, configMapName, namespace, key, time.Second, 2*time.Minute)
 }
 
-func waitForScanStatusWithTimeout(t *testing.T, f *framework.Framework, namespace, name string, targetStatus fileintv1alpha1.FileIntegrityStatusPhase, interval, timeout time.Duration) error {
+func waitForScanStatusWithTimeout(t *testing.T, f *framework.Framework, namespace, name string, targetStatus fileintv1alpha1.FileIntegrityStatusPhase, interval, timeout time.Duration, successiveResults int) error {
 	exampleFileIntegrity := &fileintv1alpha1.FileIntegrity{}
+	resultNum := 0
 	// retry and ignore errors until timeout
 	err := wait.Poll(interval, timeout, func() (bool, error) {
 		getErr := f.Client.Get(goctx.TODO(), types.NamespacedName{Name: name, Namespace: namespace}, exampleFileIntegrity)
@@ -541,6 +542,11 @@ func waitForScanStatusWithTimeout(t *testing.T, f *framework.Framework, namespac
 		}
 
 		if exampleFileIntegrity.Status.Phase == targetStatus {
+			if resultNum <= successiveResults {
+				resultNum++
+				t.Logf("Got (%s) result #%d out of %d needed.", targetStatus, resultNum, successiveResults)
+				return false, nil
+			}
 			return true, nil
 		}
 		return false, nil
@@ -649,7 +655,15 @@ func assertNodesConditionIsSuccess(t *testing.T, f *framework.Framework, namespa
 // waitForScanStatus will poll until the fileintegrity that we're looking for reaches a certain status, or until
 // a timeout is reached.
 func waitForScanStatus(t *testing.T, f *framework.Framework, namespace, name string, targetStatus fileintv1alpha1.FileIntegrityStatusPhase) error {
-	return waitForScanStatusWithTimeout(t, f, namespace, name, targetStatus, retryInterval, timeout)
+	return waitForScanStatusWithTimeout(t, f, namespace, name, targetStatus, retryInterval, timeout, 0)
+}
+
+// waitForScanStatus will poll until the fileintegrity that we're looking for reaches a certain status for 5
+// poll intervals, or until a timeout is reached. The poll interval lets it avoid continuing prematurely if
+// the targetStatus is reached from a flapping condition. (i.e., Initializing -> Active -> Initializing where Active is
+// seen for a half of a second.
+func waitForSuccessiveScanStatus(t *testing.T, f *framework.Framework, namespace, name string, targetStatus fileintv1alpha1.FileIntegrityStatusPhase) error {
+	return waitForScanStatusWithTimeout(t, f, namespace, name, targetStatus, retryInterval, timeout, 5)
 }
 
 func pollUntilConfigMapDataMatches(t *testing.T, f *framework.Framework, namespace, name, key, expected string, interval, timeout time.Duration) error {
