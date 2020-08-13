@@ -155,8 +155,8 @@ $ make run
 $ make e2e
 ```
 
-## Applying an AIDE config
-It's possible to provide the file-integrity-operator with an existing aide.conf. The provided aide.conf will be automatically converted to run in a pod, so there is no need to adjust the database and file directives to accommodate the operator.
+## Overriding the AIDE configuration
+By default the AIDE containers run with an aide.conf that is tailored to a default RHCOS node. If you need to add or exclude files on nodes that are not covered by the default config, you can override it with a modified config.
 
 - Create a configMap containing the aide.conf, e.g.,
 ```
@@ -177,4 +177,7 @@ spec:
     key: aide-conf
 ```
 * At this point the operator will update the active AIDE config and perform a re-initialization of the AIDE database, as well as a restart of the AIDE pods to begin scanning with the new configuration. A backup of the logs and database from the previously applied configurations are left available on the nodes under /etc/kubernetes.
+* The operator automatically converts the `database`, `database_out`, `report_url`, `DBDIR`, and `LOGDIR` options in the configuration to accommodate running inside of a pod.
 * Removing the config section from the FileIntegrity resource when active reverts the running config to the default and re-initializes the database.
+* In the case of where small modifications are needed (such as excluding a file or directory), it's recommended to copy the [default config](https://github.com/openshift/file-integrity-operator/blob/master/pkg/controller/fileintegrity/config_defaults.go#L16) to a new configMap and add to it as needed.
+* Some AIDE configuration options may not be supported by the AIDE container. For example, the `mhash` digest types are not supported. For digest selection, it is recommended to use the default config's [CONTENT_EX group](https://github.com/openshift/file-integrity-operator/blob/master/pkg/controller/fileintegrity/config_defaults.go#L25).
