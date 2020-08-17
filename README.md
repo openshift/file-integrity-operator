@@ -97,6 +97,8 @@ example-fileintegrity-ip-10-0-210-89.us-east-2.compute.internal    4h24m
 The `results` field can contain up to three entries. The most recent Successful scan, the most recent Failed scan (if any), and the most recent Errored scan (if any). When there are multiple entries, the newest `lastProbeTime` indicates the current status.
 
 A Failed scan indicates that there were changes to the files that AIDE monitors, and displays a brief status. The `resultConfigMap` fields point to a configMap containing a more detailed report.
+
+Note: Currently the failure log is only exposed to the admin through this result configMap. In order to provide some permanence of record, the result configMaps are not owned by the fileIntegrity object, so manual cleanup is necessary.  
 ```
 $ oc get fileintegritynodestatus/example-fileintegrity-ip-10-0-139-137.us-east-2.compute.internal -o yaml
 apiVersion: fileintegrity.openshift.io/v1alpha1
