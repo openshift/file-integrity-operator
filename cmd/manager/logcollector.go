@@ -236,9 +236,9 @@ func reportOK(conf *daemonConfig, rt *daemonRuntime) {
 	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries))
 
 	if err != nil {
-		FATAL("Can't create configMap to report OK: '%v', aborting", err)
+		FATAL("Can't create configMap to report a successful scan result: '%v', aborting", err)
 	}
-	LOG("Created OK configMap '%s'", conf.LogCollectorConfigMapName)
+	DBG("Created temporary configMap '%s' to report a successful scan result", conf.LogCollectorConfigMapName)
 }
 
 func reportError(msg string, conf *daemonConfig, rt *daemonRuntime) {
@@ -256,9 +256,9 @@ func reportError(msg string, conf *daemonConfig, rt *daemonRuntime) {
 	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries))
 
 	if err != nil {
-		FATAL("Can't create configMap to report failure '%v', aborting", err)
+		FATAL("Can't create configMap to report an ERROR scan result: '%v', aborting", err)
 	}
-	LOG("Created error configMap '%s'", conf.LogCollectorConfigMapName)
+	LOG("Created temporary configMap '%s' to report an 'ERROR' scan result", conf.LogCollectorConfigMapName)
 }
 
 func uploadLog(contents []byte, compressed bool, conf *daemonConfig, rt *daemonRuntime) {
@@ -275,7 +275,7 @@ func uploadLog(contents []byte, compressed bool, conf *daemonConfig, rt *daemonR
 	if err != nil {
 		FATAL("Can't create log configMap with error '%v', aborting", err)
 	}
-	LOG("Created log configMap '%s'", conf.LogCollectorConfigMapName)
+	LOG("Created log configMap '%s' to report a failed scan result", conf.LogCollectorConfigMapName)
 }
 
 func handleRotationOrInit(rt *daemonRuntime, inode uint64) {
