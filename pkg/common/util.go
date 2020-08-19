@@ -127,22 +127,22 @@ func GetReinitDaemonSetName(name string) string {
 
 // RestartFileIntegrityDs restarts all pods that belong to a given DaemonSet. This can be
 // used to e.g. remount a configMap after it had changed or restart a FI DS after a re-init
-// had happened
-func RestartFileIntegrityDs(c client.Client, dsName string) error {
+// had happened. Node is optional and will only restart the pods on said node if specified..
+func RestartFileIntegrityDs(c client.Client, dsName, node string) error {
 	ds := &appsv1.DaemonSet{}
 	err := c.Get(context.TODO(), types.NamespacedName{Name: dsName, Namespace: FileIntegrityNamespace}, ds)
 	if err != nil {
 		return err
 	}
 
-	if err := deleteDaemonSetPods(c, ds); err != nil {
+	if err := deleteDaemonSetPods(c, ds, node); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func deleteDaemonSetPods(c client.Client, ds *appsv1.DaemonSet) error {
+func deleteDaemonSetPods(c client.Client, ds *appsv1.DaemonSet, node string) error {
 	var pods corev1.PodList
 
 	if err := c.List(context.TODO(), &pods, &client.ListOptions{
@@ -153,6 +153,10 @@ func deleteDaemonSetPods(c client.Client, ds *appsv1.DaemonSet) error {
 	}
 
 	for _, pod := range pods.Items {
+		// Only delete the pod on the node if specified.
+		if len(node) > 0 && pod.Spec.NodeName != node {
+			continue
+		}
 		err := c.Delete(context.TODO(), &pod, &client.DeleteOptions{})
 		if err != nil {
 			return err

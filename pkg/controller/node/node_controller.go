@@ -138,7 +138,7 @@ func (r *ReconcileNode) Reconcile(request reconcile.Request) (reconcile.Result, 
 			// No update is taking place or it's done already or
 			// MCO can't update a host, might as well not hold the integrity checks
 			relevantFIs := r.getAnnotatedFileIntegrities(fis)
-			if err := r.removeHoldoffAnnotationAndReinitFileIntegrityDatabases(relevantFIs); err != nil {
+			if err := r.removeHoldoffAnnotationAndReinitFileIntegrityDatabases(relevantFIs, node); err != nil {
 				return reconcile.Result{}, err
 			}
 			// reinit database && remove holdoff annotation
@@ -272,12 +272,13 @@ func (r *ReconcileNode) getAnnotatedFileIntegrities(fis []*fiv1alpha1.FileIntegr
 	return annotatedFIs
 }
 
-func (r *ReconcileNode) removeHoldoffAnnotationAndReinitFileIntegrityDatabases(fis []*fiv1alpha1.FileIntegrity) error {
+func (r *ReconcileNode) removeHoldoffAnnotationAndReinitFileIntegrityDatabases(fis []*fiv1alpha1.FileIntegrity, node *corev1.Node) error {
 	for _, fi := range fis {
 		// Only reinit for FIs that were previously in holdoff.
 		if _, ok := fi.Annotations[common.IntegrityHoldoffAnnotationKey]; ok {
 			fiCopy := fi.DeepCopy()
 			fiCopy.Annotations[common.AideDatabaseReinitAnnotationKey] = ""
+			fiCopy.Annotations[common.AideDatabaseReinitNodeAnnotationKey] = node.Name
 			delete(fiCopy.Annotations, common.IntegrityHoldoffAnnotationKey)
 			if err := r.client.Update(context.TODO(), fiCopy); err != nil {
 				return err
