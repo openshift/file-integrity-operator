@@ -117,7 +117,7 @@ results:
 
 $ oc get cm/aide-ds-example-fileintegrity-ip-10-0-139-137.us-east-2.compute.internal-failed -n openshift-file-integrity -o jsonpath="{ .data.integritylog }"
 AIDE 0.15.1 found differences between database and filesystem!!
-Start timestamp: 2020-06-18 02:00:39
+Start timestamp: 2020-06-18 02:00:38
 
 Summary:
   Total number of files:        29447
