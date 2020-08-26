@@ -141,7 +141,9 @@ func TestFileIntegrityConfigurationRevert(t *testing.T) {
 	}
 
 	fileIntegrityCopy := fileIntegrity.DeepCopy()
-	fileIntegrityCopy.Spec.Config = fileintv1alpha1.FileIntegrityConfig{}
+	fileIntegrityCopy.Spec.Config = fileintv1alpha1.FileIntegrityConfig{
+		GracePeriod: defaultTestGracePeriod,
+	}
 
 	err = f.Client.Update(context.TODO(), fileIntegrityCopy)
 	if err != nil {
@@ -300,7 +302,7 @@ func TestFileIntegrityChangeGracePeriod(t *testing.T) {
 	}
 
 	// get daemonSet, make sure there's the default sleep
-	defaultSleep := fmt.Sprintf("--interval=%d", common.DefaultGracePeriod)
+	defaultSleep := fmt.Sprintf("--interval=%d", defaultTestGracePeriod)
 	err = assertDSPodHasArg(t, f, testIntegrityName, namespace, defaultSleep, time.Second*5, time.Minute*5)
 	if err != nil {
 		t.Errorf("pod spec didn't contain the expected sleep: %v\n", err)
@@ -314,7 +316,7 @@ func TestFileIntegrityChangeGracePeriod(t *testing.T) {
 		t.Errorf("failed to retrieve FI object: %v\n", err)
 	}
 
-	newGracePeriod := common.DefaultGracePeriod * 2
+	newGracePeriod := 30
 	fileIntegrityCopy := fileIntegrity.DeepCopy()
 	fileIntegrityCopy.Spec = fileintv1alpha1.FileIntegritySpec{
 		Config: fileintv1alpha1.FileIntegrityConfig{
