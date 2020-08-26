@@ -46,6 +46,6 @@ const (
 	IntegrityCheckHoldoffFilePath = "/hostroot/etc/kubernetes/holdoff"
 	// IntegrityHoldoffAnnotationKey indicates that there was an error in the logcollector
 	IntegrityHoldoffAnnotationKey = "file-integrity.openshift.io/holdoff"
-	// The minimal and at the same time default gracePeriod
-	DefaultGracePeriod = 10
+	// The default gracePeriod
+	DefaultGracePeriod = 900
 )

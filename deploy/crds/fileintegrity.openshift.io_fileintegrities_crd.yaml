@@ -36,6 +36,7 @@ spec:
                   data key for an AIDE config to use for integrity checking.
                 properties:
                   gracePeriod:
+                    default: 900
                     description: Time between individual aide scans
                     type: integer
                   key:
