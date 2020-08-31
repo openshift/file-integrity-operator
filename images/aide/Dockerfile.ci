@@ -1,2 +1,2 @@
-FROM registry.svc.ci.openshift.org/origin/4.3:base
+FROM registry.svc.ci.openshift.org/origin/4.6:base
 RUN yum install -y aide && yum clean all
