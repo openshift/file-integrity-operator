@@ -1,3 +1,3 @@
-FROM rhel:7
+FROM rhel:8
 
 RUN yum -y install aide && yum clean all

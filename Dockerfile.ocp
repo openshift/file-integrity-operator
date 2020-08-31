@@ -1,5 +1,5 @@
 # Step one: build file-integrity-operator
-FROM registry.svc.ci.openshift.org/ocp/builder:rhel-7-golang-1.13 AS builder
+FROM registry.svc.ci.openshift.org/ocp/builder:rhel-8-golang-openshift-4.6 AS builder
 
 WORKDIR /go/src/github.com/openshift/file-integrity-operator
 
@@ -10,7 +10,7 @@ COPY . .
 RUN make operator-bin
 
 # Step two: containerize file-integrity-operator and AIDE together
-FROM rhel7
+FROM rhel8
 RUN yum -y install aide && yum clean all
 
 ENV OPERATOR=/usr/local/bin/file-integrity-operator \

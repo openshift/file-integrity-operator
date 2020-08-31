@@ -10,7 +10,7 @@ COPY . .
 RUN make operator-bin
 
 # Step two: containerize file-integrity-operator and AIDE together
-FROM centos:centos7
+FROM centos:centos8
 RUN yum -y install aide && yum clean all
 
 ENV OPERATOR=/usr/local/bin/file-integrity-operator \
