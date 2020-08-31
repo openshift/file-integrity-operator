@@ -250,6 +250,38 @@ namespace:
 	@echo "Creating '$(NAMESPACE)' namespace/project"
 	@oc create -f deploy/ns.yaml || true
 
+.PHONY: deploy
+deploy: namespace deploy-crds ## Deploy the operator from the manifests in the deploy/ directory
+	@oc apply -n $(NAMESPACE) -f deploy/
+
+.PHONY: deploy-local
+deploy-local: namespace image-to-cluster deploy-crds ## Deploy the operator from the manifests in the deploy/ directory and the images from a local build
+	@sed -i 's%$(IMAGE_REPO)/$(APP_NAME):latest%$(RELATED_IMAGE_OPERATOR_PATH)%' deploy/operator.yaml
+	@oc apply -n $(NAMESPACE) -f deploy/
+	@sed -i 's%$(RELATED_IMAGE_OPERATOR_PATH)%$(IMAGE_REPO)/$(APP_NAME):latest%' deploy/operator.yaml
+
+.PHONY: deploy-crds
+deploy-crds:
+	@for crd in $(shell ls -1 deploy/crds/*crd.yaml) ; do \
+		oc apply -f $$crd ; \
+	done
+
+.PHONY: tear-down
+tear-down: tear-down-crds tear-down-operator ## Tears down all objects required for the operator except the namespace
+
+
+.PHONY: tear-down-crds
+tear-down-crds:
+	@for crd in $(shell ls -1 deploy/crds/*crd.yaml) ; do \
+		oc delete --ignore-not-found -f $$crd ; \
+	done
+
+.PHONY: tear-down-operator
+tear-down-operator:
+	@for manifest in $(shell ls -1 deploy/*.yaml | grep -v ns.yaml) ; do \
+		oc delete --ignore-not-found -f $$manifest ; \
+	done
+
 .PHONY: openshift-user
 openshift-user:
 ifeq ($(shell oc whoami 2>/dev/null),kube:admin)
