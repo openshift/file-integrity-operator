@@ -43,6 +43,7 @@ const (
 	testConfDataKey        = "conf"
 	nodeWorkerRoleLabelKey = "node-role.kubernetes.io/worker"
 	mcWorkerRoleLabelKey   = "machineconfiguration.openshift.io/role"
+	defaultTestGracePeriod = 20
 )
 
 var mcLabelForWorkerRole = map[string]string{
@@ -338,7 +339,9 @@ func setupTolerationTest(t *testing.T) (*framework.Framework, *framework.Context
 				// Schedule on the tainted host
 				corev1.LabelHostname: taintedNode.Labels[corev1.LabelHostname],
 			},
-			Config: fileintv1alpha1.FileIntegrityConfig{},
+			Config: fileintv1alpha1.FileIntegrityConfig{
+				GracePeriod: defaultTestGracePeriod,
+			},
 			Tolerations: []corev1.Toleration{
 				{
 					Key:      taintKey,
@@ -405,7 +408,9 @@ func setupTest(t *testing.T) (*framework.Framework, *framework.Context, string) 
 		},
 		Spec: fileintv1alpha1.FileIntegritySpec{
 			NodeSelector: nodeLabelForWorkerRole,
-			Config:       fileintv1alpha1.FileIntegrityConfig{},
+			Config: fileintv1alpha1.FileIntegrityConfig{
+				GracePeriod: defaultTestGracePeriod,
+			},
 		},
 	}
 	cleanupOptions := framework.CleanupOptions{
@@ -467,9 +472,10 @@ func updateFileIntegrityConfig(t *testing.T, f *framework.Framework, integrityNa
 		fileIntegrityCopy := fileIntegrity.DeepCopy()
 		fileIntegrityCopy.Spec = fileintv1alpha1.FileIntegritySpec{
 			Config: fileintv1alpha1.FileIntegrityConfig{
-				Name:      configMapName,
-				Namespace: namespace,
-				Key:       key,
+				Name:        configMapName,
+				Namespace:   namespace,
+				Key:         key,
+				GracePeriod: defaultTestGracePeriod,
 			},
 		}
 

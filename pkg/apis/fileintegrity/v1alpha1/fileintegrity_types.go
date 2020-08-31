@@ -42,6 +42,7 @@ type FileIntegrityConfig struct {
 	Namespace string `json:"namespace,omitempty"`
 	Key       string `json:"key,omitempty"`
 	// Time between individual aide scans
+	// +kubebuilder:default=900
 	GracePeriod int `json:"gracePeriod,omitempty"`
 }
 
