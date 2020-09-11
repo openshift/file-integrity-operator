@@ -41,9 +41,6 @@ spec:
       version: v1alpha1
   description: An operator that manages file integrity checks on nodes.
   displayName: File Integrity Operator
-  icon:
-  - base64data: ""
-    mediatype: ""
   install:
     spec:
       clusterPermissions:
