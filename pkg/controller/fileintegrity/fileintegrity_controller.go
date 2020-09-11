@@ -124,6 +124,10 @@ func (r *ReconcileFileIntegrity) createReinitDaemonSet(instance *fileintegrityv1
 	dsName := common.GetReinitDaemonSetName(instance.Name)
 	dsNamespace := common.FileIntegrityNamespace
 
+	node := instance.Labels[common.AideDatabaseReinitNodeAnnotationKey]
+	if len(node) > 0 {
+		dsName += "-" + node
+	}
 	err := r.client.Get(context.TODO(), types.NamespacedName{Name: dsName, Namespace: dsNamespace}, daemonSet)
 	if err == nil {
 		// Exists, so continue.
@@ -134,7 +138,7 @@ func (r *ReconcileFileIntegrity) createReinitDaemonSet(instance *fileintegrityv1
 		return err
 	}
 
-	ds := reinitAideDaemonset(common.GetReinitDaemonSetName(instance.Name), instance)
+	ds := reinitAideDaemonset(instance, dsName, node)
 	if err := controllerutil.SetControllerReference(instance, ds, r.scheme); err != nil {
 		return err
 	}
@@ -142,7 +146,7 @@ func (r *ReconcileFileIntegrity) createReinitDaemonSet(instance *fileintegrityv1
 	return r.client.Create(context.TODO(), ds)
 }
 
-func (r *ReconcileFileIntegrity) updateAideConfig(conf *corev1.ConfigMap, data string) error {
+func (r *ReconcileFileIntegrity) updateAideConfig(instance *fileintegrityv1alpha1.FileIntegrity, conf *corev1.ConfigMap, data string) error {
 	confCopy := conf.DeepCopy()
 	confCopy.Data[common.DefaultConfDataKey] = data
 
@@ -152,16 +156,20 @@ func (r *ReconcileFileIntegrity) updateAideConfig(conf *corev1.ConfigMap, data s
 
 	// Mark the configMap as updated by the user-provided config, for the configMap-controller to trigger an update.
 	confCopy.Annotations[common.AideConfigUpdatedAnnotationKey] = "true"
+	node := instance.Annotations[common.AideDatabaseReinitNodeAnnotationKey]
+	if len(node) > 0 {
+		confCopy.Annotations[common.AideDatabaseReinitNodeAnnotationKey] = node
+	}
 
 	return r.client.Update(context.TODO(), confCopy)
 }
 
-func (r *ReconcileFileIntegrity) retrieveAndAnnotateAideConfig(conf *corev1.ConfigMap) error {
+func (r *ReconcileFileIntegrity) retrieveAndAnnotateAideConfig(instance *fileintegrityv1alpha1.FileIntegrity, conf *corev1.ConfigMap) error {
 	cachedconf := &corev1.ConfigMap{}
 	// Get the latest config...
 	r.client.Get(context.TODO(), types.NamespacedName{Name: conf.Name, Namespace: conf.Namespace}, cachedconf)
 
-	return r.updateAideConfig(cachedconf, cachedconf.Data[common.DefaultConfDataKey])
+	return r.updateAideConfig(instance, cachedconf, cachedconf.Data[common.DefaultConfDataKey])
 }
 
 func (r *ReconcileFileIntegrity) aideConfigIsDefault(instance *fileintegrityv1alpha1.FileIntegrity) (bool, error) {
@@ -193,7 +201,7 @@ func (r *ReconcileFileIntegrity) reconcileUserConfig(instance *fileintegrityv1al
 		if !hasDefaultConfig {
 			// The configuration was previously replaced. We want to restore it now.
 			reqLogger.Info("Restoring the AIDE configuration defaults.")
-			if err := r.updateAideConfig(currentConfig, DefaultAideConfig); err != nil {
+			if err := r.updateAideConfig(instance, currentConfig, DefaultAideConfig); err != nil {
 				return false, err
 			}
 			return true, nil
@@ -241,7 +249,7 @@ func (r *ReconcileFileIntegrity) reconcileUserConfig(instance *fileintegrityv1al
 		return false, nil
 	}
 
-	if err := r.updateAideConfig(currentConfig, preparedConf); err != nil {
+	if err := r.updateAideConfig(instance, currentConfig, preparedConf); err != nil {
 		return false, err
 	}
 
@@ -305,7 +313,7 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 	// Remove re-init annotation
 	if forceReinit {
 		reqLogger.Info("Annotating AIDE config to be updated.")
-		if err := r.retrieveAndAnnotateAideConfig(defaultAideConf); err != nil {
+		if err := r.retrieveAndAnnotateAideConfig(instance, defaultAideConf); err != nil {
 			return reconcile.Result{}, err
 		}
 		fiCopy := instance.DeepCopy()
@@ -348,7 +356,7 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 				return reconcile.Result{}, err
 			}
 
-			err := common.RestartFileIntegrityDs(r.client, common.GetDaemonSetName(instance.Name))
+			err := common.RestartFileIntegrityDs(r.client, common.GetDaemonSetName(instance.Name), "")
 			if err != nil {
 				return reconcile.Result{}, err
 			}
@@ -442,10 +450,86 @@ func aidePauseScript() *corev1.ConfigMap {
 
 // reinitAideDaemonset returns a DaemonSet that runs a one-shot pod on each node. This pod touches a file
 // on the host OS that informs the AIDE daemon to back up and reinitialize the AIDE db.
-func reinitAideDaemonset(reinitDaemonSetName string, fi *fileintegrityv1alpha1.FileIntegrity) *appsv1.DaemonSet {
+func reinitAideDaemonset(fi *fileintegrityv1alpha1.FileIntegrity, reinitDaemonSetName, node string) *appsv1.DaemonSet {
 	priv := true
 	runAs := int64(0)
 	mode := int32(0744)
+
+	podSpec := corev1.PodSpec{
+		Tolerations:        fi.Spec.Tolerations,
+		ServiceAccountName: common.OperatorServiceAccountName,
+		InitContainers: []corev1.Container{
+			{
+				SecurityContext: &corev1.SecurityContext{
+					Privileged: &priv,
+					RunAsUser:  &runAs,
+				},
+				Name:    "aide",
+				Image:   common.GetComponentImage(common.AIDE),
+				Command: []string{common.AideScriptPath},
+				VolumeMounts: []corev1.VolumeMount{
+					{
+						Name:      "hostroot",
+						MountPath: "/hostroot",
+					},
+					{
+						Name:      common.AideReinitScriptConfigMapName,
+						MountPath: "/scripts",
+					},
+				},
+			},
+		},
+		// make this an endless loop
+		Containers: []corev1.Container{
+			{
+				Name:    "pause",
+				Command: []string{common.PausePath},
+				Image:   common.GetComponentImage(common.AIDE),
+				VolumeMounts: []corev1.VolumeMount{
+					{
+						Name:      common.PauseConfigMapName,
+						MountPath: "/scripts",
+					},
+				},
+			},
+		},
+		Volumes: []corev1.Volume{
+			{
+				Name: "hostroot",
+				VolumeSource: corev1.VolumeSource{
+					HostPath: &corev1.HostPathVolumeSource{
+						Path: "/",
+					},
+				},
+			},
+			{
+				Name: common.AideReinitScriptConfigMapName,
+				VolumeSource: corev1.VolumeSource{
+					ConfigMap: &corev1.ConfigMapVolumeSource{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: common.AideReinitScriptConfigMapName,
+						},
+						DefaultMode: &mode,
+					},
+				},
+			},
+			{
+				Name: common.PauseConfigMapName,
+				VolumeSource: corev1.VolumeSource{
+					ConfigMap: &corev1.ConfigMapVolumeSource{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: common.PauseConfigMapName,
+						},
+						DefaultMode: &mode,
+					},
+				},
+			},
+		},
+	}
+
+	if len(node) > 0 {
+		podSpec.NodeName = node
+	}
 
 	return &appsv1.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{
@@ -464,78 +548,7 @@ func reinitAideDaemonset(reinitDaemonSetName string, fi *fileintegrityv1alpha1.F
 						"app": reinitDaemonSetName,
 					},
 				},
-				Spec: corev1.PodSpec{
-					NodeSelector:       fi.Spec.NodeSelector,
-					Tolerations:        fi.Spec.Tolerations,
-					ServiceAccountName: common.OperatorServiceAccountName,
-					InitContainers: []corev1.Container{
-						{
-							SecurityContext: &corev1.SecurityContext{
-								Privileged: &priv,
-								RunAsUser:  &runAs,
-							},
-							Name:    "aide",
-							Image:   common.GetComponentImage(common.AIDE),
-							Command: []string{common.AideScriptPath},
-							VolumeMounts: []corev1.VolumeMount{
-								{
-									Name:      "hostroot",
-									MountPath: "/hostroot",
-								},
-								{
-									Name:      common.AideReinitScriptConfigMapName,
-									MountPath: "/scripts",
-								},
-							},
-						},
-					},
-					// make this an endless loop
-					Containers: []corev1.Container{
-						{
-							Name:    "pause",
-							Command: []string{common.PausePath},
-							Image:   common.GetComponentImage(common.AIDE),
-							VolumeMounts: []corev1.VolumeMount{
-								{
-									Name:      common.PauseConfigMapName,
-									MountPath: "/scripts",
-								},
-							},
-						},
-					},
-					Volumes: []corev1.Volume{
-						{
-							Name: "hostroot",
-							VolumeSource: corev1.VolumeSource{
-								HostPath: &corev1.HostPathVolumeSource{
-									Path: "/",
-								},
-							},
-						},
-						{
-							Name: common.AideReinitScriptConfigMapName,
-							VolumeSource: corev1.VolumeSource{
-								ConfigMap: &corev1.ConfigMapVolumeSource{
-									LocalObjectReference: corev1.LocalObjectReference{
-										Name: common.AideReinitScriptConfigMapName,
-									},
-									DefaultMode: &mode,
-								},
-							},
-						},
-						{
-							Name: common.PauseConfigMapName,
-							VolumeSource: corev1.VolumeSource{
-								ConfigMap: &corev1.ConfigMapVolumeSource{
-									LocalObjectReference: corev1.LocalObjectReference{
-										Name: common.PauseConfigMapName,
-									},
-									DefaultMode: &mode,
-								},
-							},
-						},
-					},
-				},
+				Spec: podSpec,
 			},
 		},
 	}
