@@ -34,8 +34,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/dynamic"
 
 	"github.com/openshift/file-integrity-operator/pkg/common"
 )
@@ -77,22 +75,6 @@ func getValidStringArg(cmd *cobra.Command, name string) string {
 		FATAL("The command line argument '%s' is mandatory", name)
 	}
 	return val
-}
-
-func getFileIntegrityInstance(name, namespace string, dynclient dynamic.Interface) (*unstructured.Unstructured, error) {
-	DBG("Getting FileIntegrity %s/%s", namespace, name)
-
-	fiResource := schema.GroupVersionResource{
-		Group:    crdGroup,
-		Version:  crdAPIVersion,
-		Resource: crdPlurals,
-	}
-	fi, err := dynclient.Resource(fiResource).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
-	if err != nil {
-		return nil, err
-	}
-
-	return fi, nil
 }
 
 func getNonEmptyFileAndInode(filename string) (*os.File, uint64) {
@@ -226,12 +208,9 @@ func getInformationalConfigMap(owner *unstructured.Unstructured, configMapName s
 // reportOK creates a blank configMap with no error annotation. This is treated by the controller as an OK signal.
 func reportOK(conf *daemonConfig, rt *daemonRuntime) {
 	err := backoff.Retry(func() error {
-		fi, err := getFileIntegrityInstance(conf.LogCollectorFileIntegrityName, conf.LogCollectorNamespace, rt.dynclient)
-		if err != nil {
-			return err
-		}
+		fi := rt.GetFileIntegrityInstance()
 		confMap := getInformationalConfigMap(fi, conf.LogCollectorConfigMapName, conf.LogCollectorNode, nil)
-		_, err = rt.clientset.CoreV1().ConfigMaps(conf.LogCollectorNamespace).Create(context.TODO(), confMap, metav1.CreateOptions{})
+		_, err := rt.clientset.CoreV1().ConfigMaps(conf.Namespace).Create(context.TODO(), confMap, metav1.CreateOptions{})
 		return err
 	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries))
 
@@ -243,15 +222,12 @@ func reportOK(conf *daemonConfig, rt *daemonRuntime) {
 
 func reportError(msg string, conf *daemonConfig, rt *daemonRuntime) {
 	err := backoff.Retry(func() error {
-		fi, err := getFileIntegrityInstance(conf.LogCollectorFileIntegrityName, conf.LogCollectorNamespace, rt.dynclient)
-		if err != nil {
-			return err
-		}
+		fi := rt.GetFileIntegrityInstance()
 		annotations := map[string]string{
 			common.IntegrityLogErrorAnnotationKey: msg,
 		}
 		confMap := getInformationalConfigMap(fi, conf.LogCollectorConfigMapName, conf.LogCollectorNode, annotations)
-		_, err = rt.clientset.CoreV1().ConfigMaps(conf.LogCollectorNamespace).Create(context.TODO(), confMap, metav1.CreateOptions{})
+		_, err := rt.clientset.CoreV1().ConfigMaps(conf.Namespace).Create(context.TODO(), confMap, metav1.CreateOptions{})
 		return err
 	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries))
 
@@ -263,12 +239,9 @@ func reportError(msg string, conf *daemonConfig, rt *daemonRuntime) {
 
 func uploadLog(contents []byte, compressed bool, conf *daemonConfig, rt *daemonRuntime) {
 	err := backoff.Retry(func() error {
-		fi, err := getFileIntegrityInstance(conf.LogCollectorFileIntegrityName, conf.LogCollectorNamespace, rt.dynclient)
-		if err != nil {
-			return err
-		}
+		fi := rt.GetFileIntegrityInstance()
 		confMap := getLogConfigMap(fi, conf.LogCollectorConfigMapName, common.IntegrityLogContentKey, conf.LogCollectorNode, contents, compressed)
-		_, err = rt.clientset.CoreV1().ConfigMaps(conf.LogCollectorNamespace).Create(context.TODO(), confMap, metav1.CreateOptions{})
+		_, err := rt.clientset.CoreV1().ConfigMaps(conf.Namespace).Create(context.TODO(), confMap, metav1.CreateOptions{})
 		return err
 	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries))
 
