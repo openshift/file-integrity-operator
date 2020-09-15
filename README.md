@@ -98,7 +98,8 @@ The `results` field can contain up to three entries. The most recent Successful 
 
 A Failed scan indicates that there were changes to the files that AIDE monitors, and displays a brief status. The `resultConfigMap` fields point to a configMap containing a more detailed report.
 
-Note: Currently the failure log is only exposed to the admin through this result configMap. In order to provide some permanence of record, the result configMaps are not owned by the fileIntegrity object, so manual cleanup is necessary.  
+Note: Currently the failure log is only exposed to the admin through this result configMap. In order to provide some permanence of record, the result configMaps are not owned by the fileIntegrity object, so manual cleanup is necessary. Additionally, deleting the fileIntegrity object leaves the AIDE database on the nodes, and the scan state will resume if the fileIntegrity is re-created.
+
 ```
 $ oc get fileintegritynodestatus/example-fileintegrity-ip-10-0-139-137.us-east-2.compute.internal -o yaml
 apiVersion: fileintegrity.openshift.io/v1alpha1
@@ -183,3 +184,4 @@ spec:
 * Removing the config section from the FileIntegrity resource when active reverts the running config to the default and re-initializes the database.
 * In the case of where small modifications are needed (such as excluding a file or directory), it's recommended to copy the [default config](https://github.com/openshift/file-integrity-operator/blob/master/pkg/controller/fileintegrity/config_defaults.go#L16) to a new configMap and add to it as needed.
 * Some AIDE configuration options may not be supported by the AIDE container. For example, the `mhash` digest types are not supported. For digest selection, it is recommended to use the default config's [CONTENT_EX group](https://github.com/openshift/file-integrity-operator/blob/master/pkg/controller/fileintegrity/config_defaults.go#L25).
+* Manually re-initializing the AIDE database can be done by adding the annotation key `file-integrity.openshift.io/re-init` to the fileIntegrity object.
