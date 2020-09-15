@@ -25,8 +25,14 @@ import (
 	"time"
 
 	"k8s.io/api/events/v1beta1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/watch"
 
+	"github.com/cenkalti/backoff/v3"
 	"github.com/openshift/file-integrity-operator/pkg/common"
 
 	"github.com/spf13/cobra"
@@ -56,14 +62,14 @@ func init() {
 }
 
 type daemonConfig struct {
-	LogCollectorFile              string
-	LogCollectorFileIntegrityName string
-	LogCollectorConfigMapName     string
-	LogCollectorNamespace         string
-	LogCollectorNode              string
-	LogCollectorTimeout           int64
-	Interval                      int64
-	LogCollectorCompress          bool
+	LogCollectorFile          string
+	FileIntegrityName         string
+	LogCollectorConfigMapName string
+	Namespace                 string
+	LogCollectorNode          string
+	LogCollectorTimeout       int64
+	Interval                  int64
+	LogCollectorCompress      bool
 }
 
 type daemonRuntime struct {
@@ -77,6 +83,8 @@ type daemonRuntime struct {
 	holdingMux             sync.Mutex
 	result                 chan int
 	dbMux                  sync.Mutex
+	fiInstance             *unstructured.Unstructured
+	instanceMux            sync.Mutex
 }
 
 func (rt *daemonRuntime) Initializing() bool {
@@ -119,11 +127,31 @@ func (rt *daemonRuntime) UnlockAideFiles(fun string) {
 	rt.dbMux.Unlock()
 }
 
+func (rt *daemonRuntime) GetFileIntegrityInstance() *unstructured.Unstructured {
+	for {
+		rt.instanceMux.Lock()
+		if rt.fiInstance == nil {
+			rt.instanceMux.Unlock()
+			DBG("Still waiting for file integrity instance initialization")
+			time.Sleep(time.Second)
+			continue
+		}
+		defer rt.instanceMux.Unlock()
+		return rt.fiInstance
+	}
+}
+
+func (rt *daemonRuntime) SetFileIntegrityInstance(fi *unstructured.Unstructured) {
+	rt.instanceMux.Lock()
+	rt.fiInstance = fi
+	rt.instanceMux.Unlock()
+}
+
 func defineFlags(cmd *cobra.Command) {
 	cmd.Flags().String("lc-file", "", "The log file to collect.")
-	cmd.Flags().String("lc-owner", "", "The FileIntegrity object to set as owner of the created configMap objects.")
+	cmd.Flags().String("owner", "", "The FileIntegrity object to set as owner of the created configMap objects.")
 	cmd.Flags().String("lc-config-map-prefix", "", "Prefix for the configMap name, typically the podname.")
-	cmd.Flags().String("lc-namespace", "Running pod namespace.", ".")
+	cmd.Flags().String("namespace", "Running pod namespace.", ".")
 	cmd.Flags().Int64("lc-timeout", defaultTimeout, "How long to poll for the log and indicator files in seconds.")
 	cmd.Flags().Int64("interval", common.DefaultGracePeriod, "How often to recheck for AIDE results.")
 	cmd.Flags().Bool("lc-compress", false, "Use gzip+base64 to compress the log file contents.")
@@ -133,8 +161,8 @@ func defineFlags(cmd *cobra.Command) {
 func parseDaemonConfig(cmd *cobra.Command) *daemonConfig {
 	var conf daemonConfig
 	conf.LogCollectorFile = getValidStringArg(cmd, "lc-file")
-	conf.LogCollectorFileIntegrityName = getValidStringArg(cmd, "lc-owner")
-	conf.LogCollectorNamespace = getValidStringArg(cmd, "lc-namespace")
+	conf.FileIntegrityName = getValidStringArg(cmd, "owner")
+	conf.Namespace = getValidStringArg(cmd, "namespace")
 	conf.LogCollectorNode = os.Getenv("NODE_NAME")
 	conf.LogCollectorConfigMapName = getConfigMapName(getValidStringArg(cmd, "lc-config-map-prefix"), conf.LogCollectorNode)
 	conf.LogCollectorTimeout, _ = cmd.Flags().GetInt64("lc-timeout")
@@ -176,6 +204,8 @@ func daemonMainLoop(cmd *cobra.Command, args []string) {
 	holdOffLoopDone := make(chan bool)
 	aideLoopDone := make(chan bool)
 	logCollectorLoopDone := make(chan bool)
+	integrityInstanceLoopDone := make(chan bool)
+	go integrityInstanceLoop(rt, conf, integrityInstanceLoopDone)
 	go reinitLoop(rt, conf, reinitLoopDone)
 	go holdOffLoop(rt, conf, holdOffLoopDone)
 	go aideLoop(rt, conf, aideLoopDone)
@@ -191,6 +221,8 @@ func daemonMainLoop(cmd *cobra.Command, args []string) {
 		FATAL("%v", fmt.Errorf("aide errored"))
 	case <-logCollectorLoopDone:
 		FATAL("%v", fmt.Errorf("log-collector errored"))
+	case <-integrityInstanceLoopDone:
+		FATAL("%v", fmt.Errorf("instance watcher errored"))
 	}
 }
 
@@ -225,14 +257,18 @@ func aideLoop(rt *daemonRuntime, conf *daemonConfig, exit chan bool) {
 // We do not make this pause the logCollector loop, and we might want to.
 func holdOffLoop(rt *daemonRuntime, conf *daemonConfig, exit chan bool) {
 	for {
-		_, statErr := os.Stat(aideHoldoffFile)
-		if statErr == nil {
-			rt.SetHolding("holdOffLoop", true)
-		} else if os.IsNotExist(statErr) {
+		fi := rt.GetFileIntegrityInstance()
+		annotations := fi.GetAnnotations()
+		if annotations == nil {
+			// No need to hold off since there is no annotations
 			rt.SetHolding("holdOffLoop", false)
 		} else {
-			LOG("stat error on %s: %v", aideHoldoffFile, statErr)
-			// TODO: Handle this error properly
+			_, foundHoldOff := annotations[common.IntegrityHoldoffAnnotationKey]
+			if foundHoldOff {
+				rt.SetHolding("holdOffLoop", true)
+			} else {
+				rt.SetHolding("holdOffLoop", false)
+			}
 		}
 		time.Sleep(time.Second)
 	}
@@ -262,7 +298,7 @@ func reinitLoop(rt *daemonRuntime, conf *daemonConfig, exit chan bool) {
 
 			if err := backUpAideFiles(); err != nil {
 				LOG(err.Error())
-				_, eventErr := rt.clientset.EventsV1beta1().Events(conf.LogCollectorNamespace).Create(context.TODO(), &v1beta1.Event{
+				_, eventErr := rt.clientset.EventsV1beta1().Events(conf.Namespace).Create(context.TODO(), &v1beta1.Event{
 					EventTime:           v1.NowMicro(),
 					ReportingController: "file-integrity-operator-daemon",
 					Reason:              fmt.Sprintf("Error backing up the aide files: %v", err),
@@ -277,7 +313,7 @@ func reinitLoop(rt *daemonRuntime, conf *daemonConfig, exit chan bool) {
 
 			if err := initAideLog(); err != nil {
 				LOG(err.Error())
-				_, eventErr := rt.clientset.EventsV1beta1().Events(conf.LogCollectorNamespace).Create(context.TODO(), &v1beta1.Event{
+				_, eventErr := rt.clientset.EventsV1beta1().Events(conf.Namespace).Create(context.TODO(), &v1beta1.Event{
 					EventTime:           v1.NowMicro(),
 					ReportingController: "file-integrity-operator-daemon",
 					Reason:              fmt.Sprintf("Error initializing the aide log: %v", err),
@@ -298,7 +334,7 @@ func reinitLoop(rt *daemonRuntime, conf *daemonConfig, exit chan bool) {
 
 			if err := removeAideReinitFile(); err != nil {
 				LOG(err.Error())
-				_, eventErr := rt.clientset.EventsV1beta1().Events(conf.LogCollectorNamespace).Create(context.TODO(), &v1beta1.Event{
+				_, eventErr := rt.clientset.EventsV1beta1().Events(conf.Namespace).Create(context.TODO(), &v1beta1.Event{
 					EventTime:           v1.NowMicro(),
 					ReportingController: "file-integrity-operator-daemon",
 					Reason:              fmt.Sprintf("Error removing the re-initialization file: %v", err),
@@ -316,6 +352,56 @@ func reinitLoop(rt *daemonRuntime, conf *daemonConfig, exit chan bool) {
 		rt.SetInitializing("reinitLoop", false)
 		time.Sleep(time.Second)
 	}
+}
+
+func integrityInstanceLoop(rt *daemonRuntime, conf *daemonConfig, exit chan bool) {
+	DBG("Getting FileIntegrity %s/%s", conf.Namespace, conf.FileIntegrityName)
+
+	fiResource := schema.GroupVersionResource{
+		Group:    crdGroup,
+		Version:  crdAPIVersion,
+		Resource: crdPlurals,
+	}
+
+	err := backoff.Retry(func() error {
+		// Set initial instance
+		fi, err := rt.dynclient.Resource(fiResource).Namespace(conf.Namespace).Get(context.TODO(), conf.FileIntegrityName, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+
+		rt.SetFileIntegrityInstance(fi)
+		return nil
+	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries))
+
+	if err != nil {
+		DBG("Couldn't get file integrity object: %s", conf.FileIntegrityName)
+		exit <- true
+	}
+
+	listopts := metav1.ListOptions{
+		FieldSelector: fields.OneTermEqualSelector("metadata.name", conf.FileIntegrityName).String(),
+	}
+	watcher, err := rt.dynclient.Resource(fiResource).Namespace(conf.Namespace).Watch(context.TODO(), listopts)
+	if err != nil {
+		DBG("Couldn't watch file integrity object: %s", conf.FileIntegrityName)
+		exit <- true
+	}
+	ch := watcher.ResultChan()
+	for event := range ch {
+		if event.Type == watch.Error {
+			DBG("Got an error from watching the file integrity object: %v", event.Object)
+			continue
+		}
+		fi, ok := event.Object.(*unstructured.Unstructured)
+		if !ok {
+			DBG("Could not cast the integrity object as unstructured: %v", event.Object)
+			continue
+		}
+		rt.SetFileIntegrityInstance(fi.DeepCopy())
+	}
+
+	exit <- true
 }
 
 func runAideInitDBCmd() error {

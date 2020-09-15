@@ -558,7 +558,8 @@ func aideDaemonset(dsName string, fi *fileintegrityv1alpha1.FileIntegrity) *apps
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						"app": dsName,
+						"app":                       dsName,
+						common.IntegrityPodLabelKey: "",
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -638,8 +639,8 @@ func daemonArgs(dsName string, fi *fileintegrityv1alpha1.FileIntegrity) []string
 	return []string{"daemon",
 		"--lc-file=" + aideLogPath,
 		"--lc-config-map-prefix=" + dsName,
-		"--lc-owner=" + fi.Name,
-		"--lc-namespace=" + fi.Namespace,
+		"--owner=" + fi.Name,
+		"--namespace=" + fi.Namespace,
 		"--interval=" + getGracePeriod(fi),
 		"--debug=" + getDebug(fi),
 	}
