@@ -40,10 +40,17 @@ spec:
                     description: Time between individual aide scans
                     type: integer
                   key:
+                    description: The key that contains the actual AIDE configuration
+                      in a configmap specified by Name and Namespace. Defaults to
+                      aide.conf
                     type: string
                   name:
+                    description: Name of a configMap that contains custom AIDE configuration.
+                      A default configuration would be created if omitted.
                     type: string
                   namespace:
+                    description: Namespace of a configMap that contains custom AIDE
+                      configuration. A default configuration would be created if omitted.
                     type: string
                 type: object
               debug:

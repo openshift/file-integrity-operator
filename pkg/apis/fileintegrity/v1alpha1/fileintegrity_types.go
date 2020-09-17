@@ -38,9 +38,12 @@ type FileIntegritySpec struct {
 // FileIntegrityConfig defines the name, namespace, and data key for an AIDE config to use for integrity checking.
 // +k8s:openapi-gen=true
 type FileIntegrityConfig struct {
-	Name      string `json:"name,omitempty"`
+	// Name of a configMap that contains custom AIDE configuration. A default configuration would be created if omitted.
+	Name string `json:"name,omitempty"`
+	// Namespace of a configMap that contains custom AIDE configuration. A default configuration would be created if omitted.
 	Namespace string `json:"namespace,omitempty"`
-	Key       string `json:"key,omitempty"`
+	// The key that contains the actual AIDE configuration in a configmap specified by Name and Namespace. Defaults to aide.conf
+	Key string `json:"key,omitempty"`
 	// Time between individual aide scans
 	// +kubebuilder:default=900
 	GracePeriod int `json:"gracePeriod,omitempty"`
