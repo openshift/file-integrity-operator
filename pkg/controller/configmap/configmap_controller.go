@@ -256,6 +256,9 @@ func (r *ReconcileConfigMap) createOrUpdateNodeStatus(node string, instance *fil
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      instance.Name + "-" + node,
 				Namespace: instance.Namespace,
+				Labels: map[string]string{
+					common.IntegrityOwnerLabelKey: instance.Name,
+				},
 			},
 			NodeName: node,
 			Results:  []fileintegrityv1alpha1.FileIntegrityScanResult{},

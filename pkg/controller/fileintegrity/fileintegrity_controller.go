@@ -548,6 +548,9 @@ func aideDaemonset(dsName string, fi *fileintegrityv1alpha1.FileIntegrity) *apps
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      dsName,
 			Namespace: common.FileIntegrityNamespace,
+			Labels: map[string]string{
+				common.IntegrityOwnerLabelKey: fi.Name,
+			},
 		},
 		Spec: appsv1.DaemonSetSpec{
 			Selector: &metav1.LabelSelector{
@@ -558,8 +561,9 @@ func aideDaemonset(dsName string, fi *fileintegrityv1alpha1.FileIntegrity) *apps
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						"app":                       dsName,
-						common.IntegrityPodLabelKey: "",
+						"app":                         dsName,
+						common.IntegrityPodLabelKey:   "",
+						common.IntegrityOwnerLabelKey: fi.Name,
 					},
 				},
 				Spec: corev1.PodSpec{
