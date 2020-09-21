@@ -377,6 +377,7 @@ func integrityInstanceLoop(rt *daemonRuntime, conf *daemonConfig, exit chan bool
 	if err != nil {
 		DBG("Couldn't get file integrity object: %s", conf.FileIntegrityName)
 		exit <- true
+		return
 	}
 
 	listopts := metav1.ListOptions{
@@ -386,6 +387,7 @@ func integrityInstanceLoop(rt *daemonRuntime, conf *daemonConfig, exit chan bool
 	if err != nil {
 		DBG("Couldn't watch file integrity object: %s", conf.FileIntegrityName)
 		exit <- true
+		return
 	}
 	ch := watcher.ResultChan()
 	for event := range ch {
