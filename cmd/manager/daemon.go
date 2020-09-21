@@ -287,6 +287,7 @@ func reinitLoop(rt *daemonRuntime, conf *daemonConfig, exit chan bool) {
 			if err := runAideInitDBCmd(); err != nil {
 				LOG(err.Error())
 				time.Sleep(time.Second)
+				rt.UnlockAideFiles("reinitLoop")
 				continue
 			}
 			LOG("initialization finished")
@@ -329,6 +330,7 @@ func reinitLoop(rt *daemonRuntime, conf *daemonConfig, exit chan bool) {
 			if err := runAideInitDBCmd(); err != nil {
 				LOG(err.Error())
 				time.Sleep(time.Second)
+				rt.UnlockAideFiles("reinitLoop")
 				continue
 			}
 
