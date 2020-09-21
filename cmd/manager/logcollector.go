@@ -168,9 +168,9 @@ func getLogConfigMap(owner *unstructured.Unstructured, configMapName, contentkey
 				},
 			},
 			Labels: map[string]string{
-				common.IntegrityConfigMapOwnerLabelKey: owner.GetName(),
-				common.IntegrityLogLabelKey:            "",
-				common.IntegrityConfigMapNodeLabelKey:  node,
+				common.IntegrityOwnerLabelKey:         owner.GetName(),
+				common.IntegrityLogLabelKey:           "",
+				common.IntegrityConfigMapNodeLabelKey: node,
 			},
 		},
 		Data: map[string]string{
@@ -197,9 +197,9 @@ func getInformationalConfigMap(owner *unstructured.Unstructured, configMapName s
 				},
 			},
 			Labels: map[string]string{
-				common.IntegrityConfigMapOwnerLabelKey: owner.GetName(),
-				common.IntegrityLogLabelKey:            "",
-				common.IntegrityConfigMapNodeLabelKey:  node,
+				common.IntegrityOwnerLabelKey:         owner.GetName(),
+				common.IntegrityLogLabelKey:           "",
+				common.IntegrityConfigMapNodeLabelKey: node,
 			},
 		},
 	}

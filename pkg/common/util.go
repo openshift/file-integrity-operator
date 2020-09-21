@@ -72,7 +72,7 @@ func IsIntegrityLogAFailure(cm *corev1.ConfigMap) bool {
 // GetConfigMapOwnerName gets the name of the FileIntegrity that owns
 // the config map from the Labels
 func GetConfigMapOwnerName(cm *corev1.ConfigMap) (string, error) {
-	owner, ok := cm.Labels[IntegrityConfigMapOwnerLabelKey]
+	owner, ok := cm.Labels[IntegrityOwnerLabelKey]
 	if !ok {
 		return "", fmt.Errorf("ConfigMap '%s' had no owner label", cm.Name)
 	}
