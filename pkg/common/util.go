@@ -191,5 +191,41 @@ func getExitCode(runCmdErr error, defaultError int) int {
 }
 
 func GetAideExitCode(runCmdError error) int {
-	return getExitCode(runCmdError, 99)
+	return getExitCode(runCmdError, aideErrSentinel)
+}
+
+const aideErrBase = 14
+
+const (
+	aideErrWriteErr = iota + aideErrBase
+	aideErrEinval
+	aideErrNotImplemented
+	aideErrConfig
+	aideErrIO
+	aideErrVersionMismatch
+	// This is FIO addition
+	aideErrSentinel
+)
+
+var aideErrLookup = []struct {
+	errCode   int
+	errString string
+}{
+	{aideErrWriteErr, "Error writing error"},
+	{aideErrEinval, "Invalid argument error"},
+	{aideErrNotImplemented, "Unimplemented function error"},
+	{aideErrConfig, "Invalid configureline error"},
+	{aideErrIO, "IO error"},
+	{aideErrVersionMismatch, "Version mismatch error"},
+	{aideErrSentinel, "Unexpected error"},
+}
+
+func GetAideErrorMessage(rv int) string {
+	if rv < aideErrBase || rv > aideErrSentinel {
+		// default to the sentinel error message for unknown or unexpected errors
+		rv = aideErrSentinel
+	}
+
+	rv -= aideErrBase // the array index still starts at zero...
+	return aideErrLookup[rv].errString
 }

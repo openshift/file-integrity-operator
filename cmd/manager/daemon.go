@@ -276,6 +276,8 @@ func reinitLoop(rt *daemonRuntime, conf *daemonConfig, exit chan bool) {
 			LOG("initializing aide")
 			if err := runAideInitDBCmd(); err != nil {
 				LOG(err.Error())
+				aideRv := common.GetAideExitCode(err)
+				reportError(fmt.Sprintf("Error initializing the AIDE DB: %s", common.GetAideErrorMessage(aideRv)), conf, rt)
 				time.Sleep(time.Second)
 				rt.UnlockAideFiles("reinitLoop")
 				continue
