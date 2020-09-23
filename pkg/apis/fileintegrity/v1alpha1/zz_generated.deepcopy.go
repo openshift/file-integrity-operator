@@ -98,6 +98,7 @@ func (in *FileIntegrityNodeStatus) DeepCopyInto(out *FileIntegrityNodeStatus) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
+	in.LastResult.DeepCopyInto(&out.LastResult)
 	return
 }
 

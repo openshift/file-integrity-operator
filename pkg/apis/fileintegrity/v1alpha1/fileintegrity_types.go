@@ -64,6 +64,7 @@ type FileIntegrityNodeStatus struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 	NodeName          string                    `json:"nodeName"`
 	Results           []FileIntegrityScanResult `json:"results"`
+	LastResult        FileIntegrityScanResult   `json:"lastResult"`
 }
 
 // FileIntegrityScanResult defines the one-time result of a scan.
