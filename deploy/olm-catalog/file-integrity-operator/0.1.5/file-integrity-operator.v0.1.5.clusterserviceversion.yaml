@@ -197,5 +197,4 @@ spec:
   maturity: alpha
   provider:
     name: Red Hat
-  replaces: file-integrity-operator.v0.1.4
   version: 0.1.5
