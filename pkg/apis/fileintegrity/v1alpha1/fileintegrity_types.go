@@ -14,6 +14,7 @@ const (
 	PhaseInitializing FileIntegrityStatusPhase = "Initializing"
 	PhaseActive       FileIntegrityStatusPhase = "Active"
 	PhasePending      FileIntegrityStatusPhase = "Pending"
+	PhaseError        FileIntegrityStatusPhase = "Error"
 )
 
 type FileIntegrityNodeCondition string

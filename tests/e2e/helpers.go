@@ -90,6 +90,8 @@ CONTENT_EX = sha512+ftype+p+u+g+n+acl+selinux+xattrs
 # Catch everything else in /etc
 /hostroot/etc/    CONTENT_EX`
 
+var brokenAideConfig = testAideConfig + "\n" + "NORMAL = p+i+n+u+g+s+m+c+acl+selinux+xattrs+sha513+md5+XXXXXX"
+
 func cleanUp(t *testing.T, namespace string) func() error {
 	return func() error {
 		f := framework.Global

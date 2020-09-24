@@ -418,6 +418,25 @@ func TestFileIntegrityChangeDebug(t *testing.T) {
 	}
 }
 
+func TestFileIntegrityBadConfig(t *testing.T) {
+	f, testctx, namespace := setupTest(t)
+	defer testctx.Cleanup()
+	defer func() {
+		if err := cleanNodes(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	// Install the different config
+	createTestConfigMap(t, f, testIntegrityName, testConfName, namespace, testConfDataKey, brokenAideConfig)
+
+	// wait to go to error state.
+	err := waitForScanStatusWithTimeout(t, f, namespace, testIntegrityName, fileintv1alpha1.PhaseError, retryInterval, timeout, 1)
+	if err != nil {
+		t.Errorf("Timeout waiting for scan status")
+	}
+}
+
 func TestFileIntegrityTolerations(t *testing.T) {
 	f, testctx, namespace := setupTolerationTest(t)
 	defer testctx.Cleanup()
