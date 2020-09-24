@@ -284,7 +284,8 @@ func logCollectorMainLoop(rt *daemonRuntime, conf *daemonConfig, ch chan bool) {
 	for {
 		lastResult := <-rt.result
 		// We haven't received a result yet.
-		if lastResult == -1 {
+		// Or return code 18 - AIDE ran prior to there being an aide database.
+		if lastResult == -1 || lastResult == 18 {
 			DBG("No scan result available")
 			time.Sleep(time.Duration(conf.Interval) * time.Second)
 			continue
