@@ -118,9 +118,9 @@ func matchFileChangeRegex(contents []byte, regex string) string {
 }
 
 func annotateFileChangeSummary(contents []byte, annotations map[string]string) {
-	annotations[common.IntegrityLogFilesAddedAnnotation] = matchFileChangeRegex(contents, `\s+Added files:\s+(?P<num_added>\d+)`)
-	annotations[common.IntegrityLogFilesChangedAnnotation] = matchFileChangeRegex(contents, `\s+Changed files:\s+(?P<num_changed>\d+)`)
-	annotations[common.IntegrityLogFilesRemovedAnnotation] = matchFileChangeRegex(contents, `\s+Removed files:\s+(?P<num_removed>\d+)`)
+	annotations[common.IntegrityLogFilesAddedAnnotation] = matchFileChangeRegex(contents, `\s+Added entries:\s+(?P<num_added>\d+)`)
+	annotations[common.IntegrityLogFilesChangedAnnotation] = matchFileChangeRegex(contents, `\s+Changed entries:\s+(?P<num_changed>\d+)`)
+	annotations[common.IntegrityLogFilesRemovedAnnotation] = matchFileChangeRegex(contents, `\s+Removed entries:\s+(?P<num_removed>\d+)`)
 	DBG("added %s changed %s removed %s",
 		annotations[common.IntegrityLogFilesAddedAnnotation],
 		annotations[common.IntegrityLogFilesChangedAnnotation],
