@@ -51,7 +51,7 @@ const (
 var debugLog bool
 
 func LOG(format string, a ...interface{}) {
-	fmt.Printf(format+"\n", a...)
+	fmt.Printf(fmt.Sprintf("%s: %s\n", time.Now().Format(time.RFC3339), format), a...)
 }
 
 func DBG(format string, a ...interface{}) {
