@@ -25,6 +25,7 @@ func TestFileIntegrityLogAndReinitDatabase(t *testing.T) {
 			t.Fatal(err)
 		}
 	}()
+	defer logContainerOutput(t, f, namespace, testIntegrityName)
 
 	// wait to go active.
 	err := waitForScanStatus(t, f, namespace, testIntegrityName, fileintv1alpha1.PhaseActive)
@@ -87,6 +88,7 @@ func TestFileIntegrityConfigurationRevert(t *testing.T) {
 			t.Fatal(err)
 		}
 	}()
+	defer logContainerOutput(t, f, namespace, testIntegrityName)
 
 	// Install the different config
 	createTestConfigMap(t, f, testIntegrityName, testConfName, namespace, testConfDataKey, testAideConfig)
@@ -173,6 +175,7 @@ func TestFileIntegrityConfigurationStatus(t *testing.T) {
 			t.Fatal(err)
 		}
 	}()
+	defer logContainerOutput(t, f, namespace, testIntegrityName)
 
 	createTestConfigMap(t, f, testIntegrityName, testConfName, namespace, testConfDataKey, testAideConfig)
 
@@ -201,6 +204,8 @@ func TestFileIntegrityConfigurationIgnoreMissing(t *testing.T) {
 			t.Fatal(err)
 		}
 	}()
+	defer logContainerOutput(t, f, namespace, testIntegrityName)
+
 	// Non-existent conf
 	updateFileIntegrityConfig(t, f, testIntegrityName, "fooconf", namespace, "fookey", time.Second, 2*time.Minute)
 
@@ -241,6 +246,7 @@ func TestFileIntegrityAcceptsExpectedChange(t *testing.T) {
 			t.Fatal(err)
 		}
 	}()
+	defer logContainerOutput(t, f, namespace, testIntegrityName)
 
 	// wait to go active.
 	err := waitForScanStatus(t, f, namespace, testIntegrityName, fileintv1alpha1.PhaseActive)
@@ -289,6 +295,7 @@ func TestFileIntegrityChangeGracePeriod(t *testing.T) {
 			t.Fatal(err)
 		}
 	}()
+	defer logContainerOutput(t, f, namespace, testIntegrityName)
 
 	// wait to go active.
 	err := waitForScanStatus(t, f, namespace, testIntegrityName, fileintv1alpha1.PhaseActive)
@@ -359,6 +366,7 @@ func TestFileIntegrityChangeDebug(t *testing.T) {
 			t.Fatal(err)
 		}
 	}()
+	defer logContainerOutput(t, f, namespace, testIntegrityName)
 
 	// wait to go active.
 	err := waitForScanStatus(t, f, namespace, testIntegrityName, fileintv1alpha1.PhaseActive)
@@ -445,6 +453,7 @@ func TestFileIntegrityTolerations(t *testing.T) {
 			t.Fatal(err)
 		}
 	}()
+	defer logContainerOutput(t, f, namespace, testIntegrityName)
 
 	// wait to go active.
 	err := waitForScanStatus(t, f, namespace, testIntegrityName, fileintv1alpha1.PhaseActive)

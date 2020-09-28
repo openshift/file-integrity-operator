@@ -1,8 +1,12 @@
 package e2e
 
 import (
+	"bytes"
 	goctx "context"
 	"fmt"
+	"io"
+	"os"
+	"path"
 	"strings"
 	"testing"
 	"time"
@@ -898,4 +902,68 @@ func getNodesWithSelector(f *framework.Framework, labelselector map[string]strin
 	}
 	f.Client.List(goctx.TODO(), &nodes, lo)
 	return nodes.Items
+}
+
+func writeToArtifactsDir(t *testing.T, f *framework.Framework, dir, scan, pod, container, log string) error {
+	logPath := path.Join(dir, fmt.Sprintf("%s_%s_%s.log", scan, pod, container))
+	logFile, err := os.Create(logPath)
+	if err != nil {
+		return err
+	}
+	// #nosec G307
+	defer logFile.Close()
+	_, err = io.WriteString(logFile, log)
+	if err != nil {
+		return err
+	}
+	logFile.Sync()
+	return nil
+}
+
+func logContainerOutput(t *testing.T, f *framework.Framework, namespace, name string) {
+	// Try all container/init variants for each pod and the pod itself (self), log nothing if the container is not applicable.
+	containers := []string{"self", "daemon"}
+	artifacts := os.Getenv("ARTIFACT_DIR")
+	if artifacts == "" {
+		return
+	}
+	pods, err := getFiDsPods(f, name, namespace)
+	if err != nil {
+		t.Logf("Warning: Error getting pods for container logging: %s", err)
+	} else {
+		for _, pod := range pods.Items {
+			for _, con := range containers {
+				logOpts := &corev1.PodLogOptions{}
+				if con != "self" {
+					logOpts.Container = con
+				}
+				req := f.KubeClient.CoreV1().Pods(namespace).GetLogs(pod.Name, logOpts)
+				podLogs, err := req.Stream(goctx.TODO())
+				if err != nil {
+					// Silence this error if the container is not valid for the pod
+					if !kerr.IsBadRequest(err) {
+						t.Logf("error getting logs for %s/%s: reason: %v, err: %v", pod.Name, con, kerr.ReasonForError(err), err)
+					}
+					continue
+				}
+				buf := new(bytes.Buffer)
+				_, err = io.Copy(buf, podLogs)
+				if err != nil {
+					t.Logf("error copying logs for %s/%s: %v", pod.Name, con, err)
+					continue
+				}
+				logs := buf.String()
+				if len(logs) == 0 {
+					t.Logf("no logs for %s/%s", pod.Name, con)
+				} else {
+					err := writeToArtifactsDir(t, f, artifacts, name, pod.Name, con, logs)
+					if err != nil {
+						t.Logf("error writing logs for %s/%s: %v", pod.Name, con, err)
+					} else {
+						t.Logf("wrote logs for %s/%s", pod.Name, con)
+					}
+				}
+			}
+		}
+	}
 }
