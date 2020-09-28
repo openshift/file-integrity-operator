@@ -55,7 +55,7 @@ E2E_USE_DEFAULT_IMAGES?=false
 # Pass extra flags to the e2e test run.
 # e.g. to run a specific test in the e2e test suite, do:
 # 	make e2e E2E_GO_TEST_FLAGS="-v -run TestE2E/TestScanWithNodeSelectorFiltersCorrectly"
-E2E_GO_TEST_FLAGS?=-v -timeout 30m
+E2E_GO_TEST_FLAGS?=-v -timeout 45m
 
 # operator-courier arguments for `make publish`.
 # Before running `make publish`, install operator-courier with `pip3 install operator-courier` and create
