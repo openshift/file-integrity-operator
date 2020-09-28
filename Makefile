@@ -16,6 +16,7 @@ RELATED_IMAGE_AIDE_PATH?=$(IMAGE_REPO)/$(AIDE)
 AIDE_DOCKERFILE_PATH?=./images/aide/Dockerfile
 
 BUNDLE_IMAGE_PATH=$(IMAGE_REPO)/file-integrity-operator-bundle
+INDEX_IMAGE_PATH=$(IMAGE_REPO)/file-integrity-operator-index
 
 # Image tag to use. Set this if you want to use a specific tag for building
 # or your e2e tests.
@@ -88,6 +89,10 @@ aide-image:
 .PHONY: bundle-image
 bundle-image:
 	$(RUNTIME) build -t $(BUNDLE_IMAGE_PATH):$(TAG) -f bundle.Dockerfile .
+
+.PHONY: index-image
+index-image:
+	opm index add -b $(BUNDLE_IMAGE_PATH):$(TAG) -t $(INDEX_IMAGE_PATH):$(TAG) -c podman
 
 .PHONY: build
 build: operator-bin ## Build the file-integrity-operator binaries
@@ -295,6 +300,10 @@ push: image
 	$(RUNTIME) push $(RELATED_IMAGE_AIDE_PATH):$(TAG)
 	$(RUNTIME) push $(BUNDLE_IMAGE_PATH):$(TAG)
 
+.PHONY: push-index
+push-index: index-image
+	$(RUNTIME) push $(INDEX_IMAGE_PATH):$(TAG)
+
 .PHONY: check-operator-version
 check-operator-version:
 ifndef OPERATOR_VERSION
@@ -333,4 +342,7 @@ git-release: package-version-to-tag
 	git push origin "release-v$(TAG)"
 
 .PHONY: release
-release: release-tag-image bundle push publish undo-deploy-tag-image git-release ## Do an official release (Requires permissions)
+release: release-tag-image bundle push push-index publish undo-deploy-tag-image git-release ## Do an official release (Requires permissions)
+	# This will ensure that we also push to the latest tag
+	$(MAKE) push TAG=latest
+	$(MAKE) push-index TAG=latest
