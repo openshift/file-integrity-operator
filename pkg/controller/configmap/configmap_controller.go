@@ -264,6 +264,7 @@ func (r *ReconcileConfigMap) createOrUpdateNodeStatus(node string, instance *fil
 			Results:  []fileintegrityv1alpha1.FileIntegrityScanResult{},
 		}
 		nodeStatus.Results = append(nodeStatus.Results, new)
+		nodeStatus.LastResult = *new.DeepCopy()
 		refErr := controllerutil.SetControllerReference(instance, nodeStatus, r.scheme)
 		if refErr != nil {
 			return refErr
@@ -277,6 +278,9 @@ func (r *ReconcileConfigMap) createOrUpdateNodeStatus(node string, instance *fil
 	for _, result := range nodeStatus.Results {
 		if result.Condition != new.Condition {
 			updateResults = append(updateResults, result)
+			if result.LastProbeTime.After(nodeStatus.LastResult.LastProbeTime.Time) {
+				nodeStatus.LastResult = *result.DeepCopy()
+			}
 		}
 	}
 
@@ -284,6 +288,9 @@ func (r *ReconcileConfigMap) createOrUpdateNodeStatus(node string, instance *fil
 
 	updateResults = append(updateResults, new)
 	statusCopy.Results = updateResults
+	if new.LastProbeTime.After(nodeStatus.LastResult.LastProbeTime.Time) {
+		statusCopy.LastResult = *new.DeepCopy()
+	}
 	return r.client.Update(context.TODO(), statusCopy)
 }
 

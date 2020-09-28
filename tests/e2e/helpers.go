@@ -90,6 +90,8 @@ CONTENT_EX = sha512+ftype+p+u+g+n+acl+selinux+xattrs
 # Catch everything else in /etc
 /hostroot/etc/    CONTENT_EX`
 
+var brokenAideConfig = testAideConfig + "\n" + "NORMAL = p+i+n+u+g+s+m+c+acl+selinux+xattrs+sha513+md5+XXXXXX"
+
 func cleanUp(t *testing.T, namespace string) func() error {
 	return func() error {
 		f := framework.Global
@@ -578,12 +580,9 @@ func waitForFailedResultForNode(t *testing.T, f *framework.Framework, namespace,
 
 		t.Logf("waitForFailedResultForNode: found nodeStatus: %#v", nodeStatus)
 
-		for i, _ := range nodeStatus.Results {
-			t.Logf("dbg: wait for fail, result %#v", nodeStatus.Results[i])
-			if nodeStatus.Results[i].Condition == fileintv1alpha1.NodeConditionFailed {
-				foundResult = &nodeStatus.Results[i]
-				return true, nil
-			}
+		if nodeStatus.LastResult.Condition == fileintv1alpha1.NodeConditionFailed {
+			foundResult = &nodeStatus.LastResult
+			return true, nil
 		}
 		return false, nil
 	})
@@ -622,22 +621,9 @@ func assertNodesConditionIsSuccess(t *testing.T, f *framework.Framework, namespa
 
 			t.Logf("assertNodesConditionIsSuccess: found nodeStatus: %#v", fileIntegNodeStatus)
 
-			// gather statuses
-			for _, status := range fileIntegNodeStatus.Results {
-				t.Logf("dbg: wait for success %#v", status)
-				t.Logf("Iterating through statuses: Found node status: %s - %s", fileIntegNodeStatus.NodeName, status.Condition)
-				recordedStatus, ok := latestStatuses[fileIntegNodeStatus.NodeName]
-				if !ok {
-					latestStatuses[fileIntegNodeStatus.NodeName] = nodeStatus{
-						LastProbeTime: status.LastProbeTime,
-						Condition:     status.Condition,
-					}
-				} else if recordedStatus.LastProbeTime.Before(&status.LastProbeTime) {
-					latestStatuses[fileIntegNodeStatus.NodeName] = nodeStatus{
-						LastProbeTime: status.LastProbeTime,
-						Condition:     status.Condition,
-					}
-				}
+			latestStatuses[fileIntegNodeStatus.NodeName] = nodeStatus{
+				LastProbeTime: fileIntegNodeStatus.LastResult.LastProbeTime,
+				Condition:     fileIntegNodeStatus.LastResult.Condition,
 			}
 		}
 

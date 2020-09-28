@@ -2,6 +2,7 @@ package status
 
 import (
 	"context"
+	"k8s.io/apimachinery/pkg/labels"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -48,6 +49,15 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 		return err
 	}
 	// XXX also watch for configmaps, init daemonset
+
+	// Watch for changes to secondary resource ComplianceScans and requeue the owner ComplianceSuite
+	err = c.Watch(&source.Kind{Type: &fileintegrityv1alpha1.FileIntegrityNodeStatus{}}, &handler.EnqueueRequestForOwner{
+		IsController: true,
+		OwnerType:    &fileintegrityv1alpha1.FileIntegrity{},
+	})
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -113,7 +123,13 @@ func (r *ReconcileFileIntegrityStatus) Reconcile(request reconcile.Request) (rec
 
 	if err == nil {
 		if common.DaemonSetIsReady(ds) && !common.DaemonSetIsUpdating(ds) {
-			err := updateStatus(r.client, instance, fileintegrityv1alpha1.PhaseActive)
+			phase, err := mapActiveStatus(r.client, instance)
+			if err != nil {
+				reqLogger.Error(err, "error querying node statuses")
+				return reconcile.Result{}, err
+			}
+
+			err = updateStatus(r.client, instance, phase)
 			if err != nil {
 				reqLogger.Error(err, "error updating FileIntegrity status")
 				return reconcile.Result{}, err
@@ -137,6 +153,28 @@ func (r *ReconcileFileIntegrityStatus) Reconcile(request reconcile.Request) (rec
 	}
 
 	return reconcile.Result{RequeueAfter: statusRequeue}, nil
+}
+
+func mapActiveStatus(k8sclient client.Client, integrity *fileintegrityv1alpha1.FileIntegrity) (fileintegrityv1alpha1.FileIntegrityStatusPhase, error) {
+	// does any of the node statuses latest condition surface an error? If yes, the FI status should be an error
+	nodeStatusList := fileintegrityv1alpha1.FileIntegrityNodeStatusList{}
+
+	listOpts := client.ListOptions{
+		LabelSelector: labels.SelectorFromSet(labels.Set{common.IntegrityOwnerLabelKey: integrity.Name}),
+	}
+
+	if err := k8sclient.List(context.TODO(), &nodeStatusList, &listOpts); err != nil {
+		return fileintegrityv1alpha1.PhaseError, err
+	}
+
+	for _, nodeStatus := range nodeStatusList.Items {
+		if nodeStatus.LastResult.Condition == fileintegrityv1alpha1.NodeConditionErrored {
+			return fileintegrityv1alpha1.PhaseError, nil
+		}
+	}
+
+	// otherwise active
+	return fileintegrityv1alpha1.PhaseActive, nil
 }
 
 func updateStatus(client client.Client, integrity *fileintegrityv1alpha1.FileIntegrity, phase fileintegrityv1alpha1.FileIntegrityStatusPhase) error {

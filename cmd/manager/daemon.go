@@ -21,7 +21,6 @@ import (
 	"os"
 	"os/exec"
 	"sync"
-	"syscall"
 	"time"
 
 	"k8s.io/api/events/v1beta1"
@@ -233,18 +232,9 @@ func aideLoop(rt *daemonRuntime, conf *daemonConfig, exit chan bool) {
 		if !rt.Initializing() && !rt.Holding() {
 			rt.LockAideFiles("aideLoop")
 			LOG("running aide check")
-			exitStatus := 0
 			// This doesn't handle the output, because the operator ensures AIDE logs to /hostroot/etc/kubernetes/aide.log
 			err := runAideScanCmd()
-			if err != nil {
-				// This is a likely path as failed check results are in return codes range 1 - 7.
-				// Find the return code. The log collector loop will figure out if it's an error or not.
-				if exitErr, ok := err.(*exec.ExitError); ok {
-					if status, ok := exitErr.Sys().(syscall.WaitStatus); ok {
-						exitStatus = status.ExitStatus()
-					}
-				}
-			}
+			exitStatus := common.GetAideExitCode(err)
 			LOG("aide check returned status %d", exitStatus)
 			rt.result <- exitStatus
 			rt.UnlockAideFiles("aideLoop")
@@ -286,7 +276,10 @@ func reinitLoop(rt *daemonRuntime, conf *daemonConfig, exit chan bool) {
 			LOG("initializing aide")
 			if err := runAideInitDBCmd(); err != nil {
 				LOG(err.Error())
+				aideRv := common.GetAideExitCode(err)
+				reportError(fmt.Sprintf("Error initializing the AIDE DB: %s", common.GetAideErrorMessage(aideRv)), conf, rt)
 				time.Sleep(time.Second)
+				rt.UnlockAideFiles("reinitLoop")
 				continue
 			}
 			LOG("initialization finished")
@@ -329,6 +322,7 @@ func reinitLoop(rt *daemonRuntime, conf *daemonConfig, exit chan bool) {
 			if err := runAideInitDBCmd(); err != nil {
 				LOG(err.Error())
 				time.Sleep(time.Second)
+				rt.UnlockAideFiles("reinitLoop")
 				continue
 			}
 

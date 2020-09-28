@@ -2,8 +2,10 @@ package common
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
@@ -160,4 +162,70 @@ func deleteDaemonSetPods(c client.Client, ds *appsv1.DaemonSet) error {
 	}
 
 	return nil
+}
+
+// getExitCode examines the error interface as returned from exec.Command().Run()
+// and returns 0 if the command succeeded, the command's return code if it ran to completion
+// but failed and a default error otherwise (e.g. on exit because of a signal)
+//
+// requires go 1.13 or newer due to using errors.As() and ExitCode
+func getExitCode(runCmdErr error, defaultError int) int {
+	// No error, awesome, the command exited successfully
+	if runCmdErr == nil {
+		return 0
+	}
+
+	var exitError *exec.ExitError
+	if errors.As(runCmdErr, &exitError) {
+		// ExitError.ExitCode() return the error code if the command produced any or -1
+		// if the command exited for another reason (signal, ...)
+		rv := exitError.ExitCode()
+		if rv != -1 {
+			return rv
+		}
+		// fall back to returning defaultError
+	}
+	// if the error is something else then exec.ExitError, just return the defaultError
+
+	return defaultError
+}
+
+func GetAideExitCode(runCmdError error) int {
+	return getExitCode(runCmdError, aideErrSentinel)
+}
+
+const aideErrBase = 14
+
+const (
+	aideErrWriteErr = iota + aideErrBase
+	aideErrEinval
+	aideErrNotImplemented
+	aideErrConfig
+	aideErrIO
+	aideErrVersionMismatch
+	// This is FIO addition
+	aideErrSentinel
+)
+
+var aideErrLookup = []struct {
+	errCode   int
+	errString string
+}{
+	{aideErrWriteErr, "Error writing error"},
+	{aideErrEinval, "Invalid argument error"},
+	{aideErrNotImplemented, "Unimplemented function error"},
+	{aideErrConfig, "Invalid configureline error"},
+	{aideErrIO, "IO error"},
+	{aideErrVersionMismatch, "Version mismatch error"},
+	{aideErrSentinel, "Unexpected error"},
+}
+
+func GetAideErrorMessage(rv int) string {
+	if rv < aideErrBase || rv > aideErrSentinel {
+		// default to the sentinel error message for unknown or unexpected errors
+		rv = aideErrSentinel
+	}
+
+	rv -= aideErrBase // the array index still starts at zero...
+	return aideErrLookup[rv].errString
 }
