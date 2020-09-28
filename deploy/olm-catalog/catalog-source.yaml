@@ -1,0 +1,10 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: CatalogSource
+metadata:
+  name: file-integrity-operator
+  namespace: openshift-marketplace
+spec:
+  displayName: File Integrity Operator
+  publisher: github.com/openshift/file-integrity-operator
+  sourceType: grpc
+  image: quay.io/file-integrity-operator/file-integrity-operator-index:latest
