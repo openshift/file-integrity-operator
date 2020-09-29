@@ -872,7 +872,12 @@ func taintNode(t *testing.T, f *framework.Framework, node *corev1.Node, taint co
 	}
 	taintedNode.Spec.Taints = append(taintedNode.Spec.Taints, taint)
 	t.Logf("Tainting node: %s", taintedNode.Name)
-	return f.Client.Update(goctx.TODO(), taintedNode)
+
+	return retryDefault(
+		func() error {
+			return f.Client.Update(goctx.TODO(), taintedNode)
+		},
+	)
 }
 
 func removeNodeTaint(t *testing.T, f *framework.Framework, nodeName, taintKey string) error {
@@ -891,7 +896,15 @@ func removeNodeTaint(t *testing.T, f *framework.Framework, nodeName, taintKey st
 	}
 
 	t.Logf("Removing taint from node: %s", nodeName)
-	return f.Client.Update(goctx.TODO(), untaintedNode)
+	return retryDefault(
+		func() error {
+			return f.Client.Update(goctx.TODO(), untaintedNode)
+		},
+	)
+}
+
+func retryDefault(operation func() error) error {
+	return backoff.Retry(operation, backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), 5))
 }
 
 // getNodesWithSelector lists nodes according to a specific selector
