@@ -80,9 +80,11 @@ help: ## Show this help screen
 .PHONY: image
 image: fmt operator-sdk operator-image aide-image bundle-image  ## Build the file-integrity-operator container image
 
+.PHONY: operator-image
 operator-image: operator-sdk
 	$(GOPATH)/bin/operator-sdk build $(RELATED_IMAGE_OPERATOR_PATH):$(TAG) --image-builder $(RUNTIME)
 
+.PHONY: aide-image
 aide-image:
 	$(RUNTIME) build -f $(AIDE_DOCKERFILE_PATH) -t $(RELATED_IMAGE_AIDE_PATH):$(TAG) .
 
@@ -97,6 +99,7 @@ index-image:
 .PHONY: build
 build: operator-bin ## Build the file-integrity-operator binaries
 
+.PHONY: operator-bin
 operator-bin:
 	$(GO) build -race -o $(TARGET_OPERATOR) github.com/openshift/file-integrity-operator/cmd/manager
 
