@@ -157,26 +157,9 @@ generate: operator-sdk ## Run operator-sdk's code generation (k8s and crds)
 test-unit: fmt ## Run the unit tests
 	@$(GO) test $(TEST_OPTIONS) $(PKGS)
 
-.PHONY: deploy-to-cluster
-ifeq ($(E2E_SKIP_CONTAINER_PUSH), false)
-deploy-to-cluster: namespace image-to-cluster openshift-user
-else
-deploy-to-cluster: namespace
-endif
-	@echo "Deploying the local branch to cluster"
-	@echo "WARNING: This will temporarily modify deploy/operator.yaml"
-	@echo "Replacing workload references in deploy/operator.yaml"
-	@sed -i 's%$(IMAGE_REPO)/$(AIDE):latest%$(RELATED_IMAGE_AIDE_PATH)%' deploy/operator.yaml
-	@sed -i 's%$(IMAGE_REPO)/$(APP_NAME):latest%$(RELATED_IMAGE_OPERATOR_PATH)%' deploy/operator.yaml
-	@oc create -f deploy/crds/fileintegrity.openshift.io_fileintegrities_crd.yaml || true
-	@oc create -f deploy/crds/fileintegrity.openshift.io_fileintegritynodestatuses_crd.yaml || true
-	@oc create -f deploy/role.yaml || true
-	@oc create -f deploy/role_binding.yaml || true
-	@oc create -f deploy/service_account.yaml || true
-	@oc create -f deploy/operator.yaml || true
-	@echo "Restoring image references in deploy/operator.yaml"
-	@sed -i 's%$(RELATED_IMAGE_AIDE_PATH)%$(IMAGE_REPO)/$(AIDE):latest%' deploy/operator.yaml
-	@sed -i 's%$(RELATED_IMAGE_OPERATOR_PATH)%$(IMAGE_REPO)/$(APP_NAME):latest%' deploy/operator.yaml
+# Kept for backwards compatibility, the deploy-local target also exists in CO so
+# it makes sense to deprecate deploy-to-cluster
+deploy-to-cluster: deploy-local
 
 # This runs the end-to-end tests. If not running this on CI, it'll try to
 # push the operator image to the cluster's registry. This behavior can be
@@ -256,8 +239,10 @@ deploy: namespace deploy-crds ## Deploy the operator from the manifests in the d
 
 .PHONY: deploy-local
 deploy-local: namespace image-to-cluster deploy-crds ## Deploy the operator from the manifests in the deploy/ directory and the images from a local build
+	@sed -i 's%$(IMAGE_REPO)/$(AIDE):latest%$(RELATED_IMAGE_AIDE_PATH)%' deploy/operator.yaml
 	@sed -i 's%$(IMAGE_REPO)/$(APP_NAME):latest%$(RELATED_IMAGE_OPERATOR_PATH)%' deploy/operator.yaml
 	@oc apply -n $(NAMESPACE) -f deploy/
+	@sed -i 's%$(RELATED_IMAGE_AIDE_PATH)%$(IMAGE_REPO)/$(AIDE):latest%' deploy/operator.yaml
 	@sed -i 's%$(RELATED_IMAGE_OPERATOR_PATH)%$(IMAGE_REPO)/$(APP_NAME):latest%' deploy/operator.yaml
 
 .PHONY: deploy-crds
