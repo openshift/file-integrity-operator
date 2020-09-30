@@ -27,6 +27,31 @@ spec:
               object represents. Servers may infer this from the endpoint the client
               submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
             type: string
+          lastResult:
+            description: FileIntegrityScanResult defines the one-time result of a
+              scan.
+            properties:
+              condition:
+                type: string
+              errorMessage:
+                type: string
+              filesAdded:
+                type: integer
+              filesChanged:
+                type: integer
+              filesRemoved:
+                type: integer
+              lastProbeTime:
+                format: date-time
+                type: string
+              resultConfigMapName:
+                type: string
+              resultConfigMapNamespace:
+                type: string
+            required:
+            - condition
+            - lastProbeTime
+            type: object
           metadata:
             type: object
           nodeName:
@@ -59,6 +84,7 @@ spec:
               type: object
             type: array
         required:
+        - lastResult
         - nodeName
         - results
         type: object
