@@ -24,11 +24,6 @@ import (
 
 var log = logf.Log.WithName("controller_node")
 
-const (
-	addHoldOffScriptCMName    = "addholdoff"
-	removeHoldOffScriptCMName = "rmholdoff"
-)
-
 // Add creates a new Node Controller and adds it to the Manager. The Manager will set fields on the Controller
 // and Start it when the Manager is Started.
 func Add(mgr manager.Manager) error {
