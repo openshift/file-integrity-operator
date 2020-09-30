@@ -314,7 +314,10 @@ func setupTolerationTest(t *testing.T) (*framework.Framework, *framework.Context
 		t.Errorf("could not get namespace: %v", err)
 	}
 	f := framework.Global
-	workerNodes := getNodesWithSelector(f, map[string]string{"node-role.kubernetes.io/worker": ""})
+	workerNodes, err := getNodesWithSelector(f, map[string]string{"node-role.kubernetes.io/worker": ""})
+	if err != nil {
+		t.Errorf("could not list nodes: %v", err)
+	}
 	taintedNode := &workerNodes[0]
 	taintKey := "fi-e2e"
 	taintVal := "val"
@@ -911,13 +914,13 @@ func retryDefault(operation func() error) error {
 }
 
 // getNodesWithSelector lists nodes according to a specific selector
-func getNodesWithSelector(f *framework.Framework, labelselector map[string]string) []corev1.Node {
+func getNodesWithSelector(f *framework.Framework, labelselector map[string]string) ([]corev1.Node, error) {
 	var nodes corev1.NodeList
 	lo := &client.ListOptions{
 		LabelSelector: labels.SelectorFromSet(labelselector),
 	}
-	f.Client.List(goctx.TODO(), &nodes, lo)
-	return nodes.Items
+	err := f.Client.List(goctx.TODO(), &nodes, lo)
+	return nodes.Items, err
 }
 
 func writeToArtifactsDir(t *testing.T, f *framework.Framework, dir, scan, pod, container, log string) error {
