@@ -330,7 +330,7 @@ git-release: package-version-to-tag
 	git push origin "release-v$(TAG)"
 
 .PHONY: release
-release: release-tag-image bundle push push-index publish undo-deploy-tag-image git-release ## Do an official release (Requires permissions)
+release: release-tag-image bundle push push-index undo-deploy-tag-image git-release ## Do an official release (Requires permissions)
 	# This will ensure that we also push to the latest tag
 	$(MAKE) push TAG=latest
 	$(MAKE) push-index TAG=latest
