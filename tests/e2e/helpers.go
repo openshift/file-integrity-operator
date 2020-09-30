@@ -96,7 +96,7 @@ CONTENT_EX = sha512+ftype+p+u+g+n+acl+selinux+xattrs
 
 var brokenAideConfig = testAideConfig + "\n" + "NORMAL = p+i+n+u+g+s+m+c+acl+selinux+xattrs+sha513+md5+XXXXXX"
 
-func cleanUp(t *testing.T, namespace string) func() error {
+func cleanUp(namespace string) func() error {
 	return func() error {
 		f := framework.Global
 
@@ -148,7 +148,7 @@ func setupFileIntegrityOperatorCluster(t *testing.T, ctx *framework.Context) {
 		t.Fatalf("failed to initialize cluster resources: %v", err)
 	}
 	t.Log("Initialized cluster resources")
-	namespace, err := ctx.GetNamespace()
+	namespace, err := ctx.GetOperatorNamespace()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -309,12 +309,15 @@ func getNumberOfWorkerNodes(c kubernetes.Interface) (int, error) {
 
 func setupTolerationTest(t *testing.T) (*framework.Framework, *framework.Context, string) {
 	testctx := setupTestRequirements(t)
-	namespace, err := testctx.GetNamespace()
+	namespace, err := testctx.GetOperatorNamespace()
 	if err != nil {
 		t.Errorf("could not get namespace: %v", err)
 	}
 	f := framework.Global
-	workerNodes := getNodesWithSelector(f, map[string]string{"node-role.kubernetes.io/worker": ""})
+	workerNodes, err := getNodesWithSelector(f, map[string]string{"node-role.kubernetes.io/worker": ""})
+	if err != nil {
+		t.Errorf("could not list nodes: %v", err)
+	}
 	taintedNode := &workerNodes[0]
 	taintKey := "fi-e2e"
 	taintVal := "val"
@@ -327,7 +330,7 @@ func setupTolerationTest(t *testing.T) (*framework.Framework, *framework.Context
 	testctx.AddCleanupFn(func() error {
 		return removeNodeTaint(t, f, taintedNode.Name, taintKey)
 	})
-	testctx.AddCleanupFn(cleanUp(t, namespace))
+	testctx.AddCleanupFn(cleanUp(namespace))
 	setupFileIntegrityOperatorCluster(t, testctx)
 
 	if err := taintNode(t, f, taintedNode, taint); err != nil {
@@ -397,11 +400,11 @@ func setupTolerationTest(t *testing.T) (*framework.Framework, *framework.Context
 // setupTest sets up the operator and waits for AIDE to roll out
 func setupTest(t *testing.T) (*framework.Framework, *framework.Context, string) {
 	testctx := setupTestRequirements(t)
-	namespace, err := testctx.GetNamespace()
+	namespace, err := testctx.GetOperatorNamespace()
 	if err != nil {
 		t.Errorf("could not get namespace: %v", err)
 	}
-	testctx.AddCleanupFn(cleanUp(t, namespace))
+	testctx.AddCleanupFn(cleanUp(namespace))
 
 	setupFileIntegrityOperatorCluster(t, testctx)
 	f := framework.Global
@@ -598,7 +601,7 @@ func waitForFailedResultForNode(t *testing.T, f *framework.Framework, namespace,
 	return foundResult, nil
 }
 
-func assertNodesConditionIsSuccess(t *testing.T, f *framework.Framework, namespace, name string, interval, timeout time.Duration) {
+func assertNodesConditionIsSuccess(t *testing.T, f *framework.Framework, namespace string, interval, timeout time.Duration) {
 	var lastErr error
 	type nodeStatus struct {
 		LastProbeTime metav1.Time
@@ -610,7 +613,7 @@ func assertNodesConditionIsSuccess(t *testing.T, f *framework.Framework, namespa
 		t.Errorf("error listing nodes: %v", err)
 	}
 
-	wait.Poll(interval, timeout, func() (bool, error) {
+	timeoutErr := wait.Poll(interval, timeout, func() (bool, error) {
 		// Node names are the key
 		latestStatuses := map[string]nodeStatus{}
 
@@ -645,6 +648,9 @@ func assertNodesConditionIsSuccess(t *testing.T, f *framework.Framework, namespa
 	})
 	if lastErr != nil {
 		t.Errorf("ERROR: nodes weren't in good state: %s", lastErr)
+	}
+	if timeoutErr != nil {
+		t.Errorf("ERROR: timed out waiting for node condition: %s", timeoutErr)
 	}
 }
 
@@ -908,13 +914,13 @@ func retryDefault(operation func() error) error {
 }
 
 // getNodesWithSelector lists nodes according to a specific selector
-func getNodesWithSelector(f *framework.Framework, labelselector map[string]string) []corev1.Node {
+func getNodesWithSelector(f *framework.Framework, labelselector map[string]string) ([]corev1.Node, error) {
 	var nodes corev1.NodeList
 	lo := &client.ListOptions{
 		LabelSelector: labels.SelectorFromSet(labelselector),
 	}
-	f.Client.List(goctx.TODO(), &nodes, lo)
-	return nodes.Items
+	err := f.Client.List(goctx.TODO(), &nodes, lo)
+	return nodes.Items, err
 }
 
 func writeToArtifactsDir(t *testing.T, f *framework.Framework, dir, scan, pod, container, log string) error {

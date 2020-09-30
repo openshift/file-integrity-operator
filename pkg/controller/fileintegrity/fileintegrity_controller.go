@@ -159,7 +159,10 @@ func (r *ReconcileFileIntegrity) updateAideConfig(conf *corev1.ConfigMap, data s
 func (r *ReconcileFileIntegrity) retrieveAndAnnotateAideConfig(conf *corev1.ConfigMap) error {
 	cachedconf := &corev1.ConfigMap{}
 	// Get the latest config...
-	r.client.Get(context.TODO(), types.NamespacedName{Name: conf.Name, Namespace: conf.Namespace}, cachedconf)
+	err := r.client.Get(context.TODO(), types.NamespacedName{Name: conf.Name, Namespace: conf.Namespace}, cachedconf)
+	if err != nil {
+		return err
+	}
 
 	return r.updateAideConfig(cachedconf, cachedconf.Data[common.DefaultConfDataKey])
 }

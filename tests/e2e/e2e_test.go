@@ -34,7 +34,7 @@ func TestFileIntegrityLogAndReinitDatabase(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
-	assertNodesConditionIsSuccess(t, f, namespace, testIntegrityName, 2*time.Second, 5*time.Minute)
+	assertNodesConditionIsSuccess(t, f, namespace, 2*time.Second, 5*time.Minute)
 
 	// modify a file on a node
 	err = editFileOnNodes(f, namespace)
@@ -77,7 +77,7 @@ func TestFileIntegrityLogAndReinitDatabase(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after re-initializing the database")
-	assertNodesConditionIsSuccess(t, f, namespace, testIntegrityName, 2*time.Second, 5*time.Minute)
+	assertNodesConditionIsSuccess(t, f, namespace, 2*time.Second, 5*time.Minute)
 }
 
 func TestFileIntegrityConfigurationRevert(t *testing.T) {
@@ -99,7 +99,7 @@ func TestFileIntegrityConfigurationRevert(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
-	assertNodesConditionIsSuccess(t, f, namespace, testIntegrityName, 2*time.Second, 5*time.Minute)
+	assertNodesConditionIsSuccess(t, f, namespace, 2*time.Second, 5*time.Minute)
 
 	// modify a file on a node
 	err = editFileOnNodes(f, namespace)
@@ -159,7 +159,7 @@ func TestFileIntegrityConfigurationRevert(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after a re-init")
-	assertNodesConditionIsSuccess(t, f, namespace, testIntegrityName, 2*time.Second, 5*time.Minute)
+	assertNodesConditionIsSuccess(t, f, namespace, 2*time.Second, 5*time.Minute)
 }
 
 // TestFileIntegrityConfigurationStatus tests the following:
@@ -255,7 +255,7 @@ func TestFileIntegrityAcceptsExpectedChange(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
-	assertNodesConditionIsSuccess(t, f, namespace, testIntegrityName, 2*time.Second, 5*time.Minute)
+	assertNodesConditionIsSuccess(t, f, namespace, 2*time.Second, 5*time.Minute)
 
 	// Create MCFG
 	mcfg := getTestMcfg(t)
@@ -284,7 +284,7 @@ func TestFileIntegrityAcceptsExpectedChange(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after expected changes")
-	assertNodesConditionIsSuccess(t, f, namespace, testIntegrityName, 5*time.Second, 5*time.Minute)
+	assertNodesConditionIsSuccess(t, f, namespace, 5*time.Second, 5*time.Minute)
 }
 
 func TestFileIntegrityChangeGracePeriod(t *testing.T) {
@@ -462,5 +462,5 @@ func TestFileIntegrityTolerations(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
-	assertNodesConditionIsSuccess(t, f, namespace, testIntegrityName, 2*time.Second, 5*time.Minute)
+	assertNodesConditionIsSuccess(t, f, namespace, 2*time.Second, 5*time.Minute)
 }
