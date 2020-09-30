@@ -1,0 +1,12 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: file-integrity-operator-sub
+  namespace: openshift-file-integrity
+spec:
+  channel: alpha
+  name: file-integrity-operator
+  source: file-integrity-operator
+  sourceNamespace: openshift-marketplace
+  # uncomment to specify a version
+  #startingCSV: file-integrity-operator.v0.1.6

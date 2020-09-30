@@ -15,6 +15,9 @@ RELATED_IMAGE_OPERATOR_PATH?=$(IMAGE_REPO)/$(APP_NAME)
 RELATED_IMAGE_AIDE_PATH?=$(IMAGE_REPO)/$(AIDE)
 AIDE_DOCKERFILE_PATH?=./images/aide/Dockerfile
 
+BUNDLE_IMAGE_PATH=$(IMAGE_REPO)/file-integrity-operator-bundle
+INDEX_IMAGE_PATH=$(IMAGE_REPO)/file-integrity-operator-index
+
 # Image tag to use. Set this if you want to use a specific tag for building
 # or your e2e tests.
 TAG?=latest
@@ -57,16 +60,9 @@ E2E_USE_DEFAULT_IMAGES?=false
 # 	make e2e E2E_GO_TEST_FLAGS="-v -run TestE2E/TestScanWithNodeSelectorFiltersCorrectly"
 E2E_GO_TEST_FLAGS?=-v -timeout 45m
 
-# operator-courier arguments for `make publish`.
-# Before running `make publish`, install operator-courier with `pip3 install operator-courier` and create
-# ~/.quay containing your quay.io token.
-COURIER_CMD=operator-courier
-COURIER_PACKAGE_NAME=file-integrity-operator-bundle
-COURIER_OPERATOR_DIR=deploy/olm-catalog/file-integrity-operator
-COURIER_QUAY_NAMESPACE=file-integrity-operator
-COURIER_PACKAGE_VERSION?=
-OLD_COURIER_PACKAGE_VERSION=$(shell find deploy/olm-catalog/file-integrity-operator/ -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort -r | head -1)
-COURIER_QUAY_TOKEN?= $(shell cat ~/.quay)
+# operator-sdk arguments for `make release`.
+QUAY_NAMESPACE=file-integrity-operator
+OPERATOR_VERSION?=
 PACKAGE_CHANNEL?=alpha
 
 .PHONY: all
@@ -82,17 +78,28 @@ help: ## Show this help screen
 
 
 .PHONY: image
-image: operator-image aide-image fmt operator-sdk ## Build the file-integrity-operator container image
+image: fmt operator-sdk operator-image aide-image bundle-image  ## Build the file-integrity-operator container image
 
+.PHONY: operator-image
 operator-image: operator-sdk
 	$(GOPATH)/bin/operator-sdk build $(RELATED_IMAGE_OPERATOR_PATH):$(TAG) --image-builder $(RUNTIME)
 
+.PHONY: aide-image
 aide-image:
 	$(RUNTIME) build -f $(AIDE_DOCKERFILE_PATH) -t $(RELATED_IMAGE_AIDE_PATH):$(TAG) .
+
+.PHONY: bundle-image
+bundle-image:
+	$(RUNTIME) build -t $(BUNDLE_IMAGE_PATH):$(TAG) -f bundle.Dockerfile .
+
+.PHONY: index-image
+index-image:
+	opm index add -b $(BUNDLE_IMAGE_PATH):$(TAG) -t $(INDEX_IMAGE_PATH):$(TAG) -c podman
 
 .PHONY: build
 build: operator-bin ## Build the file-integrity-operator binaries
 
+.PHONY: operator-bin
 operator-bin:
 	$(GO) build -race -o $(TARGET_OPERATOR) github.com/openshift/file-integrity-operator/cmd/manager
 
@@ -279,33 +286,27 @@ endif
 push: image
 	$(RUNTIME) push $(RELATED_IMAGE_OPERATOR_PATH):$(TAG)
 	$(RUNTIME) push $(RELATED_IMAGE_AIDE_PATH):$(TAG)
+	$(RUNTIME) push $(BUNDLE_IMAGE_PATH):$(TAG)
 
-.PHONY: publish
-publish: csv publish-bundle
+.PHONY: push-index
+push-index: index-image
+	$(RUNTIME) push $(INDEX_IMAGE_PATH):$(TAG)
 
-.PHONY: check-package-version
-check-package-version:
-ifndef COURIER_PACKAGE_VERSION
-	$(error COURIER_PACKAGE_VERSION must be defined)
+.PHONY: check-operator-version
+check-operator-version:
+ifndef OPERATOR_VERSION
+	$(error OPERATOR_VERSION must be defined)
 endif
 
-.PHONY: csv
-csv: deploy/olm-catalog/file-integrity-operator/$(COURIER_PACKAGE_VERSION) check-package-version operator-sdk ## Generate the CSV and packaging for the specific version (NOTE: Gotta specify the version with the COURIER_PACKAGE_VERSION environment variable)
-
-deploy/olm-catalog/file-integrity-operator/$(COURIER_PACKAGE_VERSION):
-	$(GOPATH)/bin/operator-sdk generate csv --make-manifests=false --csv-channel $(PACKAGE_CHANNEL) --csv-version "$(COURIER_PACKAGE_VERSION)" --from-version "$(OLD_COURIER_PACKAGE_VERSION)" --update-crds
-
-.PHONY: publish-bundle
-publish-bundle: check-package-version
-	# If the validation fails, make sure you are running operator-courier
-	# 2.1.8, but also make sure the patches from https://github.com/operator-framework/operator-courier/pull/189
-	# are included. On Fedora, feel free to use https://copr.fedorainfracloud.org/coprs/jhrozek/python-operator-courier/
-	$(COURIER_CMD) push "$(COURIER_OPERATOR_DIR)" "$(COURIER_QUAY_NAMESPACE)" "$(COURIER_PACKAGE_NAME)" "$(COURIER_PACKAGE_VERSION)" "basic $(COURIER_QUAY_TOKEN)"
+.PHONY: bundle
+bundle: check-operator-version operator-sdk ## Generate the bundle and packaging for the specific version (NOTE: Gotta specify the version with the OPERATOR_VERSION environment variable)
+	$(GOPATH)/bin/operator-sdk generate bundle -q --overwrite --version "$(OPERATOR_VERSION)"
+	$(GOPATH)/bin/operator-sdk bundle validate ./deploy/olm-catalog/file-integrity-operator/
 
 .PHONY: package-version-to-tag
-package-version-to-tag: check-package-version
-	@echo "Overriding default tag '$(TAG)' with release tag '$(COURIER_PACKAGE_VERSION)'"
-	$(eval TAG = $(COURIER_PACKAGE_VERSION))
+package-version-to-tag: check-operator-version
+	@echo "Overriding default tag '$(TAG)' with release tag '$(OPERATOR_VERSION)'"
+	$(eval TAG = $(OPERATOR_VERSION))
 
 .PHONY: release-tag-image
 release-tag-image: package-version-to-tag
@@ -322,12 +323,14 @@ undo-deploy-tag-image: package-version-to-tag
 .PHONY: git-release
 git-release: package-version-to-tag
 	git checkout -b "release-v$(TAG)"
-	git add "deploy/olm-catalog/file-integrity-operator/$(TAG)"
-	git add "deploy/olm-catalog/file-integrity-operator/file-integrity-operator.package.yaml"
+	git add "deploy/olm-catalog/file-integrity-operator/"
 	git commit -m "Release v$(TAG)"
 	git tag "v$(TAG)"
 	git push origin "v$(TAG)"
 	git push origin "release-v$(TAG)"
 
 .PHONY: release
-release: release-tag-image push publish undo-deploy-tag-image git-release ## Do an official release (Requires permissions)
+release: release-tag-image bundle push push-index publish undo-deploy-tag-image git-release ## Do an official release (Requires permissions)
+	# This will ensure that we also push to the latest tag
+	$(MAKE) push TAG=latest
+	$(MAKE) push-index TAG=latest
