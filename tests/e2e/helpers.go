@@ -542,6 +542,20 @@ func createTestConfigMap(t *testing.T, f *framework.Framework, integrityName, co
 	updateFileIntegrityConfig(t, f, integrityName, configMapName, namespace, key, time.Second, 2*time.Minute)
 }
 
+func updateTestConfigMap(t *testing.T, f *framework.Framework, configMapName, namespace, key, data string) {
+	// update the test AIDE configmap
+	cm, err := f.KubeClient.CoreV1().ConfigMaps(namespace).Get(goctx.TODO(), configMapName, metav1.GetOptions{})
+	if err != nil {
+		t.Error(err)
+	}
+
+	cm.Data[key] = data
+	_, err = f.KubeClient.CoreV1().ConfigMaps(namespace).Update(goctx.TODO(), cm, metav1.UpdateOptions{})
+	if err != nil {
+		t.Error(err)
+	}
+}
+
 func waitForScanStatusWithTimeout(t *testing.T, f *framework.Framework, namespace, name string, targetStatus fileintv1alpha1.FileIntegrityStatusPhase, interval, timeout time.Duration, successiveResults int) error {
 	exampleFileIntegrity := &fileintv1alpha1.FileIntegrity{}
 	resultNum := 0

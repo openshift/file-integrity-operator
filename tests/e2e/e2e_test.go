@@ -434,12 +434,21 @@ func TestFileIntegrityBadConfig(t *testing.T) {
 			t.Fatal(err)
 		}
 	}()
+	defer logContainerOutput(t, f, namespace, testIntegrityName)
 
 	// Install the different config
 	createTestConfigMap(t, f, testIntegrityName, testConfName, namespace, testConfDataKey, brokenAideConfig)
 
 	// wait to go to error state.
 	err := waitForScanStatusWithTimeout(t, f, namespace, testIntegrityName, fileintv1alpha1.PhaseError, retryInterval, timeout, 1)
+	if err != nil {
+		t.Errorf("Timeout waiting for scan status")
+	}
+
+	// Fix the config
+	updateTestConfigMap(t, f, testConfName, namespace, testConfDataKey, testAideConfig)
+	// wait to go to active state.
+	err = waitForScanStatusWithTimeout(t, f, namespace, testIntegrityName, fileintv1alpha1.PhaseActive, retryInterval, timeout, 1)
 	if err != nil {
 		t.Errorf("Timeout waiting for scan status")
 	}

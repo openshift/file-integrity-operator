@@ -54,6 +54,14 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 		return err
 	}
 
+	// Watch for changes to configMaps that are used by a FI instance. We use a mapper to map the CM to FI
+	err = c.Watch(&source.Kind{Type: &corev1.ConfigMap{}}, &handler.EnqueueRequestsFromMapFunc{
+		ToRequests: &fileIntegrityMapper{mgr.GetClient()},
+	})
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
