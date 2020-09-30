@@ -598,7 +598,7 @@ func waitForFailedResultForNode(t *testing.T, f *framework.Framework, namespace,
 	return foundResult, nil
 }
 
-func assertNodesConditionIsSuccess(t *testing.T, f *framework.Framework, namespace, name string, interval, timeout time.Duration) {
+func assertNodesConditionIsSuccess(t *testing.T, f *framework.Framework, namespace string, interval, timeout time.Duration) {
 	var lastErr error
 	type nodeStatus struct {
 		LastProbeTime metav1.Time
