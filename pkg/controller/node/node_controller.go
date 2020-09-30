@@ -106,7 +106,10 @@ func (r *ReconcileNode) Reconcile(request reconcile.Request) (reconcile.Result, 
 	// NOTE(jaosorior): If, for some reason, the MCO is not running on a deployment, mcdState
 	// will be empty, and this reconciler just won't do anything. This is fine.
 	if nodeHasMCOAnnotations(node) {
-		fis := r.findRelevantFileIntegrities(node)
+		fis, err := r.findRelevantFileIntegrities(node)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
 		if isNodeBeingUpdateByMCO(currentConfig, desiredConfig, mcdState) {
 			reqLogger.Info("Node is currently updating.",
 				"currentConfig", currentConfig, "desiredConfig", desiredConfig)
@@ -128,23 +131,31 @@ func (r *ReconcileNode) Reconcile(request reconcile.Request) (reconcile.Result, 
 	return reconcile.Result{}, nil
 }
 
-func (r *ReconcileNode) findRelevantFileIntegrities(currentnode *corev1.Node) []*fiv1alpha1.FileIntegrity {
+func (r *ReconcileNode) findRelevantFileIntegrities(currentnode *corev1.Node) ([]*fiv1alpha1.FileIntegrity, error) {
 	resultingFIs := []*fiv1alpha1.FileIntegrity{}
 	fiList := fiv1alpha1.FileIntegrityList{}
-	r.client.List(context.TODO(), &fiList)
+	err := r.client.List(context.TODO(), &fiList)
+	if err != nil {
+		return resultingFIs, err
+	}
 	for _, fi := range fiList.Items {
 		nodeList := corev1.NodeList{}
 		listOpts := client.ListOptions{
 			LabelSelector: labels.SelectorFromSet(fi.Spec.NodeSelector),
 		}
-		r.client.List(context.TODO(), &nodeList, &listOpts)
+
+		err = r.client.List(context.TODO(), &nodeList, &listOpts)
+		if err != nil {
+			return resultingFIs, err
+		}
+
 		for _, node := range nodeList.Items {
 			if node.Name == currentnode.Name {
 				resultingFIs = append(resultingFIs, &fi)
 			}
 		}
 	}
-	return resultingFIs
+	return resultingFIs, nil
 }
 
 func (r *ReconcileNode) addHoldOffAnnotations(fis []*fiv1alpha1.FileIntegrity) error {
