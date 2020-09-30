@@ -610,7 +610,7 @@ func assertNodesConditionIsSuccess(t *testing.T, f *framework.Framework, namespa
 		t.Errorf("error listing nodes: %v", err)
 	}
 
-	wait.Poll(interval, timeout, func() (bool, error) {
+	timeoutErr := wait.Poll(interval, timeout, func() (bool, error) {
 		// Node names are the key
 		latestStatuses := map[string]nodeStatus{}
 
@@ -645,6 +645,9 @@ func assertNodesConditionIsSuccess(t *testing.T, f *framework.Framework, namespa
 	})
 	if lastErr != nil {
 		t.Errorf("ERROR: nodes weren't in good state: %s", lastErr)
+	}
+	if timeoutErr != nil {
+		t.Errorf("ERROR: timed out waiting for node condition: %s", timeoutErr)
 	}
 }
 
