@@ -148,7 +148,7 @@ func setupFileIntegrityOperatorCluster(t *testing.T, ctx *framework.Context) {
 		t.Fatalf("failed to initialize cluster resources: %v", err)
 	}
 	t.Log("Initialized cluster resources")
-	namespace, err := ctx.GetNamespace()
+	namespace, err := ctx.GetOperatorNamespace()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -309,7 +309,7 @@ func getNumberOfWorkerNodes(c kubernetes.Interface) (int, error) {
 
 func setupTolerationTest(t *testing.T) (*framework.Framework, *framework.Context, string) {
 	testctx := setupTestRequirements(t)
-	namespace, err := testctx.GetNamespace()
+	namespace, err := testctx.GetOperatorNamespace()
 	if err != nil {
 		t.Errorf("could not get namespace: %v", err)
 	}
@@ -397,7 +397,7 @@ func setupTolerationTest(t *testing.T) (*framework.Framework, *framework.Context
 // setupTest sets up the operator and waits for AIDE to roll out
 func setupTest(t *testing.T) (*framework.Framework, *framework.Context, string) {
 	testctx := setupTestRequirements(t)
-	namespace, err := testctx.GetNamespace()
+	namespace, err := testctx.GetOperatorNamespace()
 	if err != nil {
 		t.Errorf("could not get namespace: %v", err)
 	}
