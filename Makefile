@@ -47,6 +47,9 @@ export NAMESPACE?=openshift-file-integrity
 SDK_VERSION?=v0.18.1
 OPERATOR_SDK_URL=https://github.com/operator-framework/operator-sdk/releases/download/$(SDK_VERSION)/operator-sdk-$(SDK_VERSION)-x86_64-linux-gnu
 
+OPM_VERSION=v1.13.8
+OPM_URL=https://github.com/operator-framework/operator-registry/releases/download/$(OPM_VERSION)/linux-amd64-opm
+
 # Test variables
 # ==============
 TEST_OPTIONS?=
@@ -93,7 +96,7 @@ bundle-image:
 	$(RUNTIME) build -t $(BUNDLE_IMAGE_PATH):$(TAG) -f bundle.Dockerfile .
 
 .PHONY: index-image
-index-image:
+index-image: opm
 	opm index add -b $(BUNDLE_IMAGE_PATH):$(TAG) -t $(INDEX_IMAGE_PATH):$(TAG) -c podman
 
 .PHONY: build
@@ -109,6 +112,13 @@ operator-sdk: $(GOPATH)/bin/operator-sdk
 $(GOPATH)/bin/operator-sdk:
 	wget -nv $(OPERATOR_SDK_URL) -O $(GOPATH)/bin/operator-sdk || (echo "wget returned $$? trying to fetch operator-sdk. please install operator-sdk and try again"; exit 1)
 	chmod +x $(GOPATH)/bin/operator-sdk
+
+.PHONY: opm
+opm: $(GOPATH)/bin/opm
+
+$(GOPATH)/bin/opm:
+	wget -nv $(OPM_URL) -O $(GOPATH)/bin/opm || (echo "wget returned $$? trying to fetch opm. please install opm and try again"; exit 1)
+	chmod +x $(GOPATH)/bin/opm
 
 .PHONY: run
 run: operator-sdk ## Run the file-integrity-operator locally
