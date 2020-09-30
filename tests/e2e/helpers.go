@@ -96,7 +96,7 @@ CONTENT_EX = sha512+ftype+p+u+g+n+acl+selinux+xattrs
 
 var brokenAideConfig = testAideConfig + "\n" + "NORMAL = p+i+n+u+g+s+m+c+acl+selinux+xattrs+sha513+md5+XXXXXX"
 
-func cleanUp(t *testing.T, namespace string) func() error {
+func cleanUp(namespace string) func() error {
 	return func() error {
 		f := framework.Global
 
@@ -330,7 +330,7 @@ func setupTolerationTest(t *testing.T) (*framework.Framework, *framework.Context
 	testctx.AddCleanupFn(func() error {
 		return removeNodeTaint(t, f, taintedNode.Name, taintKey)
 	})
-	testctx.AddCleanupFn(cleanUp(t, namespace))
+	testctx.AddCleanupFn(cleanUp(namespace))
 	setupFileIntegrityOperatorCluster(t, testctx)
 
 	if err := taintNode(t, f, taintedNode, taint); err != nil {
@@ -404,7 +404,7 @@ func setupTest(t *testing.T) (*framework.Framework, *framework.Context, string) 
 	if err != nil {
 		t.Errorf("could not get namespace: %v", err)
 	}
-	testctx.AddCleanupFn(cleanUp(t, namespace))
+	testctx.AddCleanupFn(cleanUp(namespace))
 
 	setupFileIntegrityOperatorCluster(t, testctx)
 	f := framework.Global
