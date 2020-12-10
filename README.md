@@ -53,7 +53,7 @@ status:
 In the `spec`:
 * **nodeSelector**: Selector for nodes to schedule the scan instances on.
 * **tolerations**: Specify tolerations to schedule on nodes with custom taints. When not specified, a default toleration allowing running on master nodes is applied.
-* **config**: Point to a configMap containing an AIDE configuration to use instead of the CoreOS optimized default. See "Applying an AIDE config" below.
+* **config**: Point to a ConfigMap containing an AIDE configuration to use instead of the CoreOS optimized default. See "Applying an AIDE config" below.
 * **config.gracePeriod**: The number of seconds to pause in between AIDE integrity checks. Frequent AIDE checks on a node may be resource intensive, so it can be useful to specify a longer interval. Defaults to 900 (15 mins).
 
 In the `status`:
@@ -96,9 +96,9 @@ example-fileintegrity-ip-10-0-210-89.us-east-2.compute.internal    4h24m
 
 The `results` field can contain up to three entries. The most recent Successful scan, the most recent Failed scan (if any), and the most recent Errored scan (if any). When there are multiple entries, the newest `lastProbeTime` indicates the current status.
 
-A Failed scan indicates that there were changes to the files that AIDE monitors, and displays a brief status. The `resultConfigMap` fields point to a configMap containing a more detailed report.
+A Failed scan indicates that there were changes to the files that AIDE monitors, and displays a brief status. The `resultConfigMap` fields point to a ConfigMap containing a more detailed report.
 
-Note: Currently the failure log is only exposed to the admin through this result configMap. In order to provide some permanence of record, the result configMaps are not owned by the fileIntegrity object, so manual cleanup is necessary. Additionally, deleting the fileIntegrity object leaves the AIDE database on the nodes, and the scan state will resume if the fileIntegrity is re-created.
+Note: Currently the failure log is only exposed to the admin through this result ConfigMap. In order to provide some permanence of record, the result ConfigMaps are not owned by the FileIntegrity object, so manual cleanup is necessary. Additionally, deleting the FileIntegrity object leaves the AIDE database on the nodes, and the scan state will resume if the FileIntegrity is re-created.
 
 ```
 $ oc get fileintegritynodestatus/example-fileintegrity-ip-10-0-139-137.us-east-2.compute.internal -o yaml
@@ -161,7 +161,7 @@ $ make e2e
 ## Overriding the AIDE configuration
 By default the AIDE containers run with an aide.conf that is tailored to a default RHCOS node. If you need to add or exclude files on nodes that are not covered by the default config, you can override it with a modified config.
 
-- Create a configMap containing the aide.conf, e.g.,
+- Create a ConfigMap containing the aide.conf, e.g.,
 ```
 $ oc project openshift-file-integrity
 $ oc create configmap myconf --from-file=aide-conf=aide.conf.rhel8
@@ -182,6 +182,6 @@ spec:
 * At this point the operator will update the active AIDE config and perform a re-initialization of the AIDE database, as well as a restart of the AIDE pods to begin scanning with the new configuration. A backup of the logs and database from the previously applied configurations are left available on the nodes under /etc/kubernetes.
 * The operator automatically converts the `database`, `database_out`, `report_url`, `DBDIR`, and `LOGDIR` options in the configuration to accommodate running inside of a pod.
 * Removing the config section from the FileIntegrity resource when active reverts the running config to the default and re-initializes the database.
-* In the case of where small modifications are needed (such as excluding a file or directory), it's recommended to copy the [default config](https://github.com/openshift/file-integrity-operator/blob/master/pkg/controller/fileintegrity/config_defaults.go#L16) to a new configMap and add to it as needed.
+* In the case of where small modifications are needed (such as excluding a file or directory), it's recommended to copy the [default config](https://github.com/openshift/file-integrity-operator/blob/master/pkg/controller/fileintegrity/config_defaults.go#L16) to a new ConfigMap and add to it as needed.
 * Some AIDE configuration options may not be supported by the AIDE container. For example, the `mhash` digest types are not supported. For digest selection, it is recommended to use the default config's [CONTENT_EX group](https://github.com/openshift/file-integrity-operator/blob/master/pkg/controller/fileintegrity/config_defaults.go#L25).
-* Manually re-initializing the AIDE database can be done by adding the annotation key `file-integrity.openshift.io/re-init` to the fileIntegrity object.
+* Manually re-initializing the AIDE database can be done by adding the annotation key `file-integrity.openshift.io/re-init` to the FileIntegrity object.
