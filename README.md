@@ -43,7 +43,7 @@ spec:
     effect: "NoSchedule"
   config:
     name: "myconfig"
-    namespace: "openshift-file-integrtiy"
+    namespace: "openshift-file-integrity"
     key: "config"
     gracePeriod: 20
   debug: false
