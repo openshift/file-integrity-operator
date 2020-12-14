@@ -40,7 +40,7 @@ SRC = $(shell find . -type f -name '*.go' -not -path "./vendor/*" -not -path "./
 # Kubernetes variables
 # ====================
 KUBECONFIG?=$(HOME)/.kube/config
-export NAMESPACE?=openshift-file-integrity
+export NAMESPACE=openshift-file-integrity
 
 # Operator-sdk variables
 # ======================
