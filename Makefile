@@ -44,10 +44,10 @@ export NAMESPACE=openshift-file-integrity
 
 # Operator-sdk variables
 # ======================
-SDK_VERSION?=v0.18.1
+SDK_VERSION?=v0.18.2
 OPERATOR_SDK_URL=https://github.com/operator-framework/operator-sdk/releases/download/$(SDK_VERSION)/operator-sdk-$(SDK_VERSION)-x86_64-linux-gnu
 
-OPM_VERSION=v1.13.8
+OPM_VERSION=v1.15.2
 OPM_URL=https://github.com/operator-framework/operator-registry/releases/download/$(OPM_VERSION)/linux-amd64-opm
 
 # Test variables
@@ -97,7 +97,7 @@ bundle-image:
 
 .PHONY: index-image
 index-image: opm
-	opm index add -b $(BUNDLE_IMAGE_PATH):$(TAG) -t $(INDEX_IMAGE_PATH):$(TAG) -c podman
+	$(GOPATH)/bin/opm index add -b $(BUNDLE_IMAGE_PATH):$(TAG) -f $(INDEX_IMAGE_PATH):latest -t $(INDEX_IMAGE_PATH):latest -c $(RUNTIME) --overwrite-latest
 
 .PHONY: build
 build: operator-bin ## Build the file-integrity-operator binaries
@@ -289,7 +289,7 @@ openshift-user:
 ifeq ($(shell oc whoami 2>/dev/null),kube:admin)
 	$(eval OPENSHIFT_USER = kubeadmin)
 else
-	$(eval OPENSHIFT_USER = $(oc whoami))
+	$(eval OPENSHIFT_USER = $(shell oc whoami))
 endif
 
 .PHONY: push
@@ -300,7 +300,7 @@ push: image
 
 .PHONY: push-index
 push-index: index-image
-	$(RUNTIME) push $(INDEX_IMAGE_PATH):$(TAG)
+	$(RUNTIME) push $(INDEX_IMAGE_PATH):latest
 
 .PHONY: check-operator-version
 check-operator-version:
@@ -311,6 +311,8 @@ endif
 .PHONY: bundle
 bundle: check-operator-version operator-sdk ## Generate the bundle and packaging for the specific version (NOTE: Gotta specify the version with the OPERATOR_VERSION environment variable)
 	$(GOPATH)/bin/operator-sdk generate bundle -q --overwrite --version "$(OPERATOR_VERSION)"
+	sed -i '/replaces:/d' deploy/olm-catalog/file-integrity-operator/manifests/file-integrity-operator.clusterserviceversion.yaml
+	sed -i "s/\(olm.skipRange: '>=.*\)<.*'/\1<$(OPERATOR_VERSION)'/" deploy/olm-catalog/file-integrity-operator/manifests/file-integrity-operator.clusterserviceversion.yaml
 	$(GOPATH)/bin/operator-sdk bundle validate ./deploy/olm-catalog/file-integrity-operator/
 
 .PHONY: package-version-to-tag
@@ -343,4 +345,3 @@ git-release: package-version-to-tag
 release: release-tag-image bundle push push-index undo-deploy-tag-image git-release ## Do an official release (Requires permissions)
 	# This will ensure that we also push to the latest tag
 	$(MAKE) push TAG=latest
-	$(MAKE) push-index TAG=latest

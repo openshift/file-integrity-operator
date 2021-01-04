@@ -1,5 +1,6 @@
 # Step one: build file-integrity-operator
 FROM registry.access.redhat.com/ubi8/go-toolset as builder
+USER root
 
 WORKDIR /go/src/github.com/openshift/file-integrity-operator
 
@@ -10,7 +11,7 @@ COPY . .
 RUN make operator-bin
 
 # Step two: containerize file-integrity-operator and AIDE together
-FROM centos:centos8
+FROM registry.centos.org/centos:8
 RUN yum -y install aide && yum clean all
 
 ENV OPERATOR=/usr/local/bin/file-integrity-operator \
