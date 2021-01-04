@@ -3,8 +3,8 @@ package fileintegrity
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strconv"
-	"strings"
 
 	"github.com/go-logr/logr"
 
@@ -346,15 +346,10 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 			return reconcile.Result{}, common.IgnoreAlreadyExists(createErr)
 		}
 	} else {
-		// Handle an update of the daemon arguments when Debug and GracePeriod are changed. If they constitute a change
-		// then the daemonSet spec is updated and the pods are restarted.
-		updated, newArgs, err := updateDaemonSetPodArgs(daemonSet, instance)
-		if err != nil {
-			return reconcile.Result{}, nil
-		}
-		if updated {
-			dsCopy := daemonSet.DeepCopy()
-			dsCopy.Spec.Template.Spec.Containers[0].Args = newArgs
+		dsCopy := daemonSet.DeepCopy()
+		argsNeedUpdate := updateDSArgs(dsCopy, instance)
+		imgNeedsUpdate := updateDSImage(dsCopy)
+		if argsNeedUpdate || imgNeedsUpdate {
 			if err := r.client.Update(context.TODO(), dsCopy); err != nil {
 				return reconcile.Result{}, err
 			}
@@ -369,47 +364,30 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 	return reconcile.Result{}, nil
 }
 
-func intervalOpt(s string) bool {
-	return strings.HasPrefix(s, "--interval=")
-}
-
-func debugOpt(s string) bool {
-	return strings.HasPrefix(s, "--debug=")
-}
-
-// Returns true with the daemon pod args from fi (for --interval and --debug options) if they differ from the current DS.
+// Returns true with the daemon pod args derived from the FileIntegrity object differ from the current DS.
 // Returns false if there was no difference.
-func updateDaemonSetPodArgs(currentDS *appsv1.DaemonSet, fi *fileintegrityv1alpha1.FileIntegrity) (bool, []string, error) {
-	var currentGracePeriod string
-	var currentDebug string
-
-	args := currentDS.Spec.Template.Spec.Containers[0].Args
-	newArgs := make([]string, 0)
-
-	for _, arg := range args {
-		if intervalOpt(arg) {
-			currentGracePeriod = arg[len("--interval="):]
-		} else if debugOpt(arg) {
-			currentDebug = arg[len("--debug="):]
-		}
+// If an update is needed, this will update the arguments from the given DaemonSet
+func updateDSArgs(currentDS *appsv1.DaemonSet, fi *fileintegrityv1alpha1.FileIntegrity) bool {
+	argsRef := &currentDS.Spec.Template.Spec.Containers[0].Args
+	expectedArgs := daemonArgs(currentDS.Name, fi)
+	needsUpdate := !reflect.DeepEqual(*argsRef, expectedArgs)
+	if needsUpdate {
+		*argsRef = expectedArgs
 	}
-	if currentGracePeriod == "" || currentDebug == "" {
-		return false, newArgs, fmt.Errorf("bad daemon configuration")
-	}
+	return needsUpdate
+}
 
-	newGracePeriod := getGracePeriod(fi)
-	newDebug := getDebug(fi)
-	if currentGracePeriod != newGracePeriod || currentDebug != newDebug {
-		for _, arg := range args {
-			if !intervalOpt(arg) && !debugOpt(arg) {
-				newArgs = append(newArgs, arg)
-			}
-		}
-		newArgs = append(newArgs, fmt.Sprintf("--interval=%s", newGracePeriod))
-		newArgs = append(newArgs, fmt.Sprintf("--debug=%s", newDebug))
-		return true, newArgs, nil
+// Returns true with the daemon pod image differs from the current DS.
+// Returns false if there was no difference.
+// If an update is needed, this will update the image reference from the given DaemonSet
+func updateDSImage(currentDS *appsv1.DaemonSet) bool {
+	currentImgRef := &currentDS.Spec.Template.Spec.Containers[0].Image
+	expectedImg := common.GetComponentImage(common.OPERATOR)
+	needsUpdate := *currentImgRef != expectedImg
+	if needsUpdate {
+		*currentImgRef = expectedImg
 	}
-	return false, newArgs, nil
+	return needsUpdate
 }
 
 func defaultAIDEConfigMap(name string) *corev1.ConfigMap {
