@@ -11,7 +11,14 @@ spec:
     singular: fileintegritynodestatus
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .nodeName
+      name: Node
+      type: string
+    - jsonPath: .lastResult.condition
+      name: Status
+      type: string
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: FileIntegrityNodeStatus defines the status of a specific node
@@ -89,3 +96,4 @@ spec:
         type: object
     served: true
     storage: true
+    subresources: {}

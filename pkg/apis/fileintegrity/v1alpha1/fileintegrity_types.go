@@ -60,6 +60,8 @@ type FileIntegrityStatus struct {
 
 // FileIntegrityNodeStatus defines the status of a specific node
 // +k8s:openapi-gen=true
+// +kubebuilder:printcolumn:name="Node",type="string",JSONPath=`.nodeName`
+// +kubebuilder:printcolumn:name="Status",type="string",JSONPath=`.lastResult.condition`
 type FileIntegrityNodeStatus struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
