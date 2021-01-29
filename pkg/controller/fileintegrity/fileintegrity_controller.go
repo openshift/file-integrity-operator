@@ -349,7 +349,8 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 		dsCopy := daemonSet.DeepCopy()
 		argsNeedUpdate := updateDSArgs(dsCopy, instance)
 		imgNeedsUpdate := updateDSImage(dsCopy)
-		if argsNeedUpdate || imgNeedsUpdate {
+		nsNeedsUpdate := updateDSNodeSelector(dsCopy, instance)
+		if argsNeedUpdate || imgNeedsUpdate || nsNeedsUpdate {
 			if err := r.client.Update(context.TODO(), dsCopy); err != nil {
 				return reconcile.Result{}, err
 			}
@@ -362,6 +363,16 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 		}
 	}
 	return reconcile.Result{}, nil
+}
+
+func updateDSNodeSelector(currentDS *appsv1.DaemonSet, fi *fileintegrityv1alpha1.FileIntegrity) bool {
+	nsRef := &currentDS.Spec.Template.Spec.NodeSelector
+	expectedNS := fi.Spec.NodeSelector
+	needsUpdate := !reflect.DeepEqual(*nsRef, expectedNS)
+	if needsUpdate {
+		*nsRef = expectedNS
+	}
+	return needsUpdate
 }
 
 // Returns true with the daemon pod args derived from the FileIntegrity object differ from the current DS.
