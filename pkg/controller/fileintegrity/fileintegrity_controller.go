@@ -411,7 +411,7 @@ func updateDSImage(currentDS *appsv1.DaemonSet, logger logr.Logger) bool {
 	expectedImg := common.GetComponentImage(common.OPERATOR)
 	needsUpdate := *currentImgRef != expectedImg
 	if needsUpdate {
-		logger.Info("FileIntegrity needed image update")
+		logger.Info("FileIntegrity needed image update", "Expected-Image", expectedImg, "Current-Image", currentImgRef)
 		*currentImgRef = expectedImg
 	}
 	return needsUpdate
