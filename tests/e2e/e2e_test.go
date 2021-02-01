@@ -207,6 +207,7 @@ func TestFileIntegrityConfigurationIgnoreMissing(t *testing.T) {
 	defer logContainerOutput(t, f, namespace, testIntegrityName)
 
 	// Non-existent conf
+	t.Log("Updating file integrity with non-existent user-config")
 	updateFileIntegrityConfig(t, f, testIntegrityName, "fooconf", namespace, "fookey", time.Second, 2*time.Minute)
 
 	// No re-init should happen, let this error pass.
