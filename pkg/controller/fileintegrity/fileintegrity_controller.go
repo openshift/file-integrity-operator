@@ -347,10 +347,12 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 		}
 	} else {
 		dsCopy := daemonSet.DeepCopy()
-		argsNeedUpdate := updateDSArgs(dsCopy, instance)
-		imgNeedsUpdate := updateDSImage(dsCopy)
-		nsNeedsUpdate := updateDSNodeSelector(dsCopy, instance)
-		if argsNeedUpdate || imgNeedsUpdate || nsNeedsUpdate {
+		argsNeedUpdate := updateDSArgs(dsCopy, instance, reqLogger)
+		imgNeedsUpdate := updateDSImage(dsCopy, reqLogger)
+		nsNeedsUpdate := updateDSNodeSelector(dsCopy, instance, reqLogger)
+		tolsNeedsUpdate := updateDSTolerations(dsCopy, instance, reqLogger)
+
+		if argsNeedUpdate || imgNeedsUpdate || nsNeedsUpdate || tolsNeedsUpdate {
 			if err := r.client.Update(context.TODO(), dsCopy); err != nil {
 				return reconcile.Result{}, err
 			}
@@ -365,12 +367,24 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 	return reconcile.Result{}, nil
 }
 
-func updateDSNodeSelector(currentDS *appsv1.DaemonSet, fi *fileintegrityv1alpha1.FileIntegrity) bool {
+func updateDSNodeSelector(currentDS *appsv1.DaemonSet, fi *fileintegrityv1alpha1.FileIntegrity, logger logr.Logger) bool {
 	nsRef := &currentDS.Spec.Template.Spec.NodeSelector
 	expectedNS := fi.Spec.NodeSelector
 	needsUpdate := !reflect.DeepEqual(*nsRef, expectedNS)
 	if needsUpdate {
+		logger.Info("FileIntegrity needed nodeSelector update")
 		*nsRef = expectedNS
+	}
+	return needsUpdate
+}
+
+func updateDSTolerations(currentDS *appsv1.DaemonSet, fi *fileintegrityv1alpha1.FileIntegrity, logger logr.Logger) bool {
+	tRef := &currentDS.Spec.Template.Spec.Tolerations
+	expectedTolerations := fi.Spec.Tolerations
+	needsUpdate := !reflect.DeepEqual(*tRef, expectedTolerations)
+	if needsUpdate {
+		logger.Info("FileIntegrity needed tolerations update")
+		*tRef = expectedTolerations
 	}
 	return needsUpdate
 }
@@ -378,11 +392,12 @@ func updateDSNodeSelector(currentDS *appsv1.DaemonSet, fi *fileintegrityv1alpha1
 // Returns true with the daemon pod args derived from the FileIntegrity object differ from the current DS.
 // Returns false if there was no difference.
 // If an update is needed, this will update the arguments from the given DaemonSet
-func updateDSArgs(currentDS *appsv1.DaemonSet, fi *fileintegrityv1alpha1.FileIntegrity) bool {
+func updateDSArgs(currentDS *appsv1.DaemonSet, fi *fileintegrityv1alpha1.FileIntegrity, logger logr.Logger) bool {
 	argsRef := &currentDS.Spec.Template.Spec.Containers[0].Args
 	expectedArgs := daemonArgs(currentDS.Name, fi)
 	needsUpdate := !reflect.DeepEqual(*argsRef, expectedArgs)
 	if needsUpdate {
+		logger.Info("FileIntegrity needed DaemonSet command-line arguments update")
 		*argsRef = expectedArgs
 	}
 	return needsUpdate
@@ -391,11 +406,12 @@ func updateDSArgs(currentDS *appsv1.DaemonSet, fi *fileintegrityv1alpha1.FileInt
 // Returns true with the daemon pod image differs from the current DS.
 // Returns false if there was no difference.
 // If an update is needed, this will update the image reference from the given DaemonSet
-func updateDSImage(currentDS *appsv1.DaemonSet) bool {
+func updateDSImage(currentDS *appsv1.DaemonSet, logger logr.Logger) bool {
 	currentImgRef := &currentDS.Spec.Template.Spec.Containers[0].Image
 	expectedImg := common.GetComponentImage(common.OPERATOR)
 	needsUpdate := *currentImgRef != expectedImg
 	if needsUpdate {
+		logger.Info("FileIntegrity needed image update")
 		*currentImgRef = expectedImg
 	}
 	return needsUpdate
