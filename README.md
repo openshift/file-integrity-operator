@@ -147,6 +147,7 @@ Detailed information about changes:
 File: /hostroot/etc/resolv.conf
  SHA512   : Xl2pzxjmRPtW8bl6Kj49SkKOSBVJgsCI , tebxD8QZd/5/SqsVkExCwVqVO22zxmcq
 ```
+AIDE logs over 1mb are gzip compressed and base64 encoded, due to the configMap data size limit. In this case, you will want to pipe the output of the above command to `base64 -d | gunzip`.
 
 ### Local testing
 ```
