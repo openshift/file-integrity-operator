@@ -1,5 +1,5 @@
 # Step one: build scapresults
-FROM registry.svc.ci.openshift.org/ocp/builder:golang-1.12 AS builder
+FROM registry.ci.openshift.org/ocp/builder:golang-1.12 AS builder
 
 WORKDIR /go/src/github.com/openshift/file-integrity-operator
 

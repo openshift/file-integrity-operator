@@ -1,5 +1,5 @@
 # Step one: build file-integrity-operator
-FROM registry.svc.ci.openshift.org/ocp/builder:rhel-8-golang-openshift-4.6 AS builder
+FROM registry.ci.openshift.org/ocp/builder:rhel-8-golang-openshift-4.6 AS builder
 
 WORKDIR /go/src/github.com/openshift/file-integrity-operator
 
