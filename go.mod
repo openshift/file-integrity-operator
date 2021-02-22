@@ -1,6 +1,6 @@
 module github.com/openshift/file-integrity-operator
 
-go 1.13
+go 1.15
 
 require (
 	github.com/cenkalti/backoff/v3 v3.2.2
