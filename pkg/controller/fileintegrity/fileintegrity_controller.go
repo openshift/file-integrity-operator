@@ -604,6 +604,11 @@ func aideDaemonset(dsName string, fi *fileintegrityv1alpha1.FileIntegrity) *apps
 										},
 									},
 								},
+								{
+									// Needed for friendlier memory reporting as long as we are on golang < 1.16
+									Name:  "GODEBUG",
+									Value: "madvisedontneed=1",
+								},
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{

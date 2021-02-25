@@ -25,8 +25,6 @@ import (
 	"sync"
 	"time"
 
-	"k8s.io/client-go/tools/clientcmd"
-
 	pprof "net/http/pprof"
 
 	"k8s.io/api/events/v1beta1"
@@ -34,8 +32,12 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/clientcmd"
+	watch2 "k8s.io/client-go/tools/watch"
 
 	"github.com/cenkalti/backoff/v3"
 	"github.com/openshift/file-integrity-operator/pkg/common"
@@ -406,14 +408,15 @@ func integrityInstanceLoop(rt *daemonRuntime, conf *daemonConfig, exit chan bool
 		Resource: crdPlurals,
 	}
 
+	var initialVersion string
 	err := backoff.Retry(func() error {
 		// Set initial instance
 		fi, err := rt.dynclient.Resource(fiResource).Namespace(conf.Namespace).Get(context.TODO(), conf.FileIntegrityName, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
-
 		rt.SetFileIntegrityInstance(fi)
+		initialVersion = fi.GetResourceVersion()
 		return nil
 	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries))
 
@@ -423,15 +426,25 @@ func integrityInstanceLoop(rt *daemonRuntime, conf *daemonConfig, exit chan bool
 		return
 	}
 
-	listopts := metav1.ListOptions{
+	listOpts := metav1.ListOptions{
 		FieldSelector: fields.OneTermEqualSelector("metadata.name", conf.FileIntegrityName).String(),
 	}
-	watcher, err := rt.dynclient.Resource(fiResource).Namespace(conf.Namespace).Watch(context.TODO(), listopts)
+	listWatcher := &cache.ListWatch{
+		WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
+			return rt.dynclient.Resource(fiResource).Namespace(conf.Namespace).Watch(context.TODO(), listOpts)
+		},
+		ListFunc: func(options v1.ListOptions) (runtime.Object, error) {
+			return rt.dynclient.Resource(fiResource).Namespace(conf.Namespace).List(context.TODO(), listOpts)
+		},
+	}
+
+	watcher, err := watch2.NewRetryWatcher(initialVersion, listWatcher)
 	if err != nil {
-		DBG("Couldn't watch file integrity object: %s", conf.FileIntegrityName)
+		DBG("error creating Retry Watcher: %s", err)
 		exit <- true
 		return
 	}
+
 	ch := watcher.ResultChan()
 	for event := range ch {
 		if event.Type == watch.Error {
