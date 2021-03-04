@@ -102,18 +102,17 @@ type daemonConfig struct {
 }
 
 type daemonRuntime struct {
-	clientset              *kubernetes.Clientset
-	dynclient              dynamic.Interface
-	logCollectorInode      uint64
-	logCollectorReadoffset int64
-	initializing           bool
-	initializingMux        sync.Mutex
-	holding                bool
-	holdingMux             sync.Mutex
-	result                 chan int
-	dbMux                  sync.Mutex
-	fiInstance             *unstructured.Unstructured
-	instanceMux            sync.Mutex
+	clientset         *kubernetes.Clientset
+	dynclient         dynamic.Interface
+	logCollectorInode uint64
+	initializing      bool
+	initializingMux   sync.Mutex
+	holding           bool
+	holdingMux        sync.Mutex
+	result            chan int
+	dbMux             sync.Mutex
+	fiInstance        *unstructured.Unstructured
+	instanceMux       sync.Mutex
 }
 
 func (rt *daemonRuntime) Initializing() bool {
@@ -240,8 +239,9 @@ func daemonMainLoop(cmd *cobra.Command, args []string) {
 	}
 
 	rt := &daemonRuntime{
-		clientset: clientset,
-		dynclient: dynclient,
+		clientset:         clientset,
+		dynclient:         dynclient,
+		logCollectorInode: 0,
 	}
 
 	rt.result = make(chan int, 50)

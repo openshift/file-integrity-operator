@@ -16,16 +16,17 @@ limitations under the License.
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"compress/gzip"
 	"context"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
-	"syscall"
 	"time"
 
 	"github.com/cenkalti/backoff/v3"
@@ -77,39 +78,32 @@ func getValidStringArg(cmd *cobra.Command, name string) string {
 	return val
 }
 
-func getNonEmptyFileAndInode(filename string) (*os.File, uint64) {
+func getNonEmptyFile(filename string) *os.File {
 	DBG("Opening %s", filename)
 
 	// G304 (CWE-22) is addressed by this.
 	cleanFileName := filepath.Clean(filename)
-	var inode uint64
 
 	// Note that we're cleaning the filename path above.
 	// #nosec
 	file, err := os.Open(cleanFileName)
 	if err != nil {
 		LOG("error opening log file: %v", err)
-		return nil, 0
+		return nil
 	}
 
 	fileinfo, err := file.Stat()
-	if err != nil {
-		return nil, 0
-	}
-	sysfileinfointerface := fileinfo.Sys()
-	sysfileinfo := sysfileinfointerface.(*syscall.Stat_t)
-	inode = sysfileinfo.Ino
 	// Only try to use the file if it already has contents.
 	if err == nil && fileinfo.Size() > 0 {
-		return file, inode
+		return file
 	}
 
-	return nil, inode
+	return nil
 }
 
-func matchFileChangeRegex(contents []byte, regex string) string {
+func matchFileChangeRegex(contents string, regex string) string {
 	re := regexp.MustCompile(regex)
-	match := re.FindSubmatch(contents)
+	match := re.FindStringSubmatch(contents)
 	if len(match) < 2 {
 		return "0"
 	}
@@ -117,7 +111,7 @@ func matchFileChangeRegex(contents []byte, regex string) string {
 	return string(match[1])
 }
 
-func annotateFileChangeSummary(contents []byte, annotations map[string]string) {
+func annotateFileChangeSummary(contents string, annotations map[string]string) {
 	annotations[common.IntegrityLogFilesAddedAnnotation] = matchFileChangeRegex(contents, `\s+Added entries:\s+(?P<num_added>\d+)`)
 	annotations[common.IntegrityLogFilesChangedAnnotation] = matchFileChangeRegex(contents, `\s+Changed entries:\s+(?P<num_changed>\d+)`)
 	annotations[common.IntegrityLogFilesRemovedAnnotation] = matchFileChangeRegex(contents, `\s+Removed entries:\s+(?P<num_removed>\d+)`)
@@ -127,29 +121,51 @@ func annotateFileChangeSummary(contents []byte, annotations map[string]string) {
 		annotations[common.IntegrityLogFilesRemovedAnnotation])
 }
 
-func needsCompression(contents []byte) bool {
-	return len(contents) > uncompressedMaxSize // Magic number?
+func needsCompression(size int64) bool {
+	return size > uncompressedMaxSize // Magic number?
 }
 
-func compress(contents []byte) []byte {
+func compress(r io.Reader) io.Reader {
 	// Encode the contents ascii, compress it with gzip, b64encode it so it
 	// can be stored in the configmap.
 	var buffer bytes.Buffer
 	w := gzip.NewWriter(&buffer)
-	w.Write([]byte(contents))
+	io.Copy(w, r)
 	w.Close()
-	return []byte(base64.StdEncoding.EncodeToString(buffer.Bytes()))
+	return &buffer
 }
 
-func getLogConfigMap(owner *unstructured.Unstructured, configMapName, contentkey, node string, contents []byte, compressed bool) *corev1.ConfigMap {
+func encodetoBase64(src io.Reader) string {
+	pr, pw := io.Pipe()
+	enc := base64.NewEncoder(base64.StdEncoding, pw)
+	go func() {
+		_, err := io.Copy(enc, src)
+		enc.Close()
+
+		if err != nil {
+			pw.CloseWithError(err)
+		} else {
+			pw.Close()
+		}
+	}()
+	out, _ := ioutil.ReadAll(pr)
+	return string(out)
+}
+
+func getLogConfigMap(owner *unstructured.Unstructured, configMapName, contentkey, node string, contents io.Reader, compressed bool) *corev1.ConfigMap {
 	annotations := map[string]string{}
+	var strcontents string
 	if compressed {
 		annotations = map[string]string{
 			common.CompressedLogsIndicatorLabelKey: "",
 		}
+		strcontents = encodetoBase64(contents)
+	} else {
+		contentBytes, _ := ioutil.ReadAll(contents)
+		strcontents = string(contentBytes)
 	}
 
-	annotateFileChangeSummary(contents, annotations)
+	annotateFileChangeSummary(strcontents, annotations)
 
 	return &corev1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
@@ -174,7 +190,7 @@ func getLogConfigMap(owner *unstructured.Unstructured, configMapName, contentkey
 			},
 		},
 		Data: map[string]string{
-			contentkey: string(contents),
+			contentkey: strcontents,
 		},
 	}
 }
@@ -237,7 +253,7 @@ func reportError(msg string, conf *daemonConfig, rt *daemonRuntime) {
 	LOG("Created temporary configMap '%s' to report an 'ERROR' scan result", conf.LogCollectorConfigMapName)
 }
 
-func uploadLog(contents []byte, compressed bool, conf *daemonConfig, rt *daemonRuntime) {
+func uploadLog(contents io.Reader, compressed bool, conf *daemonConfig, rt *daemonRuntime) {
 	err := backoff.Retry(func() error {
 		fi := rt.GetFileIntegrityInstance()
 		confMap := getLogConfigMap(fi, conf.LogCollectorConfigMapName, common.IntegrityLogContentKey, conf.LogCollectorNode, contents, compressed)
@@ -249,33 +265,6 @@ func uploadLog(contents []byte, compressed bool, conf *daemonConfig, rt *daemonR
 		FATAL("Can't create log configMap with error '%v', aborting", err)
 	}
 	LOG("Created log configMap '%s' to report a failed scan result", conf.LogCollectorConfigMapName)
-}
-
-func handleRotationOrInit(rt *daemonRuntime, inode uint64) {
-	if rt.logCollectorInode == 0 {
-		// first read (set inode initially)
-		rt.logCollectorInode = inode
-	} else if rt.logCollectorInode != inode {
-		DBG("Rotation happened")
-		rt.logCollectorReadoffset = 0
-	}
-}
-
-func updateReadOffset(rt *daemonRuntime, file *os.File, contents []byte) error {
-	// We will start reading from the offset, so we'll read anything that's appended
-	// to the file
-	if _, err := file.Seek(rt.logCollectorReadoffset, 0); err != nil {
-		// The might have file changed size (shrinked) since we calulated the
-		// offset... Lets try to read from the beginning
-		if _, err := file.Seek(0, 0); err != nil {
-			return err
-		}
-
-		// reset the offset
-		rt.logCollectorReadoffset = 0
-	}
-	rt.logCollectorReadoffset = rt.logCollectorReadoffset + int64(len(contents))
-	return nil
 }
 
 // logCollectorMainLoop creates temporary status report configMaps for the configmap controller to pick up and turn
@@ -299,36 +288,33 @@ func logCollectorMainLoop(rt *daemonRuntime, conf *daemonConfig, ch chan bool) {
 
 		rt.LockAideFiles("logCollectorMainLoop")
 		DBG("Integrity check failed, continuing to collect log file")
-		file, inode := getNonEmptyFileAndInode(conf.LogCollectorFile)
 
-		handleRotationOrInit(rt, inode)
-
-		contents := []byte{}
-		if file != nil {
-			var err error
-			if contents, err = ioutil.ReadAll(file); err != nil {
-				reportError(fmt.Sprintf("Error reading the log file: %v", err), conf, rt)
+		if file := getNonEmptyFile(conf.LogCollectorFile); file != nil {
+			var contents io.Reader
+			fileinfo, err := file.Stat()
+			if err != nil {
+				reportError(fmt.Sprintf("Error getting file information: %v", err), conf, rt)
 				file.Close()
 				rt.UnlockAideFiles("logCollectorMainLoop")
 				continue
 			}
-			if err = updateReadOffset(rt, file, contents); err != nil {
-				reportError(fmt.Sprintf("Error setting read offset for log file: %v", err), conf, rt)
-				file.Close()
-				rt.UnlockAideFiles("logCollectorMainLoop")
-				continue
+			size := fileinfo.Size()
+
+			r := bufio.NewReader(file)
+			compressed := false
+
+			if needsCompression(size) || conf.LogCollectorCompress {
+				DBG("Compressing log contents")
+				contents = compress(contents)
+				compressed = true
+			} else {
+				contents = r
 			}
+
+			uploadLog(contents, compressed, conf, rt)
 			file.Close()
 		}
+
 		rt.UnlockAideFiles("logCollectorMainLoop")
-
-		compressed := false
-		if needsCompression(contents) || conf.LogCollectorCompress {
-			DBG("Compressing log contents")
-			contents = compress(contents)
-			compressed = true
-		}
-
-		uploadLog(contents, compressed, conf, rt)
 	}
 }
