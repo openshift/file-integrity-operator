@@ -12,7 +12,7 @@ RUN make operator-bin
 
 # Step two: containerize file-integrity-operator and AIDE together
 FROM registry.centos.org/centos:8
-RUN yum -y install aide && yum clean all
+RUN yum -y install aide golang && yum clean all
 
 ENV OPERATOR=/usr/local/bin/file-integrity-operator \
     USER_UID=1001 \
