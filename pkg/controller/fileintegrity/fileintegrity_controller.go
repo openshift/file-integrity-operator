@@ -607,7 +607,7 @@ func aideDaemonset(dsName string, fi *fileintegrityv1alpha1.FileIntegrity) *apps
 								{
 									// Needed for friendlier memory reporting as long as we are on golang < 1.16
 									Name:  "GODEBUG",
-									Value: "madvisedontneed=1",
+									Value: "madvdontneed=1",
 								},
 							},
 							VolumeMounts: []corev1.VolumeMount{
@@ -617,6 +617,10 @@ func aideDaemonset(dsName string, fi *fileintegrityv1alpha1.FileIntegrity) *apps
 								},
 								{
 									Name:      "config",
+									MountPath: "/config",
+								},
+								{
+									Name:      "tmp",
 									MountPath: "/tmp",
 								},
 							},
@@ -628,6 +632,16 @@ func aideDaemonset(dsName string, fi *fileintegrityv1alpha1.FileIntegrity) *apps
 							VolumeSource: corev1.VolumeSource{
 								HostPath: &corev1.HostPathVolumeSource{
 									Path: "/",
+								},
+							},
+						},
+						{
+							// for pprof
+							Name: "tmp",
+							VolumeSource: corev1.VolumeSource{
+								EmptyDir: &corev1.EmptyDirVolumeSource{
+									Medium:    corev1.StorageMediumDefault,
+									SizeLimit: nil,
 								},
 							},
 						},
@@ -668,5 +682,7 @@ func daemonArgs(dsName string, fi *fileintegrityv1alpha1.FileIntegrity) []string
 		"--namespace=" + fi.Namespace,
 		"--interval=" + getGracePeriod(fi),
 		"--debug=" + getDebug(fi),
+		"--aideconfigdir=/config",
+		//"--pprof=true",
 	}
 }
