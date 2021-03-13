@@ -18,10 +18,14 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
+	"path"
 	"sync"
 	"time"
+
+	pprof "net/http/pprof"
 
 	"k8s.io/api/events/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,6 +36,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/clientcmd"
 	watch2 "k8s.io/client-go/tools/watch"
 
 	"github.com/cenkalti/backoff/v3"
@@ -41,15 +46,17 @@ import (
 
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 )
 
 const (
-	aideDBPath       = "/hostroot/etc/kubernetes/aide.db.gz"
-	aideLogPath      = "/hostroot/etc/kubernetes/aide.log"
-	backupTimeFormat = "20060102T15_04_05"
-	aideReinitFile   = "/hostroot/etc/kubernetes/aide.reinit"
-	aideHoldoffFile  = "/hostroot/etc/kubernetes/holdoff"
+	defaultAideFileDir   = "/hostroot/etc/kubernetes"
+	defaultAideConfigDir = "/tmp"
+	aideDBFileName       = "aide.db.gz"
+	aideLogFileName      = "aide.log"
+	aideReinitFileName   = "aide.reinit"
+	aideConfigFileName   = "aide.conf"
+	backupTimeFormat     = "20060102T15_04_05"
+	pprofAddr            = "127.0.0.1:6060"
 )
 
 var daemonCmd = &cobra.Command{
@@ -63,6 +70,22 @@ func init() {
 	defineFlags(daemonCmd)
 }
 
+func aideDBPath(c *daemonConfig) string {
+	return path.Join(c.FileDir, aideDBFileName)
+}
+
+func aideLogPath(c *daemonConfig) string {
+	return path.Join(c.FileDir, aideLogFileName)
+}
+
+func aideReinitPath(c *daemonConfig) string {
+	return path.Join(c.FileDir, aideReinitFileName)
+}
+
+func aideConfigPath(c *daemonConfig) string {
+	return path.Join(c.ConfigDir, aideConfigFileName)
+}
+
 type daemonConfig struct {
 	LogCollectorFile          string
 	FileIntegrityName         string
@@ -72,21 +95,24 @@ type daemonConfig struct {
 	LogCollectorTimeout       int64
 	Interval                  int64
 	LogCollectorCompress      bool
+	Local                     bool
+	Pprof                     bool
+	FileDir                   string
+	ConfigDir                 string
 }
 
 type daemonRuntime struct {
-	clientset              *kubernetes.Clientset
-	dynclient              dynamic.Interface
-	logCollectorInode      uint64
-	logCollectorReadoffset int64
-	initializing           bool
-	initializingMux        sync.Mutex
-	holding                bool
-	holdingMux             sync.Mutex
-	result                 chan int
-	dbMux                  sync.Mutex
-	fiInstance             *unstructured.Unstructured
-	instanceMux            sync.Mutex
+	clientset         *kubernetes.Clientset
+	dynclient         dynamic.Interface
+	logCollectorInode uint64
+	initializing      bool
+	initializingMux   sync.Mutex
+	holding           bool
+	holdingMux        sync.Mutex
+	result            chan int
+	dbMux             sync.Mutex
+	fiInstance        *unstructured.Unstructured
+	instanceMux       sync.Mutex
 }
 
 func (rt *daemonRuntime) Initializing() bool {
@@ -153,11 +179,15 @@ func defineFlags(cmd *cobra.Command) {
 	cmd.Flags().String("lc-file", "", "The log file to collect.")
 	cmd.Flags().String("owner", "", "The FileIntegrity object to set as owner of the created configMap objects.")
 	cmd.Flags().String("lc-config-map-prefix", "", "Prefix for the configMap name, typically the podname.")
-	cmd.Flags().String("namespace", "Running pod namespace.", ".")
+	cmd.Flags().String("namespace", "", "Namespace")
+	cmd.Flags().String("aidefiledir", defaultAideFileDir, "The directory where the daemon will look for AIDE runtime files. Should only be changed when debugging.")
+	cmd.Flags().String("aideconfigdir", defaultAideConfigDir, "The directory where the daemon will look for the AIDE config. Should only be changed when debugging.")
 	cmd.Flags().Int64("lc-timeout", defaultTimeout, "How long to poll for the log and indicator files in seconds.")
 	cmd.Flags().Int64("interval", common.DefaultGracePeriod, "How often to recheck for AIDE results.")
 	cmd.Flags().Bool("lc-compress", false, "Use gzip+base64 to compress the log file contents.")
 	cmd.Flags().Bool("debug", false, "Print debug messages")
+	cmd.Flags().Bool("local", false, "Run the daemon locally, using KUBECONFIG. Should only be used when debugging.")
+	cmd.Flags().Bool("pprof", false, "Enable /debug/pprof endpoints. Should only be used when debugging.")
 }
 
 func parseDaemonConfig(cmd *cobra.Command) *daemonConfig {
@@ -165,12 +195,16 @@ func parseDaemonConfig(cmd *cobra.Command) *daemonConfig {
 	conf.LogCollectorFile = getValidStringArg(cmd, "lc-file")
 	conf.FileIntegrityName = getValidStringArg(cmd, "owner")
 	conf.Namespace = getValidStringArg(cmd, "namespace")
+	conf.FileDir = getValidStringArg(cmd, "aidefiledir")
+	conf.ConfigDir = getValidStringArg(cmd, "aideconfigdir")
 	conf.LogCollectorNode = os.Getenv("NODE_NAME")
 	conf.LogCollectorConfigMapName = getConfigMapName(getValidStringArg(cmd, "lc-config-map-prefix"), conf.LogCollectorNode)
 	conf.LogCollectorTimeout, _ = cmd.Flags().GetInt64("lc-timeout")
 	conf.Interval, _ = cmd.Flags().GetInt64("interval")
 	conf.LogCollectorCompress, _ = cmd.Flags().GetBool("lc-compress")
 	debugLog, _ = cmd.Flags().GetBool("debug")
+	conf.Local, _ = cmd.Flags().GetBool("local")
+	conf.Pprof, _ = cmd.Flags().GetBool("pprof")
 	return &conf
 }
 
@@ -178,7 +212,13 @@ func daemonMainLoop(cmd *cobra.Command, args []string) {
 	conf := parseDaemonConfig(cmd)
 	LOG("Starting the AIDE runner daemon")
 
-	config, err := rest.InClusterConfig()
+	kc := ""
+	if conf.Local {
+		kc = os.Getenv("KUBECONFIG")
+		DBG("Using KUBECONFIG=%s", kc)
+	}
+	// Falls back to InClusterConfig if not running locally
+	config, err := clientcmd.BuildConfigFromFlags("", kc)
 	if err != nil {
 		FATAL("%v", err)
 	}
@@ -191,9 +231,17 @@ func daemonMainLoop(cmd *cobra.Command, args []string) {
 		FATAL("%v", err)
 	}
 
+	if conf.Pprof {
+		DBG("Starting pprof endpoint at %s/debug/pprof/", pprofAddr)
+		mux := http.NewServeMux()
+		mux.HandleFunc("/debug/pprof/", pprof.Index)
+		go http.ListenAndServe(pprofAddr, mux)
+	}
+
 	rt := &daemonRuntime{
-		clientset: clientset,
-		dynclient: dynclient,
+		clientset:         clientset,
+		dynclient:         dynclient,
+		logCollectorInode: 0,
 	}
 
 	rt.result = make(chan int, 50)
@@ -236,7 +284,7 @@ func aideLoop(rt *daemonRuntime, conf *daemonConfig, exit chan bool) {
 			rt.LockAideFiles("aideLoop")
 			LOG("running aide check")
 			// This doesn't handle the output, because the operator ensures AIDE logs to /hostroot/etc/kubernetes/aide.log
-			err := runAideScanCmd()
+			err := runAideScanCmd(conf)
 			exitStatus := common.GetAideExitCode(err)
 			LOG("aide check returned status %d", exitStatus)
 			rt.result <- exitStatus
@@ -271,13 +319,13 @@ func holdOffLoop(rt *daemonRuntime, conf *daemonConfig, exit chan bool) {
 // node by the reinit daemonSet spawned by the fileIntegrity controller.
 func reinitLoop(rt *daemonRuntime, conf *daemonConfig, exit chan bool) {
 	for {
-		_, dbStatErr := os.Stat(aideDBPath)
-		_, initStatErr := os.Stat(aideReinitFile)
+		_, dbStatErr := os.Stat(aideDBPath(conf))
+		_, initStatErr := os.Stat(aideReinitPath(conf))
 		if os.IsNotExist(dbStatErr) {
 			rt.SetInitializing("reinitLoop", true)
 			rt.LockAideFiles("reinitLoop")
 			LOG("initializing aide")
-			if err := runAideInitDBCmd(); err != nil {
+			if err := runAideInitDBCmd(conf); err != nil {
 				LOG(err.Error())
 				aideRv := common.GetAideExitCode(err)
 				reportError(fmt.Sprintf("Error initializing the AIDE DB: %s", common.GetAideErrorMessage(aideRv)), conf, rt)
@@ -292,7 +340,7 @@ func reinitLoop(rt *daemonRuntime, conf *daemonConfig, exit chan bool) {
 			rt.LockAideFiles("reinitLoop")
 			LOG("re-initializing aide")
 
-			if err := backUpAideFiles(); err != nil {
+			if err := backUpAideFiles(conf); err != nil {
 				LOG(err.Error())
 				_, eventErr := rt.clientset.EventsV1beta1().Events(conf.Namespace).Create(context.TODO(), &v1beta1.Event{
 					EventTime:           v1.NowMicro(),
@@ -307,7 +355,7 @@ func reinitLoop(rt *daemonRuntime, conf *daemonConfig, exit chan bool) {
 				continue
 			}
 
-			if err := initAideLog(); err != nil {
+			if err := initAideLog(conf); err != nil {
 				LOG(err.Error())
 				_, eventErr := rt.clientset.EventsV1beta1().Events(conf.Namespace).Create(context.TODO(), &v1beta1.Event{
 					EventTime:           v1.NowMicro(),
@@ -322,14 +370,14 @@ func reinitLoop(rt *daemonRuntime, conf *daemonConfig, exit chan bool) {
 				continue
 			}
 
-			if err := runAideInitDBCmd(); err != nil {
+			if err := runAideInitDBCmd(conf); err != nil {
 				LOG(err.Error())
 				time.Sleep(time.Second)
 				rt.UnlockAideFiles("reinitLoop")
 				continue
 			}
 
-			if err := removeAideReinitFile(); err != nil {
+			if err := removeAideReinitFile(conf); err != nil {
 				LOG(err.Error())
 				_, eventErr := rt.clientset.EventsV1beta1().Events(conf.Namespace).Create(context.TODO(), &v1beta1.Event{
 					EventTime:           v1.NowMicro(),
@@ -414,31 +462,37 @@ func integrityInstanceLoop(rt *daemonRuntime, conf *daemonConfig, exit chan bool
 	exit <- true
 }
 
-func runAideInitDBCmd() error {
-	return exec.Command("aide", "-c", "/tmp/aide.conf", "-i").Run()
+func runAideInitDBCmd(c *daemonConfig) error {
+	configPath := aideConfigPath(c)
+	// CWE-78 - configPath is only made of user input during standalone debugging
+	// #nosec
+	return exec.Command("aide", "-c", configPath, "-i").Run()
 }
 
-func runAideScanCmd() error {
-	return exec.Command("aide", "-c", "/tmp/aide.conf").Run()
+func runAideScanCmd(c *daemonConfig) error {
+	configPath := aideConfigPath(c)
+	// CWE-78 - configPath is only made of user input during standalone debugging
+	// #nosec
+	return exec.Command("aide", "-c", configPath).Run()
 }
 
-func backUpAideFiles() error {
-	if err := backupFile(aideDBPath); err != nil {
+func backUpAideFiles(c *daemonConfig) error {
+	if err := backupFile(aideDBPath(c)); err != nil {
 		return err
 	}
-	return backupFile(aideLogPath)
+	return backupFile(aideLogPath(c))
 }
 
-func removeAideReinitFile() error {
-	return os.Remove(aideReinitFile)
+func removeAideReinitFile(c *daemonConfig) error {
+	return os.Remove(aideReinitPath(c))
 }
 
 func backupFile(file string) error {
 	return os.Rename(file, fmt.Sprintf("%s.backup-%s", file, time.Now().Format(backupTimeFormat)))
 }
 
-func initAideLog() error {
-	f, err := os.Create(aideLogPath)
+func initAideLog(c *daemonConfig) error {
+	f, err := os.Create(aideLogPath(c))
 	if err != nil {
 		return err
 	}
