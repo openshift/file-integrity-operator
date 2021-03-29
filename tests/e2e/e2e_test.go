@@ -36,6 +36,9 @@ func TestFileIntegrityLogAndReinitDatabase(t *testing.T) {
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
 	assertNodesConditionIsSuccess(t, f, namespace, 2*time.Second, 5*time.Minute)
 
+	t.Log("Asserting that we have OK node condition events")
+	assertNodeOKStatusEvents(t, f, namespace, 2*time.Second, 5*time.Minute)
+
 	// modify a file on a node
 	err = editFileOnNodes(f, namespace)
 	if err != nil {
@@ -167,6 +170,7 @@ func TestFileIntegrityConfigurationRevert(t *testing.T) {
 // - Successful transition from Initializing to Active
 // - Update of the AIDE configuration
 // - Successful transition to Initialization back to Active after update
+// - Confirms Active and Init FileIntegrityStatus events
 func TestFileIntegrityConfigurationStatus(t *testing.T) {
 	f, testctx, namespace := setupTest(t)
 	defer testctx.Cleanup()
@@ -177,17 +181,31 @@ func TestFileIntegrityConfigurationStatus(t *testing.T) {
 	}()
 	defer logContainerOutput(t, f, namespace, testIntegrityName)
 
+	// Confirm there was an event logged for the transition to Active.
+	// We are not guaranteed events for the initial states (Pending, Initializing) because the first status update
+	// could be any of them, but also Active.
+	if err := waitForFIStatusEvent(t, f, namespace, testIntegrityName,
+		string(fileintv1alpha1.PhaseActive)); err != nil {
+		t.Error(err)
+	}
+
 	createTestConfigMap(t, f, testIntegrityName, testConfName, namespace, testConfDataKey, testAideConfig)
 
 	// wait to go active.
-	err := waitForScanStatus(t, f, namespace, testIntegrityName, fileintv1alpha1.PhaseActive)
-	if err != nil {
-		t.Errorf("Timeout waiting for scan status")
+	if err := waitForScanStatus(t, f, namespace, testIntegrityName, fileintv1alpha1.PhaseActive); err != nil {
+		t.Error(err)
 	}
 
 	if err := pollUntilConfigMapDataMatches(t, f, namespace, testIntegrityName, common.DefaultConfDataKey,
 		testAideConfig, time.Second*5, time.Minute*5); err != nil {
-		t.Errorf("Timeout waiting for configMap data to match")
+		t.Error(err)
+	}
+
+	// Confirm that there was an event logged for the transition to Init. It could possibly be from earlier, but the
+	// point is to show that the Init event can appear. Chances that it will appear by this point are high.
+	if err := waitForFIStatusEvent(t, f, namespace, testIntegrityName,
+		string(fileintv1alpha1.PhaseInitializing)); err != nil {
+		t.Error(err)
 	}
 }
 
