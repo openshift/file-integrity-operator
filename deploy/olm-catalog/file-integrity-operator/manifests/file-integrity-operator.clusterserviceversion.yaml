@@ -212,8 +212,10 @@ spec:
   - Integrity
   - security
   links:
-  - name: File Integrity Operator
-    url: https://file-integrity-operator.domain
+  - name: File Integrity Operator upstream repo
+    url: https://github.com/openshift/file-integrity-operator
+  - name: File Integrity Operator documentation
+    url: https://docs.openshift.com/container-platform/4.7/security/file_integrity_operator/file-integrity-operator-understanding.html
   maintainers:
   - email: mrogers@redhat.com
     name: Matt Rogers
