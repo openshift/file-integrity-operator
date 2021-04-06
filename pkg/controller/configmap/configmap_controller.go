@@ -5,17 +5,18 @@ import (
 	"strconv"
 	"time"
 
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-
 	"github.com/go-logr/logr"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -36,7 +37,7 @@ func Add(mgr manager.Manager) error {
 
 // newReconciler returns a new reconcile.Reconciler
 func newReconciler(mgr manager.Manager) reconcile.Reconciler {
-	return &ReconcileConfigMap{client: mgr.GetClient(), scheme: mgr.GetScheme()}
+	return &ReconcileConfigMap{client: mgr.GetClient(), scheme: mgr.GetScheme(), recorder: mgr.GetEventRecorderFor("configmapctrl")}
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
@@ -73,8 +74,9 @@ var _ reconcile.Reconciler = &ReconcileConfigMap{}
 type ReconcileConfigMap struct {
 	// This client, initialized using mgr.Client() above, is a split client
 	// that reads objects from the cache and writes to the apiserver
-	client client.Client
-	scheme *runtime.Scheme
+	client   client.Client
+	scheme   *runtime.Scheme
+	recorder record.EventRecorder
 }
 
 // Reconcile reads that state of the cluster for a ConfigMap object and makes changes based on the state read
@@ -270,7 +272,13 @@ func (r *ReconcileConfigMap) createOrUpdateNodeStatus(node string, instance *fil
 			return refErr
 		}
 
-		return r.client.Create(context.TODO(), nodeStatus)
+		createErr := r.client.Create(context.TODO(), nodeStatus)
+		if createErr != nil {
+			return createErr
+		}
+
+		createNodeStatusEvent(r, instance, nodeStatus)
+		return nil
 	}
 
 	updateResults := make([]fileintegrityv1alpha1.FileIntegrityScanResult, 0)
@@ -278,7 +286,7 @@ func (r *ReconcileConfigMap) createOrUpdateNodeStatus(node string, instance *fil
 	for _, result := range nodeStatus.Results {
 		if result.Condition != new.Condition {
 			updateResults = append(updateResults, result)
-			if result.LastProbeTime.After(nodeStatus.LastResult.LastProbeTime.Time) {
+			if isLatestScanResult(result, nodeStatus) {
 				nodeStatus.LastResult = *result.DeepCopy()
 			}
 		}
@@ -288,10 +296,55 @@ func (r *ReconcileConfigMap) createOrUpdateNodeStatus(node string, instance *fil
 
 	updateResults = append(updateResults, new)
 	statusCopy.Results = updateResults
-	if new.LastProbeTime.After(nodeStatus.LastResult.LastProbeTime.Time) {
+	if isLatestScanResult(new, nodeStatus) {
 		statusCopy.LastResult = *new.DeepCopy()
 	}
-	return r.client.Update(context.TODO(), statusCopy)
+
+	updateErr := r.client.Update(context.TODO(), statusCopy)
+	if updateErr != nil {
+		return updateErr
+	}
+
+	// Create an event if there was a transition or an updated Failure
+	if conditionIsNewFailureOrTransition(nodeStatus, statusCopy) {
+		createNodeStatusEvent(r, instance, statusCopy)
+	}
+	return nil
+}
+
+// isLatestScanResult returns true if result is newer than nodeStatus.LastResult
+func isLatestScanResult(result fileintegrityv1alpha1.FileIntegrityScanResult, nodeStatus *fileintegrityv1alpha1.FileIntegrityNodeStatus) bool {
+	return result.LastProbeTime.After(nodeStatus.LastResult.LastProbeTime.Time)
+}
+
+// conditionIsNewFailureOrTransition return true if cur has an updated failure count over prev (if both were failed conditions),
+// or if cur's condition is different than prev.
+func conditionIsNewFailureOrTransition(prev, cur *fileintegrityv1alpha1.FileIntegrityNodeStatus) bool {
+	if cur.LastResult.Condition == fileintegrityv1alpha1.NodeConditionFailed && prev.LastResult.Condition == fileintegrityv1alpha1.NodeConditionFailed {
+		return cur.LastResult.FilesRemoved != prev.LastResult.FilesRemoved ||
+			cur.LastResult.FilesAdded != prev.LastResult.FilesAdded ||
+			cur.LastResult.FilesChanged != prev.LastResult.FilesChanged
+	} else if cur.LastResult.Condition != prev.LastResult.Condition {
+		return true
+	}
+	return false
+}
+
+// createNodeStatusEvent creates an event to report the latest check result
+func createNodeStatusEvent(r *ReconcileConfigMap, fi *fileintegrityv1alpha1.FileIntegrity, status *fileintegrityv1alpha1.FileIntegrityNodeStatus) {
+	switch status.LastResult.Condition {
+	case fileintegrityv1alpha1.NodeConditionSucceeded:
+		r.recorder.Eventf(fi, corev1.EventTypeNormal, "NodeIntegrityStatus", "no changes to node %s",
+			status.NodeName)
+	case fileintegrityv1alpha1.NodeConditionFailed:
+		r.recorder.Eventf(fi, corev1.EventTypeWarning, "NodeIntegrityStatus",
+			"node %s has changed! a:%d,c:%d,r:%d log:%s/%s", status.NodeName,
+			status.LastResult.FilesAdded, status.LastResult.FilesChanged, status.LastResult.FilesRemoved,
+			status.LastResult.ResultConfigMapNamespace, status.LastResult.ResultConfigMapName)
+	case fileintegrityv1alpha1.NodeConditionErrored:
+		r.recorder.Eventf(fi, corev1.EventTypeWarning, "NodeIntegrityStatus",
+			"node %s has an error! %s", status.NodeName, status.LastResult.ErrorMsg)
+	}
 }
 
 func getConfigMapForFailureLog(cm *corev1.ConfigMap) *corev1.ConfigMap {

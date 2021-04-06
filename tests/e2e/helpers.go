@@ -38,6 +38,7 @@ import (
 
 const (
 	pollInterval           = time.Second * 2
+	pollTimeout            = time.Minute * 5
 	retryInterval          = time.Second * 5
 	timeout                = time.Minute * 30
 	cleanupRetryInterval   = time.Second * 1
@@ -111,8 +112,26 @@ func cleanUp(namespace string) func() error {
 				}
 			}
 		}
-		return nil
+		return deleteStatusEvents(f, namespace)
 	}
+}
+
+func deleteStatusEvents(f *framework.Framework, namespace string) error {
+	selectors := []string{"reason=FileIntegrityStatus", "reason=NodeIntegrityStatus"}
+	for _, sel := range selectors {
+		eventList, err := f.KubeClient.CoreV1().Events(namespace).List(goctx.TODO(), metav1.ListOptions{FieldSelector: sel})
+		if err != nil {
+			return err
+		}
+		for _, ev := range eventList.Items {
+			if err := f.KubeClient.CoreV1().Events(namespace).Delete(goctx.TODO(), ev.Name, metav1.DeleteOptions{}); err != nil {
+				if !kerr.IsNotFound(err) {
+					return err
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func setupTestRequirements(t *testing.T) *framework.Context {
@@ -613,6 +632,90 @@ func waitForFailedResultForNode(t *testing.T, f *framework.Framework, namespace,
 	}
 
 	return foundResult, nil
+}
+
+func waitForFIStatusEvent(t *testing.T, f *framework.Framework, namespace, name, expectedMessage string) error {
+	exampleFileIntegrity := &fileintv1alpha1.FileIntegrity{}
+	err := wait.Poll(pollInterval, pollTimeout, func() (bool, error) {
+		getErr := f.Client.Get(goctx.TODO(), types.NamespacedName{Name: name, Namespace: namespace}, exampleFileIntegrity)
+		if getErr != nil {
+			t.Log(getErr)
+			return false, nil
+		}
+
+		eventList, getEventErr := f.KubeClient.CoreV1().Events(namespace).List(goctx.TODO(), metav1.ListOptions{
+			FieldSelector: "reason=FileIntegrityStatus",
+		})
+
+		if getEventErr != nil {
+			t.Log(getEventErr)
+			return false, nil
+		}
+		for _, item := range eventList.Items {
+			if item.InvolvedObject.Name == exampleFileIntegrity.Name && item.Message == expectedMessage {
+				t.Logf("Found FileIntegrityStatus event: %s", expectedMessage)
+				return true, nil
+			}
+		}
+		return false, nil
+	})
+	if err != nil {
+		t.Logf("No FileIntegrityStatus event with message \"%s\" found", expectedMessage)
+		return err
+	}
+
+	return nil
+}
+
+func assertNodeOKStatusEvents(t *testing.T, f *framework.Framework, namespace string, interval, timeout time.Duration) {
+	var lastErr error
+	nodes, err := f.KubeClient.CoreV1().Nodes().List(goctx.TODO(), metav1.ListOptions{LabelSelector: mcWorkerRoleLabelKey})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	seenNodes := map[string]bool{}
+	timeoutErr := wait.Poll(interval, timeout, func() (bool, error) {
+		// Node names are the key
+		eventList, getEventErr := f.KubeClient.CoreV1().Events(namespace).List(goctx.TODO(), metav1.ListOptions{
+			FieldSelector: "reason=NodeIntegrityStatus",
+		})
+
+		if getEventErr != nil {
+			t.Log(getEventErr)
+			lastErr = getEventErr
+			return false, nil
+		}
+
+		// Look for an OK node status event for each node.
+		for _, node := range nodes.Items {
+			for _, event := range eventList.Items {
+				if event.Type == corev1.EventTypeNormal && event.Message == "no changes to node "+node.Name {
+					seenNodes[node.Name] = true
+				}
+			}
+		}
+
+		// Seen all of the node events?
+		for _, node := range nodes.Items {
+			if !seenNodes[node.Name] {
+				return false, nil
+			}
+		}
+
+		// reset error since we're good
+		lastErr = nil
+		return true, nil
+	})
+	if lastErr != nil {
+		t.Error(lastErr)
+		return
+	}
+	if timeoutErr != nil {
+		t.Error(timeoutErr)
+		return
+	}
 }
 
 func assertNodesConditionIsSuccess(t *testing.T, f *framework.Framework, namespace string, interval, timeout time.Duration) {
