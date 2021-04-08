@@ -33,8 +33,6 @@ spec:
                   fieldPath: metadata.name
             - name: OPERATOR_NAME
               value: "file-integrity-operator"
-            - name: RELATED_IMAGE_AIDE
-              value: "quay.io/file-integrity-operator/aide:latest"
             - name: RELATED_IMAGE_OPERATOR
               value: "quay.io/file-integrity-operator/file-integrity-operator:latest"
       nodeSelector:

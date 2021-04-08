@@ -490,8 +490,8 @@ func reinitAideDaemonset(reinitDaemonSetName string, fi *fileintegrityv1alpha1.F
 								Privileged: &priv,
 								RunAsUser:  &runAs,
 							},
-							Name:    "aide",
-							Image:   common.GetComponentImage(common.AIDE),
+							Name:    "reinit-script",
+							Image:   common.GetComponentImage(common.OPERATOR),
 							Command: []string{common.AideScriptPath},
 							VolumeMounts: []corev1.VolumeMount{
 								{
@@ -508,9 +508,9 @@ func reinitAideDaemonset(reinitDaemonSetName string, fi *fileintegrityv1alpha1.F
 					// make this an endless loop
 					Containers: []corev1.Container{
 						{
-							Name:    "pause",
+							Name:    "pause-script",
 							Command: []string{common.PausePath},
-							Image:   common.GetComponentImage(common.AIDE),
+							Image:   common.GetComponentImage(common.OPERATOR),
 							VolumeMounts: []corev1.VolumeMount{
 								{
 									Name:      common.PauseConfigMapName,
