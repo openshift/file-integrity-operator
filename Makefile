@@ -1,7 +1,6 @@
 # Operator variables
 # ==================
 export APP_NAME=file-integrity-operator
-AIDE=aide
 
 # Container image variables
 # =========================
@@ -12,9 +11,6 @@ RUNTIME?=podman
 # or your e2e tests. This is overwritten if we bulid the image and push it to
 # the cluster or if we're on CI.
 RELATED_IMAGE_OPERATOR_PATH?=$(IMAGE_REPO)/$(APP_NAME)
-RELATED_IMAGE_AIDE_PATH?=$(IMAGE_REPO)/$(AIDE)
-AIDE_DOCKERFILE_PATH?=./images/aide/Dockerfile
-
 BUNDLE_IMAGE_PATH=$(IMAGE_REPO)/file-integrity-operator-bundle
 INDEX_IMAGE_PATH=$(IMAGE_REPO)/file-integrity-operator-index
 
@@ -81,15 +77,11 @@ help: ## Show this help screen
 
 
 .PHONY: image
-image: fmt operator-sdk operator-image aide-image bundle-image  ## Build the file-integrity-operator container image
+image: fmt operator-sdk operator-image bundle-image  ## Build the file-integrity-operator container image
 
 .PHONY: operator-image
 operator-image: operator-sdk
 	$(GOPATH)/bin/operator-sdk build $(RELATED_IMAGE_OPERATOR_PATH):$(TAG) --image-builder $(RUNTIME)
-
-.PHONY: aide-image
-aide-image:
-	$(RUNTIME) build -f $(AIDE_DOCKERFILE_PATH) -t $(RELATED_IMAGE_AIDE_PATH):$(TAG) .
 
 .PHONY: bundle-image
 bundle-image:
@@ -190,11 +182,9 @@ endif
 	@echo "Running e2e tests"
 	@echo "WARNING: This will temporarily modify deploy/operator.yaml"
 	@echo "Replacing workload references in deploy/operator.yaml"
-	@sed -i 's%$(IMAGE_REPO)/$(AIDE):latest%$(RELATED_IMAGE_AIDE_PATH)%' deploy/operator.yaml
 	@sed -i 's%$(IMAGE_REPO)/$(APP_NAME):latest%$(RELATED_IMAGE_OPERATOR_PATH)%' deploy/operator.yaml
 	unset GOFLAGS && $(GOPATH)/bin/operator-sdk test local ./tests/e2e --skip-cleanup-error --image "$(RELATED_IMAGE_OPERATOR_PATH)" --operator-namespace "$(NAMESPACE)" --go-test-flags "$(E2E_GO_TEST_FLAGS)"
 	@echo "Restoring image references in deploy/operator.yaml"
-	@sed -i 's%$(RELATED_IMAGE_AIDE_PATH)%$(IMAGE_REPO)/$(AIDE):latest%' deploy/operator.yaml
 	@sed -i 's%$(RELATED_IMAGE_OPERATOR_PATH)%$(IMAGE_REPO)/$(APP_NAME):latest%' deploy/operator.yaml
 
 # If IMAGE_FORMAT is not defined, it means that we're not running on CI, so we
@@ -220,7 +210,6 @@ image-to-cluster:
 	@echo "Skipping image-to-cluster target."
 	$(eval component = $(APP_NAME))
 	$(eval RELATED_IMAGE_OPERATOR_PATH = $(IMAGE_FORMAT))
-	# TODO(jaosorior): Add AIDE image to release repo and subsequently add it here.
 else ifeq ($(E2E_USE_DEFAULT_IMAGES), true)
 image-to-cluster:
 	@echo "E2E_USE_DEFAULT_IMAGES variable detected. Using default images."
@@ -228,7 +217,6 @@ else ifeq ($(E2E_SKIP_CONTAINER_PUSH), true)
 image-to-cluster:
 	@echo "E2E_SKIP_CONTAINER_PUSH variable detected. Using previously pushed images."
 	$(eval RELATED_IMAGE_OPERATOR_PATH = image-registry.openshift-image-registry.svc:5000/$(NAMESPACE)/$(APP_NAME):$(TAG))
-	$(eval RELATED_IMAGE_AIDE_PATH = image-registry.openshift-image-registry.svc:5000/$(NAMESPACE)/$(AIDE):$(TAG))
 else
 image-to-cluster: namespace openshift-user image
 	@echo "IMAGE_FORMAT variable missing. We're in local enviornment."
@@ -237,12 +225,10 @@ image-to-cluster: namespace openshift-user image
 	@echo "Pushing image $(RELATED_IMAGE_OPERATOR_PATH):$(TAG) to the image registry"
 	IMAGE_REGISTRY_HOST=$$(oc get route default-route -n openshift-image-registry --template='{{ .spec.host }}'); \
 		$(RUNTIME) login --tls-verify=false -u $(OPENSHIFT_USER) -p $(shell oc whoami -t) $${IMAGE_REGISTRY_HOST}; \
-		$(RUNTIME) push --tls-verify=false $(RELATED_IMAGE_OPERATOR_PATH):$(TAG) $${IMAGE_REGISTRY_HOST}/$(NAMESPACE)/$(APP_NAME):$(TAG); \
-		$(RUNTIME) push --tls-verify=false $(RELATED_IMAGE_AIDE_PATH):$(TAG) $${IMAGE_REGISTRY_HOST}/$(NAMESPACE)/$(AIDE):$(TAG)
+		$(RUNTIME) push --tls-verify=false $(RELATED_IMAGE_OPERATOR_PATH):$(TAG) $${IMAGE_REGISTRY_HOST}/$(NAMESPACE)/$(APP_NAME):$(TAG)
 	@echo "Removing the route from the image registry"
 	@oc patch configs.imageregistry.operator.openshift.io/cluster --patch '{"spec":{"defaultRoute":false}}' --type=merge
 	$(eval RELATED_IMAGE_OPERATOR_PATH = image-registry.openshift-image-registry.svc:5000/$(NAMESPACE)/$(APP_NAME):$(TAG))
-	$(eval RELATED_IMAGE_AIDE_PATH = image-registry.openshift-image-registry.svc:5000/$(NAMESPACE)/$(AIDE):$(TAG))
 endif
 
 .PHONY: namespace
@@ -256,10 +242,8 @@ deploy: namespace deploy-crds ## Deploy the operator from the manifests in the d
 
 .PHONY: deploy-local
 deploy-local: namespace image-to-cluster deploy-crds ## Deploy the operator from the manifests in the deploy/ directory and the images from a local build
-	@sed -i 's%$(IMAGE_REPO)/$(AIDE):latest%$(RELATED_IMAGE_AIDE_PATH)%' deploy/operator.yaml
 	@sed -i 's%$(IMAGE_REPO)/$(APP_NAME):latest%$(RELATED_IMAGE_OPERATOR_PATH)%' deploy/operator.yaml
 	@oc apply -n $(NAMESPACE) -f deploy/
-	@sed -i 's%$(RELATED_IMAGE_AIDE_PATH)%$(IMAGE_REPO)/$(AIDE):latest%' deploy/operator.yaml
 	@sed -i 's%$(RELATED_IMAGE_OPERATOR_PATH)%$(IMAGE_REPO)/$(APP_NAME):latest%' deploy/operator.yaml
 
 .PHONY: deploy-crds
@@ -295,7 +279,6 @@ endif
 .PHONY: push
 push: image
 	$(RUNTIME) push $(RELATED_IMAGE_OPERATOR_PATH):$(TAG)
-	$(RUNTIME) push $(RELATED_IMAGE_AIDE_PATH):$(TAG)
 	$(RUNTIME) push $(BUNDLE_IMAGE_PATH):$(TAG)
 
 .PHONY: push-index
@@ -323,13 +306,11 @@ package-version-to-tag: check-operator-version
 .PHONY: release-tag-image
 release-tag-image: package-version-to-tag
 	@echo "Temporarily overriding image tags in deploy/operator.yaml"
-	@sed -i 's%$(IMAGE_REPO)/$(AIDE):latest%$(RELATED_IMAGE_AIDE_PATH):$(TAG)%' deploy/operator.yaml
 	@sed -i 's%$(IMAGE_REPO)/$(APP_NAME):latest%$(RELATED_IMAGE_OPERATOR_PATH):$(TAG)%' deploy/operator.yaml
 
 .PHONY: undo-deploy-tag-image
 undo-deploy-tag-image: package-version-to-tag
 	@echo "Restoring image tags in deploy/operator.yaml"
-	@sed -i 's%$(RELATED_IMAGE_AIDE_PATH):$(TAG)%$(IMAGE_REPO)/$(AIDE):latest%' deploy/operator.yaml
 	@sed -i 's%$(RELATED_IMAGE_OPERATOR_PATH):$(TAG)%$(IMAGE_REPO)/$(APP_NAME):latest%' deploy/operator.yaml
 
 .PHONY: git-release
