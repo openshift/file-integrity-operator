@@ -492,3 +492,62 @@ func TestFileIntegrityTolerations(t *testing.T) {
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
 	assertNodesConditionIsSuccess(t, f, namespace, 2*time.Second, 5*time.Minute)
 }
+
+func TestFileIntegrityLogCompress(t *testing.T) {
+	f, testctx, namespace := setupTestWithDebug(t)
+	defer testctx.Cleanup()
+	defer func() {
+		if err := cleanNodes(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+		if err := cleanAddedFilesOnNodes(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+	}()
+	defer logContainerOutput(t, f, namespace, testIntegrityName)
+
+	// wait to go active.
+	err := waitForScanStatus(t, f, namespace, testIntegrityName, fileintv1alpha1.PhaseActive)
+	if err != nil {
+		t.Errorf("Timeout waiting for scan status")
+	}
+
+	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
+	assertNodesConditionIsSuccess(t, f, namespace, 2*time.Second, 5*time.Minute)
+
+	// modify files
+	err = addALottaFilesOnNodes(f, namespace)
+	if err != nil {
+		t.Errorf("Timeout waiting on node file addition")
+	}
+
+	// log collection should create a configmap for each node's report after the scan runs again
+	nodes, err := f.KubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
+		LabelSelector: nodeWorkerRoleLabelKey,
+	})
+	if err != nil {
+		t.Error(err)
+	}
+	for _, node := range nodes.Items {
+		// check the FI status for a failed condition for the node
+		result, err := waitForFailedResultForNode(t, f, namespace, testIntegrityName, node.Name, time.Second, time.Minute*5)
+		if err != nil {
+			t.Errorf("Timeout waiting for a failed status condition for node '%s'", node.Name)
+		} else {
+			if result.FilesAdded != 20000 {
+				t.Errorf("Expected 20000 files to be added, got %d", result.FilesAdded)
+			}
+			_, err := pollUntilConfigMapExists(t, f, result.ResultConfigMapNamespace, result.ResultConfigMapName, time.Second, time.Minute*5)
+			if err != nil {
+				t.Errorf("Timeout waiting for log configMap '%s'", result.ResultConfigMapName)
+			}
+			cm, err := f.KubeClient.CoreV1().ConfigMaps(result.ResultConfigMapNamespace).Get(context.TODO(), result.ResultConfigMapName, metav1.GetOptions{})
+			if err != nil {
+				t.Error(err)
+			}
+			if _, ok := cm.Annotations[common.CompressedLogsIndicatorLabelKey]; !ok {
+				t.Errorf("configMap '%s' does not indicate compression", result.ResultConfigMapName)
+			}
+		}
+	}
+}

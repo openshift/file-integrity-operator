@@ -244,10 +244,10 @@ func daemonMainLoop(cmd *cobra.Command, args []string) {
 		logCollectorInode: 0,
 	}
 
+	// A note about the initial state: since a buffered channel's recv (logCollectorMainLoop()'s last-result input)
+	// blocks when the buffer is empty, we want it empty to start with. We used to load rt.result with -1 to avoid a
+	// race, but now we need to do the opposite.
 	rt.result = make(chan int, 50)
-
-	// Set initial states so the loops do not race in the beginning.
-	rt.result <- -1
 	rt.SetInitializing("main", false)
 
 	reinitLoopDone := make(chan bool)
