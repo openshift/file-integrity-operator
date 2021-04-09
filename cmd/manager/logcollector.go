@@ -45,8 +45,8 @@ const (
 	crdPlurals    = "fileintegrities"
 	maxRetries    = 5
 	// These need to be lessened for normal use.
-	defaultTimeout      = 600
-	uncompressedMaxSize = 1048570 // 1MB for etcd limit
+	defaultTimeout   = 600
+	configMapMaxSize = 1048570 // 1MB for etcd limit. Over this, you get an error.
 )
 
 var debugLog bool
@@ -122,24 +122,26 @@ func annotateFileChangeSummary(contents string, annotations map[string]string) {
 }
 
 func needsCompression(size int64) bool {
-	return size > uncompressedMaxSize // Magic number?
+	return size > configMapMaxSize
 }
 
-func compress(r io.Reader) io.Reader {
+func compress(in []byte) []byte {
 	// Encode the contents ascii, compress it with gzip, b64encode it so it
 	// can be stored in the configmap.
 	var buffer bytes.Buffer
+
 	w := gzip.NewWriter(&buffer)
-	io.Copy(w, r)
+	io.Copy(w, bytes.NewReader(in))
 	w.Close()
-	return &buffer
+	return buffer.Bytes()
 }
 
-func encodetoBase64(src io.Reader) string {
+func encodetoBase64(src []byte) string {
+	r := bytes.NewReader(src)
 	pr, pw := io.Pipe()
 	enc := base64.NewEncoder(base64.StdEncoding, pw)
 	go func() {
-		_, err := io.Copy(enc, src)
+		_, err := io.Copy(enc, r)
 		enc.Close()
 
 		if err != nil {
@@ -152,20 +154,34 @@ func encodetoBase64(src io.Reader) string {
 	return string(out)
 }
 
-func getLogConfigMap(owner *unstructured.Unstructured, configMapName, contentkey, node string, contents io.Reader, compressed bool) *corev1.ConfigMap {
+func getLogConfigMap(owner *unstructured.Unstructured, configMapName, contentkey, node string, contents, compressedContents []byte) *corev1.ConfigMap {
 	annotations := map[string]string{}
-	var strcontents string
-	if compressed {
-		annotations = map[string]string{
-			common.CompressedLogsIndicatorLabelKey: "",
+
+	strcontents := string(contents)
+	DBG("uncompressed log size: %d", len(strcontents))
+	annotateFileChangeSummary(strcontents, annotations)
+
+	if size := len(compressedContents); size > 0 {
+		if size > configMapMaxSize {
+			DBG("compressed AIDE log is too large (%d), max allowed is %d.", size, configMapMaxSize)
+			strcontents = fmt.Sprintf(
+				"compressed AIDE log is too large for a configMap (%d) - fetch it from /etc/kubernetes/aide.log on node %s",
+				size, node)
+		} else {
+			strcontents = encodetoBase64(compressedContents)
+			DBG("compressed, encoded log size: %d", len(strcontents))
 		}
-		strcontents = encodetoBase64(contents)
-	} else {
-		contentBytes, _ := ioutil.ReadAll(contents)
-		strcontents = string(contentBytes)
+		annotations[common.CompressedLogsIndicatorLabelKey] = ""
 	}
 
-	annotateFileChangeSummary(strcontents, annotations)
+	// Check again, because the base64 encoding could push it over the limit, if the compressed log size was right
+	// under the limit.
+	if size := len(strcontents); size > configMapMaxSize {
+		DBG("compressed, encoded AIDE log is too large (%d), max allowed is %d.", size, configMapMaxSize)
+		strcontents = fmt.Sprintf(
+			"compressed, encoded AIDE log is too large for a configMap (%d) - fetch it from /etc/kubernetes/aide.log on node %s",
+			size, node)
+	}
 
 	return &corev1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
@@ -176,7 +192,7 @@ func getLogConfigMap(owner *unstructured.Unstructured, configMapName, contentkey
 			Name:        configMapName,
 			Annotations: annotations,
 			OwnerReferences: []metav1.OwnerReference{
-				metav1.OwnerReference{
+				{
 					APIVersion: owner.GetAPIVersion(),
 					Kind:       owner.GetKind(),
 					Name:       owner.GetName(),
@@ -253,10 +269,10 @@ func reportError(msg string, conf *daemonConfig, rt *daemonRuntime) {
 	LOG("Created temporary configMap '%s' to report an 'ERROR' scan result", conf.LogCollectorConfigMapName)
 }
 
-func uploadLog(contents io.Reader, compressed bool, conf *daemonConfig, rt *daemonRuntime) {
+func uploadLog(contents, compressedContents []byte, conf *daemonConfig, rt *daemonRuntime) {
 	err := backoff.Retry(func() error {
 		fi := rt.GetFileIntegrityInstance()
-		confMap := getLogConfigMap(fi, conf.LogCollectorConfigMapName, common.IntegrityLogContentKey, conf.LogCollectorNode, contents, compressed)
+		confMap := getLogConfigMap(fi, conf.LogCollectorConfigMapName, common.IntegrityLogContentKey, conf.LogCollectorNode, contents, compressedContents)
 		_, err := rt.clientset.CoreV1().ConfigMaps(conf.Namespace).Create(context.TODO(), confMap, metav1.CreateOptions{})
 		return err
 	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries))
@@ -290,7 +306,8 @@ func logCollectorMainLoop(rt *daemonRuntime, conf *daemonConfig, ch chan bool) {
 		DBG("Integrity check failed, continuing to collect log file")
 
 		if file := getNonEmptyFile(conf.LogCollectorFile); file != nil {
-			var contents io.Reader
+			var compressedContents []byte
+
 			fileinfo, err := file.Stat()
 			if err != nil {
 				reportError(fmt.Sprintf("Error getting file information: %v", err), conf, rt)
@@ -298,21 +315,26 @@ func logCollectorMainLoop(rt *daemonRuntime, conf *daemonConfig, ch chan bool) {
 				rt.UnlockAideFiles("logCollectorMainLoop")
 				continue
 			}
-			size := fileinfo.Size()
 
+			fileSize := fileinfo.Size()
+			// Always read in the contents, when compressed we still need the uncompressed version to figure out
+			// the changed details when updating the configMap later on.
 			r := bufio.NewReader(file)
-			compressed := false
+			contents, err := ioutil.ReadAll(r)
+			if err != nil {
+				reportError(fmt.Sprintf("Error reading file: %v", err), conf, rt)
+				file.Close()
+				rt.UnlockAideFiles("logCollectorMainLoop")
+				continue
+			}
+			file.Close()
 
-			if needsCompression(size) || conf.LogCollectorCompress {
+			if needsCompression(fileSize) || conf.LogCollectorCompress {
 				DBG("Compressing log contents")
-				contents = compress(contents)
-				compressed = true
-			} else {
-				contents = r
+				compressedContents = compress(contents)
 			}
 
-			uploadLog(contents, compressed, conf, rt)
-			file.Close()
+			uploadLog(contents, compressedContents, conf, rt)
 		}
 
 		rt.UnlockAideFiles("logCollectorMainLoop")
