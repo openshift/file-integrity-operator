@@ -16,10 +16,10 @@ var aidePauseContainerScript = `#!/bin/sh
 var DefaultAideConfig = `@@define DBDIR /hostroot/etc/kubernetes
 @@define LOGDIR /hostroot/etc/kubernetes
 database=file:@@{DBDIR}/aide.db.gz
-database_out=file:@@{DBDIR}/aide.db.gz
+database_out=file:@@{DBDIR}/aide.db.gz.new
 gzip_dbout=yes
 verbose=5
-report_url=file:@@{LOGDIR}/aide.log
+report_url=file:@@{LOGDIR}/aide.log.new
 report_url=stdout
 PERMS = p+u+g+acl+selinux+xattrs
 CONTENT_EX = sha512+ftype+p+u+g+n+acl+selinux+xattrs
