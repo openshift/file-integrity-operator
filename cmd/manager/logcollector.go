@@ -285,7 +285,7 @@ func uploadLog(contents, compressedContents []byte, conf *daemonConfig, rt *daem
 
 // logCollectorMainLoop creates temporary status report configMaps for the configmap controller to pick up and turn
 // into permanent ones. It reads the last result reported from aide.
-func logCollectorMainLoop(rt *daemonRuntime, conf *daemonConfig, ch chan bool) {
+func logCollectorMainLoop(rt *daemonRuntime, conf *daemonConfig) {
 	for {
 		lastResult := <-rt.result
 		// We haven't received a result yet.

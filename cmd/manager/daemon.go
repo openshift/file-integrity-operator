@@ -253,13 +253,12 @@ func daemonMainLoop(cmd *cobra.Command, args []string) {
 	reinitLoopDone := make(chan bool)
 	holdOffLoopDone := make(chan bool)
 	aideLoopDone := make(chan bool)
-	logCollectorLoopDone := make(chan bool)
 	integrityInstanceLoopDone := make(chan bool)
 	go integrityInstanceLoop(rt, conf, integrityInstanceLoopDone)
 	go reinitLoop(rt, conf, reinitLoopDone)
 	go holdOffLoop(rt, conf, holdOffLoopDone)
 	go aideLoop(rt, conf, aideLoopDone)
-	go logCollectorMainLoop(rt, conf, logCollectorLoopDone)
+	go logCollectorMainLoop(rt, conf)
 
 	// At the moment only reinitLoop exits fatally,
 	select {
@@ -269,8 +268,6 @@ func daemonMainLoop(cmd *cobra.Command, args []string) {
 		FATAL("%v", fmt.Errorf("holdoff loop errored"))
 	case <-aideLoopDone:
 		FATAL("%v", fmt.Errorf("aide errored"))
-	case <-logCollectorLoopDone:
-		FATAL("%v", fmt.Errorf("log-collector errored"))
 	case <-integrityInstanceLoopDone:
 		FATAL("%v", fmt.Errorf("instance watcher errored"))
 	}
