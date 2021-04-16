@@ -522,6 +522,7 @@ func updateFileIntegrityConfig(t *testing.T, f *framework.Framework, integrityNa
 		}
 		fileIntegrityCopy := fileIntegrity.DeepCopy()
 		fileIntegrityCopy.Spec = fileintv1alpha1.FileIntegritySpec{
+			NodeSelector: nodeLabelForWorkerRole,
 			Config: fileintv1alpha1.FileIntegrityConfig{
 				Name:        configMapName,
 				Namespace:   namespace,
