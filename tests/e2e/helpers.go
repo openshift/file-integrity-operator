@@ -642,10 +642,10 @@ func waitForFailedResultForNode(t *testing.T, f *framework.Framework, namespace,
 			return false, nil
 		}
 
-		t.Logf("waitForFailedResultForNode: found nodeStatus: %#v", nodeStatus)
-
 		if nodeStatus.LastResult.Condition == fileintv1alpha1.NodeConditionFailed {
 			foundResult = &nodeStatus.LastResult
+			t.Logf("failed result for node %s found, r:%d a:%d c:%d", node, foundResult.FilesRemoved,
+				foundResult.FilesAdded, foundResult.FilesChanged)
 			return true, nil
 		}
 		return false, nil
