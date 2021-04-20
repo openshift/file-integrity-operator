@@ -244,22 +244,21 @@ func daemonMainLoop(cmd *cobra.Command, args []string) {
 		logCollectorInode: 0,
 	}
 
+	// A note about the initial state: since a buffered channel's recv (logCollectorMainLoop()'s last-result input)
+	// blocks when the buffer is empty, we want it empty to start with. We used to load rt.result with -1 to avoid a
+	// race, but now we need to do the opposite.
 	rt.result = make(chan int, 50)
-
-	// Set initial states so the loops do not race in the beginning.
-	rt.result <- -1
 	rt.SetInitializing("main", false)
 
 	reinitLoopDone := make(chan bool)
 	holdOffLoopDone := make(chan bool)
 	aideLoopDone := make(chan bool)
-	logCollectorLoopDone := make(chan bool)
 	integrityInstanceLoopDone := make(chan bool)
 	go integrityInstanceLoop(rt, conf, integrityInstanceLoopDone)
 	go reinitLoop(rt, conf, reinitLoopDone)
 	go holdOffLoop(rt, conf, holdOffLoopDone)
 	go aideLoop(rt, conf, aideLoopDone)
-	go logCollectorMainLoop(rt, conf, logCollectorLoopDone)
+	go logCollectorMainLoop(rt, conf)
 
 	// At the moment only reinitLoop exits fatally,
 	select {
@@ -269,8 +268,6 @@ func daemonMainLoop(cmd *cobra.Command, args []string) {
 		FATAL("%v", fmt.Errorf("holdoff loop errored"))
 	case <-aideLoopDone:
 		FATAL("%v", fmt.Errorf("aide errored"))
-	case <-logCollectorLoopDone:
-		FATAL("%v", fmt.Errorf("log-collector errored"))
 	case <-integrityInstanceLoopDone:
 		FATAL("%v", fmt.Errorf("instance watcher errored"))
 	}

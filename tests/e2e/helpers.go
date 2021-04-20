@@ -242,6 +242,20 @@ func modifyFileDaemonset(namespace string) *appsv1.DaemonSet {
 	)
 }
 
+func cleanAideAddedFilesDaemonset(namespace string) *appsv1.DaemonSet {
+	return privCommandDaemonset(namespace, "aide-clean-added-files",
+		"rm -f /hostroot/etc/addedbytest* || true",
+	)
+}
+
+// this daemonset is to stuff the aide log with added files, to force compression.
+// 20000 might not be enough
+func addLotsOfFilesDaemonset(namespace string) *appsv1.DaemonSet {
+	return privCommandDaemonset(namespace, "aide-add-lots-of-files",
+		"for i in `seq 1 20000`; do mktemp \"/hostroot/etc/addedbytest$i.XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\"; done || true",
+	)
+}
+
 func privCommandDaemonset(namespace, name, command string) *appsv1.DaemonSet {
 	priv := true
 	runAs := int64(0)
@@ -416,8 +430,16 @@ func setupTolerationTest(t *testing.T) (*framework.Framework, *framework.Context
 	return f, testctx, namespace
 }
 
-// setupTest sets up the operator and waits for AIDE to roll out
 func setupTest(t *testing.T) (*framework.Framework, *framework.Context, string) {
+	return setupTestWithOptions(t, false)
+}
+
+func setupTestWithDebug(t *testing.T) (*framework.Framework, *framework.Context, string) {
+	return setupTestWithOptions(t, true)
+}
+
+// setupTest sets up the operator and waits for AIDE to roll out
+func setupTestWithOptions(t *testing.T, debug bool) (*framework.Framework, *framework.Context, string) {
 	testctx := setupTestRequirements(t)
 	namespace, err := testctx.GetOperatorNamespace()
 	if err != nil {
@@ -439,6 +461,7 @@ func setupTest(t *testing.T) (*framework.Framework, *framework.Context, string) 
 			Config: fileintv1alpha1.FileIntegrityConfig{
 				GracePeriod: defaultTestGracePeriod,
 			},
+			Debug: debug,
 		},
 	}
 	cleanupOptions := framework.CleanupOptions{
@@ -499,6 +522,7 @@ func updateFileIntegrityConfig(t *testing.T, f *framework.Framework, integrityNa
 		}
 		fileIntegrityCopy := fileIntegrity.DeepCopy()
 		fileIntegrityCopy.Spec = fileintv1alpha1.FileIntegritySpec{
+			NodeSelector: nodeLabelForWorkerRole,
 			Config: fileintv1alpha1.FileIntegrityConfig{
 				Name:        configMapName,
 				Namespace:   namespace,
@@ -618,10 +642,10 @@ func waitForFailedResultForNode(t *testing.T, f *framework.Framework, namespace,
 			return false, nil
 		}
 
-		t.Logf("waitForFailedResultForNode: found nodeStatus: %#v", nodeStatus)
-
 		if nodeStatus.LastResult.Condition == fileintv1alpha1.NodeConditionFailed {
 			foundResult = &nodeStatus.LastResult
+			t.Logf("failed result for node %s found, r:%d a:%d c:%d", node, foundResult.FilesRemoved,
+				foundResult.FilesAdded, foundResult.FilesChanged)
 			return true, nil
 		}
 		return false, nil
@@ -842,8 +866,51 @@ func editFileOnNodes(f *framework.Framework, namespace string) error {
 	return nil
 }
 
+func addALottaFilesOnNodes(f *framework.Framework, namespace string) error {
+	daemonSet, err := f.KubeClient.AppsV1().DaemonSets(namespace).Create(goctx.TODO(), addLotsOfFilesDaemonset(namespace), metav1.CreateOptions{})
+	if err != nil {
+		return err
+	}
+
+	err = waitForDaemonSet(daemonSetExists(f.KubeClient, daemonSet.Name, namespace))
+	if err != nil {
+		return err
+	}
+	if err := waitForDaemonSet(daemonSetWasScheduled(f.KubeClient, daemonSet.Name, namespace)); err != nil {
+		return err
+	}
+
+	time.Sleep(10 * time.Second)
+	if err := f.KubeClient.AppsV1().DaemonSets(namespace).Delete(goctx.TODO(), daemonSet.Name, metav1.DeleteOptions{}); err != nil {
+		return err
+	}
+	return nil
+}
+
 func cleanNodes(f *framework.Framework, namespace string) error {
 	ds, err := f.KubeClient.AppsV1().DaemonSets(namespace).Create(goctx.TODO(), cleanAideDaemonset(namespace), metav1.CreateOptions{})
+	if err != nil {
+		return err
+	}
+
+	err = waitForDaemonSet(daemonSetExists(f.KubeClient, ds.Name, namespace))
+	if err != nil {
+		return err
+	}
+
+	if err := waitForDaemonSet(daemonSetWasScheduled(f.KubeClient, ds.Name, namespace)); err != nil {
+		return err
+	}
+
+	time.Sleep(10 * time.Second)
+	if err := f.KubeClient.AppsV1().DaemonSets(namespace).Delete(goctx.TODO(), ds.Name, metav1.DeleteOptions{}); err != nil {
+		return err
+	}
+	return nil
+}
+
+func cleanAddedFilesOnNodes(f *framework.Framework, namespace string) error {
+	ds, err := f.KubeClient.AppsV1().DaemonSets(namespace).Create(goctx.TODO(), cleanAideAddedFilesDaemonset(namespace), metav1.CreateOptions{})
 	if err != nil {
 		return err
 	}
