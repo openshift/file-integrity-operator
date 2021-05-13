@@ -19,28 +19,14 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/http/pprof"
 	"os"
-	"os/exec"
-	"path"
 	"sync"
 	"time"
 
-	pprof "net/http/pprof"
-
-	"k8s.io/api/events/v1beta1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/fields"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/tools/clientcmd"
-	watch2 "k8s.io/client-go/tools/watch"
-
-	"github.com/cenkalti/backoff/v3"
 	"github.com/openshift/file-integrity-operator/pkg/common"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/spf13/cobra"
 
@@ -51,12 +37,16 @@ import (
 const (
 	defaultAideFileDir   = "/hostroot/etc/kubernetes"
 	defaultAideConfigDir = "/tmp"
-	aideDBFileName       = "aide.db.gz"
-	aideLogFileName      = "aide.log"
-	aideReinitFileName   = "aide.reinit"
-	aideConfigFileName   = "aide.conf"
-	backupTimeFormat     = "20060102T15_04_05"
-	pprofAddr            = "127.0.0.1:6060"
+	// Files for checks and reading. We copy the AIDE output files to here.
+	aideReadDBFileName  = "aide.db.gz"
+	aideReadLogFileName = "aide.log"
+	// Files output from AIDE init and scan log. We copy the files AIDE writes from here.
+	aideWritingDBFileName  = "aide.db.gz.new"
+	aideWritingLogFileName = "aide.log.new"
+	aideReinitFileName     = "aide.reinit"
+	aideConfigFileName     = "aide.conf"
+	backupTimeFormat       = "20060102T15_04_05"
+	pprofAddr              = "127.0.0.1:6060"
 )
 
 var daemonCmd = &cobra.Command{
@@ -68,22 +58,6 @@ var daemonCmd = &cobra.Command{
 
 func init() {
 	defineFlags(daemonCmd)
-}
-
-func aideDBPath(c *daemonConfig) string {
-	return path.Join(c.FileDir, aideDBFileName)
-}
-
-func aideLogPath(c *daemonConfig) string {
-	return path.Join(c.FileDir, aideLogFileName)
-}
-
-func aideReinitPath(c *daemonConfig) string {
-	return path.Join(c.FileDir, aideReinitFileName)
-}
-
-func aideConfigPath(c *daemonConfig) string {
-	return path.Join(c.ConfigDir, aideConfigFileName)
 }
 
 type daemonConfig struct {
@@ -121,6 +95,7 @@ func (rt *daemonRuntime) Initializing() bool {
 	return rt.initializing
 }
 
+// Initializing is how the initLoop tells the aideLoop to wait for a new database update.
 func (rt *daemonRuntime) SetInitializing(fun string, initializing bool) {
 	rt.initializingMux.Lock()
 	if initializing != rt.initializing {
@@ -146,8 +121,9 @@ func (rt *daemonRuntime) SetHolding(fun string, holding bool) {
 }
 
 func (rt *daemonRuntime) LockAideFiles(fun string) {
-	DBG("aide files locked by %s", fun)
 	rt.dbMux.Lock()
+	// Log after, since Lock() blocks. This way the lock messages are more timely.
+	DBG("aide files locked by %s", fun)
 }
 
 func (rt *daemonRuntime) UnlockAideFiles(fun string) {
@@ -173,6 +149,31 @@ func (rt *daemonRuntime) SetFileIntegrityInstance(fi *unstructured.Unstructured)
 	rt.instanceMux.Lock()
 	rt.fiInstance = fi
 	rt.instanceMux.Unlock()
+}
+
+func (rt *daemonRuntime) SendResult(result int) {
+	rt.result <- result
+}
+
+func (rt *daemonRuntime) GetResult() <-chan int {
+	return rt.result
+}
+
+var debugLog bool
+
+func LOG(format string, a ...interface{}) {
+	fmt.Printf(fmt.Sprintf("%s: %s\n", time.Now().Format(time.RFC3339), format), a...)
+}
+
+func DBG(format string, a ...interface{}) {
+	if debugLog {
+		LOG("debug: "+format, a...)
+	}
+}
+
+func FATAL(format string, a ...interface{}) {
+	fmt.Fprintf(os.Stderr, "FATAL:"+format+"\n", a...)
+	os.Exit(1)
 }
 
 func defineFlags(cmd *cobra.Command) {
@@ -208,10 +209,7 @@ func parseDaemonConfig(cmd *cobra.Command) *daemonConfig {
 	return &conf
 }
 
-func daemonMainLoop(cmd *cobra.Command, args []string) {
-	conf := parseDaemonConfig(cmd)
-	LOG("Starting the AIDE runner daemon")
-
+func newDaemonRuntime(conf *daemonConfig) *daemonRuntime {
 	kc := ""
 	if conf.Local {
 		kc = os.Getenv("KUBECONFIG")
@@ -222,289 +220,71 @@ func daemonMainLoop(cmd *cobra.Command, args []string) {
 	if err != nil {
 		FATAL("%v", err)
 	}
-	clientset, err := kubernetes.NewForConfig(config)
+	clientSet, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		FATAL("%v", err)
 	}
-	dynclient, err := dynamic.NewForConfig(config)
+	dynamicClient, err := dynamic.NewForConfig(config)
 	if err != nil {
 		FATAL("%v", err)
 	}
 
+	return &daemonRuntime{
+		clientset:         clientSet,
+		dynclient:         dynamicClient,
+		logCollectorInode: 0,
+	}
+}
+
+func startMemoryProfiling(conf *daemonConfig) {
 	if conf.Pprof {
 		DBG("Starting pprof endpoint at %s/debug/pprof/", pprofAddr)
 		mux := http.NewServeMux()
 		mux.HandleFunc("/debug/pprof/", pprof.Index)
 		go http.ListenAndServe(pprofAddr, mux)
 	}
+}
 
-	rt := &daemonRuntime{
-		clientset:         clientset,
-		dynclient:         dynclient,
-		logCollectorInode: 0,
-	}
-
+func setInitialRuntimeState(rt *daemonRuntime) {
 	// A note about the initial state: since a buffered channel's recv (logCollectorMainLoop()'s last-result input)
 	// blocks when the buffer is empty, we want it empty to start with. We used to load rt.result with -1 to avoid a
 	// race, but now we need to do the opposite.
 	rt.result = make(chan int, 50)
 	rt.SetInitializing("main", false)
-
-	reinitLoopDone := make(chan bool)
-	holdOffLoopDone := make(chan bool)
-	aideLoopDone := make(chan bool)
-	integrityInstanceLoopDone := make(chan bool)
-	go integrityInstanceLoop(rt, conf, integrityInstanceLoopDone)
-	go reinitLoop(rt, conf, reinitLoopDone)
-	go holdOffLoop(rt, conf, holdOffLoopDone)
-	go aideLoop(rt, conf, aideLoopDone)
-	go logCollectorMainLoop(rt, conf)
-
-	// At the moment only reinitLoop exits fatally,
-	select {
-	case <-reinitLoopDone:
-		FATAL("%v", fmt.Errorf("re-init errored"))
-	case <-holdOffLoopDone:
-		FATAL("%v", fmt.Errorf("holdoff loop errored"))
-	case <-aideLoopDone:
-		FATAL("%v", fmt.Errorf("aide errored"))
-	case <-integrityInstanceLoopDone:
-		FATAL("%v", fmt.Errorf("instance watcher errored"))
-	}
 }
 
-// The aide loop runs the aide check at interval, unless the node controller holds it, or the reinitLoop is
-// initializing or re-initializing. The result is saved to be read by logCollectorMainLoop.
-func aideLoop(rt *daemonRuntime, conf *daemonConfig, exit chan bool) {
+func daemonMainLoop(cmd *cobra.Command, args []string) {
+	LOG("Starting the AIDE runner daemon")
+	var wg sync.WaitGroup
+
+	conf := parseDaemonConfig(cmd)
+	rt := newDaemonRuntime(conf)
+	startMemoryProfiling(conf)
+	setInitialRuntimeState(rt)
+
+	errChan := make(chan error)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// integrityInstanceLoop is not added to the waitgroup because the watcher would stall wg.Wait() indefinitely. It
+	// will just die with the process and does not have anything to clean up.
+	go integrityInstanceLoop(ctx, rt, conf, errChan)
+	wg.Add(4)
+	go reinitLoop(ctx, rt, conf, errChan, &wg)
+	go holdOffLoop(ctx, rt, conf, errChan, &wg)
+	go aideLoop(ctx, rt, conf, errChan, &wg)
+	go logCollectorMainLoop(ctx, rt, conf, errChan, &wg)
+
+	var finalErr error
 	for {
-		if !rt.Initializing() && !rt.Holding() {
-			rt.LockAideFiles("aideLoop")
-			LOG("running aide check")
-			// This doesn't handle the output, because the operator ensures AIDE logs to /hostroot/etc/kubernetes/aide.log
-			err := runAideScanCmd(conf)
-			exitStatus := common.GetAideExitCode(err)
-			LOG("aide check returned status %d", exitStatus)
-			rt.result <- exitStatus
-			rt.UnlockAideFiles("aideLoop")
+		select {
+		case <-ctx.Done():
+			DBG("exiting.. waiting for goroutines to finish")
+			wg.Wait()
+			FATAL("exit: %v", finalErr)
+		case err := <-errChan:
+			finalErr = err
+			DBG("cancelling main routine")
+			cancel()
 		}
-		time.Sleep(time.Second * time.Duration(conf.Interval))
 	}
-}
-
-// The holdoff file is the signal from the node controller to pause the aide scan.
-// We do not make this pause the logCollector loop, and we might want to.
-func holdOffLoop(rt *daemonRuntime, conf *daemonConfig, exit chan bool) {
-	for {
-		fi := rt.GetFileIntegrityInstance()
-		annotations := fi.GetAnnotations()
-		if annotations == nil {
-			// No need to hold off since there is no annotations
-			rt.SetHolding("holdOffLoop", false)
-		} else {
-			_, foundHoldOff := annotations[common.IntegrityHoldoffAnnotationKey]
-			if foundHoldOff {
-				rt.SetHolding("holdOffLoop", true)
-			} else {
-				rt.SetHolding("holdOffLoop", false)
-			}
-		}
-		time.Sleep(time.Second)
-	}
-}
-
-// The reinitLoop initializes the aide DB if they do not exist, or if the re-init signal file has been placed on the
-// node by the reinit daemonSet spawned by the fileIntegrity controller.
-func reinitLoop(rt *daemonRuntime, conf *daemonConfig, exit chan bool) {
-	for {
-		_, dbStatErr := os.Stat(aideDBPath(conf))
-		_, initStatErr := os.Stat(aideReinitPath(conf))
-		if os.IsNotExist(dbStatErr) {
-			rt.SetInitializing("reinitLoop", true)
-			rt.LockAideFiles("reinitLoop")
-			LOG("initializing aide")
-			if err := runAideInitDBCmd(conf); err != nil {
-				LOG(err.Error())
-				aideRv := common.GetAideExitCode(err)
-				reportError(fmt.Sprintf("Error initializing the AIDE DB: %s", common.GetAideErrorMessage(aideRv)), conf, rt)
-				time.Sleep(time.Second)
-				rt.UnlockAideFiles("reinitLoop")
-				continue
-			}
-			LOG("initialization finished")
-			rt.UnlockAideFiles("reinitLoop")
-		} else if initStatErr == nil {
-			rt.SetInitializing("reinitLoop", true)
-			rt.LockAideFiles("reinitLoop")
-			LOG("re-initializing aide")
-
-			if err := backUpAideFiles(conf); err != nil {
-				LOG(err.Error())
-				_, eventErr := rt.clientset.EventsV1beta1().Events(conf.Namespace).Create(context.TODO(), &v1beta1.Event{
-					EventTime:           v1.NowMicro(),
-					ReportingController: "file-integrity-operator-daemon",
-					Reason:              fmt.Sprintf("Error backing up the aide files: %v", err),
-				}, v1.CreateOptions{})
-				if eventErr != nil {
-					LOG("error creating error event %v", eventErr)
-				}
-				// Fatal error
-				exit <- true
-				continue
-			}
-
-			if err := initAideLog(conf); err != nil {
-				LOG(err.Error())
-				_, eventErr := rt.clientset.EventsV1beta1().Events(conf.Namespace).Create(context.TODO(), &v1beta1.Event{
-					EventTime:           v1.NowMicro(),
-					ReportingController: "file-integrity-operator-daemon",
-					Reason:              fmt.Sprintf("Error initializing the aide log: %v", err),
-				}, v1.CreateOptions{})
-				if eventErr != nil {
-					LOG("error creating error event %v", eventErr)
-				}
-				// Fatal error
-				exit <- true
-				continue
-			}
-
-			if err := runAideInitDBCmd(conf); err != nil {
-				LOG(err.Error())
-				time.Sleep(time.Second)
-				rt.UnlockAideFiles("reinitLoop")
-				continue
-			}
-
-			if err := removeAideReinitFile(conf); err != nil {
-				LOG(err.Error())
-				_, eventErr := rt.clientset.EventsV1beta1().Events(conf.Namespace).Create(context.TODO(), &v1beta1.Event{
-					EventTime:           v1.NowMicro(),
-					ReportingController: "file-integrity-operator-daemon",
-					Reason:              fmt.Sprintf("Error removing the re-initialization file: %v", err),
-				}, v1.CreateOptions{})
-				if eventErr != nil {
-					LOG("error creating error event %v", eventErr)
-				}
-				time.Sleep(time.Second)
-				continue
-			}
-
-			LOG("re-initialization finished")
-			rt.UnlockAideFiles("reinitLoop")
-		}
-		rt.SetInitializing("reinitLoop", false)
-		time.Sleep(time.Second)
-	}
-}
-
-func integrityInstanceLoop(rt *daemonRuntime, conf *daemonConfig, exit chan bool) {
-	DBG("Getting FileIntegrity %s/%s", conf.Namespace, conf.FileIntegrityName)
-
-	fiResource := schema.GroupVersionResource{
-		Group:    crdGroup,
-		Version:  crdAPIVersion,
-		Resource: crdPlurals,
-	}
-
-	var initialVersion string
-	err := backoff.Retry(func() error {
-		// Set initial instance
-		fi, err := rt.dynclient.Resource(fiResource).Namespace(conf.Namespace).Get(context.TODO(), conf.FileIntegrityName, metav1.GetOptions{})
-		if err != nil {
-			return err
-		}
-		rt.SetFileIntegrityInstance(fi)
-		initialVersion = fi.GetResourceVersion()
-		return nil
-	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries))
-
-	if err != nil {
-		DBG("Couldn't get file integrity object: %s", conf.FileIntegrityName)
-		exit <- true
-		return
-	}
-
-	listOpts := metav1.ListOptions{
-		FieldSelector: fields.OneTermEqualSelector("metadata.name", conf.FileIntegrityName).String(),
-	}
-	listWatcher := &cache.ListWatch{
-		WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
-			return rt.dynclient.Resource(fiResource).Namespace(conf.Namespace).Watch(context.TODO(), listOpts)
-		},
-		ListFunc: func(options v1.ListOptions) (runtime.Object, error) {
-			return rt.dynclient.Resource(fiResource).Namespace(conf.Namespace).List(context.TODO(), listOpts)
-		},
-	}
-
-	watcher, err := watch2.NewRetryWatcher(initialVersion, listWatcher)
-	if err != nil {
-		DBG("error creating Retry Watcher: %s", err)
-		exit <- true
-		return
-	}
-
-	ch := watcher.ResultChan()
-	for event := range ch {
-		if event.Type == watch.Error {
-			DBG("Got an error from watching the file integrity object: %v", event.Object)
-			continue
-		}
-		fi, ok := event.Object.(*unstructured.Unstructured)
-		if !ok {
-			DBG("Could not cast the integrity object as unstructured: %v", event.Object)
-			continue
-		}
-		rt.SetFileIntegrityInstance(fi.DeepCopy())
-	}
-
-	exit <- true
-}
-
-func runAideInitDBCmd(c *daemonConfig) error {
-	configPath := aideConfigPath(c)
-	// CWE-78 - configPath is only made of user input during standalone debugging
-	// #nosec
-	return exec.Command("aide", "-c", configPath, "-i").Run()
-}
-
-func runAideScanCmd(c *daemonConfig) error {
-	configPath := aideConfigPath(c)
-	// CWE-78 - configPath is only made of user input during standalone debugging
-	// #nosec
-	return exec.Command("aide", "-c", configPath).Run()
-}
-
-func backUpAideFiles(c *daemonConfig) error {
-	if err := backupFile(aideDBPath(c)); err != nil {
-		return err
-	}
-	return backupFile(aideLogPath(c))
-}
-
-func removeAideReinitFile(c *daemonConfig) error {
-	return os.Remove(aideReinitPath(c))
-}
-
-func backupFile(file string) error {
-	return os.Rename(file, fmt.Sprintf("%s.backup-%s", file, time.Now().Format(backupTimeFormat)))
-}
-
-func initAideLog(c *daemonConfig) error {
-	f, err := os.Create(aideLogPath(c))
-	if err != nil {
-		return err
-	}
-	_, err = f.WriteString("\n")
-	if err != nil {
-		if err := f.Close(); err != nil {
-			return err
-		}
-		return err
-	}
-	if err := f.Sync(); err != nil {
-		if err := f.Close(); err != nil {
-			return err
-		}
-		return err
-	}
-	return f.Close()
 }

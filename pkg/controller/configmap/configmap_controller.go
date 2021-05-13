@@ -9,7 +9,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	kerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -92,7 +92,7 @@ func (r *ReconcileConfigMap) Reconcile(request reconcile.Request) (reconcile.Res
 	instance := &corev1.ConfigMap{}
 	err := r.client.Get(context.TODO(), request.NamespacedName, instance)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if kerr.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
 			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
 			// Return and don't requeue
@@ -119,16 +119,18 @@ func (r *ReconcileConfigMap) reconcileAideConf(instance *corev1.ConfigMap, logge
 
 	// handling the re-init daemonSets: these are created by the FileIntegrity controller when the AIDE config has been
 	// updated by the user. They touch a file on the node host and then sleep. The file signals to the AIDE pod
-	// daemonSets that they need to back up and re-initialize the AIDE database. So once we've confirmed that the
-	// re-init daemonSets have started running we can delete them and continue with the rollout of the AIDE pods.
+	// daemonSets that they need to back up and re-initialize the AIDE database.
 	reinitDS := &appsv1.DaemonSet{}
 	reinitDSName := common.GetReinitDaemonSetName(instance.Name)
 	err := r.client.Get(context.TODO(), types.NamespacedName{Name: reinitDSName, Namespace: common.FileIntegrityNamespace}, reinitDS)
-	if err != nil {
-		// includes notFound, we will requeue here at least once.
+	if err != nil && kerr.IsNotFound(err) {
+		logger.Info("not found, requeuing", "dsName", reinitDSName)
+		return reconcile.Result{Requeue: true}, nil
+	} else if err != nil {
 		logger.Error(err, "error getting reinit daemonSet")
 		return reconcile.Result{}, err
 	}
+
 	// not ready, requeue
 	if !common.DaemonSetIsReady(reinitDS) {
 		return reconcile.Result{RequeueAfter: time.Duration(time.Second)}, nil
@@ -141,13 +143,6 @@ func (r *ReconcileConfigMap) reconcileAideConf(instance *corev1.ConfigMap, logge
 		return reconcile.Result{}, err
 	}
 
-	err = common.RestartFileIntegrityDs(r.client, common.GetDaemonSetName(instance.Name))
-	if err != nil {
-		logger.Error(err, "error restarting daemonSet")
-		return reconcile.Result{}, err
-	}
-
-	logger.Info("daemon pods restarted")
 	// unset update annotation
 	conf := instance.DeepCopy()
 	conf.Annotations = nil
@@ -202,7 +197,7 @@ func (r *ReconcileConfigMap) handleIntegrityLog(cm *corev1.ConfigMap, logger log
 		failedCM := getConfigMapForFailureLog(cm)
 		if err = r.client.Create(context.TODO(), failedCM); err != nil {
 			// Update if it already existed
-			if errors.IsAlreadyExists(err) {
+			if kerr.IsAlreadyExists(err) {
 				if err = r.client.Update(context.TODO(), failedCM); err != nil {
 					return reconcile.Result{}, err
 				}
@@ -248,11 +243,11 @@ func (r *ReconcileConfigMap) handleIntegrityLog(cm *corev1.ConfigMap, logger log
 func (r *ReconcileConfigMap) createOrUpdateNodeStatus(node string, instance *fileintegrityv1alpha1.FileIntegrity, new fileintegrityv1alpha1.FileIntegrityScanResult) error {
 	nodeStatus := &fileintegrityv1alpha1.FileIntegrityNodeStatus{}
 	err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: instance.Namespace, Name: instance.Name + "-" + node}, nodeStatus)
-	if err != nil && !errors.IsNotFound(err) {
+	if err != nil && !kerr.IsNotFound(err) {
 		return err
 	}
 
-	if errors.IsNotFound(err) {
+	if kerr.IsNotFound(err) {
 		// This node does not have a corresponding FileIntegrityNodeStatus yet, create with this initial result.
 		nodeStatus = &fileintegrityv1alpha1.FileIntegrityNodeStatus{
 			ObjectMeta: metav1.ObjectMeta{

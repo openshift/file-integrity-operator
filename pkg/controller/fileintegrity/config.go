@@ -23,9 +23,9 @@ func prepareAideConf(in string) (string, error) {
 		} else if strings.HasPrefix(line, "database=") {
 			conv = conv + "database=file:@@{DBDIR}/aide.db.gz\n"
 		} else if strings.HasPrefix(line, "database_out=") {
-			conv = conv + "database_out=file:@@{DBDIR}/aide.db.gz\n"
+			conv = conv + "database_out=file:@@{DBDIR}/aide.db.gz.new\n"
 		} else if strings.HasPrefix(line, "report_url=file") {
-			conv = conv + "report_url=file:@@{LOGDIR}/aide.log\n"
+			conv = conv + "report_url=file:@@{LOGDIR}/aide.log.new\n"
 		} else if strings.HasPrefix(line, "/") {
 			if strings.HasPrefix(line, "/hostroot") {
 				// line already has /hostroot, skip prepending it
