@@ -2,13 +2,17 @@ package status
 
 import (
 	"context"
-	"k8s.io/apimachinery/pkg/labels"
 	"time"
 
+	"github.com/go-logr/logr"
+
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -32,7 +36,7 @@ func Add(mgr manager.Manager) error {
 
 // newReconciler returns a new reconcile.Reconciler
 func newReconciler(mgr manager.Manager) reconcile.Reconciler {
-	return &ReconcileFileIntegrityStatus{client: mgr.GetClient(), scheme: mgr.GetScheme()}
+	return &ReconcileFileIntegrityStatus{client: mgr.GetClient(), scheme: mgr.GetScheme(), recorder: mgr.GetEventRecorderFor("statusctrl")}
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
@@ -48,10 +52,27 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 	if err != nil {
 		return err
 	}
-	// XXX also watch for configmaps, init daemonset
 
-	// Watch for changes to secondary resource ComplianceScans and requeue the owner ComplianceSuite
+	// Reconcile on FileIntegrityNodeStatus updates
 	err = c.Watch(&source.Kind{Type: &fileintegrityv1alpha1.FileIntegrityNodeStatus{}}, &handler.EnqueueRequestForOwner{
+		IsController: true,
+		OwnerType:    &fileintegrityv1alpha1.FileIntegrity{},
+	})
+	if err != nil {
+		return err
+	}
+
+	// Reconcile on configMap updates
+	err = c.Watch(&source.Kind{Type: &corev1.ConfigMap{}}, &handler.EnqueueRequestForOwner{
+		IsController: true,
+		OwnerType:    &fileintegrityv1alpha1.FileIntegrity{},
+	})
+	if err != nil {
+		return err
+	}
+
+	// Reconcile on daemonSet updates
+	err = c.Watch(&source.Kind{Type: &appsv1.DaemonSet{}}, &handler.EnqueueRequestForOwner{
 		IsController: true,
 		OwnerType:    &fileintegrityv1alpha1.FileIntegrity{},
 	})
@@ -69,8 +90,9 @@ var _ reconcile.Reconciler = &ReconcileFileIntegrityStatus{}
 type ReconcileFileIntegrityStatus struct {
 	// This client, initialized using mgr.Client() above, is a split client
 	// that reads objects from the cache and writes to the apiserver
-	client client.Client
-	scheme *runtime.Scheme
+	client   client.Client
+	scheme   *runtime.Scheme
+	recorder record.EventRecorder
 }
 
 // Note:
@@ -105,12 +127,12 @@ func (r *ReconcileFileIntegrityStatus) Reconcile(request reconcile.Request) (rec
 	}
 	if err == nil {
 		// reinit daemonset is active, thus we are initializing
-		err := updateStatus(r.client, instance, fileintegrityv1alpha1.PhaseInitializing)
+		err := r.updateStatus(reqLogger, instance, fileintegrityv1alpha1.PhaseInitializing)
 		if err != nil {
 			reqLogger.Error(err, "error updating FileIntegrity status")
 			return reconcile.Result{}, err
 		}
-		return reconcile.Result{RequeueAfter: statusRequeue}, nil
+		return reconcile.Result{}, nil
 	}
 
 	ds := &appsv1.DaemonSet{}
@@ -123,47 +145,47 @@ func (r *ReconcileFileIntegrityStatus) Reconcile(request reconcile.Request) (rec
 
 	if err == nil {
 		if common.DaemonSetIsReady(ds) && !common.DaemonSetIsUpdating(ds) {
-			phase, err := mapActiveStatus(r.client, instance)
+			phase, err := r.mapActiveStatus(instance)
 			if err != nil {
-				reqLogger.Error(err, "error querying node statuses")
+				reqLogger.Error(err, "error getting FileIntegrityNodeStatusList")
 				return reconcile.Result{}, err
 			}
 
-			err = updateStatus(r.client, instance, phase)
+			err = r.updateStatus(reqLogger, instance, phase)
 			if err != nil {
 				reqLogger.Error(err, "error updating FileIntegrity status")
 				return reconcile.Result{}, err
 			}
-			return reconcile.Result{RequeueAfter: statusRequeue}, nil
+			return reconcile.Result{}, nil
 		}
 		// Not ready, set to initializing
-		err := updateStatus(r.client, instance, fileintegrityv1alpha1.PhaseInitializing)
+		err := r.updateStatus(reqLogger, instance, fileintegrityv1alpha1.PhaseInitializing)
 		if err != nil {
 			reqLogger.Error(err, "error updating FileIntegrity status")
 			return reconcile.Result{}, err
 		}
-		return reconcile.Result{RequeueAfter: statusRequeue}, nil
+		return reconcile.Result{}, nil
 	}
 
 	// both daemonSets were missing, so we're currently inactive.
-	err = updateStatus(r.client, instance, fileintegrityv1alpha1.PhasePending)
+	err = r.updateStatus(reqLogger, instance, fileintegrityv1alpha1.PhasePending)
 	if err != nil {
 		reqLogger.Error(err, "error updating FileIntegrity status")
 		return reconcile.Result{}, err
 	}
 
-	return reconcile.Result{RequeueAfter: statusRequeue}, nil
+	return reconcile.Result{}, nil
 }
 
-func mapActiveStatus(k8sclient client.Client, integrity *fileintegrityv1alpha1.FileIntegrity) (fileintegrityv1alpha1.FileIntegrityStatusPhase, error) {
-	// does any of the node statuses latest condition surface an error? If yes, the FI status should be an error
-	nodeStatusList := fileintegrityv1alpha1.FileIntegrityNodeStatusList{}
-
+// mapActiveStatus returns the FileIntegrityStatus relative to the node status; If any nodes have an error, return
+// PhaseError, otherwise return PhaseActive.
+func (r *ReconcileFileIntegrityStatus) mapActiveStatus(integrity *fileintegrityv1alpha1.FileIntegrity) (fileintegrityv1alpha1.FileIntegrityStatusPhase, error) {
 	listOpts := client.ListOptions{
 		LabelSelector: labels.SelectorFromSet(labels.Set{common.IntegrityOwnerLabelKey: integrity.Name}),
 	}
 
-	if err := k8sclient.List(context.TODO(), &nodeStatusList, &listOpts); err != nil {
+	nodeStatusList := fileintegrityv1alpha1.FileIntegrityNodeStatusList{}
+	if err := r.client.List(context.TODO(), &nodeStatusList, &listOpts); err != nil {
 		return fileintegrityv1alpha1.PhaseError, err
 	}
 
@@ -173,16 +195,26 @@ func mapActiveStatus(k8sclient client.Client, integrity *fileintegrityv1alpha1.F
 		}
 	}
 
-	// otherwise active
 	return fileintegrityv1alpha1.PhaseActive, nil
 }
 
-func updateStatus(client client.Client, integrity *fileintegrityv1alpha1.FileIntegrity, phase fileintegrityv1alpha1.FileIntegrityStatusPhase) error {
+func (r *ReconcileFileIntegrityStatus) updateStatus(logger logr.Logger, integrity *fileintegrityv1alpha1.FileIntegrity, phase fileintegrityv1alpha1.FileIntegrityStatusPhase) error {
 	if integrity.Status.Phase != phase {
-		integrityCpy := integrity.DeepCopy()
-		integrityCpy.Status.Phase = phase
+		integrityCopy := integrity.DeepCopy()
+		integrityCopy.Status.Phase = phase
 
-		return client.Status().Update(context.TODO(), integrityCpy)
+		logger.Info("Updating status", "Name", integrityCopy.Name, "Phase", integrityCopy.Status.Phase)
+		err := r.client.Status().Update(context.TODO(), integrityCopy)
+		if err != nil {
+			return err
+		}
+
+		eventType := corev1.EventTypeNormal
+		if integrityCopy.Status.Phase == fileintegrityv1alpha1.PhaseError {
+			eventType = corev1.EventTypeWarning
+		}
+		// Create an event for the transition. 'tegrity.
+		r.recorder.Eventf(integrity, eventType, "FileIntegrityStatus", "%s", integrityCopy.Status.Phase)
 	}
 	return nil
 }

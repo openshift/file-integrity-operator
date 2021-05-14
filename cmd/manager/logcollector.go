@@ -17,304 +17,118 @@ package main
 
 import (
 	"bufio"
-	"bytes"
-	"compress/gzip"
 	"context"
-	"encoding/base64"
 	"fmt"
-	"io"
 	"io/ioutil"
-	"os"
-	"path/filepath"
-	"regexp"
+	"sync"
 	"time"
-
-	"github.com/cenkalti/backoff/v3"
-	"github.com/spf13/cobra"
-
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
-	"github.com/openshift/file-integrity-operator/pkg/common"
 )
-
-const (
-	crdGroup      = "fileintegrity.openshift.io"
-	crdAPIVersion = "v1alpha1"
-	crdPlurals    = "fileintegrities"
-	maxRetries    = 5
-	// These need to be lessened for normal use.
-	defaultTimeout      = 600
-	uncompressedMaxSize = 1048570 // 1MB for etcd limit
-)
-
-var debugLog bool
-
-func LOG(format string, a ...interface{}) {
-	fmt.Printf(fmt.Sprintf("%s: %s\n", time.Now().Format(time.RFC3339), format), a...)
-}
-
-func DBG(format string, a ...interface{}) {
-	if debugLog {
-		LOG("debug: "+format, a...)
-	}
-}
-
-func FATAL(format string, a ...interface{}) {
-	fmt.Fprintf(os.Stderr, "FATAL:"+format+"\n", a...)
-	os.Exit(1)
-}
-
-func getConfigMapName(prefix, nodeName string) string {
-	return prefix + "-" + nodeName
-}
-
-func getValidStringArg(cmd *cobra.Command, name string) string {
-	val, _ := cmd.Flags().GetString(name)
-	if val == "" {
-		FATAL("The command line argument '%s' is mandatory", name)
-	}
-	return val
-}
-
-func getNonEmptyFile(filename string) *os.File {
-	DBG("Opening %s", filename)
-
-	// G304 (CWE-22) is addressed by this.
-	cleanFileName := filepath.Clean(filename)
-
-	// Note that we're cleaning the filename path above.
-	// #nosec
-	file, err := os.Open(cleanFileName)
-	if err != nil {
-		LOG("error opening log file: %v", err)
-		return nil
-	}
-
-	fileinfo, err := file.Stat()
-	// Only try to use the file if it already has contents.
-	if err == nil && fileinfo.Size() > 0 {
-		return file
-	}
-
-	return nil
-}
-
-func matchFileChangeRegex(contents string, regex string) string {
-	re := regexp.MustCompile(regex)
-	match := re.FindStringSubmatch(contents)
-	if len(match) < 2 {
-		return "0"
-	}
-
-	return string(match[1])
-}
-
-func annotateFileChangeSummary(contents string, annotations map[string]string) {
-	annotations[common.IntegrityLogFilesAddedAnnotation] = matchFileChangeRegex(contents, `\s+Added entries:\s+(?P<num_added>\d+)`)
-	annotations[common.IntegrityLogFilesChangedAnnotation] = matchFileChangeRegex(contents, `\s+Changed entries:\s+(?P<num_changed>\d+)`)
-	annotations[common.IntegrityLogFilesRemovedAnnotation] = matchFileChangeRegex(contents, `\s+Removed entries:\s+(?P<num_removed>\d+)`)
-	DBG("added %s changed %s removed %s",
-		annotations[common.IntegrityLogFilesAddedAnnotation],
-		annotations[common.IntegrityLogFilesChangedAnnotation],
-		annotations[common.IntegrityLogFilesRemovedAnnotation])
-}
-
-func needsCompression(size int64) bool {
-	return size > uncompressedMaxSize // Magic number?
-}
-
-func compress(r io.Reader) io.Reader {
-	// Encode the contents ascii, compress it with gzip, b64encode it so it
-	// can be stored in the configmap.
-	var buffer bytes.Buffer
-	w := gzip.NewWriter(&buffer)
-	io.Copy(w, r)
-	w.Close()
-	return &buffer
-}
-
-func encodetoBase64(src io.Reader) string {
-	pr, pw := io.Pipe()
-	enc := base64.NewEncoder(base64.StdEncoding, pw)
-	go func() {
-		_, err := io.Copy(enc, src)
-		enc.Close()
-
-		if err != nil {
-			pw.CloseWithError(err)
-		} else {
-			pw.Close()
-		}
-	}()
-	out, _ := ioutil.ReadAll(pr)
-	return string(out)
-}
-
-func getLogConfigMap(owner *unstructured.Unstructured, configMapName, contentkey, node string, contents io.Reader, compressed bool) *corev1.ConfigMap {
-	annotations := map[string]string{}
-	var strcontents string
-	if compressed {
-		annotations = map[string]string{
-			common.CompressedLogsIndicatorLabelKey: "",
-		}
-		strcontents = encodetoBase64(contents)
-	} else {
-		contentBytes, _ := ioutil.ReadAll(contents)
-		strcontents = string(contentBytes)
-	}
-
-	annotateFileChangeSummary(strcontents, annotations)
-
-	return &corev1.ConfigMap{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "v1",
-			Kind:       "ConfigMap",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        configMapName,
-			Annotations: annotations,
-			OwnerReferences: []metav1.OwnerReference{
-				metav1.OwnerReference{
-					APIVersion: owner.GetAPIVersion(),
-					Kind:       owner.GetKind(),
-					Name:       owner.GetName(),
-					UID:        owner.GetUID(),
-				},
-			},
-			Labels: map[string]string{
-				common.IntegrityOwnerLabelKey:         owner.GetName(),
-				common.IntegrityLogLabelKey:           "",
-				common.IntegrityConfigMapNodeLabelKey: node,
-			},
-		},
-		Data: map[string]string{
-			contentkey: strcontents,
-		},
-	}
-}
-
-func getInformationalConfigMap(owner *unstructured.Unstructured, configMapName string, node string, annotations map[string]string) *corev1.ConfigMap {
-	return &corev1.ConfigMap{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "v1",
-			Kind:       "ConfigMap",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        configMapName,
-			Annotations: annotations,
-			OwnerReferences: []metav1.OwnerReference{
-				metav1.OwnerReference{
-					APIVersion: owner.GetAPIVersion(),
-					Kind:       owner.GetKind(),
-					Name:       owner.GetName(),
-					UID:        owner.GetUID(),
-				},
-			},
-			Labels: map[string]string{
-				common.IntegrityOwnerLabelKey:         owner.GetName(),
-				common.IntegrityLogLabelKey:           "",
-				common.IntegrityConfigMapNodeLabelKey: node,
-			},
-		},
-	}
-}
-
-// reportOK creates a blank configMap with no error annotation. This is treated by the controller as an OK signal.
-func reportOK(conf *daemonConfig, rt *daemonRuntime) {
-	err := backoff.Retry(func() error {
-		fi := rt.GetFileIntegrityInstance()
-		confMap := getInformationalConfigMap(fi, conf.LogCollectorConfigMapName, conf.LogCollectorNode, nil)
-		_, err := rt.clientset.CoreV1().ConfigMaps(conf.Namespace).Create(context.TODO(), confMap, metav1.CreateOptions{})
-		return err
-	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries))
-
-	if err != nil {
-		FATAL("Can't create configMap to report a successful scan result: '%v', aborting", err)
-	}
-	DBG("Created temporary configMap '%s' to report a successful scan result", conf.LogCollectorConfigMapName)
-}
-
-func reportError(msg string, conf *daemonConfig, rt *daemonRuntime) {
-	err := backoff.Retry(func() error {
-		fi := rt.GetFileIntegrityInstance()
-		annotations := map[string]string{
-			common.IntegrityLogErrorAnnotationKey: msg,
-		}
-		confMap := getInformationalConfigMap(fi, conf.LogCollectorConfigMapName, conf.LogCollectorNode, annotations)
-		_, err := rt.clientset.CoreV1().ConfigMaps(conf.Namespace).Create(context.TODO(), confMap, metav1.CreateOptions{})
-		return err
-	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries))
-
-	if err != nil {
-		FATAL("Can't create configMap to report an ERROR scan result: '%v', aborting", err)
-	}
-	LOG("Created temporary configMap '%s' to report an 'ERROR' scan result", conf.LogCollectorConfigMapName)
-}
-
-func uploadLog(contents io.Reader, compressed bool, conf *daemonConfig, rt *daemonRuntime) {
-	err := backoff.Retry(func() error {
-		fi := rt.GetFileIntegrityInstance()
-		confMap := getLogConfigMap(fi, conf.LogCollectorConfigMapName, common.IntegrityLogContentKey, conf.LogCollectorNode, contents, compressed)
-		_, err := rt.clientset.CoreV1().ConfigMaps(conf.Namespace).Create(context.TODO(), confMap, metav1.CreateOptions{})
-		return err
-	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries))
-
-	if err != nil {
-		FATAL("Can't create log configMap with error '%v', aborting", err)
-	}
-	LOG("Created log configMap '%s' to report a failed scan result", conf.LogCollectorConfigMapName)
-}
 
 // logCollectorMainLoop creates temporary status report configMaps for the configmap controller to pick up and turn
 // into permanent ones. It reads the last result reported from aide.
-func logCollectorMainLoop(rt *daemonRuntime, conf *daemonConfig, ch chan bool) {
+func logCollectorMainLoop(ctx context.Context, rt *daemonRuntime, conf *daemonConfig, errChan chan<- error, wg *sync.WaitGroup) {
+	defer wg.Done()
+	logCollectorCtx, logCollectorCancel := context.WithCancel(ctx)
+	defer logCollectorCancel()
+
 	for {
-		lastResult := <-rt.result
-		// We haven't received a result yet.
-		// Or return code 18 - AIDE ran prior to there being an aide database.
-		if lastResult == -1 || lastResult == 18 {
-			DBG("No scan result available")
-			time.Sleep(time.Duration(conf.Interval) * time.Second)
-			continue
-		}
-
-		if lastResult == 0 {
-			reportOK(conf, rt)
-			time.Sleep(time.Duration(conf.Interval) * time.Second)
-			continue
-		}
-
-		rt.LockAideFiles("logCollectorMainLoop")
-		DBG("Integrity check failed, continuing to collect log file")
-
-		if file := getNonEmptyFile(conf.LogCollectorFile); file != nil {
-			var contents io.Reader
-			fileinfo, err := file.Stat()
-			if err != nil {
-				reportError(fmt.Sprintf("Error getting file information: %v", err), conf, rt)
-				file.Close()
-				rt.UnlockAideFiles("logCollectorMainLoop")
-				continue
-			}
-			size := fileinfo.Size()
-
-			r := bufio.NewReader(file)
-			compressed := false
-
-			if needsCompression(size) || conf.LogCollectorCompress {
-				DBG("Compressing log contents")
-				contents = compress(contents)
-				compressed = true
+		select {
+		// If one of the other loops returns an error (which causes the main routine to call cancel()), we hit this
+		// case and exit. Does not block.
+		case <-logCollectorCtx.Done():
+			DBG("logCollectorLoop canceled by the main routine!")
+			return
+		// We've received a result. This will block when the result channel is empty, until our timeout case below.
+		case lastResult := <-rt.GetResult():
+			if lastResult == -1 || lastResult == 18 {
+				// We haven't received a result yet.
+				// Or return code 18 - AIDE ran prior to there being an aide database.
+				DBG("No scan result available")
+			} else if lastResult == 17 {
+				// This is an AIDE config line error. We need to report this with an ERROR configMap without uploading
+				// a log.
+				logAndTryReportingDaemonError(logCollectorCtx, rt, conf, "AIDE error: %v", fmt.Errorf("17 Invalid configureline error"))
+			} else if lastResult == 0 {
+				// The check passed!
+				if err := reportOK(logCollectorCtx, conf, rt); err != nil {
+					// Considering this a non-fatal error right now.
+					LOG("failed reporting scan result: %v", err)
+				}
 			} else {
-				contents = r
+				// Locking of the AIDE files is done in handleFailedResult()
+				if !handleFailedResult(logCollectorCtx, rt, conf, errChan) {
+					return
+				}
 			}
+		// Since the result channel blocks when there is no result, this is our timeout case to continue
+		case <-time.After(time.Duration(conf.Interval) * time.Second):
+			// Just continue looping.
+		}
+	}
+}
 
-			uploadLog(contents, compressed, conf, rt)
-			file.Close()
+// handleFailedResult locks the AIDE files, reads, compresses (if needed) and uploads the failed AIDE log to a
+// configMap for the operator to process. Fatal errors are sent to errChan, and returns false. Returns true on success.
+func handleFailedResult(ctx context.Context, rt *daemonRuntime, conf *daemonConfig, errChan chan<- error) bool {
+	rt.LockAideFiles("handleFailedResult")
+	defer rt.UnlockAideFiles("handleFailedResult")
+	DBG("AIDE check failed, continuing to collect log file")
+
+	file := getNonEmptyFile(conf.LogCollectorFile)
+	if file == nil {
+		DBG("AIDE log file empty")
+		return false
+	}
+
+	var compressedContents []byte
+
+	fileInfo, err := file.Stat()
+	if err != nil {
+		logAndTryReportingDaemonError(ctx, rt, conf, "error getting AIDE log file information: %v", err)
+		if closeErr := file.Close(); closeErr != nil {
+			// Don't really care, just handle the error for gosec.
+			LOG("warning: error closing file %v", closeErr)
 		}
 
-		rt.UnlockAideFiles("logCollectorMainLoop")
+		errChan <- err
+		return false
 	}
+
+	fileSize := fileInfo.Size()
+	// Always read in the contents, when compressed we still need the uncompressed version to figure out
+	// the changed details when updating the configMap later on.
+	r := bufio.NewReader(file)
+	contents, err := ioutil.ReadAll(r)
+	if err != nil {
+		logAndTryReportingDaemonError(ctx, rt, conf, "error reading AIDE log: %v", err)
+		if closeErr := file.Close(); closeErr != nil {
+			// Don't really care, just handle the error for gosec.
+			LOG("warning: error closing file %v", closeErr)
+		}
+
+		errChan <- err
+		return false
+	}
+
+	if closeErr := file.Close(); closeErr != nil {
+		// Don't really care, just handle the error for gosec.
+		LOG("warning: error closing file %v", closeErr)
+	}
+
+	if needsCompression(fileSize) || conf.LogCollectorCompress {
+		DBG("compressing AIDE log contents")
+		var compErr error
+		compressedContents, compErr = compress(contents)
+		if compErr != nil {
+			logAndTryReportingDaemonError(ctx, rt, conf, "error compressing AIDE log: %v", err)
+			errChan <- compErr
+			return false
+		}
+	}
+
+	if err := uploadLog(ctx, contents, compressedContents, conf, rt); err != nil {
+		logAndTryReportingDaemonError(ctx, rt, conf, "error uploading AIDE log: %v", err)
+		errChan <- err
+	}
+	return true
 }
