@@ -25,9 +25,9 @@ var testAidePrepOutput = `
 @@define DBDIR /hostroot/etc/kubernetes
 @@define LOGDIR /hostroot/etc/kubernetes
 database=file:@@{DBDIR}/aide.db.gz
-database_out=file:@@{DBDIR}/aide.db.gz
+database_out=file:@@{DBDIR}/aide.db.gz.new
 # comment
-report_url=file:@@{LOGDIR}/aide.log
+report_url=file:@@{LOGDIR}/aide.log.new
 report_url=stdout
 /hostroot/etc/crowbar
 /hostroot/var/ladder

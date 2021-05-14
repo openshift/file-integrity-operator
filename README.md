@@ -149,6 +149,44 @@ File: /hostroot/etc/resolv.conf
 ```
 AIDE logs over 1MB are gzip compressed and base64 encoded, due to the configMap data size limit. In this case, you will want to pipe the output of the above command to `base64 -d | gunzip`.  Compressed logs are indicated by the presense of a `file-integrity.openshift.io/compressed` annotation key in the configMap.
 
+### Events
+
+Transitions in the status of the FileIntegrity and FileIntegrityNodeStatus objects are also logged by events. The creation time of the event reflects the latest transition (i.e., Initializing to Active), and not necessarily the latest scan result. However, the newest event will always reflect the most recent status.
+```
+$ oc get events --field-selector reason=FileIntegrityStatus
+LAST SEEN   TYPE     REASON                OBJECT                                MESSAGE
+97s         Normal   FileIntegrityStatus   fileintegrity/example-fileintegrity   Pending
+67s         Normal   FileIntegrityStatus   fileintegrity/example-fileintegrity   Initializing
+37s         Normal   FileIntegrityStatus   fileintegrity/example-fileintegrity   Active
+```
+
+When a node has a failed scan, an event is created with the add/changed/removed and configMap information.
+```
+$ oc get events --field-selector reason=NodeIntegrityStatus
+LAST SEEN   TYPE      REASON                OBJECT                                MESSAGE
+114m        Normal    NodeIntegrityStatus   fileintegrity/example-fileintegrity   no changes to node ip-10-0-134-173.ec2.internal
+114m        Normal    NodeIntegrityStatus   fileintegrity/example-fileintegrity   no changes to node ip-10-0-168-238.ec2.internal
+114m        Normal    NodeIntegrityStatus   fileintegrity/example-fileintegrity   no changes to node ip-10-0-169-175.ec2.internal
+114m        Normal    NodeIntegrityStatus   fileintegrity/example-fileintegrity   no changes to node ip-10-0-152-92.ec2.internal
+114m        Normal    NodeIntegrityStatus   fileintegrity/example-fileintegrity   no changes to node ip-10-0-158-144.ec2.internal
+114m        Normal    NodeIntegrityStatus   fileintegrity/example-fileintegrity   no changes to node ip-10-0-131-30.ec2.internal
+87m         Warning   NodeIntegrityStatus   fileintegrity/example-fileintegrity   node ip-10-0-152-92.ec2.internal has changed! a:1,c:1,r:0 log:openshift-file-integrity/aide-ds-example-fileintegrity-ip-10-0-152-92.ec2.internal-failed
+```
+
+Changes to the number of added/changed/removed files will result in a new event, even if the status of the node has not transitioned.
+```
+$ oc get events --field-selector reason=NodeIntegrityStatus
+LAST SEEN   TYPE      REASON                OBJECT                                MESSAGE
+114m        Normal    NodeIntegrityStatus   fileintegrity/example-fileintegrity   no changes to node ip-10-0-134-173.ec2.internal
+114m        Normal    NodeIntegrityStatus   fileintegrity/example-fileintegrity   no changes to node ip-10-0-168-238.ec2.internal
+114m        Normal    NodeIntegrityStatus   fileintegrity/example-fileintegrity   no changes to node ip-10-0-169-175.ec2.internal
+114m        Normal    NodeIntegrityStatus   fileintegrity/example-fileintegrity   no changes to node ip-10-0-152-92.ec2.internal
+114m        Normal    NodeIntegrityStatus   fileintegrity/example-fileintegrity   no changes to node ip-10-0-158-144.ec2.internal
+114m        Normal    NodeIntegrityStatus   fileintegrity/example-fileintegrity   no changes to node ip-10-0-131-30.ec2.internal
+87m         Warning   NodeIntegrityStatus   fileintegrity/example-fileintegrity   node ip-10-0-152-92.ec2.internal has changed! a:1,c:1,r:0 log:openshift-file-integrity/aide-ds-example-fileintegrity-ip-10-0-152-92.ec2.internal-failed
+40m         Warning   NodeIntegrityStatus   fileintegrity/example-fileintegrity   node ip-10-0-152-92.ec2.internal has changed! a:3,c:1,r:0 log:openshift-file-integrity/aide-ds-example-fileintegrity-ip-10-0-152-92.ec2.internal-failed
+```
+
 ### Local testing
 ```
 $ make run

@@ -78,53 +78,72 @@ type ReconcileFileIntegrity struct {
 
 // handleDefaultConfigMaps creates the inital configMaps needed by the operator and aide pods. It returns the
 // active AIDE configuration configMap
-func (r *ReconcileFileIntegrity) handleDefaultConfigMaps(f *fileintegrityv1alpha1.FileIntegrity) (*corev1.ConfigMap, error) {
-	cm := &corev1.ConfigMap{}
+func (r *ReconcileFileIntegrity) handleDefaultConfigMaps(logger logr.Logger, f *fileintegrityv1alpha1.FileIntegrity) (*corev1.ConfigMap, bool, error) {
+	var scriptsUpdated bool
+	scriptCm := &corev1.ConfigMap{}
 	if err := r.client.Get(context.TODO(), types.NamespacedName{
 		Name:      common.AideReinitScriptConfigMapName,
 		Namespace: common.FileIntegrityNamespace,
-	}, cm); err != nil {
+	}, scriptCm); err != nil {
 		if !kerr.IsNotFound(err) {
-			return nil, err
+			return nil, scriptsUpdated, err
 		}
 		// does not exist, create
 		if err := r.client.Create(context.TODO(), aideReinitScript()); err != nil {
-			return nil, err
+			return nil, scriptsUpdated, err
 		}
+	} else if ok := dataMatchesReinitScript(scriptCm); !ok {
+		// The script data is outdated because of a manual change or an operator update, so we need to restore it.
+		logger.Info("re-init script configMap has changed, restoring")
+		if err := r.client.Update(context.TODO(), aideReinitScript()); err != nil {
+			return nil, scriptsUpdated, err
+		}
+		scriptsUpdated = true
 	}
 
+	pauseCm := &corev1.ConfigMap{}
 	if err := r.client.Get(context.TODO(), types.NamespacedName{
 		Name:      common.PauseConfigMapName,
 		Namespace: common.FileIntegrityNamespace,
-	}, cm); err != nil {
+	}, pauseCm); err != nil {
 		if !kerr.IsNotFound(err) {
-			return nil, err
+			return nil, scriptsUpdated, err
 		}
 		// does not exist, create
 		if err := r.client.Create(context.TODO(), aidePauseScript()); err != nil {
-			return nil, err
+			return nil, scriptsUpdated, err
 		}
+	} else if ok := dataMatchesPauseScript(pauseCm); !ok {
+		// The script data is outdated because of a manual change or an operator update, so we need to restore it.
+		logger.Info("holdoff script configMap has changed, restoring")
+		if err := r.client.Update(context.TODO(), aidePauseScript()); err != nil {
+			return nil, scriptsUpdated, err
+		}
+		scriptsUpdated = true
 	}
 
+	confCm := &corev1.ConfigMap{}
 	if err := r.client.Get(context.TODO(), types.NamespacedName{
 		Name:      f.Name,
 		Namespace: common.FileIntegrityNamespace,
-	}, cm); err != nil {
+	}, confCm); err != nil {
 		if !kerr.IsNotFound(err) {
-			return nil, err
+			return nil, scriptsUpdated, err
 		}
 		// does not exist, create
 		if err := r.client.Create(context.TODO(), defaultAIDEConfigMap(f.Name)); err != nil {
-			return nil, err
+			return nil, scriptsUpdated, err
 		}
-	} else if _, ok := cm.Data[common.DefaultConfDataKey]; !ok {
+		return nil, scriptsUpdated, nil
+	} else if _, ok := confCm.Data[common.DefaultConfDataKey]; !ok {
 		// we had the configMap but its data was missing for some reason, so restore it.
 		if err := r.client.Update(context.TODO(), defaultAIDEConfigMap(f.Name)); err != nil {
-			return nil, err
+			return nil, scriptsUpdated, err
 		}
+		return nil, scriptsUpdated, nil
 	}
 
-	return cm, nil
+	return confCm, scriptsUpdated, nil
 }
 
 func (r *ReconcileFileIntegrity) createReinitDaemonSet(instance *fileintegrityv1alpha1.FileIntegrity) error {
@@ -186,10 +205,7 @@ func (r *ReconcileFileIntegrity) aideConfigIsDefault(instance *fileintegrityv1al
 		return false, err
 	}
 
-	currentConfig := currentConfigMap.Data[common.DefaultConfDataKey]
-	defaultConfig := defaultConfigMap.Data[common.DefaultConfDataKey]
-
-	return currentConfig == defaultConfig, nil
+	return configMapKeyDataMatches(currentConfigMap, defaultConfigMap, common.DefaultConfDataKey), nil
 }
 
 // reconcileUserConfig checks if the user provided a configuration of their own and prepares it. Returns true if a new
@@ -283,7 +299,7 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 
 	daemonSetName := common.GetDaemonSetName(instance.Name)
 
-	defaultAideConf, err := r.handleDefaultConfigMaps(instance)
+	defaultAideConf, scriptsUpdated, err := r.handleDefaultConfigMaps(reqLogger, instance)
 	if err != nil {
 		reqLogger.Error(err, "error handling default configMaps")
 		return reconcile.Result{}, err
@@ -341,9 +357,10 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 			log.Error(ownerErr, "Failed to set daemonset ownership", "DaemonSet", ds)
 			return reconcile.Result{}, err
 		}
-		if createErr := r.client.Create(context.TODO(), ds); createErr != nil {
+
+		if createErr := r.client.Create(context.TODO(), ds); createErr != nil && !kerr.IsAlreadyExists(createErr) {
 			reqLogger.Error(createErr, "error creating daemonSet")
-			return reconcile.Result{}, common.IgnoreAlreadyExists(createErr)
+			return reconcile.Result{}, createErr
 		}
 	} else {
 		dsCopy := daemonSet.DeepCopy()
@@ -351,12 +368,15 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 		imgNeedsUpdate := updateDSImage(dsCopy, reqLogger)
 		nsNeedsUpdate := updateDSNodeSelector(dsCopy, instance, reqLogger)
 		tolsNeedsUpdate := updateDSTolerations(dsCopy, instance, reqLogger)
+		volsNeedUpdate := updateDSContainerVolumes(dsCopy, instance, reqLogger)
 
-		if argsNeedUpdate || imgNeedsUpdate || nsNeedsUpdate || tolsNeedsUpdate {
+		if argsNeedUpdate || imgNeedsUpdate || nsNeedsUpdate || tolsNeedsUpdate || volsNeedUpdate || scriptsUpdated {
 			if err := r.client.Update(context.TODO(), dsCopy); err != nil {
 				return reconcile.Result{}, err
 			}
 
+			// TODO: We might want to change this to something that signals to the daemonSet pods that they need to
+			// gracefully exit, and let them restart that way.
 			err := common.RestartFileIntegrityDs(r.client, common.GetDaemonSetName(instance.Name))
 			if err != nil {
 				return reconcile.Result{}, err
@@ -389,7 +409,7 @@ func updateDSTolerations(currentDS *appsv1.DaemonSet, fi *fileintegrityv1alpha1.
 	return needsUpdate
 }
 
-// Returns true with the daemon pod args derived from the FileIntegrity object differ from the current DS.
+// Returns true when the daemon pod args derived from the FileIntegrity object differ from the current DS.
 // Returns false if there was no difference.
 // If an update is needed, this will update the arguments from the given DaemonSet
 func updateDSArgs(currentDS *appsv1.DaemonSet, fi *fileintegrityv1alpha1.FileIntegrity, logger logr.Logger) bool {
@@ -403,7 +423,22 @@ func updateDSArgs(currentDS *appsv1.DaemonSet, fi *fileintegrityv1alpha1.FileInt
 	return needsUpdate
 }
 
-// Returns true with the daemon pod image differs from the current DS.
+// Returns true when the daemon pod volumeMounts differ from the provided (i.e., during update).
+// Returns false if there was no difference.
+// If an update is needed, this will update the arguments from the given DaemonSet
+func updateDSContainerVolumes(currentDS *appsv1.DaemonSet, fi *fileintegrityv1alpha1.FileIntegrity, logger logr.Logger) bool {
+	expected := aideDaemonset(currentDS.Name, fi)
+	volumeMountRef := &currentDS.Spec.Template.Spec.Containers[0].VolumeMounts
+	volumeMountsNeedUpdate := !reflect.DeepEqual(*volumeMountRef, expected.Spec.Template.Spec.Containers[0].VolumeMounts)
+	if volumeMountsNeedUpdate {
+		logger.Info("FileIntegrity needed Daemonset container update (volumeMounts)")
+		*volumeMountRef = expected.Spec.Template.Spec.Containers[0].VolumeMounts
+	}
+
+	return volumeMountsNeedUpdate
+}
+
+// Returns true when the daemon pod image differs from the current DS.
 // Returns false if there was no difference.
 // If an update is needed, this will update the image reference from the given DaemonSet
 func updateDSImage(currentDS *appsv1.DaemonSet, logger logr.Logger) bool {
@@ -456,6 +491,20 @@ func aidePauseScript() *corev1.ConfigMap {
 	}
 }
 
+func dataMatchesReinitScript(cm *corev1.ConfigMap) bool {
+	return configMapKeyDataMatches(cm, aideReinitScript(), common.DefaultConfDataKey)
+}
+
+func dataMatchesPauseScript(cm *corev1.ConfigMap) bool {
+	return configMapKeyDataMatches(cm, aidePauseScript(), common.DefaultConfDataKey)
+}
+
+func configMapKeyDataMatches(cm1, cm2 *corev1.ConfigMap, key string) bool {
+	a := cm1.Data[key]
+	b := cm2.Data[key]
+	return a == b
+}
+
 // reinitAideDaemonset returns a DaemonSet that runs a one-shot pod on each node. This pod touches a file
 // on the host OS that informs the AIDE daemon to back up and reinitialize the AIDE db.
 func reinitAideDaemonset(reinitDaemonSetName string, fi *fileintegrityv1alpha1.FileIntegrity) *appsv1.DaemonSet {
@@ -490,8 +539,8 @@ func reinitAideDaemonset(reinitDaemonSetName string, fi *fileintegrityv1alpha1.F
 								Privileged: &priv,
 								RunAsUser:  &runAs,
 							},
-							Name:    "aide",
-							Image:   common.GetComponentImage(common.AIDE),
+							Name:    "reinit-script",
+							Image:   common.GetComponentImage(common.OPERATOR),
 							Command: []string{common.AideScriptPath},
 							VolumeMounts: []corev1.VolumeMount{
 								{
@@ -508,9 +557,9 @@ func reinitAideDaemonset(reinitDaemonSetName string, fi *fileintegrityv1alpha1.F
 					// make this an endless loop
 					Containers: []corev1.Container{
 						{
-							Name:    "pause",
+							Name:    "pause-script",
 							Command: []string{common.PausePath},
-							Image:   common.GetComponentImage(common.AIDE),
+							Image:   common.GetComponentImage(common.OPERATOR),
 							VolumeMounts: []corev1.VolumeMount{
 								{
 									Name:      common.PauseConfigMapName,
@@ -585,7 +634,7 @@ func aideDaemonset(dsName string, fi *fileintegrityv1alpha1.FileIntegrity) *apps
 				Spec: corev1.PodSpec{
 					NodeSelector:       fi.Spec.NodeSelector,
 					Tolerations:        fi.Spec.Tolerations,
-					ServiceAccountName: common.OperatorServiceAccountName,
+					ServiceAccountName: common.DaemonServiceAccountName,
 					Containers: []corev1.Container{
 						{
 							SecurityContext: &corev1.SecurityContext{
