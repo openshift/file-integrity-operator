@@ -37,17 +37,18 @@ import (
 )
 
 const (
-	pollInterval           = time.Second * 2
-	retryInterval          = time.Second * 5
-	timeout                = time.Minute * 30
-	cleanupRetryInterval   = time.Second * 1
-	cleanupTimeout         = time.Minute * 5
-	testIntegrityName      = "test-check"
-	testConfName           = "test-conf"
-	testConfDataKey        = "conf"
-	nodeWorkerRoleLabelKey = "node-role.kubernetes.io/worker"
-	mcWorkerRoleLabelKey   = "machineconfiguration.openshift.io/role"
-	defaultTestGracePeriod = 20
+	pollInterval            = time.Second * 2
+	pollTimeout             = time.Minute * 5
+	retryInterval           = time.Second * 5
+	timeout                 = time.Minute * 30
+	cleanupRetryInterval    = time.Second * 1
+	cleanupTimeout          = time.Minute * 5
+	testIntegrityNamePrefix = "e2e-test"
+	testConfName            = "test-conf"
+	testConfDataKey         = "conf"
+	nodeWorkerRoleLabelKey  = "node-role.kubernetes.io/worker"
+	mcWorkerRoleLabelKey    = "machineconfiguration.openshift.io/role"
+	defaultTestGracePeriod  = 20
 )
 
 var mcLabelForWorkerRole = map[string]string{
@@ -62,10 +63,10 @@ var testAideConfig = `@@define DBDIR /hostroot/etc/kubernetes
 # Comment added to differ from default and trigger a re-init
 @@define LOGDIR /hostroot/etc/kubernetes
 database=file:@@{DBDIR}/aide.db.gz
-database_out=file:@@{DBDIR}/aide.db.gz
+database_out=file:@@{DBDIR}/aide.db.gz.new
 gzip_dbout=yes
 verbose=5
-report_url=file:@@{LOGDIR}/aide.log
+report_url=file:@@{LOGDIR}/aide.log.new
 report_url=stdout
 PERMS = p+u+g+acl+selinux+xattrs
 CONTENT_EX = sha512+ftype+p+u+g+n+acl+selinux+xattrs
@@ -96,6 +97,22 @@ CONTENT_EX = sha512+ftype+p+u+g+n+acl+selinux+xattrs
 
 var brokenAideConfig = testAideConfig + "\n" + "NORMAL = p+i+n+u+g+s+m+c+acl+selinux+xattrs+sha513+md5+XXXXXX"
 
+func newTestFileIntegrity(name, ns string, nodeSelector map[string]string, grace int, debug bool) *fileintv1alpha1.FileIntegrity {
+	return &fileintv1alpha1.FileIntegrity{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: ns,
+		},
+		Spec: fileintv1alpha1.FileIntegritySpec{
+			NodeSelector: nodeSelector,
+			Config: fileintv1alpha1.FileIntegrityConfig{
+				GracePeriod: grace,
+			},
+			Debug: debug,
+		},
+	}
+}
+
 func cleanUp(namespace string) func() error {
 	return func() error {
 		f := framework.Global
@@ -111,8 +128,26 @@ func cleanUp(namespace string) func() error {
 				}
 			}
 		}
-		return nil
+		return deleteStatusEvents(f, namespace)
 	}
+}
+
+func deleteStatusEvents(f *framework.Framework, namespace string) error {
+	selectors := []string{"reason=FileIntegrityStatus", "reason=NodeIntegrityStatus"}
+	for _, sel := range selectors {
+		eventList, err := f.KubeClient.CoreV1().Events(namespace).List(goctx.TODO(), metav1.ListOptions{FieldSelector: sel})
+		if err != nil {
+			return err
+		}
+		for _, ev := range eventList.Items {
+			if err := f.KubeClient.CoreV1().Events(namespace).Delete(goctx.TODO(), ev.Name, metav1.DeleteOptions{}); err != nil {
+				if !kerr.IsNotFound(err) {
+					return err
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func setupTestRequirements(t *testing.T) *framework.Context {
@@ -159,6 +194,73 @@ func setupFileIntegrityOperatorCluster(t *testing.T, ctx *framework.Context) {
 	if err != nil {
 		t.Fatal(err)
 	}
+}
+
+// setupTest deploys the operator
+func setupTest(t *testing.T) (*framework.Framework, *framework.Context, string) {
+	testctx := setupTestRequirements(t)
+	namespace, err := testctx.GetOperatorNamespace()
+	if err != nil {
+		t.Fatalf("could not get namespace: %v", err)
+	}
+	testctx.AddCleanupFn(cleanUp(namespace))
+
+	setupFileIntegrityOperatorCluster(t, testctx)
+	return framework.Global, testctx, namespace
+}
+
+// setupFileIntegrity creates the FileIntegrity instance and confirms
+func setupFileIntegrity(t *testing.T, f *framework.Framework, testCtx *framework.Context, integrityName, namespace string) {
+	testIntegrityCheck := newTestFileIntegrity(integrityName, namespace, nodeLabelForWorkerRole, defaultTestGracePeriod, true)
+
+	cleanupOptions := framework.CleanupOptions{
+		TestContext:   testCtx,
+		Timeout:       cleanupTimeout,
+		RetryInterval: cleanupRetryInterval,
+	}
+	err := f.Client.Create(goctx.TODO(), testIntegrityCheck, &cleanupOptions)
+	if err != nil {
+		t.Fatalf("Could not create FileIntegrity: %v", err)
+	}
+
+	t.Logf("Created FileIntegrity: %+v", testIntegrityCheck)
+
+	dsName := common.GetDaemonSetName(testIntegrityCheck.Name)
+	err = waitForDaemonSet(daemonSetIsReady(f.KubeClient, dsName, namespace))
+	if err != nil {
+		t.Fatalf("Timed out waiting for DaemonSet %s", dsName)
+	}
+
+	var lastErr error
+	pollErr := wait.PollImmediate(time.Second, 5*time.Minute, func() (bool, error) {
+		numWorkers, err := getNumberOfWorkerNodes(f.KubeClient)
+		if err != nil {
+			lastErr = err
+			return false, nil
+		}
+		numReplicas, err := getDSReplicas(f.KubeClient, dsName, namespace)
+		if err != nil {
+			lastErr = err
+			return false, nil
+		}
+
+		if numWorkers != numReplicas {
+			lastErr = errors.Errorf("The number of worker nodes (%d) doesn't match the DS replicas (%d)", numWorkers, numReplicas)
+			return false, nil
+		}
+		return true, nil
+	})
+	if pollErr != nil {
+		t.Fatalf("Error confirming DS replica amount: (%v) (%v)", pollErr, lastErr)
+	}
+
+	// wait to go active
+	err = waitForScanStatus(t, f, namespace, integrityName, fileintv1alpha1.PhaseActive)
+	if err != nil {
+		t.Fatalf("Timed out waiting for scan status to go Active")
+	}
+	t.Log("FileIntegrity deployed successfully")
+
 }
 
 func daemonSetExists(c kubernetes.Interface, name, namespace string) wait.ConditionFunc {
@@ -220,6 +322,20 @@ func cleanAideDaemonset(namespace string) *appsv1.DaemonSet {
 func modifyFileDaemonset(namespace string) *appsv1.DaemonSet {
 	return privCommandDaemonset(namespace, "aide-modify-file",
 		"echo '#foobar' >> /hostroot/etc/resolv.conf || true",
+	)
+}
+
+func cleanAideAddedFilesDaemonset(namespace string) *appsv1.DaemonSet {
+	return privCommandDaemonset(namespace, "aide-clean-added-files",
+		"rm -f /hostroot/etc/addedbytest* || true",
+	)
+}
+
+// this daemonset is to stuff the aide log with added files, to force compression.
+// 20000 might not be enough
+func addLotsOfFilesDaemonset(namespace string) *appsv1.DaemonSet {
+	return privCommandDaemonset(namespace, "aide-add-lots-of-files",
+		"for i in `seq 1 20000`; do mktemp \"/hostroot/etc/addedbytest$i.XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\"; done || true",
 	)
 }
 
@@ -307,7 +423,8 @@ func getNumberOfWorkerNodes(c kubernetes.Interface) (int, error) {
 	return len(nodes.Items), nil
 }
 
-func setupTolerationTest(t *testing.T) (*framework.Framework, *framework.Context, string) {
+// TODO: break this up into setupTest/setupFileIntegrity steps like below.
+func setupTolerationTest(t *testing.T, integrityName string) (*framework.Framework, *framework.Context, string) {
 	testctx := setupTestRequirements(t)
 	namespace, err := testctx.GetOperatorNamespace()
 	if err != nil {
@@ -334,13 +451,13 @@ func setupTolerationTest(t *testing.T) (*framework.Framework, *framework.Context
 	setupFileIntegrityOperatorCluster(t, testctx)
 
 	if err := taintNode(t, f, taintedNode, taint); err != nil {
-		t.Fatalf("Tainting node failed")
+		t.Fatal("Tainting node failed")
 	}
 
 	t.Log("Creating FileIntegrity object for Toleration tests")
 	testIntegrityCheck := &fileintv1alpha1.FileIntegrity{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      testIntegrityName,
+			Name:      integrityName,
 			Namespace: namespace,
 		},
 		Spec: fileintv1alpha1.FileIntegritySpec{
@@ -397,78 +514,6 @@ func setupTolerationTest(t *testing.T) (*framework.Framework, *framework.Context
 	return f, testctx, namespace
 }
 
-// setupTest sets up the operator and waits for AIDE to roll out
-func setupTest(t *testing.T) (*framework.Framework, *framework.Context, string) {
-	testctx := setupTestRequirements(t)
-	namespace, err := testctx.GetOperatorNamespace()
-	if err != nil {
-		t.Errorf("could not get namespace: %v", err)
-	}
-	testctx.AddCleanupFn(cleanUp(namespace))
-
-	setupFileIntegrityOperatorCluster(t, testctx)
-	f := framework.Global
-
-	t.Log("Creating FileIntegrity object")
-	testIntegrityCheck := &fileintv1alpha1.FileIntegrity{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      testIntegrityName,
-			Namespace: namespace,
-		},
-		Spec: fileintv1alpha1.FileIntegritySpec{
-			NodeSelector: nodeLabelForWorkerRole,
-			Config: fileintv1alpha1.FileIntegrityConfig{
-				GracePeriod: defaultTestGracePeriod,
-			},
-		},
-	}
-	cleanupOptions := framework.CleanupOptions{
-		TestContext:   testctx,
-		Timeout:       cleanupTimeout,
-		RetryInterval: cleanupRetryInterval,
-	}
-	err = f.Client.Create(goctx.TODO(), testIntegrityCheck, &cleanupOptions)
-	if err != nil {
-		t.Errorf("could not create fileintegrity object: %v", err)
-	}
-
-	dsName := common.GetDaemonSetName(testIntegrityCheck.Name)
-	err = waitForDaemonSet(daemonSetIsReady(f.KubeClient, dsName, namespace))
-	if err != nil {
-		t.Errorf("Timed out waiting for DaemonSet %s", dsName)
-	}
-
-	var lastErr error
-	pollErr := wait.PollImmediate(time.Second, 5*time.Minute, func() (bool, error) {
-		numWorkers, err := getNumberOfWorkerNodes(f.KubeClient)
-		if err != nil {
-			lastErr = err
-			return false, nil
-		}
-		numReplicas, err := getDSReplicas(f.KubeClient, dsName, namespace)
-		if err != nil {
-			lastErr = err
-			return false, nil
-		}
-
-		if numWorkers != numReplicas {
-			lastErr = errors.Errorf("The number of worker nodes (%d) doesn't match the DS replicas (%d)", numWorkers, numReplicas)
-			return false, nil
-		}
-		return true, nil
-	})
-	if pollErr != nil {
-		t.Errorf("error confirming DS replica amount: (%v) (%v)", pollErr, lastErr)
-	}
-
-	// wait to go active
-	err = waitForScanStatus(t, f, namespace, testIntegrityName, fileintv1alpha1.PhaseActive)
-	if err != nil {
-		t.Error("Timed out waiting for scan status to go Active")
-	}
-	return f, testctx, namespace
-}
-
 func updateFileIntegrityConfig(t *testing.T, f *framework.Framework, integrityName, configMapName, namespace, key string, interval, timeout time.Duration) {
 	var lastErr error
 	pollErr := wait.PollImmediate(interval, timeout, func() (bool, error) {
@@ -478,15 +523,12 @@ func updateFileIntegrityConfig(t *testing.T, f *framework.Framework, integrityNa
 			lastErr = err
 			return false, nil
 		}
+
+		// We only want the config to update. Preserve the other fields, like debug and node selectors
 		fileIntegrityCopy := fileIntegrity.DeepCopy()
-		fileIntegrityCopy.Spec = fileintv1alpha1.FileIntegritySpec{
-			Config: fileintv1alpha1.FileIntegrityConfig{
-				Name:        configMapName,
-				Namespace:   namespace,
-				Key:         key,
-				GracePeriod: defaultTestGracePeriod,
-			},
-		}
+		fileIntegrityCopy.Spec.Config.Name = configMapName
+		fileIntegrityCopy.Spec.Config.Namespace = namespace
+		fileIntegrityCopy.Spec.Config.Key = key
 
 		err = f.Client.Update(goctx.TODO(), fileIntegrityCopy)
 		if err != nil {
@@ -541,8 +583,6 @@ func createTestConfigMap(t *testing.T, f *framework.Framework, integrityName, co
 		t.Error(err)
 	}
 
-	// update FileIntegrity config spec to point to the configMap
-	updateFileIntegrityConfig(t, f, integrityName, configMapName, namespace, key, time.Second, 2*time.Minute)
 }
 
 func updateTestConfigMap(t *testing.T, f *framework.Framework, configMapName, namespace, key, data string) {
@@ -551,9 +591,10 @@ func updateTestConfigMap(t *testing.T, f *framework.Framework, configMapName, na
 	if err != nil {
 		t.Error(err)
 	}
+	cmCopy := cm.DeepCopy()
 
-	cm.Data[key] = data
-	_, err = f.KubeClient.CoreV1().ConfigMaps(namespace).Update(goctx.TODO(), cm, metav1.UpdateOptions{})
+	cmCopy.Data[key] = data
+	_, err = f.KubeClient.CoreV1().ConfigMaps(namespace).Update(goctx.TODO(), cmCopy, metav1.UpdateOptions{})
 	if err != nil {
 		t.Error(err)
 	}
@@ -599,10 +640,10 @@ func waitForFailedResultForNode(t *testing.T, f *framework.Framework, namespace,
 			return false, nil
 		}
 
-		t.Logf("waitForFailedResultForNode: found nodeStatus: %#v", nodeStatus)
-
 		if nodeStatus.LastResult.Condition == fileintv1alpha1.NodeConditionFailed {
 			foundResult = &nodeStatus.LastResult
+			t.Logf("failed result for node %s found, r:%d a:%d c:%d", node, foundResult.FilesRemoved,
+				foundResult.FilesAdded, foundResult.FilesChanged)
 			return true, nil
 		}
 		return false, nil
@@ -615,7 +656,91 @@ func waitForFailedResultForNode(t *testing.T, f *framework.Framework, namespace,
 	return foundResult, nil
 }
 
-func assertNodesConditionIsSuccess(t *testing.T, f *framework.Framework, namespace string, interval, timeout time.Duration) {
+func waitForFIStatusEvent(t *testing.T, f *framework.Framework, namespace, name, expectedMessage string) error {
+	exampleFileIntegrity := &fileintv1alpha1.FileIntegrity{}
+	err := wait.Poll(pollInterval, pollTimeout, func() (bool, error) {
+		getErr := f.Client.Get(goctx.TODO(), types.NamespacedName{Name: name, Namespace: namespace}, exampleFileIntegrity)
+		if getErr != nil {
+			t.Log(getErr)
+			return false, nil
+		}
+
+		eventList, getEventErr := f.KubeClient.CoreV1().Events(namespace).List(goctx.TODO(), metav1.ListOptions{
+			FieldSelector: "reason=FileIntegrityStatus",
+		})
+
+		if getEventErr != nil {
+			t.Log(getEventErr)
+			return false, nil
+		}
+		for _, item := range eventList.Items {
+			if item.InvolvedObject.Name == exampleFileIntegrity.Name && item.Message == expectedMessage {
+				t.Logf("Found FileIntegrityStatus event: %s", expectedMessage)
+				return true, nil
+			}
+		}
+		return false, nil
+	})
+	if err != nil {
+		t.Logf("No FileIntegrityStatus event with message \"%s\" found", expectedMessage)
+		return err
+	}
+
+	return nil
+}
+
+func assertNodeOKStatusEvents(t *testing.T, f *framework.Framework, namespace string, interval, timeout time.Duration) {
+	var lastErr error
+	nodes, err := f.KubeClient.CoreV1().Nodes().List(goctx.TODO(), metav1.ListOptions{LabelSelector: mcWorkerRoleLabelKey})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	seenNodes := map[string]bool{}
+	timeoutErr := wait.Poll(interval, timeout, func() (bool, error) {
+		// Node names are the key
+		eventList, getEventErr := f.KubeClient.CoreV1().Events(namespace).List(goctx.TODO(), metav1.ListOptions{
+			FieldSelector: "reason=NodeIntegrityStatus",
+		})
+
+		if getEventErr != nil {
+			t.Log(getEventErr)
+			lastErr = getEventErr
+			return false, nil
+		}
+
+		// Look for an OK node status event for each node.
+		for _, node := range nodes.Items {
+			for _, event := range eventList.Items {
+				if event.Type == corev1.EventTypeNormal && event.Message == "no changes to node "+node.Name {
+					seenNodes[node.Name] = true
+				}
+			}
+		}
+
+		// Seen all of the node events?
+		for _, node := range nodes.Items {
+			if !seenNodes[node.Name] {
+				return false, nil
+			}
+		}
+
+		// reset error since we're good
+		lastErr = nil
+		return true, nil
+	})
+	if lastErr != nil {
+		t.Error(lastErr)
+		return
+	}
+	if timeoutErr != nil {
+		t.Error(timeoutErr)
+		return
+	}
+}
+
+func assertNodesConditionIsSuccess(t *testing.T, f *framework.Framework, integrityName, namespace string, interval, timeout time.Duration) {
 	var lastErr error
 	type nodeStatus struct {
 		LastProbeTime metav1.Time
@@ -633,7 +758,7 @@ func assertNodesConditionIsSuccess(t *testing.T, f *framework.Framework, namespa
 
 		for _, node := range nodes.Items {
 			fileIntegNodeStatus := &fileintv1alpha1.FileIntegrityNodeStatus{}
-			getErr := f.Client.Get(goctx.TODO(), types.NamespacedName{Name: testIntegrityName + "-" + node.Name, Namespace: namespace}, fileIntegNodeStatus)
+			getErr := f.Client.Get(goctx.TODO(), types.NamespacedName{Name: integrityName + "-" + node.Name, Namespace: namespace}, fileIntegNodeStatus)
 			if getErr != nil {
 				t.Logf("Retrying. Got error: %v\n", getErr)
 				lastErr = getErr
@@ -739,8 +864,51 @@ func editFileOnNodes(f *framework.Framework, namespace string) error {
 	return nil
 }
 
+func addALottaFilesOnNodes(f *framework.Framework, namespace string) error {
+	daemonSet, err := f.KubeClient.AppsV1().DaemonSets(namespace).Create(goctx.TODO(), addLotsOfFilesDaemonset(namespace), metav1.CreateOptions{})
+	if err != nil {
+		return err
+	}
+
+	err = waitForDaemonSet(daemonSetExists(f.KubeClient, daemonSet.Name, namespace))
+	if err != nil {
+		return err
+	}
+	if err := waitForDaemonSet(daemonSetWasScheduled(f.KubeClient, daemonSet.Name, namespace)); err != nil {
+		return err
+	}
+
+	time.Sleep(10 * time.Second)
+	if err := f.KubeClient.AppsV1().DaemonSets(namespace).Delete(goctx.TODO(), daemonSet.Name, metav1.DeleteOptions{}); err != nil {
+		return err
+	}
+	return nil
+}
+
 func cleanNodes(f *framework.Framework, namespace string) error {
 	ds, err := f.KubeClient.AppsV1().DaemonSets(namespace).Create(goctx.TODO(), cleanAideDaemonset(namespace), metav1.CreateOptions{})
+	if err != nil {
+		return err
+	}
+
+	err = waitForDaemonSet(daemonSetExists(f.KubeClient, ds.Name, namespace))
+	if err != nil {
+		return err
+	}
+
+	if err := waitForDaemonSet(daemonSetWasScheduled(f.KubeClient, ds.Name, namespace)); err != nil {
+		return err
+	}
+
+	time.Sleep(10 * time.Second)
+	if err := f.KubeClient.AppsV1().DaemonSets(namespace).Delete(goctx.TODO(), ds.Name, metav1.DeleteOptions{}); err != nil {
+		return err
+	}
+	return nil
+}
+
+func cleanAddedFilesOnNodes(f *framework.Framework, namespace string) error {
+	ds, err := f.KubeClient.AppsV1().DaemonSets(namespace).Create(goctx.TODO(), cleanAideAddedFilesDaemonset(namespace), metav1.CreateOptions{})
 	if err != nil {
 		return err
 	}

@@ -20,15 +20,13 @@ import (
 type FileIntegrityComponent uint
 
 const (
-	AIDE = iota
-	OPERATOR
+	OPERATOR = iota
 )
 
 var componentDefaults = []struct {
 	defaultImage string
 	envVar       string
 }{
-	{"quay.io/file-integrity-operator/aide:latest", "RELATED_IMAGE_AIDE"},
 	{"quay.io/file-integrity-operator/file-integrity-operator:latest", "RELATED_IMAGE_OPERATOR"},
 }
 
