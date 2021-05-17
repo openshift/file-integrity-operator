@@ -91,6 +91,7 @@ CONTENT_EX = sha512+ftype+p+u+g+n+acl+selinux+xattrs
 !/hostroot/etc/docker/certs.d
 !/hostroot/etc/selinux/targeted
 !/hostroot/etc/openvswitch/conf.db
+!/hostroot/etc/kubernetes/cni/net.d/*
 
 # Catch everything else in /etc
 /hostroot/etc/    CONTENT_EX`
