@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"strconv"
 
+	"k8s.io/apimachinery/pkg/api/resource"
+
 	"github.com/go-logr/logr"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -552,6 +554,16 @@ func reinitAideDaemonset(reinitDaemonSetName string, fi *fileintegrityv1alpha1.F
 									MountPath: "/scripts",
 								},
 							},
+							Resources: corev1.ResourceRequirements{
+								Requests: corev1.ResourceList{
+									corev1.ResourceMemory: resource.MustParse("10Mi"),
+									corev1.ResourceCPU:    resource.MustParse("10m"),
+								},
+								Limits: corev1.ResourceList{
+									corev1.ResourceMemory: resource.MustParse("50Mi"),
+									corev1.ResourceCPU:    resource.MustParse("50m"),
+								},
+							},
 						},
 					},
 					// make this an endless loop
@@ -564,6 +576,16 @@ func reinitAideDaemonset(reinitDaemonSetName string, fi *fileintegrityv1alpha1.F
 								{
 									Name:      common.PauseConfigMapName,
 									MountPath: "/scripts",
+								},
+							},
+							Resources: corev1.ResourceRequirements{
+								Requests: corev1.ResourceList{
+									corev1.ResourceMemory: resource.MustParse("10Mi"),
+									corev1.ResourceCPU:    resource.MustParse("10m"),
+								},
+								Limits: corev1.ResourceList{
+									corev1.ResourceMemory: resource.MustParse("50Mi"),
+									corev1.ResourceCPU:    resource.MustParse("50m"),
 								},
 							},
 						},
@@ -671,6 +693,16 @@ func aideDaemonset(dsName string, fi *fileintegrityv1alpha1.FileIntegrity) *apps
 								{
 									Name:      "tmp",
 									MountPath: "/tmp",
+								},
+							},
+							Resources: corev1.ResourceRequirements{
+								Requests: corev1.ResourceList{
+									corev1.ResourceMemory: resource.MustParse("40Mi"),
+									corev1.ResourceCPU:    resource.MustParse("40m"),
+								},
+								Limits: corev1.ResourceList{
+									corev1.ResourceMemory: resource.MustParse("600Mi"),
+									corev1.ResourceCPU:    resource.MustParse("300m"),
 								},
 							},
 						},
