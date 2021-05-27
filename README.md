@@ -17,11 +17,37 @@ $ make deploy-to-cluster
 ```
 
 ### Deploying from OLM:
+Deploying from OLM would deploy the latest released upstream version.
+
+First, create the `CatalogSource` and optionally verify it's been created
+successfuly:
 ```
-$ (clone repo)
-$ oc login -u kubeadmin -p <pw>
-$ oc create namespace openshift-file-integrity
-$ oc create -f deploy/olm-catalog/operator-source.yaml
+$ oc create -f deploy/olm-catalog/catalog-source.yaml
+$ oc get catalogsource -nopenshift-marketplace
+```
+
+Next, create the target namespace and finally either install the operator
+from the Web Console or from the CLI following these steps:
+```
+$ oc create -f deploy/ns.yaml
+$ oc create -f deploy/olm-catalog/operator-group.yaml
+$ oc create -f deploy/olm-catalog/subscription.yaml
+```
+The Subscription file can be edited to optionally deploy a custom version,
+see the `startingCSV` attribute in the `deploy/olm-catalog/subscription.yaml`
+file.
+
+Verify that the expected objects have been created:
+```
+$ oc get sub -nopenshift-file-integrity
+$ oc get ip -nopenshift-file-integrity
+$ oc get csv -nopenshift-file-integrity
+```
+
+At this point, the operator should be up and running:
+```
+$ oc get deploy -nopenshift-file-integrity
+$ oc get pods -nopenshift-file-integrity
 ```
 
 ### FileIntegrity API:
