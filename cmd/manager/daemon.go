@@ -21,7 +21,9 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/openshift/file-integrity-operator/pkg/common"
@@ -264,6 +266,8 @@ func daemonMainLoop(cmd *cobra.Command, args []string) {
 
 	errChan := make(chan error)
 	ctx, cancel := context.WithCancel(context.Background())
+	sigTermChan := make(chan os.Signal)
+	signal.Notify(sigTermChan, syscall.SIGTERM, syscall.SIGKILL)
 
 	// integrityInstanceLoop is not added to the waitgroup because the watcher would stall wg.Wait() indefinitely. It
 	// will just die with the process and does not have anything to clean up.
@@ -284,6 +288,9 @@ func daemonMainLoop(cmd *cobra.Command, args []string) {
 		case err := <-errChan:
 			finalErr = err
 			DBG("cancelling main routine")
+			cancel()
+		case <-sigTermChan:
+			DBG("process received SIGTERM, shutting down")
 			cancel()
 		}
 	}
