@@ -25,7 +25,7 @@ import (
 	"io/ioutil"
 	"regexp"
 
-	"github.com/cenkalti/backoff/v3"
+	"github.com/cenkalti/backoff/v4"
 	"github.com/spf13/cobra"
 
 	corev1 "k8s.io/api/core/v1"

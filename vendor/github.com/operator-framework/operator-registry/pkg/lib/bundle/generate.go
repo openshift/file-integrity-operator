@@ -11,6 +11,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	k8syaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
@@ -32,7 +33,7 @@ const (
 )
 
 type AnnotationMetadata struct {
-	Annotations map[string]string `yaml:"annotations"`
+	Annotations map[string]string `yaml:"annotations" json:"annotations"`
 }
 
 // GenerateFunc builds annotations.yaml with mediatype, manifests &
@@ -274,50 +275,22 @@ func ValidateAnnotations(existing, expected []byte) error {
 		return err
 	}
 
-	if len(fileAnnotations.Annotations) != len(expectedAnnotations.Annotations) {
-		return fmt.Errorf("Unmatched number of fields. Expected (%d) vs existing (%d)",
-			len(expectedAnnotations.Annotations), len(fileAnnotations.Annotations))
-	}
-
+	// Ensure each expected annotation key and value exist in existing.
+	var errs []error
 	for label, item := range expectedAnnotations.Annotations {
-		value, ok := fileAnnotations.Annotations[label]
-		if ok == false {
-			return fmt.Errorf("Missing field: %s", label)
+		value, hasAnnotation := fileAnnotations.Annotations[label]
+		if !hasAnnotation {
+			errs = append(errs, fmt.Errorf("Missing field: %s", label))
+			continue
 		}
 
 		if item != value {
-			return fmt.Errorf(`Expect field "%s" to have value "%s" instead of "%s"`,
-				label, item, value)
+			errs = append(errs, fmt.Errorf("Expect field %q to have value %q instead of %q",
+				label, item, value))
 		}
 	}
 
-	return nil
-}
-
-// ValidateChannelDefault validates provided default channel to ensure it exists in
-// provided channel list.
-func ValidateChannelDefault(channels, channelDefault string) (string, error) {
-	var chanDefault string
-	var chanErr error
-	channelList := strings.Split(channels, ",")
-
-	if containsString(channelList, "") {
-		return chanDefault, fmt.Errorf("invalid channels are provided: %s", channels)
-	}
-
-	if channelDefault != "" {
-		for _, channel := range channelList {
-			if channel == channelDefault {
-				chanDefault = channelDefault
-				break
-			}
-		}
-		if chanDefault == "" {
-			chanDefault = channelList[0]
-			chanErr = fmt.Errorf(`The channel list "%s" doesn't contain channelDefault "%s"`, channels, channelDefault)
-		}
-	}
-	return chanDefault, chanErr
+	return utilerrors.NewAggregate(errs)
 }
 
 // GenerateAnnotations builds annotations.yaml with mediatype, manifests &
@@ -335,12 +308,7 @@ func GenerateAnnotations(mediaType, manifests, metadata, packageName, channels, 
 		},
 	}
 
-	chanDefault, err := ValidateChannelDefault(channels, channelDefault)
-	if err != nil {
-		return nil, err
-	}
-
-	annotations.Annotations[ChannelDefaultLabel] = chanDefault
+	annotations.Annotations[ChannelDefaultLabel] = channelDefault
 
 	afile, err := yaml.Marshal(annotations)
 	if err != nil {
@@ -355,11 +323,6 @@ func GenerateAnnotations(mediaType, manifests, metadata, packageName, channels, 
 // channels information in LABEL section.
 func GenerateDockerfile(mediaType, manifests, metadata, copyManifestDir, copyMetadataDir, workingDir, packageName, channels, channelDefault string) ([]byte, error) {
 	var fileContent string
-
-	chanDefault, err := ValidateChannelDefault(channels, channelDefault)
-	if err != nil {
-		return nil, err
-	}
 
 	relativeManifestDirectory, err := filepath.Rel(workingDir, copyManifestDir)
 	if err != nil {
@@ -380,7 +343,7 @@ func GenerateDockerfile(mediaType, manifests, metadata, copyManifestDir, copyMet
 	fileContent += fmt.Sprintf("LABEL %s=%s\n", MetadataLabel, metadata)
 	fileContent += fmt.Sprintf("LABEL %s=%s\n", PackageLabel, packageName)
 	fileContent += fmt.Sprintf("LABEL %s=%s\n", ChannelsLabel, channels)
-	fileContent += fmt.Sprintf("LABEL %s=%s\n\n", ChannelDefaultLabel, chanDefault)
+	fileContent += fmt.Sprintf("LABEL %s=%s\n\n", ChannelDefaultLabel, channelDefault)
 
 	// CONTENT
 	fileContent += fmt.Sprintf("COPY %s %s\n", relativeManifestDirectory, "/manifests/")
