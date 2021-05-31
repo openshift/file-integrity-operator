@@ -13,7 +13,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/labels"
 
-	"github.com/cenkalti/backoff/v3"
+	"github.com/cenkalti/backoff/v4"
 	igntypes "github.com/coreos/ignition/config/v2_2/types"
 
 	mcfgapi "github.com/openshift/machine-config-operator/pkg/apis/machineconfiguration.openshift.io"

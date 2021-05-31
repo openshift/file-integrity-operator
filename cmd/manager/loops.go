@@ -32,7 +32,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	watch2 "k8s.io/client-go/tools/watch"
 
-	"github.com/cenkalti/backoff/v3"
+	"github.com/cenkalti/backoff/v4"
 	"github.com/openshift/file-integrity-operator/pkg/common"
 )
 
