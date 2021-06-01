@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
+	"strconv"
 
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
@@ -22,6 +24,8 @@ type FileIntegrityComponent uint
 const (
 	OPERATOR = iota
 )
+
+const AIDE_RETFAIL = 255
 
 var componentDefaults = []struct {
 	defaultImage string
@@ -188,8 +192,57 @@ func getExitCode(runCmdErr error, defaultError int) int {
 	return defaultError
 }
 
+func fipsModeEnabled() (bool, error) {
+	f, err := os.Open("/proc/sys/crypto/fips_enabled")
+	if err != nil {
+		return false, err
+	}
+
+	d, err := ioutil.ReadAll(f)
+	if err != nil {
+		if closeErr := f.Close(); closeErr != nil {
+			return false, closeErr
+		}
+		return false, err
+	}
+
+	if len(d) == 0 {
+		if closeErr := f.Close(); closeErr != nil {
+			return false, closeErr
+		}
+		return false, fmt.Errorf("/proc/sys/crypto/fips_enabled has no contents")
+	}
+
+	fipsStatus, err := strconv.Atoi(string(d[0]))
+	if err != nil {
+		if closeErr := f.Close(); closeErr != nil {
+			return false, closeErr
+		}
+		return false, err
+	}
+
+	if closeErr := f.Close(); closeErr != nil {
+		return false, closeErr
+	}
+
+	return fipsStatus == 1, nil
+}
+
 func GetAideExitCode(runCmdError error) int {
-	return getExitCode(runCmdError, aideErrSentinel)
+	ecode := getExitCode(runCmdError, aideErrSentinel)
+	if ecode == AIDE_RETFAIL {
+		// This error varies in meaning depending on the FIPS mode, so we'll check for it here, and convert to the FIPS error.
+		fipsEnabled, err := fipsModeEnabled()
+		if err != nil {
+			// We couldn't rely on figuring out the FIPS status, so return a "possible FIPS error" status.
+			ecode = aideErrPossibleFips
+		}
+		if fipsEnabled {
+			// We know this is a FIPS error.
+			ecode = aideErrFips
+		}
+	}
+	return ecode
 }
 
 const aideErrBase = 14
@@ -201,7 +254,9 @@ const (
 	aideErrConfig
 	aideErrIO
 	aideErrVersionMismatch
-	// This is FIO addition
+	// These are FIO additions
+	aideErrFips
+	aideErrPossibleFips
 	aideErrSentinel
 )
 
@@ -215,6 +270,8 @@ var aideErrLookup = []struct {
 	{aideErrConfig, "Invalid configureline error"},
 	{aideErrIO, "IO error"},
 	{aideErrVersionMismatch, "Version mismatch error"},
+	{aideErrFips, "Use of FIPS disallowed algorithm under FIPS mode"},
+	{aideErrPossibleFips, "Possible use of FIPS disallowed algorithm"},
 	{aideErrSentinel, "Unexpected error"},
 }
 
