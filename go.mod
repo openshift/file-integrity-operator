@@ -12,7 +12,7 @@ require (
 	github.com/operator-framework/operator-registry v1.13.4
 	github.com/operator-framework/operator-sdk v0.19.4
 	github.com/pkg/errors v0.9.1
-	github.com/securego/gosec v0.0.0-20200330112059-e030aa4f768b
+	github.com/securego/gosec/v2 v2.8.0
 	github.com/spf13/cobra v1.1.1
 	k8s.io/api v0.19.11
 	k8s.io/apimachinery v0.19.11

@@ -138,7 +138,8 @@ func (r *ReconcileNode) findRelevantFileIntegrities(currentnode *corev1.Node) ([
 	if err != nil {
 		return resultingFIs, err
 	}
-	for _, fi := range fiList.Items {
+	for fiIdx := range fiList.Items {
+		fi := fiList.Items[fiIdx]
 		nodeList := corev1.NodeList{}
 		listOpts := client.ListOptions{
 			LabelSelector: labels.SelectorFromSet(fi.Spec.NodeSelector),
@@ -149,7 +150,8 @@ func (r *ReconcileNode) findRelevantFileIntegrities(currentnode *corev1.Node) ([
 			return resultingFIs, err
 		}
 
-		for _, node := range nodeList.Items {
+		for nodeIdx := range nodeList.Items {
+			node := nodeList.Items[nodeIdx]
 			if node.Name == currentnode.Name {
 				resultingFIs = append(resultingFIs, &fi)
 			}

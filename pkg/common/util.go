@@ -152,7 +152,8 @@ func deleteDaemonSetPods(c client.Client, ds *appsv1.DaemonSet) error {
 		return err
 	}
 
-	for _, pod := range pods.Items {
+	for podIdx := range pods.Items {
+		pod := pods.Items[podIdx]
 		err := c.Delete(context.TODO(), &pod, &client.DeleteOptions{})
 		if err != nil {
 			return err
