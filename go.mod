@@ -4,11 +4,11 @@ go 1.15
 
 require (
 	github.com/cenkalti/backoff/v4 v4.1.1
-	github.com/coreos/ignition v0.33.0
+	github.com/coreos/ignition/v2 v2.9.0
 	github.com/go-logr/logr v0.4.0
 	github.com/go-logr/zapr v0.4.0 // indirect
 	github.com/go-openapi/spec v0.19.4
-	github.com/openshift/machine-config-operator v4.2.0-alpha.0.0.20190917115525-033375cbe820+incompatible
+	github.com/openshift/machine-config-operator v0.0.1-0.20200913004441-7eba765c69c9
 	github.com/operator-framework/operator-registry v1.13.4
 	github.com/operator-framework/operator-sdk v0.19.4
 	github.com/pkg/errors v0.9.1
@@ -24,7 +24,7 @@ require (
 // Pinned to kubernetes-1.16.2
 replace (
 	github.com/Azure/go-autorest => github.com/Azure/go-autorest v13.3.2+incompatible // Required by OLM
-	github.com/openshift/machine-config-operator => github.com/openshift/machine-config-operator v0.0.1-0.20200325211112-40bf4c78683a
+	github.com/openshift/machine-config-operator => github.com/openshift/machine-config-operator v0.0.1-0.20200913004441-7eba765c69c9
 	k8s.io/api => k8s.io/api v0.19.11
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.19.11
 	k8s.io/apimachinery => k8s.io/apimachinery v0.19.11

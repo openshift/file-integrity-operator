@@ -3,6 +3,7 @@ package e2e
 import (
 	"bytes"
 	goctx "context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -12,9 +13,10 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/cenkalti/backoff/v4"
-	igntypes "github.com/coreos/ignition/config/v2_2/types"
+	igntypes "github.com/coreos/ignition/v2/config/v3_2/types"
 
 	mcfgapi "github.com/openshift/machine-config-operator/pkg/apis/machineconfiguration.openshift.io"
 	mcfgv1 "github.com/openshift/machine-config-operator/pkg/apis/machineconfiguration.openshift.io/v1"
@@ -931,33 +933,43 @@ func cleanAddedFilesOnNodes(f *framework.Framework, namespace string) error {
 }
 
 func getTestMcfg(t *testing.T) *mcfgv1.MachineConfig {
+	mode := 420
+	trueish := true
+	testData := "data:,file-integrity-operator-was-here"
+	ignConfig := igntypes.Config{
+		Ignition: igntypes.Ignition{
+			Version: igntypes.MaxVersion.String(),
+		},
+		Storage: igntypes.Storage{
+			Files: []igntypes.File{
+				{
+					FileEmbedded1: igntypes.FileEmbedded1{
+						Contents: igntypes.Resource{
+							Source: &testData,
+						},
+						Mode: &mode,
+					},
+					Node: igntypes.Node{
+						Path:      "/etc/fi-test-file",
+						Overwrite: &trueish,
+					},
+				},
+			},
+		},
+	}
+
+	rawIgnCfg, _ := json.Marshal(ignConfig)
 	mcfg := &mcfgv1.MachineConfig{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   "50-" + strings.ToLower(t.Name()),
 			Labels: mcLabelForWorkerRole,
 		},
 		Spec: mcfgv1.MachineConfigSpec{
-			Config: igntypes.Config{
-				Ignition: igntypes.Ignition{
-					Version: igntypes.MaxVersion.String(),
-				},
+			Config: runtime.RawExtension{
+				Raw: rawIgnCfg,
 			},
 		},
 	}
-	mode := 420
-	ignFile := igntypes.File{
-		FileEmbedded1: igntypes.FileEmbedded1{
-			Contents: igntypes.FileContents{
-				Source: "data:,file-integrity-operator-was-here",
-			},
-			Mode: &mode,
-		},
-		Node: igntypes.Node{
-			Filesystem: "root",
-			Path:       "/etc/fi-test-file",
-		},
-	}
-	mcfg.Spec.Config.Storage.Files = append(mcfg.Spec.Config.Storage.Files, ignFile)
 	return mcfg
 }
 

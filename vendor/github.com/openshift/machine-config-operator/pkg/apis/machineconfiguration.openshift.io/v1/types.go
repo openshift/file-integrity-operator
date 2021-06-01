@@ -1,7 +1,6 @@
 package v1
 
 import (
-	igntypes "github.com/coreos/ignition/config/v2_2/types"
 	configv1 "github.com/openshift/api/config/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -38,24 +37,16 @@ type ControllerConfigSpec struct {
 	// cloudProviderConfig is the configuration for the given cloud provider
 	CloudProviderConfig string `json:"cloudProviderConfig"`
 
-	// TODO: Use PlatformType instead of string
+	// platform is deprecated, use Infra.Status.PlatformStatus.Type instead
+	Platform string `json:"platform,omitempty"`
 
-	// The openshift platform, e.g. "libvirt", "openstack", "gcp", "baremetal", "aws", or "none"
-	Platform string `json:"platform"`
-
-	// etcdDiscoveryDomain specifies the etcd discovery domain
-	EtcdDiscoveryDomain string `json:"etcdDiscoveryDomain"`
+	// etcdDiscoveryDomain is deprecated, use Infra.Status.EtcdDiscoveryDomain instead
+	EtcdDiscoveryDomain string `json:"etcdDiscoveryDomain,omitempty"`
 
 	// TODO: Use string for CA data
 
 	// kubeAPIServerServingCAData managed Kubelet to API Server Cert... Rotated automatically
 	KubeAPIServerServingCAData []byte `json:"kubeAPIServerServingCAData"`
-
-	// etcdCAData specifies the etcd CA data
-	EtcdCAData []byte `json:"etcdCAData"`
-
-	// etcdMetricData specifies the etcd metric CA data
-	EtcdMetricCAData []byte `json:"etcdMetricCAData"`
 
 	// rootCAData specifies the root CA data
 	RootCAData []byte `json:"rootCAData"`
@@ -82,17 +73,26 @@ type ControllerConfigSpec struct {
 	// Its value is taken from the data.osImageURL field on the machine-config-osimageurl ConfigMap.
 	OSImageURL string `json:"osImageURL"`
 
+	// releaseImage is the image used when installing the cluster
+	ReleaseImage string `json:"releaseImage"`
+
 	// proxy holds the current proxy configuration for the nodes
 	// +nullable
 	Proxy *configv1.ProxyStatus `json:"proxy"`
 
 	// infra holds the infrastructure details
-	// TODO this makes platform redundant as everything is contained inside Infra.Status
 	// +nullable
 	Infra *configv1.Infrastructure `json:"infra"`
 
 	// kubeletIPv6 is true to force a single-stack IPv6 kubelet config
 	KubeletIPv6 bool `json:"kubeletIPv6,omitempty"`
+
+	// networkType holds the type of network the cluster is using
+	// XXX: this is temporary and will be dropped as soon as possible in favor of a better support
+	// to start network related services the proper way.
+	// Nobody is also changing this once the cluster is up and running the first time, so, disallow
+	// regeneration if this changes.
+	NetworkType string `json:"networkType,omitempty"`
 }
 
 // ControllerConfigStatus is the status for ControllerConfig
@@ -153,7 +153,7 @@ type ControllerConfigList struct {
 // +genclient
 // +genclient:noStatus
 // +genclient:nonNamespaced
-// +k8s:deepcopy-gen=false
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // MachineConfig defines the configuration for a machine
 type MachineConfig struct {
@@ -169,10 +169,11 @@ type MachineConfigSpec struct {
 	// fetch the OS.
 	OSImageURL string `json:"osImageURL"`
 	// Config is a Ignition Config object.
-	Config igntypes.Config `json:"config"`
+	Config runtime.RawExtension `json:"config"`
 
 	// +nullable
 	KernelArguments []string `json:"kernelArguments"`
+	Extensions      []string `json:"extensions"`
 
 	FIPS       bool   `json:"fips"`
 	KernelType string `json:"kernelType"`
