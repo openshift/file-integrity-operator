@@ -5,6 +5,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.16] - 2021-06-02
+### Changes
+- Handle AIDE error code 255
+- Update dependencies
+- README: Fix instructions to install from OLM
+- Add operator and aide-ds pod limits
+- daemon: Handle SIGTERM and SIGKILL
+- Add an initial CHANGELOG.md and make changelog target
+- Exclude the CNI plugin directory
+
 ## [0.1.15] - 2021-05-14
 ### Changes
 - daemon rewrite and other fixes
