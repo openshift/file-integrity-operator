@@ -176,7 +176,7 @@ func copyNonEmptyFile(src, dst string) error {
 		return err
 	}
 
-	destination, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	destination, err := os.OpenFile(path.Clean(dst), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		if err := source.Close(); err != nil {
 			return err
