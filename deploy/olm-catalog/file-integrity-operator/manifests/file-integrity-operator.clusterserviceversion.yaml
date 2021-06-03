@@ -19,12 +19,12 @@ metadata:
       ]
     capabilities: Seamless Upgrades
     categories: Monitoring,Security
-    olm.skipRange: '>=0.1.6 <0.1.15'
+    olm.skipRange: '>=0.1.6 <0.1.16'
     operatorframework.io/cluster-monitoring: "true"
     operatorframework.io/suggested-namespace: openshift-file-integrity
     operators.openshift.io/infrastructure-features: '["Disconnected"]'
     repository: https://github.com/openshift/file-integrity-operator
-  name: file-integrity-operator.v0.1.15
+  name: file-integrity-operator.v0.1.16
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -86,11 +86,17 @@ spec:
                 - name: OPERATOR_NAME
                   value: file-integrity-operator
                 - name: RELATED_IMAGE_OPERATOR
-                  value: quay.io/file-integrity-operator/file-integrity-operator:0.1.15
-                image: quay.io/file-integrity-operator/file-integrity-operator:0.1.15
+                  value: quay.io/file-integrity-operator/file-integrity-operator:0.1.16
+                image: quay.io/file-integrity-operator/file-integrity-operator:0.1.16
                 imagePullPolicy: Always
                 name: file-integrity-operator
-                resources: {}
+                resources:
+                  limits:
+                    cpu: 100m
+                    memory: 200Mi
+                  requests:
+                    cpu: 10m
+                    memory: 10Mi
               nodeSelector:
                 node-role.kubernetes.io/master: ""
               serviceAccountName: file-integrity-operator
@@ -228,4 +234,4 @@ spec:
   provider:
     name: Red Hat
     url: https://github.com/openshift/file-integrity-operator
-  version: 0.1.15
+  version: 0.1.16
