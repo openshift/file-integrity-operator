@@ -3,6 +3,7 @@ package node
 import (
 	"context"
 	"fmt"
+	"github.com/openshift/file-integrity-operator/pkg/controller/metrics"
 
 	fiv1alpha1 "github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
 	"github.com/openshift/file-integrity-operator/pkg/common"
@@ -26,19 +27,19 @@ var log = logf.Log.WithName("controller_node")
 
 // Add creates a new Node Controller and adds it to the Manager. The Manager will set fields on the Controller
 // and Start it when the Manager is Started.
-func Add(mgr manager.Manager) error {
-	return add(mgr, newReconciler(mgr))
+func Add(mgr manager.Manager, met *metrics.Metrics) error {
+	return add(mgr, newReconciler(mgr, met))
 }
 
 // newReconciler returns a new reconcile.Reconciler
-func newReconciler(mgr manager.Manager) reconcile.Reconciler {
+func newReconciler(mgr manager.Manager, met *metrics.Metrics) reconcile.Reconciler {
 	cfg := mgr.GetConfig()
 	clientset, err := kubernetes.NewForConfig(cfg)
 	if err != nil {
 		panic(fmt.Errorf("Unable to get clientset: %v", err))
 	}
 	restclient := clientset.CoreV1().RESTClient()
-	return &ReconcileNode{client: mgr.GetClient(), scheme: mgr.GetScheme(), restclient: restclient, cfg: cfg}
+	return &ReconcileNode{client: mgr.GetClient(), scheme: mgr.GetScheme(), restclient: restclient, cfg: cfg, metrics: met}
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
@@ -78,6 +79,7 @@ type ReconcileNode struct {
 	restclient rest.Interface
 	cfg        *rest.Config
 	scheme     *runtime.Scheme
+	metrics    *metrics.Metrics
 }
 
 // Reconcile reads that state of the cluster for a Node object and makes changes based on the state read
@@ -114,7 +116,7 @@ func (r *ReconcileNode) Reconcile(request reconcile.Request) (reconcile.Result, 
 			reqLogger.Info("Node is currently updating.",
 				"currentConfig", currentConfig, "desiredConfig", desiredConfig)
 			// An update is about to take place or already taking place
-			return reconcile.Result{}, r.addHoldOffAnnotations(fis)
+			return reconcile.Result{}, r.addHoldOffAnnotations(fis, node)
 		} else if isNodeUpToDateWithMCO(currentConfig, desiredConfig, mcdState) ||
 			isNodeDegraded(mcdState) {
 			reqLogger.Info(fmt.Sprintf("Node is up-to-date. Degraded: %v", isNodeDegraded(mcdState)),
@@ -123,7 +125,7 @@ func (r *ReconcileNode) Reconcile(request reconcile.Request) (reconcile.Result, 
 			// No update is taking place or it's done already or
 			// MCO can't update a host, might as well not hold the integrity checks
 			relevantFIs := r.getAnnotatedFileIntegrities(fis)
-			err := r.removeHoldoffAnnotationAndReinitFileIntegrityDatabases(relevantFIs)
+			err := r.removeHoldoffAnnotationAndReinitFileIntegrityDatabases(relevantFIs, node)
 			return reconcile.Result{}, err
 		}
 	}
@@ -160,7 +162,7 @@ func (r *ReconcileNode) findRelevantFileIntegrities(currentnode *corev1.Node) ([
 	return resultingFIs, nil
 }
 
-func (r *ReconcileNode) addHoldOffAnnotations(fis []*fiv1alpha1.FileIntegrity) error {
+func (r *ReconcileNode) addHoldOffAnnotations(fis []*fiv1alpha1.FileIntegrity, n *corev1.Node) error {
 	for _, fi := range fis {
 		fiCopy := fi.DeepCopy()
 		if fiCopy.Annotations == nil {
@@ -171,6 +173,7 @@ func (r *ReconcileNode) addHoldOffAnnotations(fis []*fiv1alpha1.FileIntegrity) e
 		if err := r.client.Update(context.TODO(), fiCopy); err != nil {
 			return err
 		}
+		r.metrics.IncFileIntegrityPause(n.Name)
 	}
 	return nil
 }
@@ -190,7 +193,8 @@ func (r *ReconcileNode) getAnnotatedFileIntegrities(fis []*fiv1alpha1.FileIntegr
 	return annotatedFIs
 }
 
-func (r *ReconcileNode) removeHoldoffAnnotationAndReinitFileIntegrityDatabases(fis []*fiv1alpha1.FileIntegrity) error {
+func (r *ReconcileNode) removeHoldoffAnnotationAndReinitFileIntegrityDatabases(fis []*fiv1alpha1.FileIntegrity,
+	n *corev1.Node) error {
 	for _, fi := range fis {
 		// Only reinit for FIs that were previously in holdoff.
 		if _, ok := fi.Annotations[common.IntegrityHoldoffAnnotationKey]; ok {
@@ -200,6 +204,8 @@ func (r *ReconcileNode) removeHoldoffAnnotationAndReinitFileIntegrityDatabases(f
 			if err := r.client.Update(context.TODO(), fiCopy); err != nil {
 				return err
 			}
+			r.metrics.IncFileIntegrityUnpause(n.Name)
+			r.metrics.IncFileIntegrityReinitByNode(n.Name)
 		}
 	}
 	return nil

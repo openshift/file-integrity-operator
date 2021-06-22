@@ -42,6 +42,24 @@ func TestFileIntegrityLogAndReinitDatabase(t *testing.T) {
 	t.Log("Asserting that we have OK node condition events")
 	assertNodeOKStatusEvents(t, f, namespace, 2*time.Second, 5*time.Minute)
 
+	nodes, err := f.KubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
+		LabelSelector: nodeWorkerRoleLabelKey,
+	})
+	if err != nil {
+		t.Error(err)
+	}
+
+	expectedMetrics := map[string]int{}
+	// Each node should have a metric set at 0 for node_failed
+	for _, node := range nodes.Items {
+		expectedMetrics[fmt.Sprintf(
+			"file_integrity_operator_node_failed{node=\"%s\"}", node.Name)] = 0
+	}
+	err = assertEachMetric(t, expectedMetrics)
+	if err != nil {
+		t.Error(err)
+	}
+
 	// modify a file on a node
 	err = editFileOnNodes(f, namespace)
 	if err != nil {
@@ -49,12 +67,6 @@ func TestFileIntegrityLogAndReinitDatabase(t *testing.T) {
 	}
 
 	// log collection should create a configmap for each node's report after the scan runs again
-	nodes, err := f.KubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
-		LabelSelector: nodeWorkerRoleLabelKey,
-	})
-	if err != nil {
-		t.Error(err)
-	}
 	for _, node := range nodes.Items {
 		// check the FI status for a failed condition for the node
 		result, err := waitForFailedResultForNode(t, f, namespace, testName, node.Name, time.Second, time.Minute*5)
@@ -74,6 +86,18 @@ func TestFileIntegrityLogAndReinitDatabase(t *testing.T) {
 			}
 		}
 	}
+
+	expectedMetrics = map[string]int{}
+	// Each node should have a metric set at 1 for node_failed
+	for _, node := range nodes.Items {
+		expectedMetrics[fmt.Sprintf(
+			"file_integrity_operator_node_failed{node=\"%s\"}", node.Name)] = 1
+	}
+	err = assertEachMetric(t, expectedMetrics)
+	if err != nil {
+		t.Error(err)
+	}
+
 	reinitFileIntegrityDatabase(t, f, testName, namespace, time.Second, 2*time.Minute)
 
 	// wait to go active.
@@ -84,6 +108,26 @@ func TestFileIntegrityLogAndReinitDatabase(t *testing.T) {
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after re-initializing the database")
 	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute)
+
+	expectedMetrics = map[string]int{
+		`file_integrity_operator_daemonset_update_total{operation="update"}`:        1,
+		`file_integrity_operator_reinit_total{by="demand",node=""}`:                 2, // 2 is anomalous
+		`file_integrity_operator_reinit_daemonset_update_total{operation="delete"}`: 1,
+		`file_integrity_operator_reinit_daemonset_update_total{operation="update"}`: 1,
+		`file_integrity_operator_phase_total{phase="Active"}`:                       2,
+		`file_integrity_operator_phase_total{phase="Initializing"}`:                 2,
+	}
+	// Each node should have a count for a fail condition, and a reset failed status
+	for _, node := range nodes.Items {
+		expectedMetrics[fmt.Sprintf(
+			"file_integrity_operator_node_status_total{condition=\"Failed\",node=\"%s\"}", node.Name)] = 1
+		expectedMetrics[fmt.Sprintf(
+			"file_integrity_operator_node_failed{node=\"%s\"}", node.Name)] = 0
+	}
+	err = assertEachMetric(t, expectedMetrics)
+	if err != nil {
+		t.Error(err)
+	}
 }
 
 func TestFileIntegrityConfigurationRevert(t *testing.T) {
@@ -171,6 +215,26 @@ func TestFileIntegrityConfigurationRevert(t *testing.T) {
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after a re-init")
 	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute)
+
+	expectedMetrics := map[string]int{
+		`file_integrity_operator_daemonset_update_total{operation="update"}`:        1,
+		`file_integrity_operator_reinit_total{by="config",node=""}`:                 2, // 2 is anomalous
+		`file_integrity_operator_reinit_daemonset_update_total{operation="delete"}`: 2,
+		`file_integrity_operator_reinit_daemonset_update_total{operation="update"}`: 2,
+		`file_integrity_operator_phase_total{phase="Active"}`:                       3,
+		`file_integrity_operator_phase_total{phase="Initializing"}`:                 3,
+	}
+	// Each node should have a count for a fail condition and succeed condition
+	for _, node := range nodes.Items {
+		expectedMetrics[fmt.Sprintf(
+			"file_integrity_operator_node_status_total{condition=\"Failed\",node=\"%s\"}", node.Name)] = 1
+		expectedMetrics[fmt.Sprintf(
+			"file_integrity_operator_node_status_total{condition=\"Succeeded\",node=\"%s\"}", node.Name)] = 2
+	}
+	err = assertEachMetric(t, expectedMetrics)
+	if err != nil {
+		t.Error(err)
+	}
 }
 
 // TestFileIntegrityConfigurationStatus tests the following:
@@ -218,6 +282,18 @@ func TestFileIntegrityConfigurationStatus(t *testing.T) {
 	// point is to show that the Init event can appear. Chances that it will appear by this point are high.
 	if err := waitForFIStatusEvent(t, f, namespace, testName,
 		string(fileintv1alpha1.PhaseInitializing)); err != nil {
+		t.Error(err)
+	}
+
+	err := assertEachMetric(t, map[string]int{
+		`file_integrity_operator_daemonset_update_total{operation="update"}`:        1,
+		`file_integrity_operator_reinit_total{by="config",node=""}`:                 1,
+		`file_integrity_operator_reinit_daemonset_update_total{operation="delete"}`: 1,
+		`file_integrity_operator_reinit_daemonset_update_total{operation="update"}`: 1,
+		`file_integrity_operator_phase_total{phase="Active"}`:                       2,
+		`file_integrity_operator_phase_total{phase="Initializing"}`:                 2,
+	})
+	if err != nil {
 		t.Error(err)
 	}
 }
@@ -441,7 +517,7 @@ func TestFileIntegrityBadConfig(t *testing.T) {
 }
 
 func TestFileIntegrityTolerations(t *testing.T) {
-	f, testctx, namespace := setupTolerationTest(t, testIntegrityNamePrefix+"-tolerations")
+	f, testctx, namespace, taintedNode := setupTolerationTest(t, testIntegrityNamePrefix+"-tolerations")
 	defer testctx.Cleanup()
 	defer func() {
 		if err := cleanNodes(f, namespace); err != nil {
@@ -456,8 +532,8 @@ func TestFileIntegrityTolerations(t *testing.T) {
 		t.Errorf("Timeout waiting for scan status")
 	}
 
-	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
-	assertNodesConditionIsSuccess(t, f, testIntegrityNamePrefix+"-tolerations", namespace, 2*time.Second, 5*time.Minute)
+	t.Log("Asserting that the tainted node has a Successful status")
+	assertSingleNodeConditionIsSuccess(t, f, testIntegrityNamePrefix+"-tolerations", taintedNode, namespace, 2*time.Second, 5*time.Minute)
 }
 
 func TestFileIntegrityLogCompress(t *testing.T) {
@@ -499,14 +575,15 @@ func TestFileIntegrityLogCompress(t *testing.T) {
 	}
 	for _, node := range nodes.Items {
 		// check the FI status for a failed condition for the node
-		result, err := waitForFailedResultForNode(t, f, namespace, testName, node.Name, time.Second, time.Minute*5)
+		result, err := waitForFailedResultForNode(t, f, namespace, testName, node.Name, time.Second, time.Minute*10)
 		if err != nil {
 			t.Errorf("Timeout waiting for a failed status condition for node '%s'", node.Name)
 		} else {
-			if result.FilesAdded != 20000 {
-				t.Errorf("Expected 20000 files to be added, got %d", result.FilesAdded)
+			// The file-adder sometimes restarts, just check it is the base number or above.
+			if result.FilesAdded < 10000 {
+				t.Errorf("Expected >= 10000 files to be added, got %d", result.FilesAdded)
 			}
-			_, err := pollUntilConfigMapExists(t, f, result.ResultConfigMapNamespace, result.ResultConfigMapName, time.Second, time.Minute*5)
+			_, err := pollUntilConfigMapExists(t, f, result.ResultConfigMapNamespace, result.ResultConfigMapName, time.Second, time.Minute*10)
 			if err != nil {
 				t.Errorf("Timeout waiting for log configMap '%s'", result.ResultConfigMapName)
 			}
@@ -569,7 +646,7 @@ func TestFileIntegrityAcceptsExpectedChange(t *testing.T) {
 	time.Sleep(30 * time.Second)
 
 	// Wait for nodes to be ready
-	if err = waitForNodesToBeReady(f); err != nil {
+	if err = waitForNodesToBeReady(t, f); err != nil {
 		t.Errorf("Timeout waiting for nodes")
 	}
 

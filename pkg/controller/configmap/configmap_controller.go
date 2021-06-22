@@ -2,6 +2,7 @@ package configmap
 
 import (
 	"context"
+	"github.com/openshift/file-integrity-operator/pkg/controller/metrics"
 	"strconv"
 	"time"
 
@@ -31,13 +32,16 @@ var log = logf.Log.WithName("controller_configmap")
 
 // Add creates a new ConfigMap Controller and adds it to the Manager. The Manager will set fields on the Controller
 // and Start it when the Manager is Started.
-func Add(mgr manager.Manager) error {
-	return add(mgr, newReconciler(mgr))
+func Add(mgr manager.Manager, met *metrics.Metrics) error {
+	return add(mgr, newReconciler(mgr, met))
 }
 
 // newReconciler returns a new reconcile.Reconciler
-func newReconciler(mgr manager.Manager) reconcile.Reconciler {
-	return &ReconcileConfigMap{client: mgr.GetClient(), scheme: mgr.GetScheme(), recorder: mgr.GetEventRecorderFor("configmapctrl")}
+func newReconciler(mgr manager.Manager, met *metrics.Metrics) reconcile.Reconciler {
+	return &ReconcileConfigMap{client: mgr.GetClient(), scheme: mgr.GetScheme(),
+		recorder: mgr.GetEventRecorderFor("configmapctrl"),
+		metrics:  met,
+	}
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
@@ -77,6 +81,7 @@ type ReconcileConfigMap struct {
 	client   client.Client
 	scheme   *runtime.Scheme
 	recorder record.EventRecorder
+	metrics  *metrics.Metrics
 }
 
 // Reconcile reads that state of the cluster for a ConfigMap object and makes changes based on the state read
@@ -143,6 +148,7 @@ func (r *ReconcileConfigMap) reconcileAideConf(instance *corev1.ConfigMap, logge
 		return reconcile.Result{}, err
 	}
 
+	r.metrics.IncFileIntegrityReinitDaemonsetDelete()
 	// unset update annotation
 	conf := instance.DeepCopy()
 	conf.Annotations = nil
@@ -272,6 +278,7 @@ func (r *ReconcileConfigMap) createOrUpdateNodeStatus(node string, instance *fil
 			return createErr
 		}
 
+		updateNodeStatusMetrics(r, nodeStatus)
 		createNodeStatusEvent(r, instance, nodeStatus)
 		return nil
 	}
@@ -302,6 +309,7 @@ func (r *ReconcileConfigMap) createOrUpdateNodeStatus(node string, instance *fil
 
 	// Create an event if there was a transition or an updated Failure
 	if conditionIsNewFailureOrTransition(nodeStatus, statusCopy) {
+		updateNodeStatusMetrics(r, statusCopy)
 		createNodeStatusEvent(r, instance, statusCopy)
 	}
 	return nil
@@ -357,4 +365,17 @@ func getConfigMapForFailureLog(cm *corev1.ConfigMap) *corev1.ConfigMap {
 	// We mark is as a result
 	failedCM.Labels[common.IntegrityLogResultLabelKey] = ""
 	return failedCM
+}
+
+func updateNodeStatusMetrics(r *ReconcileConfigMap, status *fileintegrityv1alpha1.FileIntegrityNodeStatus) {
+	r.metrics.IncFileIntegrityNodeStatus(string(status.LastResult.Condition), status.NodeName)
+
+	switch status.LastResult.Condition {
+	case fileintegrityv1alpha1.NodeConditionSucceeded:
+		r.metrics.SetFileIntegrityNodeStatusGaugeGood(status.NodeName)
+	case fileintegrityv1alpha1.NodeConditionFailed:
+		r.metrics.SetFileIntegrityNodeStatusGaugeBad(status.NodeName)
+	case fileintegrityv1alpha1.NodeConditionErrored:
+		r.metrics.IncFileIntegrityNodeStatusError(status.LastResult.ErrorMsg, status.NodeName)
+	}
 }

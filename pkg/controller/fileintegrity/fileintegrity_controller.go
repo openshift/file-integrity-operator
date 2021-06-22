@@ -27,23 +27,24 @@ import (
 
 	fileintegrityv1alpha1 "github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
 	"github.com/openshift/file-integrity-operator/pkg/common"
+	"github.com/openshift/file-integrity-operator/pkg/controller/metrics"
 )
 
 var log = logf.Log.WithName("controller_fileintegrity")
 
 // Add creates a new FileIntegrity Controller and adds it to the Manager. The Manager will set fields on the Controller
 // and Start it when the Manager is Started.
-func Add(mgr manager.Manager) error {
-	return add(mgr, newReconciler(mgr))
+func Add(mgr manager.Manager, met *metrics.Metrics) error {
+	return add(mgr, newReconciler(mgr, met), met)
 }
 
 // newReconciler returns a new reconcile.Reconciler
-func newReconciler(mgr manager.Manager) reconcile.Reconciler {
-	return &ReconcileFileIntegrity{client: mgr.GetClient(), scheme: mgr.GetScheme()}
+func newReconciler(mgr manager.Manager, met *metrics.Metrics) reconcile.Reconciler {
+	return &ReconcileFileIntegrity{client: mgr.GetClient(), scheme: mgr.GetScheme(), metrics: met}
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
-func add(mgr manager.Manager, r reconcile.Reconciler) error {
+func add(mgr manager.Manager, r reconcile.Reconciler, met *metrics.Metrics) error {
 	// Create a new controller
 	c, err := controller.New("fileintegrity-controller", mgr, controller.Options{Reconciler: r})
 	if err != nil {
@@ -74,8 +75,9 @@ var _ reconcile.Reconciler = &ReconcileFileIntegrity{}
 type ReconcileFileIntegrity struct {
 	// This client, initialized using mgr.Client() above, is a split client
 	// that reads objects from the cache and writes to the apiserver
-	client client.Client
-	scheme *runtime.Scheme
+	client  client.Client
+	scheme  *runtime.Scheme
+	metrics *metrics.Metrics
 }
 
 // handleDefaultConfigMaps creates the inital configMaps needed by the operator and aide pods. It returns the
@@ -168,7 +170,12 @@ func (r *ReconcileFileIntegrity) createReinitDaemonSet(instance *fileintegrityv1
 		return err
 	}
 
-	return r.client.Create(context.TODO(), ds)
+	err = r.client.Create(context.TODO(), ds)
+	if err == nil {
+		r.metrics.IncFileIntegrityReinitDaemonsetUpdate()
+	}
+
+	return err
 }
 
 func (r *ReconcileFileIntegrity) updateAideConfig(conf *corev1.ConfigMap, data string) error {
@@ -319,15 +326,16 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 
 	_, forceReinit := instance.Annotations[common.AideDatabaseReinitAnnotationKey]
 	if hasNewConfig || forceReinit {
-		if forceReinit {
-			reqLogger.Info("Re-init forced, creating daemonSet.")
-		} else {
-			reqLogger.Info("Re-init triggered by configuration change, creating daemonSet.")
-		}
-		// This daemonset re-inits the database
-		// TODO(jaosorior): Add status about the re-init happening.
 		if err := r.createReinitDaemonSet(instance); err != nil {
 			return reconcile.Result{}, err
+		}
+
+		if forceReinit {
+			reqLogger.Info("re-init daemonSet created, triggered by demand or node")
+			r.metrics.IncFileIntegrityReinitByDemand()
+		} else {
+			reqLogger.Info("re-init daemonSet created, triggered by configuration change")
+			r.metrics.IncFileIntegrityReinitByConfig()
 		}
 	}
 
@@ -340,6 +348,8 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 		fiCopy := instance.DeepCopy()
 		delete(fiCopy.Annotations, common.AideDatabaseReinitAnnotationKey)
 		reqLogger.Info("Removing re-init annotation.")
+		// TODO: We need to retry gracefully here (not leave the annotation active, causing a doubled metric in the
+		// forceReinit case)
 		if err := r.client.Update(context.TODO(), fiCopy); err != nil {
 			return reconcile.Result{}, err
 		}
@@ -360,9 +370,13 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 			return reconcile.Result{}, err
 		}
 
-		if createErr := r.client.Create(context.TODO(), ds); createErr != nil && !kerr.IsAlreadyExists(createErr) {
+		createErr := r.client.Create(context.TODO(), ds)
+		if createErr != nil && !kerr.IsAlreadyExists(createErr) {
 			reqLogger.Error(createErr, "error creating daemonSet")
 			return reconcile.Result{}, createErr
+		}
+		if !kerr.IsAlreadyExists(createErr) {
+			r.metrics.IncFileIntegrityDaemonsetUpdate()
 		}
 	} else {
 		dsCopy := daemonSet.DeepCopy()
@@ -377,6 +391,8 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 				return reconcile.Result{}, err
 			}
 
+			r.metrics.IncFileIntegrityDaemonsetUpdate()
+
 			// TODO: We might want to change this to something that signals to the daemonSet pods that they need to
 			// gracefully exit, and let them restart that way.
 			err := common.RestartFileIntegrityDs(r.client, common.GetDaemonSetName(instance.Name))
@@ -384,6 +400,7 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 				return reconcile.Result{}, err
 			}
 			reqLogger.Info("FileIntegrity daemon configuration changed - pods restarted.")
+			r.metrics.IncFileIntegrityDaemonsetPodKill()
 		}
 	}
 	return reconcile.Result{}, nil

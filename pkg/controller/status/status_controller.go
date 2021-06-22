@@ -2,6 +2,7 @@ package status
 
 import (
 	"context"
+	"github.com/openshift/file-integrity-operator/pkg/controller/metrics"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -30,13 +31,15 @@ var statusRequeue = time.Second * 30
 
 // Add creates a new FileIntegrity Controller and adds it to the Manager. The Manager will set fields on the Controller
 // and Start it when the Manager is Started.
-func Add(mgr manager.Manager) error {
-	return add(mgr, newReconciler(mgr))
+func Add(mgr manager.Manager, met *metrics.Metrics) error {
+	return add(mgr, newReconciler(mgr, met))
 }
 
 // newReconciler returns a new reconcile.Reconciler
-func newReconciler(mgr manager.Manager) reconcile.Reconciler {
-	return &ReconcileFileIntegrityStatus{client: mgr.GetClient(), scheme: mgr.GetScheme(), recorder: mgr.GetEventRecorderFor("statusctrl")}
+func newReconciler(mgr manager.Manager, met *metrics.Metrics) reconcile.Reconciler {
+	return &ReconcileFileIntegrityStatus{client: mgr.GetClient(), scheme: mgr.GetScheme(),
+		recorder: mgr.GetEventRecorderFor("statusctrl"), metrics: met,
+	}
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
@@ -93,6 +96,7 @@ type ReconcileFileIntegrityStatus struct {
 	client   client.Client
 	scheme   *runtime.Scheme
 	recorder record.EventRecorder
+	metrics  *metrics.Metrics
 }
 
 // Note:
@@ -209,10 +213,22 @@ func (r *ReconcileFileIntegrityStatus) updateStatus(logger logr.Logger, integrit
 			return err
 		}
 
+		// Set the event type accordingly and increment metrics.
 		eventType := corev1.EventTypeNormal
 		if integrityCopy.Status.Phase == fileintegrityv1alpha1.PhaseError {
+			r.metrics.IncFileIntegrityPhaseError()
 			eventType = corev1.EventTypeWarning
+		} else {
+			switch integrityCopy.Status.Phase {
+			case fileintegrityv1alpha1.PhaseInitializing:
+				r.metrics.IncFileIntegrityPhaseInit()
+			case fileintegrityv1alpha1.PhaseActive:
+				r.metrics.IncFileIntegrityPhaseActive()
+			case fileintegrityv1alpha1.PhasePending:
+				r.metrics.IncFileIntegrityPhasePending()
+			}
 		}
+
 		// Create an event for the transition. 'tegrity.
 		r.recorder.Eventf(integrity, eventType, "FileIntegrityStatus", "%s", integrityCopy.Status.Phase)
 	}

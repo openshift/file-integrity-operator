@@ -19,21 +19,25 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	monitoring "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
+	"github.com/spf13/cobra"
+	kerr "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"os"
 	rt "runtime"
 
-	"github.com/spf13/cobra"
-
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/rest"
 
+	monclientv1 "github.com/coreos/prometheus-operator/pkg/client/versioned/typed/monitoring/v1"
 	"github.com/operator-framework/operator-sdk/pkg/k8sutil"
 	kubemetrics "github.com/operator-framework/operator-sdk/pkg/kube-metrics"
 	"github.com/operator-framework/operator-sdk/pkg/leader"
 	"github.com/operator-framework/operator-sdk/pkg/log/zap"
 	"github.com/operator-framework/operator-sdk/pkg/metrics"
 	sdkVersion "github.com/operator-framework/operator-sdk/version"
+	"k8s.io/client-go/discovery"
 	runtimeconfig "sigs.k8s.io/controller-runtime/pkg/client/config"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -41,6 +45,7 @@ import (
 
 	"github.com/openshift/file-integrity-operator/pkg/apis"
 	"github.com/openshift/file-integrity-operator/pkg/controller"
+	ctrlMetrics "github.com/openshift/file-integrity-operator/pkg/controller/metrics"
 )
 
 var operatorCmd = &cobra.Command{
@@ -55,6 +60,7 @@ var (
 	metricsHost               = "0.0.0.0"
 	metricsPort         int32 = 8383
 	operatorMetricsPort int32 = 8686
+	alertName                 = "file-integrity"
 )
 var log = logf.Log.WithName("cmd")
 
@@ -123,49 +129,131 @@ func RunOperator(cmd *cobra.Command, args []string) {
 
 	log.Info("Registering Components.")
 
+	met := ctrlMetrics.New()
+	if err := met.Register(); err != nil {
+		log.Error(err, "Error registering metrics")
+		os.Exit(1)
+	}
+
 	// Setup Scheme for all resources
 	if err := apis.AddToScheme(mgr.GetScheme()); err != nil {
-		log.Error(err, "")
+		log.Error(err, "Error adding to scheme")
 		os.Exit(1)
 	}
 
 	// Setup all Controllers
-	if err := controller.AddToManager(mgr); err != nil {
-		log.Error(err, "")
+	if err := controller.AddToManager(mgr, met); err != nil {
+		log.Error(err, "Error registering manager")
 		os.Exit(1)
 	}
 
+	// Serves metrics on the CRDs, separate from
 	if err = serveCRMetrics(cfg); err != nil {
-		log.Info("Could not generate and serve custom resource metrics", "error", err.Error())
+		log.Error(err, "Could not generate and serve custom resource metrics")
+		os.Exit(1)
 	}
 
 	// Add to the below struct any other metrics ports you want to expose.
 	servicePorts := []v1.ServicePort{
-		{Port: metricsPort, Name: metrics.OperatorPortName, Protocol: v1.ProtocolTCP, TargetPort: intstr.IntOrString{Type: intstr.Int, IntVal: metricsPort}},
-		{Port: operatorMetricsPort, Name: metrics.CRPortName, Protocol: v1.ProtocolTCP, TargetPort: intstr.IntOrString{Type: intstr.Int, IntVal: operatorMetricsPort}},
+		{
+			Port:       metricsPort,
+			Name:       metrics.OperatorPortName,
+			Protocol:   v1.ProtocolTCP,
+			TargetPort: intstr.IntOrString{Type: intstr.Int, IntVal: metricsPort},
+		},
+		{
+			Port:       operatorMetricsPort,
+			Name:       metrics.CRPortName,
+			Protocol:   v1.ProtocolTCP,
+			TargetPort: intstr.IntOrString{Type: intstr.Int, IntVal: operatorMetricsPort},
+		},
+		{
+			Port:       ctrlMetrics.ControllerMetricsPort,
+			Name:       ctrlMetrics.ControllerMetricsServiceName,
+			Protocol:   v1.ProtocolTCP,
+			TargetPort: intstr.IntOrString{Type: intstr.Int, IntVal: ctrlMetrics.ControllerMetricsPort},
+		},
 	}
+
 	// Create Service object to expose the metrics port(s).
 	service, err := metrics.CreateMetricsService(ctx, cfg, servicePorts)
 	if err != nil {
-		log.Info("Could not create metrics Service", "error", err.Error())
+		log.Error(err, "Could not generate metrics service")
+		os.Exit(1)
 	}
 
-	// CreateServiceMonitors will automatically create the prometheus-operator ServiceMonitor resources
-	// necessary to configure Prometheus to scrape metrics from this operator.
-	services := []*v1.Service{service}
-	_, err = metrics.CreateServiceMonitors(cfg, namespace, services)
-	if err != nil {
-		log.Info("Could not create ServiceMonitor object", "error", err.Error())
-		// If this operator is deployed to a cluster without the prometheus-operator running, it will return
-		// ErrServiceMonitorNotPresent, which can be used to safely skip ServiceMonitor creation.
-		if err == metrics.ErrServiceMonitorNotPresent {
-			log.Info("Install prometheus-operator in your cluster to create ServiceMonitor objects", "error", err.Error())
+	servMon := metrics.GenerateServiceMonitor(service)
+	for i, _ := range servMon.Spec.Endpoints {
+		if servMon.Spec.Endpoints[i].Port == ctrlMetrics.ControllerMetricsServiceName {
+			servMon.Spec.Endpoints[i].Path = ctrlMetrics.HandlerPath
 		}
 	}
 
-	log.Info("Starting the Cmd.")
+	serviceMonitorObjectExists, err := k8sutil.ResourceExists(discovery.NewDiscoveryClientForConfigOrDie(cfg),
+		"monitoring.coreos.com/v1", "ServiceMonitor")
+	if err != nil {
+		log.Error(err, "Could not detect service monitor CRD")
+		os.Exit(1)
+	}
 
-	// Start the Cmd
+	mclient := monclientv1.NewForConfigOrDie(cfg)
+	if serviceMonitorObjectExists {
+		_, err = mclient.ServiceMonitors(namespace).Create(ctx, servMon, metav1.CreateOptions{})
+		if err != nil && !kerr.IsAlreadyExists(err) {
+			log.Error(err, "Could not create service monitor")
+			os.Exit(1)
+		}
+		if kerr.IsAlreadyExists(err) {
+			currentServiceMonitor, getErr := mclient.ServiceMonitors(namespace).Get(ctx, servMon.Name, metav1.GetOptions{})
+			if getErr != nil {
+				log.Error(getErr, "Error fetching service monitor")
+				os.Exit(1)
+			}
+			currentServiceMonitorCopy := currentServiceMonitor.DeepCopy()
+			currentServiceMonitorCopy.Spec = servMon.Spec
+			_, updateErr := mclient.ServiceMonitors(namespace).Update(ctx, currentServiceMonitorCopy, metav1.UpdateOptions{})
+			if updateErr != nil {
+				log.Error(updateErr, "Error updating service monitor")
+				os.Exit(1)
+			}
+		}
+	} else {
+		log.Info("Install prometheus-operator in your cluster to create ServiceMonitor objects")
+	}
+
+	rule := monitoring.Rule{
+		Alert: "NodeHasIntegrityFailure",
+		Expr:  intstr.FromString(`file_integrity_operator_node_failed{node=~".+"} == 1`),
+		For:   "1s",
+		Labels: map[string]string{
+			"severity": "warning",
+		},
+		Annotations: map[string]string{
+			"summary":     "Node {{ $labels.node }} has a file integrity failure",
+			"description": "Node {{ $labels.node }} has an integrity check status of Failed for more than 1 second.",
+		},
+	}
+	_, createErr := mclient.PrometheusRules(namespace).Create(ctx, &monitoring.PrometheusRule{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      alertName,
+		},
+		Spec: monitoring.PrometheusRuleSpec{
+			Groups: []monitoring.RuleGroup{
+				{
+					Name: "node-failed",
+					Rules: []monitoring.Rule{
+						rule,
+					},
+				},
+			},
+		},
+	}, metav1.CreateOptions{})
+	if createErr != nil && !kerr.IsAlreadyExists(createErr) {
+		log.Info("could not create prometheus rule for alert", createErr)
+	}
+
+	log.Info("Starting manager")
 	if err := mgr.Start(signals.SetupSignalHandler()); err != nil {
 		log.Error(err, "Manager exited non-zero")
 		os.Exit(1)
