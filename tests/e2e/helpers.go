@@ -1,13 +1,17 @@
 package e2e
 
 import (
+	"bufio"
 	"bytes"
 	goctx "context"
 	"encoding/json"
 	"fmt"
+	"golang.org/x/net/context"
 	"io"
 	"os"
+	"os/exec"
 	"path"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -51,6 +55,12 @@ const (
 	nodeWorkerRoleLabelKey  = "node-role.kubernetes.io/worker"
 	mcWorkerRoleLabelKey    = "machineconfiguration.openshift.io/role"
 	defaultTestGracePeriod  = 20
+)
+
+const (
+	curlCMD    = "curl -ks -H \"Authorization: Bearer `cat /var/run/secrets/kubernetes.io/serviceaccount/token`\" "
+	metricsURL = "http://file-integrity-operator-metrics:8585/"
+	curlFIOCMD = curlCMD + metricsURL + "metrics-fio"
 )
 
 var mcLabelForWorkerRole = map[string]string{
@@ -193,9 +203,36 @@ func setupFileIntegrityOperatorCluster(t *testing.T, ctx *framework.Context) {
 	// get global framework variables
 	f := framework.Global
 	// wait for file-integrity-operator to be ready
+
+	setupUserMonitoring(t, f)
 	err = e2eutil.WaitForOperatorDeployment(t, f.KubeClient, namespace, "file-integrity-operator", 1, retryInterval, timeout)
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func setupUserMonitoring(t *testing.T, f *framework.Framework) {
+	_, err := f.KubeClient.CoreV1().ConfigMaps("openshift-monitoring").Get(context.TODO(),
+		"cluster-monitoring-config", metav1.GetOptions{})
+	if err != nil && !kerr.IsNotFound(err) {
+		t.Fatal(err)
+	}
+	if kerr.IsNotFound(err) {
+		_, createErr := f.KubeClient.CoreV1().ConfigMaps("openshift-monitoring").Create(context.TODO(),
+			&corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "cluster-monitoring-config",
+					Namespace: "openshift-monitoring",
+				},
+				Data: map[string]string{
+					"config.yaml": "enableUserWorkload: true",
+				},
+			},
+			metav1.CreateOptions{},
+		)
+		if createErr != nil {
+			t.Fatal(createErr)
+		}
 	}
 }
 
@@ -336,9 +373,10 @@ func cleanAideAddedFilesDaemonset(namespace string) *appsv1.DaemonSet {
 
 // this daemonset is to stuff the aide log with added files, to force compression.
 // 20000 might not be enough
+// lowered to 10000
 func addLotsOfFilesDaemonset(namespace string) *appsv1.DaemonSet {
 	return privCommandDaemonset(namespace, "aide-add-lots-of-files",
-		"for i in `seq 1 20000`; do mktemp \"/hostroot/etc/addedbytest$i.XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\"; done || true",
+		"for i in `seq 1 10000`; do mktemp \"/hostroot/etc/addedbytest$i.XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\"; done || true",
 	)
 }
 
@@ -427,7 +465,8 @@ func getNumberOfWorkerNodes(c kubernetes.Interface) (int, error) {
 }
 
 // TODO: break this up into setupTest/setupFileIntegrity steps like below.
-func setupTolerationTest(t *testing.T, integrityName string) (*framework.Framework, *framework.Context, string) {
+func setupTolerationTest(t *testing.T, integrityName string) (*framework.Framework, *framework.Context, string, string) {
+	taintedNodeName := ""
 	testctx := setupTestRequirements(t)
 	namespace, err := testctx.GetOperatorNamespace()
 	if err != nil {
@@ -439,6 +478,7 @@ func setupTolerationTest(t *testing.T, integrityName string) (*framework.Framewo
 		t.Errorf("could not list nodes: %v", err)
 	}
 	taintedNode := &workerNodes[0]
+	taintedNodeName = taintedNode.Name
 	taintKey := "fi-e2e"
 	taintVal := "val"
 	taint := corev1.Taint{
@@ -514,7 +554,7 @@ func setupTolerationTest(t *testing.T, integrityName string) (*framework.Framewo
 		t.Errorf("error confirming DS replica amount: (%v) (%v)", pollErr, lastErr)
 	}
 
-	return f, testctx, namespace
+	return f, testctx, namespace, taintedNodeName
 }
 
 func updateFileIntegrityConfig(t *testing.T, f *framework.Framework, integrityName, configMapName, namespace, key string, interval, timeout time.Duration) {
@@ -639,7 +679,6 @@ func waitForFailedResultForNode(t *testing.T, f *framework.Framework, namespace,
 		nodeStatus := &fileintv1alpha1.FileIntegrityNodeStatus{}
 		getErr := f.Client.Get(goctx.TODO(), types.NamespacedName{Name: name + "-" + node, Namespace: namespace}, nodeStatus)
 		if getErr != nil {
-			t.Logf("Retrying. Got error: %v\n", getErr)
 			return false, nil
 		}
 
@@ -652,7 +691,7 @@ func waitForFailedResultForNode(t *testing.T, f *framework.Framework, namespace,
 		return false, nil
 	})
 	if err != nil {
-		t.Logf("status.nodeStatus for node %s not seen \n", node)
+		t.Logf("%s did not encounter failed condition", node)
 		return nil, err
 	}
 
@@ -694,14 +733,14 @@ func waitForFIStatusEvent(t *testing.T, f *framework.Framework, namespace, name,
 
 func assertNodeOKStatusEvents(t *testing.T, f *framework.Framework, namespace string, interval, timeout time.Duration) {
 	var lastErr error
-	nodes, err := f.KubeClient.CoreV1().Nodes().List(goctx.TODO(), metav1.ListOptions{LabelSelector: mcWorkerRoleLabelKey})
+	nodes, err := f.KubeClient.CoreV1().Nodes().List(goctx.TODO(), metav1.ListOptions{LabelSelector: nodeWorkerRoleLabelKey})
 	if err != nil {
 		t.Error(err)
 		return
 	}
 
 	seenNodes := map[string]bool{}
-	timeoutErr := wait.Poll(interval, timeout, func() (bool, error) {
+	timeoutErr := wait.PollImmediate(interval, timeout, func() (bool, error) {
 		// Node names are the key
 		eventList, getEventErr := f.KubeClient.CoreV1().Events(namespace).List(goctx.TODO(), metav1.ListOptions{
 			FieldSelector: "reason=NodeIntegrityStatus",
@@ -750,25 +789,22 @@ func assertNodesConditionIsSuccess(t *testing.T, f *framework.Framework, integri
 		Condition     fileintv1alpha1.FileIntegrityNodeCondition
 	}
 
-	nodes, err := f.KubeClient.CoreV1().Nodes().List(goctx.TODO(), metav1.ListOptions{LabelSelector: mcWorkerRoleLabelKey})
+	nodes, err := f.KubeClient.CoreV1().Nodes().List(goctx.TODO(), metav1.ListOptions{LabelSelector: nodeWorkerRoleLabelKey})
 	if err != nil {
 		t.Errorf("error listing nodes: %v", err)
 	}
-
-	timeoutErr := wait.Poll(interval, timeout, func() (bool, error) {
+	timeoutErr := wait.PollImmediate(interval, timeout, func() (bool, error) {
 		// Node names are the key
 		latestStatuses := map[string]nodeStatus{}
-
 		for _, node := range nodes.Items {
 			fileIntegNodeStatus := &fileintv1alpha1.FileIntegrityNodeStatus{}
 			getErr := f.Client.Get(goctx.TODO(), types.NamespacedName{Name: integrityName + "-" + node.Name, Namespace: namespace}, fileIntegNodeStatus)
 			if getErr != nil {
-				t.Logf("Retrying. Got error: %v\n", getErr)
 				lastErr = getErr
 				return false, nil
 			}
 
-			t.Logf("assertNodesConditionIsSuccess: found nodeStatus: %#v", fileIntegNodeStatus)
+			t.Logf("%s %s", fileIntegNodeStatus.NodeName, fileIntegNodeStatus.LastResult.Condition)
 
 			latestStatuses[fileIntegNodeStatus.NodeName] = nodeStatus{
 				LastProbeTime: fileIntegNodeStatus.LastResult.LastProbeTime,
@@ -782,6 +818,59 @@ func assertNodesConditionIsSuccess(t *testing.T, f *framework.Framework, integri
 				lastErr = fmt.Errorf("status.nodeStatus for node %s NOT SUCCESS: But instead %s", nodeName, status.Condition)
 				return false, nil
 
+			}
+		}
+		// reset error since we're good
+		lastErr = nil
+		return true, nil
+	})
+	if lastErr != nil {
+		t.Errorf("ERROR: nodes weren't in good state: %s", lastErr)
+	}
+	if timeoutErr != nil {
+		t.Errorf("ERROR: timed out waiting for node condition: %s", timeoutErr)
+	}
+}
+
+func assertSingleNodeConditionIsSuccess(t *testing.T, f *framework.Framework, integrityName, nodeName, namespace string, interval, timeout time.Duration) {
+	var lastErr error
+	type nodeStatus struct {
+		LastProbeTime metav1.Time
+		Condition     fileintv1alpha1.FileIntegrityNodeCondition
+	}
+
+	nodes, err := f.KubeClient.CoreV1().Nodes().List(goctx.TODO(), metav1.ListOptions{LabelSelector: nodeWorkerRoleLabelKey})
+	if err != nil {
+		t.Errorf("error listing nodes: %v", err)
+	}
+
+	timeoutErr := wait.PollImmediate(interval, timeout, func() (bool, error) {
+		// Node names are the key
+		latestStatuses := map[string]nodeStatus{}
+		for _, node := range nodes.Items {
+			if node.Name != nodeName {
+				continue
+			}
+			fileIntegNodeStatus := &fileintv1alpha1.FileIntegrityNodeStatus{}
+			getErr := f.Client.Get(goctx.TODO(), types.NamespacedName{Name: integrityName + "-" + node.Name, Namespace: namespace}, fileIntegNodeStatus)
+			if getErr != nil {
+				lastErr = getErr
+				return false, nil
+			}
+
+			t.Logf("%s %s", fileIntegNodeStatus.NodeName, fileIntegNodeStatus.LastResult.Condition)
+
+			latestStatuses[fileIntegNodeStatus.NodeName] = nodeStatus{
+				LastProbeTime: fileIntegNodeStatus.LastResult.LastProbeTime,
+				Condition:     fileIntegNodeStatus.LastResult.Condition,
+			}
+		}
+
+		// iterate gathered statuses
+		for name, status := range latestStatuses {
+			if status.Condition != fileintv1alpha1.NodeConditionSucceeded {
+				lastErr = fmt.Errorf("status.nodeStatus for node %s NOT SUCCESS: But instead %s", name, status.Condition)
+				return false, nil
 			}
 		}
 		// reset error since we're good
@@ -814,7 +903,6 @@ func pollUntilConfigMapDataMatches(t *testing.T, f *framework.Framework, namespa
 	return wait.PollImmediate(interval, timeout, func() (bool, error) {
 		cm, getErr := f.KubeClient.CoreV1().ConfigMaps(namespace).Get(goctx.TODO(), name, metav1.GetOptions{})
 		if getErr != nil {
-			t.Logf("Retrying. Got error: %v\n", getErr)
 			return false, nil
 		}
 		if cm.Data[key] == expected {
@@ -829,7 +917,6 @@ func pollUntilConfigMapExists(t *testing.T, f *framework.Framework, namespace, n
 	err := wait.PollImmediate(interval, timeout, func() (bool, error) {
 		cm, getErr := f.KubeClient.CoreV1().ConfigMaps(namespace).Get(goctx.TODO(), name, metav1.GetOptions{})
 		if getErr != nil {
-			t.Logf("Retrying. Got error: %v\n", getErr)
 			return false, nil
 		}
 		data = cm.Data
@@ -973,7 +1060,7 @@ func getTestMcfg(t *testing.T) *mcfgv1.MachineConfig {
 	return mcfg
 }
 
-func waitForNodesToBeReady(f *framework.Framework) error {
+func waitForNodesToBeReady(t *testing.T, f *framework.Framework) error {
 	nodeList := &corev1.NodeList{}
 	// A long time...
 	bo := backoff.WithMaxRetries(backoff.NewConstantBackOff(15*time.Second), 360)
@@ -995,8 +1082,7 @@ func waitForNodesToBeReady(f *framework.Framework) error {
 		},
 		bo,
 		func(err error, d time.Duration) {
-			// TODO(jaosorior): Change this for a log call
-			fmt.Printf("Nodes not ready yet after %s: %s\n", d.String(), err)
+			t.Logf("Nodes not ready yet after %s: %s\n", d.String(), err)
 		})
 	if err != nil {
 		return fmt.Errorf("The nodes were never ready: %s", err)
@@ -1118,7 +1204,7 @@ func getNodesWithSelector(f *framework.Framework, labelselector map[string]strin
 	return nodes.Items, err
 }
 
-func writeToArtifactsDir(t *testing.T, f *framework.Framework, dir, scan, pod, container, log string) error {
+func writeToArtifactsDir(dir, scan, pod, container, log string) error {
 	logPath := path.Join(dir, fmt.Sprintf("%s_%s_%s.log", scan, pod, container))
 	logFile, err := os.Create(logPath)
 	if err != nil {
@@ -1170,7 +1256,7 @@ func logContainerOutput(t *testing.T, f *framework.Framework, namespace, name st
 				if len(logs) == 0 {
 					t.Logf("no logs for %s/%s", pod.Name, con)
 				} else {
-					err := writeToArtifactsDir(t, f, artifacts, name, pod.Name, con, logs)
+					err := writeToArtifactsDir(artifacts, name, pod.Name, con, logs)
 					if err != nil {
 						t.Logf("error writing logs for %s/%s: %v", pod.Name, con, err)
 					} else {
@@ -1180,4 +1266,69 @@ func logContainerOutput(t *testing.T, f *framework.Framework, namespace, name st
 			}
 		}
 	}
+}
+
+func getMetricResults(t *testing.T) string {
+	ocPath, err := exec.LookPath("oc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// We're just under test.
+	// G204 (CWE-78): Subprocess launched with variable (Confidence: HIGH, Severity: MEDIUM)
+	// #nosec
+	cmd := exec.Command(ocPath,
+		"run", "--rm", "-i", "--restart=Never", "--image=registry.fedoraproject.org/fedora-minimal:latest",
+		"-nopenshift-file-integrity", "metrics-test", "--", "bash", "-c",
+		curlFIOCMD,
+	)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Errorf("error getting output %s", err)
+	}
+	t.Logf("metrics output:\n%s\n", string(out))
+	return string(out)
+}
+
+func assertMetric(t *testing.T, content, metric string, expected int) error {
+	if val := parseMetric(t, content, metric); val != expected {
+		return errors.New(fmt.Sprintf("expected %v for counter %s, got %v", expected, metric, val))
+	}
+	return nil
+}
+
+func assertEachMetric(t *testing.T, expectedMetrics map[string]int) error {
+	metricErrs := make([]error, 0)
+	metricsOutput := getMetricResults(t)
+	for metric, i := range expectedMetrics {
+		err := assertMetric(t, metricsOutput, metric, i)
+		if err != nil {
+			metricErrs = append(metricErrs, err)
+		}
+	}
+	if len(metricErrs) > 0 {
+		for err := range metricErrs {
+			t.Log(err)
+		}
+		return errors.New("unexpected metrics value")
+	}
+	return nil
+}
+
+func parseMetric(t *testing.T, content, metric string) int {
+	scanner := bufio.NewScanner(strings.NewReader(content))
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, metric) {
+			fields := strings.Fields(line)
+			if len(fields) != 2 {
+				t.Errorf("invalid metric")
+			}
+			i, err := strconv.Atoi(fields[1])
+			if err != nil {
+				t.Errorf("invalid metric value")
+			}
+			return i
+		}
+	}
+	return 0
 }

@@ -250,3 +250,94 @@ spec:
 * In the case of where small modifications are needed (such as excluding a file or directory), it's recommended to copy the [default config](https://github.com/openshift/file-integrity-operator/blob/master/pkg/controller/fileintegrity/config_defaults.go#L16) to a new ConfigMap and add to it as needed.
 * Some AIDE configuration options may not be supported by the AIDE container. For example, the `mhash` digest types are not supported. For digest selection, it is recommended to use the default config's [CONTENT_EX group](https://github.com/openshift/file-integrity-operator/blob/master/pkg/controller/fileintegrity/config_defaults.go#L25).
 * Manually re-initializing the AIDE database can be done by adding the annotation key `file-integrity.openshift.io/re-init` to the FileIntegrity object.
+
+### Controller metrics
+
+The file-integrity-operator exposes the following FileIntegrity-related metrics to Prometheus when cluster-monitoring is available.
+
+    # HELP file_integrity_operator_phase_total The total number of transitions to the FileIntegrity phase
+    # TYPE file_integrity_operator_phase_total counter
+    file_integrity_operator_phase_total{phase="Active"} 1
+    file_integrity_operator_phase_total{phase="Initializing"} 1
+    file_integrity_operator_phase_total{phase="Pending"} 1
+
+    # HELP file_integrity_operator_error_total The total number of FileIntegrity phase errors, per error
+    # TYPE file_integrity_operator_error_total counter
+    file_integrity_operator_error_total{error="foo"} 1
+
+    # HELP file_integrity_operator_pause_total The total number of FileIntegrity scan pause actions (during node updates)
+    # TYPE file_integrity_operator_pause_total counter
+    file_integrity_operator_pause_total{node="node-a"} 1
+
+    # HELP file_integrity_operator_unpause_total The total number of FileIntegrity scan unpause actions (during node updates)
+    # TYPE file_integrity_operator_unpause_total counter
+    file_integrity_operator_unpause_total{node="node-a"} 1
+
+    # HELP file_integrity_operator_reinit_total The total number of FileIntegrity database re-initialization triggers (annotation), per method and node
+    # TYPE file_integrity_operator_reinit_total counter
+    file_integrity_operator_reinit_total{by="node", node="node-a"} 1
+    file_integrity_operator_reinit_total{by="demand", node="node-a"} 1
+    file_integrity_operator_reinit_total{by="config", node=""} 1
+
+    # HELP file_integrity_operator_node_status_total The total number of FileIntegrityNodeStatus transitions, per condition and node
+    # TYPE file_integrity_operator_node_status_total counter
+    file_integrity_operator_node_status_total{condition="Failed",node="node-a"} 1
+    file_integrity_operator_node_status_total{condition="Succeeded",node="node-b"} 1
+    file_integrity_operator_node_status_total{condition="Errored",node="node-c"} 1
+
+    # HELP file_integrity_operator_node_status_error_total The total number of FileIntegrityNodeStatus errors, per error and node
+    # TYPE file_integrity_operator_node_status_error_total counter
+    file_integrity_operator_node_status_error_total{error="foo",node="node-a"} 1
+
+    # HELP file_integrity_operator_daemonset_update_total The total number of updates to the FileIntegrity AIDE daemonSet
+    # TYPE file_integrity_operator_daemonset_update_total counter
+    file_integrity_operator_daemonset_update_total{operation="update"} 1
+    file_integrity_operator_daemonset_update_total{operation="delete"} 1
+    file_integrity_operator_daemonset_update_total{operation="podkill"} 1
+
+    # HELP file_integrity_operator_reinit_daemonset_update_total The total number of updates to the FileIntegrity re-init signaling daemonSet
+    # TYPE file_integrity_operator_reinit_daemonset_update_total counter
+    file_integrity_operator_reinit_daemonset_update_total{operation="update"} 1
+    file_integrity_operator_reinit_daemonset_update_total{operation="delete"} 1
+
+    # HELP file_integrity_operator_node_failed A gauge that is set to 1 when a node has unresolved integrity failures, and 0 when it is healthy
+    # TYPE file_integrity_operator_node_failed gauge
+    file_integrity_operator_node_failed{node="node-a"} 1
+    file_integrity_operator_node_failed{node="node-b"} 1
+
+
+These metrics require that the `cluster-monitoring-config` configMap in the `openshift-monitoring` namespace exists and contains `enableUserWorkload: true`.
+
+After logging into the console, navigating to Monitoring -> Metrics, the file_integrity_operator* metrics can be queried using the metrics dashboard. The `{__name__=~"file_integrity.*"}` query can be used to view the full set of metrics.
+
+Testing for the metrics from the cli can also be done directly with a pod that curls the metrics service. This is useful for troubleshooting.
+```
+$ oc run --rm -i --restart=Never --image=registry.fedoraproject.org/fedora-minimal:latest -n openshift-file-integrity metrics-test -- bash -c 'curl -ks -H "Authorization: Bearer $(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" http://file-integrity-operator-metrics:8585/metrics-fio' | grep file
+```
+
+## Integrity failure alerts
+
+The operator creates the following default alert (based on the `file_integrity_operator_node_failed` gauge) in the operator namespace that fires when a node has been in a failure state for more than 30 seconds:
+
+```
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: file-integrity
+  namespace: openshift-file-integrity
+spec:
+  groups:
+  - name: node-failed
+    rules:
+    - alert: NodeHasIntegrityFailure
+      annotations:
+        description: Node {{ $labels.node }} has an an integrity check status of Failed for
+          more than 1 second.
+        summary: Node {{ $labels.node }} has a file integrity failure
+      expr: file_integrity_operator_node_failed{node=~".+"} == 1
+      for: 1s
+      labels:
+        severity: warning
+```
+
+The severity label and `for` may be adjusted depending on taste.

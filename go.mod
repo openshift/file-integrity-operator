@@ -8,12 +8,16 @@ require (
 	github.com/go-logr/logr v0.4.0
 	github.com/go-logr/zapr v0.4.0 // indirect
 	github.com/go-openapi/spec v0.19.4
+	github.com/maxbrunsfeld/counterfeiter/v6 v6.4.1 // indirect
 	github.com/openshift/machine-config-operator v0.0.1-0.20200913004441-7eba765c69c9
 	github.com/operator-framework/operator-registry v1.13.4
 	github.com/operator-framework/operator-sdk v0.19.4
 	github.com/pkg/errors v0.9.1
+	github.com/prometheus/client_golang v1.7.1
+	github.com/prometheus/client_model v0.2.0
 	github.com/securego/gosec/v2 v2.8.0
 	github.com/spf13/cobra v1.1.1
+	github.com/stretchr/testify v1.6.1
 	k8s.io/api v0.19.11
 	k8s.io/apimachinery v0.19.11
 	k8s.io/client-go v12.0.0+incompatible
