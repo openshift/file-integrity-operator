@@ -306,13 +306,11 @@ The file-integrity-operator exposes the following FileIntegrity-related metrics 
     file_integrity_operator_node_failed{node="node-b"} 1
 
 
-These metrics require that the `cluster-monitoring-config` configMap in the `openshift-monitoring` namespace exists and contains `enableUserWorkload: true`.
-
 After logging into the console, navigating to Monitoring -> Metrics, the file_integrity_operator* metrics can be queried using the metrics dashboard. The `{__name__=~"file_integrity.*"}` query can be used to view the full set of metrics.
 
 Testing for the metrics from the cli can also be done directly with a pod that curls the metrics service. This is useful for troubleshooting.
 ```
-$ oc run --rm -i --restart=Never --image=registry.fedoraproject.org/fedora-minimal:latest -n openshift-file-integrity metrics-test -- bash -c 'curl -ks -H "Authorization: Bearer $(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" http://file-integrity-operator-metrics:8585/metrics-fio' | grep file
+$ oc run --rm -i --restart=Never --image=registry.fedoraproject.org/fedora-minimal:latest -n openshift-file-integrity metrics-test -- bash -c 'curl -ks -H "Authorization: Bearer $(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" https://metrics.openshift-file-integrity.svc:8585/metrics-fio' | grep file
 ```
 
 ## Integrity failure alerts

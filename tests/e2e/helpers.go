@@ -6,7 +6,6 @@ import (
 	goctx "context"
 	"encoding/json"
 	"fmt"
-	"golang.org/x/net/context"
 	"io"
 	"os"
 	"os/exec"
@@ -59,7 +58,7 @@ const (
 
 const (
 	curlCMD    = "curl -ks -H \"Authorization: Bearer `cat /var/run/secrets/kubernetes.io/serviceaccount/token`\" "
-	metricsURL = "http://file-integrity-operator-metrics:8585/"
+	metricsURL = "https://metrics.openshift-file-integrity.svc:8585/"
 	curlFIOCMD = curlCMD + metricsURL + "metrics-fio"
 )
 
@@ -203,36 +202,9 @@ func setupFileIntegrityOperatorCluster(t *testing.T, ctx *framework.Context) {
 	// get global framework variables
 	f := framework.Global
 	// wait for file-integrity-operator to be ready
-
-	setupUserMonitoring(t, f)
 	err = e2eutil.WaitForOperatorDeployment(t, f.KubeClient, namespace, "file-integrity-operator", 1, retryInterval, timeout)
 	if err != nil {
 		t.Fatal(err)
-	}
-}
-
-func setupUserMonitoring(t *testing.T, f *framework.Framework) {
-	_, err := f.KubeClient.CoreV1().ConfigMaps("openshift-monitoring").Get(context.TODO(),
-		"cluster-monitoring-config", metav1.GetOptions{})
-	if err != nil && !kerr.IsNotFound(err) {
-		t.Fatal(err)
-	}
-	if kerr.IsNotFound(err) {
-		_, createErr := f.KubeClient.CoreV1().ConfigMaps("openshift-monitoring").Create(context.TODO(),
-			&corev1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "cluster-monitoring-config",
-					Namespace: "openshift-monitoring",
-				},
-				Data: map[string]string{
-					"config.yaml": "enableUserWorkload: true",
-				},
-			},
-			metav1.CreateOptions{},
-		)
-		if createErr != nil {
-			t.Fatal(createErr)
-		}
 	}
 }
 
