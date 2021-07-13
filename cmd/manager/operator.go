@@ -19,17 +19,12 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	monitoring "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
-	"github.com/spf13/cobra"
-	kerr "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"os"
 	rt "runtime"
 
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/rest"
+	"github.com/spf13/cobra"
 
+	monitoring "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
 	monclientv1 "github.com/coreos/prometheus-operator/pkg/client/versioned/typed/monitoring/v1"
 	"github.com/operator-framework/operator-sdk/pkg/k8sutil"
 	kubemetrics "github.com/operator-framework/operator-sdk/pkg/kube-metrics"
@@ -37,7 +32,13 @@ import (
 	"github.com/operator-framework/operator-sdk/pkg/log/zap"
 	"github.com/operator-framework/operator-sdk/pkg/metrics"
 	sdkVersion "github.com/operator-framework/operator-sdk/version"
+	v1 "k8s.io/api/core/v1"
+	kerr "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	runtimeconfig "sigs.k8s.io/controller-runtime/pkg/client/config"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -61,6 +62,7 @@ var (
 	metricsPort         int32 = 8383
 	operatorMetricsPort int32 = 8686
 	alertName                 = "file-integrity"
+	metricsServiceName        = "metrics"
 )
 var log = logf.Log.WithName("cmd")
 
@@ -109,6 +111,9 @@ func RunOperator(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
+	kubeClient := kubernetes.NewForConfigOrDie(cfg)
+	monitoringClient := monclientv1.NewForConfigOrDie(cfg)
+
 	ctx := context.TODO()
 	// Become the leader before proceeding
 	err = leader.Become(ctx, "file-integrity-operator-lock")
@@ -147,80 +152,38 @@ func RunOperator(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	// Serves metrics on the CRDs, separate from
+	// Serves metrics on the CRDs, separate from the controller metrics.
 	if err = serveCRMetrics(cfg); err != nil {
 		log.Error(err, "Could not generate and serve custom resource metrics")
 		os.Exit(1)
 	}
 
-	// Add to the below struct any other metrics ports you want to expose.
-	servicePorts := []v1.ServicePort{
-		{
-			Port:       metricsPort,
-			Name:       metrics.OperatorPortName,
-			Protocol:   v1.ProtocolTCP,
-			TargetPort: intstr.IntOrString{Type: intstr.Int, IntVal: metricsPort},
-		},
-		{
-			Port:       operatorMetricsPort,
-			Name:       metrics.CRPortName,
-			Protocol:   v1.ProtocolTCP,
-			TargetPort: intstr.IntOrString{Type: intstr.Int, IntVal: operatorMetricsPort},
-		},
-		{
-			Port:       ctrlMetrics.ControllerMetricsPort,
-			Name:       ctrlMetrics.ControllerMetricsServiceName,
-			Protocol:   v1.ProtocolTCP,
-			TargetPort: intstr.IntOrString{Type: intstr.Int, IntVal: ctrlMetrics.ControllerMetricsPort},
-		},
-	}
-
-	// Create Service object to expose the metrics port(s).
-	service, err := metrics.CreateMetricsService(ctx, cfg, servicePorts)
+	// Fetch the metrics service created during the deployment.
+	metricsService, err := kubeClient.CoreV1().Services(namespace).Get(ctx, metricsServiceName, metav1.GetOptions{})
 	if err != nil {
-		log.Error(err, "Could not generate metrics service")
+		log.Error(err, "Error getting metrics service")
 		os.Exit(1)
 	}
 
-	servMon := metrics.GenerateServiceMonitor(service)
-	for i, _ := range servMon.Spec.Endpoints {
-		if servMon.Spec.Endpoints[i].Port == ctrlMetrics.ControllerMetricsServiceName {
-			servMon.Spec.Endpoints[i].Path = ctrlMetrics.HandlerPath
-		}
-	}
-
-	serviceMonitorObjectExists, err := k8sutil.ResourceExists(discovery.NewDiscoveryClientForConfigOrDie(cfg),
-		"monitoring.coreos.com/v1", "ServiceMonitor")
-	if err != nil {
-		log.Error(err, "Could not detect service monitor CRD")
+	if err := createServiceMonitor(ctx, cfg, monitoringClient, namespace, metricsService); err != nil {
+		log.Error(err, "Error creating ServiceMonitor")
 		os.Exit(1)
 	}
 
-	mclient := monclientv1.NewForConfigOrDie(cfg)
-	if serviceMonitorObjectExists {
-		_, err = mclient.ServiceMonitors(namespace).Create(ctx, servMon, metav1.CreateOptions{})
-		if err != nil && !kerr.IsAlreadyExists(err) {
-			log.Error(err, "Could not create service monitor")
-			os.Exit(1)
-		}
-		if kerr.IsAlreadyExists(err) {
-			currentServiceMonitor, getErr := mclient.ServiceMonitors(namespace).Get(ctx, servMon.Name, metav1.GetOptions{})
-			if getErr != nil {
-				log.Error(getErr, "Error fetching service monitor")
-				os.Exit(1)
-			}
-			currentServiceMonitorCopy := currentServiceMonitor.DeepCopy()
-			currentServiceMonitorCopy.Spec = servMon.Spec
-			_, updateErr := mclient.ServiceMonitors(namespace).Update(ctx, currentServiceMonitorCopy, metav1.UpdateOptions{})
-			if updateErr != nil {
-				log.Error(updateErr, "Error updating service monitor")
-				os.Exit(1)
-			}
-		}
-	} else {
-		log.Info("Install prometheus-operator in your cluster to create ServiceMonitor objects")
+	if err := createIntegrityFailureAlert(ctx, monitoringClient, namespace); err != nil {
+		log.Error(err, "Error creating alert")
+		os.Exit(1)
 	}
 
+	log.Info("Starting manager")
+	if err := mgr.Start(signals.SetupSignalHandler()); err != nil {
+		log.Error(err, "Manager exited non-zero")
+		os.Exit(1)
+	}
+}
+
+// createIntegrityFailureAlert tries to create the default PrometheusRule. Returns nil.
+func createIntegrityFailureAlert(ctx context.Context, client *monclientv1.MonitoringV1Client, namespace string) error {
 	rule := monitoring.Rule{
 		Alert: "NodeHasIntegrityFailure",
 		Expr:  intstr.FromString(`file_integrity_operator_node_failed{node=~".+"} == 1`),
@@ -233,7 +196,7 @@ func RunOperator(cmd *cobra.Command, args []string) {
 			"description": "Node {{ $labels.node }} has an integrity check status of Failed for more than 1 second.",
 		},
 	}
-	_, createErr := mclient.PrometheusRules(namespace).Create(ctx, &monitoring.PrometheusRule{
+	_, createErr := client.PrometheusRules(namespace).Create(ctx, &monitoring.PrometheusRule{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
 			Name:      alertName,
@@ -252,12 +215,54 @@ func RunOperator(cmd *cobra.Command, args []string) {
 	if createErr != nil && !kerr.IsAlreadyExists(createErr) {
 		log.Info("could not create prometheus rule for alert", createErr)
 	}
+	return nil
+}
 
-	log.Info("Starting manager")
-	if err := mgr.Start(signals.SetupSignalHandler()); err != nil {
-		log.Error(err, "Manager exited non-zero")
-		os.Exit(1)
+// tryCreatingServiceMonitor attempts to create a ServiceMonitor out of service, and updates it to include the controller
+// metrics paths.
+func createServiceMonitor(ctx context.Context, cfg *rest.Config, mClient *monclientv1.MonitoringV1Client,
+	namespace string, service *v1.Service) error {
+	ok, err := k8sutil.ResourceExists(discovery.NewDiscoveryClientForConfigOrDie(cfg),
+		"monitoring.coreos.com/v1", "ServiceMonitor")
+	if err != nil {
+		return err
 	}
+	if !ok {
+		log.Info("Install prometheus-operator in your cluster to create ServiceMonitor objects")
+		return nil
+	}
+
+	serviceMonitor := metrics.GenerateServiceMonitor(service)
+	for i, _ := range serviceMonitor.Spec.Endpoints {
+		if serviceMonitor.Spec.Endpoints[i].Port == ctrlMetrics.ControllerMetricsServiceName {
+			serviceMonitor.Spec.Endpoints[i].Path = ctrlMetrics.HandlerPath
+			serviceMonitor.Spec.Endpoints[i].Scheme = "https"
+			serviceMonitor.Spec.Endpoints[i].BearerTokenFile = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+			serviceMonitor.Spec.Endpoints[i].TLSConfig = &monitoring.TLSConfig{
+				CAFile:     "/etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt",
+				ServerName: "metrics.openshift-file-integrity.svc",
+			}
+		}
+	}
+
+	_, err = mClient.ServiceMonitors(namespace).Create(ctx, serviceMonitor, metav1.CreateOptions{})
+	if err != nil && !kerr.IsAlreadyExists(err) {
+		return err
+	}
+	if kerr.IsAlreadyExists(err) {
+		currentServiceMonitor, getErr := mClient.ServiceMonitors(namespace).Get(ctx, serviceMonitor.Name,
+			metav1.GetOptions{})
+		if getErr != nil {
+			return getErr
+		}
+		serviceMonitorCopy := currentServiceMonitor.DeepCopy()
+		serviceMonitorCopy.Spec = serviceMonitor.Spec
+		if _, updateErr := mClient.ServiceMonitors(namespace).Update(ctx, serviceMonitorCopy,
+			metav1.UpdateOptions{}); updateErr != nil {
+			return updateErr
+		}
+	}
+	return nil
 }
 
 // serveCRMetrics gets the Operator/CustomResource GVKs and generates metrics based on those types.

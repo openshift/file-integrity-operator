@@ -5,10 +5,12 @@ go 1.15
 require (
 	github.com/cenkalti/backoff/v4 v4.1.1
 	github.com/coreos/ignition/v2 v2.9.0
+	github.com/coreos/prometheus-operator v0.38.1-0.20200424145508-7e176fda06cc
 	github.com/go-logr/logr v0.4.0
 	github.com/go-logr/zapr v0.4.0 // indirect
 	github.com/go-openapi/spec v0.19.4
-	github.com/maxbrunsfeld/counterfeiter/v6 v6.4.1 // indirect
+	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
+	github.com/openshift/library-go v0.0.0-20210708191609-4b9033d00d37
 	github.com/openshift/machine-config-operator v0.0.1-0.20200913004441-7eba765c69c9
 	github.com/operator-framework/operator-registry v1.13.4
 	github.com/operator-framework/operator-sdk v0.19.4
@@ -18,8 +20,11 @@ require (
 	github.com/securego/gosec/v2 v2.8.0
 	github.com/spf13/cobra v1.1.1
 	github.com/stretchr/testify v1.6.1
-	k8s.io/api v0.19.11
-	k8s.io/apimachinery v0.19.11
+	golang.org/x/net v0.0.0-20210405180319-a5a99cb37ef4
+	golang.org/x/tools v0.1.4 // indirect
+	gopkg.in/check.v1 v1.0.0-20200902074654-038fdea0a05b // indirect
+	k8s.io/api v0.21.1
+	k8s.io/apimachinery v0.21.1
 	k8s.io/client-go v12.0.0+incompatible
 	k8s.io/kube-openapi v0.0.0-20200805222855-6aeccd4b50c6
 	sigs.k8s.io/controller-runtime v0.6.2

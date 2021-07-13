@@ -42,6 +42,14 @@ spec:
               value: "file-integrity-operator"
             - name: RELATED_IMAGE_OPERATOR
               value: "quay.io/file-integrity-operator/file-integrity-operator:latest"
+          volumeMounts:
+            - name: serving-cert
+              mountPath: /var/run/secrets/serving-cert
+              readOnly: true
+      volumes:
+        - name: serving-cert
+          secret:
+            secretName: file-integrity-operator-serving-cert
       nodeSelector:
         node-role.kubernetes.io/master: ""
       tolerations:

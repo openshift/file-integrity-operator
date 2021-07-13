@@ -1,14 +1,18 @@
 package metrics
 
 import (
+	"crypto/tls"
 	"fmt"
+	"net/http"
+
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"net/http"
 
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
+
+	libgocrypto "github.com/openshift/library-go/pkg/crypto"
 )
 
 const (
@@ -179,9 +183,21 @@ func (m *Metrics) Register() error {
 
 func (m *Metrics) Start(s <-chan struct{}) error {
 	m.log.Info("Starting to serve controller metrics")
-	handler := &http.ServeMux{}
-	handler.Handle(HandlerPath, promhttp.Handler())
-	http.ListenAndServe(":8585", handler)
+	http.Handle(HandlerPath, promhttp.Handler())
+
+	tlsConfig := &tls.Config{
+		MinVersion: tls.VersionTLS12,
+	}
+	tlsConfig = libgocrypto.SecureTLSConfig(tlsConfig)
+	server := &http.Server{
+		Addr:      ":8585",
+		TLSConfig: tlsConfig,
+	}
+
+	err := server.ListenAndServeTLS("/var/run/secrets/serving-cert/tls.crt", "/var/run/secrets/serving-cert/tls.key")
+	if err != nil {
+		m.log.Error(err, "Metrics service failed")
+	}
 	<-s
 	return nil
 }
