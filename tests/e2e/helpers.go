@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	v1 "k8s.io/api/rbac/v1"
+
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -194,18 +196,80 @@ func setupFileIntegrityOperatorCluster(t *testing.T, ctx *framework.Context) {
 	if err != nil {
 		t.Fatalf("failed to initialize cluster resources: %v", err)
 	}
-	t.Log("Initialized cluster resources")
+
+	// get global framework variables
+	f := framework.Global
 	namespace, err := ctx.GetOperatorNamespace()
 	if err != nil {
 		t.Fatal(err)
 	}
-	// get global framework variables
-	f := framework.Global
+
+	err = initializeMetricsTestResources(f, namespace)
+	if err != nil {
+		t.Fatalf("failed to initialize cluster resources for metrics: %v", err)
+	}
+
+	t.Log("Initialized cluster resources")
 	// wait for file-integrity-operator to be ready
 	err = e2eutil.WaitForOperatorDeployment(t, f.KubeClient, namespace, "file-integrity-operator", 1, retryInterval, timeout)
 	if err != nil {
 		t.Fatal(err)
 	}
+}
+
+// Initializes the permission resources needed for the in-test metrics scraping
+func initializeMetricsTestResources(f *framework.Framework, namespace string) error {
+	if _, err := f.KubeClient.RbacV1().ClusterRoles().Create(goctx.TODO(), &v1.ClusterRole{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "fio-metrics-client",
+		},
+		Rules: []v1.PolicyRule{
+			{
+				NonResourceURLs: []string{
+					"/metrics-fio",
+				},
+				Verbs: []string{
+					"get",
+				},
+			},
+		},
+	}, metav1.CreateOptions{}); err != nil && !kerr.IsAlreadyExists(err) {
+		return err
+	}
+
+	if _, err := f.KubeClient.RbacV1().ClusterRoleBindings().Create(goctx.TODO(), &v1.ClusterRoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "fio-metrics-client",
+		},
+		Subjects: []v1.Subject{
+			{
+				Kind:      "ServiceAccount",
+				Name:      "default",
+				Namespace: namespace,
+			},
+		},
+		RoleRef: v1.RoleRef{
+			APIGroup: "rbac.authorization.k8s.io",
+			Kind:     "ClusterRole",
+			Name:     "fio-metrics-client",
+		},
+	}, metav1.CreateOptions{}); err != nil && !kerr.IsAlreadyExists(err) {
+		return err
+	}
+
+	if _, err := f.KubeClient.CoreV1().Secrets(namespace).Create(goctx.TODO(), &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "metrics-token",
+			Namespace: namespace,
+			Annotations: map[string]string{
+				"kubernetes.io/service-account.name": "default",
+			},
+		},
+		Type: "kubernetes.io/service-account-token",
+	}, metav1.CreateOptions{}); err != nil && !kerr.IsAlreadyExists(err) {
+		return err
+	}
+	return nil
 }
 
 // setupTest deploys the operator
