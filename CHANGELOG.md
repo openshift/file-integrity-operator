@@ -5,6 +5,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.17] - 2021-08-05
+### Changes
+- Move test-specific permissions out of deploy manifests
+- Use latest for CSV documentation link
+- Enable TLS for controller metrics
+- vendor deps
+- Add controller-based Prometheus metrics
+- Update ignition and MCO dependencies
+- Update gosec and fix warnings
+
 ## [0.1.16] - 2021-06-02
 ### Changes
 - Handle AIDE error code 255
