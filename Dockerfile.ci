@@ -1,5 +1,5 @@
 # Step one: build file-integrity-operator
-FROM registry.ci.openshift.org/ocp/builder:golang-1.14 AS builder
+FROM registry.ci.openshift.org/ocp/builder:rhel-8-golang-1.16-openshift-4.8 AS builder
 
 WORKDIR /go/src/github.com/openshift/file-integrity-operator
 
@@ -10,8 +10,8 @@ COPY . .
 RUN make operator-bin
 
 # Step two: containerize file-integrity-operator and AIDE together
-FROM registry.centos.org/centos:8
-RUN yum -y install aide && yum clean all
+FROM registry.fedoraproject.org/fedora-minimal:34
+RUN microdnf -y install aide golang && microdnf clean all
 
 ENV OPERATOR=/usr/local/bin/file-integrity-operator \
     USER_UID=1001 \
