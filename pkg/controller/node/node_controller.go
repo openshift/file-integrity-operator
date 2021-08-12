@@ -3,6 +3,9 @@ package node
 import (
 	"context"
 	"fmt"
+
+	"github.com/go-logr/logr"
+
 	"github.com/openshift/file-integrity-operator/pkg/controller/metrics"
 
 	fiv1alpha1 "github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
@@ -116,7 +119,7 @@ func (r *ReconcileNode) Reconcile(request reconcile.Request) (reconcile.Result, 
 			reqLogger.Info("Node is currently updating.",
 				"currentConfig", currentConfig, "desiredConfig", desiredConfig)
 			// An update is about to take place or already taking place
-			return reconcile.Result{}, r.addHoldOffAnnotations(fis, node)
+			return reconcile.Result{}, r.addHoldOffAnnotations(reqLogger, fis, node)
 		} else if isNodeUpToDateWithMCO(currentConfig, desiredConfig, mcdState) ||
 			isNodeDegraded(mcdState) {
 			reqLogger.Info(fmt.Sprintf("Node is up-to-date. Degraded: %v", isNodeDegraded(mcdState)),
@@ -162,8 +165,15 @@ func (r *ReconcileNode) findRelevantFileIntegrities(currentnode *corev1.Node) ([
 	return resultingFIs, nil
 }
 
-func (r *ReconcileNode) addHoldOffAnnotations(fis []*fiv1alpha1.FileIntegrity, n *corev1.Node) error {
+func (r *ReconcileNode) addHoldOffAnnotations(logger logr.Logger, fis []*fiv1alpha1.FileIntegrity, n *corev1.Node) error {
 	for _, fi := range fis {
+		// Only update if we don't already have the holdoff annotation
+		if fi.Annotations != nil {
+			if _, has := fi.Annotations[common.IntegrityHoldoffAnnotationKey]; has {
+				continue
+			}
+		}
+
 		fiCopy := fi.DeepCopy()
 		if fiCopy.Annotations == nil {
 			fiCopy.Annotations = map[string]string{}
@@ -173,6 +183,7 @@ func (r *ReconcileNode) addHoldOffAnnotations(fis []*fiv1alpha1.FileIntegrity, n
 		if err := r.client.Update(context.TODO(), fiCopy); err != nil {
 			return err
 		}
+		logger.Info("Added Holdoff annotation to FileIntegrity")
 		r.metrics.IncFileIntegrityPause(n.Name)
 	}
 	return nil
@@ -199,7 +210,7 @@ func (r *ReconcileNode) removeHoldoffAnnotationAndReinitFileIntegrityDatabases(f
 		// Only reinit for FIs that were previously in holdoff.
 		if _, ok := fi.Annotations[common.IntegrityHoldoffAnnotationKey]; ok {
 			fiCopy := fi.DeepCopy()
-			fiCopy.Annotations[common.AideDatabaseReinitAnnotationKey] = ""
+			fiCopy.Annotations[common.AideDatabaseReinitAnnotationKey] = n.Name
 			delete(fiCopy.Annotations, common.IntegrityHoldoffAnnotationKey)
 			if err := r.client.Update(context.TODO(), fiCopy); err != nil {
 				return err

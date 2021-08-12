@@ -35,12 +35,12 @@ const (
 	PausePath                          = "/scripts/pause.sh"
 	AideScriptConfigMapPrefix          = "aide-script"
 	AideScriptPath                     = "/scripts/aide.sh"
-	DaemonSetPrefix                    = "aide-ds"
+	DaemonSetPrefix                    = "aide"
 	DefaultConfDataKey                 = "aide.conf"
 	AideScriptKey                      = "aide.sh"
 	OperatorServiceAccountName         = "file-integrity-operator"
 	DaemonServiceAccountName           = "file-integrity-daemon"
-	ReinitDaemonSetPrefix              = "aide-reinit-ds"
+	ReinitDaemonSetPrefix              = "aide-ini"
 	// IntegrityCheckHoldoffFilePath specified the path to the file that tells
 	// the AIDE check to hold off
 	IntegrityCheckHoldoffFilePath = "/hostroot/etc/kubernetes/holdoff"

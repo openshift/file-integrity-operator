@@ -2,9 +2,10 @@ package configmap
 
 import (
 	"context"
-	"github.com/openshift/file-integrity-operator/pkg/controller/metrics"
 	"strconv"
 	"time"
+
+	"github.com/openshift/file-integrity-operator/pkg/controller/metrics"
 
 	"github.com/go-logr/logr"
 
@@ -108,7 +109,7 @@ func (r *ReconcileConfigMap) Reconcile(request reconcile.Request) (reconcile.Res
 	}
 
 	if common.IsAideConfig(instance.Labels) {
-		return r.reconcileAideConf(instance, reqLogger)
+		return r.reconcileAideConfAndHandleReinitDs(instance, reqLogger)
 	} else if common.IsIntegrityLog(instance.Labels) {
 		return r.handleIntegrityLog(instance, reqLogger)
 	}
@@ -116,23 +117,40 @@ func (r *ReconcileConfigMap) Reconcile(request reconcile.Request) (reconcile.Res
 	return reconcile.Result{}, nil
 }
 
-func (r *ReconcileConfigMap) reconcileAideConf(instance *corev1.ConfigMap, logger logr.Logger) (reconcile.Result, error) {
+func (r *ReconcileConfigMap) reconcileAideConfAndHandleReinitDs(instance *corev1.ConfigMap,
+	logger logr.Logger) (reconcile.Result, error) {
 	// only continue if the configmap received an update through the user-provided config
-	if _, ok := instance.Annotations[common.AideConfigUpdatedAnnotationKey]; !ok {
+	nodeName, ok := instance.Annotations[common.AideConfigUpdatedAnnotationKey]
+	if !ok {
 		return reconcile.Result{}, nil
 	}
+
+	ownerName, err := common.GetConfigMapOwnerName(instance)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	integrityInstance := &fileintegrityv1alpha1.FileIntegrity{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: ownerName, Namespace: instance.Namespace},
+		integrityInstance)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	logger.Info("reconciling re-init", "cm.Name", instance.Name, "owner", integrityInstance.Name,
+		"node", nodeName)
 
 	// handling the re-init daemonSets: these are created by the FileIntegrity controller when the AIDE config has been
 	// updated by the user. They touch a file on the node host and then sleep. The file signals to the AIDE pod
 	// daemonSets that they need to back up and re-initialize the AIDE database.
 	reinitDS := &appsv1.DaemonSet{}
-	reinitDSName := common.GetReinitDaemonSetName(instance.Name)
-	err := r.client.Get(context.TODO(), types.NamespacedName{Name: reinitDSName, Namespace: common.FileIntegrityNamespace}, reinitDS)
+	reinitDSName := common.ReinitDaemonSetNodeName(integrityInstance.Name, nodeName)
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: reinitDSName,
+		Namespace: common.FileIntegrityNamespace}, reinitDS)
 	if err != nil && kerr.IsNotFound(err) {
-		logger.Info("not found, requeuing", "dsName", reinitDSName)
 		return reconcile.Result{Requeue: true}, nil
 	} else if err != nil {
-		logger.Error(err, "error getting reinit daemonSet")
+		logger.Error(err, "error getting re-init daemonSet")
 		return reconcile.Result{}, err
 	}
 
@@ -141,20 +159,18 @@ func (r *ReconcileConfigMap) reconcileAideConf(instance *corev1.ConfigMap, logge
 		return reconcile.Result{RequeueAfter: time.Duration(time.Second)}, nil
 	}
 
-	logger.Info("re-init daemonSet finished, removing")
-
 	// reinit daemonSet is ready, so we're finished with it
-	if err := r.client.Delete(context.TODO(), reinitDS); err != nil {
-		return reconcile.Result{}, err
+	if deleteErr := r.client.Delete(context.TODO(), reinitDS); deleteErr != nil {
+		return reconcile.Result{}, deleteErr
 	}
 
 	r.metrics.IncFileIntegrityReinitDaemonsetDelete()
 	// unset update annotation
 	conf := instance.DeepCopy()
 	conf.Annotations = nil
-	if err := r.client.Update(context.TODO(), conf); err != nil {
-		logger.Error(err, "error clearing configMap annotations")
-		return reconcile.Result{}, err
+	if updateErr := r.client.Update(context.TODO(), conf); updateErr != nil {
+		logger.Error(updateErr, "error clearing configMap annotations")
+		return reconcile.Result{}, updateErr
 	}
 	return reconcile.Result{}, nil
 }

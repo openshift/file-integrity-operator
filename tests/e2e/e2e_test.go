@@ -403,7 +403,7 @@ func TestFileIntegrityChangeGracePeriod(t *testing.T) {
 		t.Errorf("The old pods were not shut down\n")
 	}
 
-	dsName := common.GetDaemonSetName(testName)
+	dsName := common.DaemonSetName(testName)
 	err = waitForDaemonSet(daemonSetIsReady(f.KubeClient, dsName, namespace))
 	if err != nil {
 		t.Errorf("Timed out waiting for DaemonSet %s", dsName)
@@ -474,7 +474,7 @@ func TestFileIntegrityChangeDebug(t *testing.T) {
 		t.Errorf("The old pods were not shut down\n")
 	}
 
-	dsName := common.GetDaemonSetName(testName)
+	dsName := common.DaemonSetName(testName)
 	err = waitForDaemonSet(daemonSetIsReady(f.KubeClient, dsName, namespace))
 	if err != nil {
 		t.Errorf("Timed out waiting for DaemonSet %s", dsName)
@@ -657,5 +657,5 @@ func TestFileIntegrityAcceptsExpectedChange(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after expected changes")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 5*time.Second, 5*time.Minute)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 5*time.Second, 10*time.Minute)
 }
