@@ -17,6 +17,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -158,10 +159,10 @@ func RunOperator(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	// Fetch the metrics service created during the deployment.
-	metricsService, err := kubeClient.CoreV1().Services(namespace).Get(ctx, metricsServiceName, metav1.GetOptions{})
+	// Create the metrics service and make sure the service-secret is available
+	metricsService, err := ensureMetricsServiceAndSecret(ctx, kubeClient, namespace)
 	if err != nil {
-		log.Error(err, "Error getting metrics service")
+		log.Error(err, "Error creating metrics service/secret")
 		os.Exit(1)
 	}
 
@@ -180,6 +181,69 @@ func RunOperator(cmd *cobra.Command, args []string) {
 		log.Error(err, "Manager exited non-zero")
 		os.Exit(1)
 	}
+}
+
+func ensureMetricsServiceAndSecret(ctx context.Context, kClient *kubernetes.Clientset, ns string) (*v1.Service, error) {
+	var mService *v1.Service
+	var err error
+	mService, err = kClient.CoreV1().Services(ns).Create(ctx, &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{
+				"name": "file-integrity-operator",
+			},
+			Annotations: map[string]string{
+				"service.beta.openshift.io/serving-cert-secret-name": "file-integrity-operator-serving-cert",
+			},
+			Name:      "metrics",
+			Namespace: ns,
+		},
+		Spec: v1.ServiceSpec{
+			Ports: []v1.ServicePort{
+				{
+					Name:       "http-metrics",
+					Port:       8383,
+					TargetPort: intstr.FromInt(8383),
+					Protocol:   v1.ProtocolTCP,
+				},
+				{
+					Name:       "cr-metrics",
+					Port:       8686,
+					TargetPort: intstr.FromInt(8686),
+					Protocol:   v1.ProtocolTCP,
+				},
+				{
+					Name:       "metrics-fio",
+					Port:       8585,
+					TargetPort: intstr.FromInt(8585),
+					Protocol:   v1.ProtocolTCP,
+				},
+			},
+			Selector: map[string]string{
+				"name": "file-integrity-operator",
+			},
+			Type: v1.ServiceTypeClusterIP,
+		},
+	}, metav1.CreateOptions{})
+	if err != nil && !kerr.IsAlreadyExists(err) {
+		return nil, err
+	}
+	if kerr.IsAlreadyExists(err) {
+		mService, err = kClient.CoreV1().Services(ns).Get(ctx, "metrics", metav1.GetOptions{})
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Ensure the serving-cert secret for metrics is available, we have to exit and restart if not
+	if _, err := kClient.CoreV1().Secrets(ns).Get(ctx, "file-integrity-operator-serving-cert", metav1.GetOptions{}); err != nil {
+		if kerr.IsNotFound(err) {
+			return nil, errors.New("file-integrity-operator-serving-cert not found - restarting, as the service may have just been created")
+		} else {
+			return nil, err
+		}
+	}
+
+	return mService, nil
 }
 
 // createIntegrityFailureAlert tries to create the default PrometheusRule. Returns nil.
