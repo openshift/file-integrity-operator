@@ -301,7 +301,7 @@ func setupFileIntegrity(t *testing.T, f *framework.Framework, testCtx *framework
 
 	t.Logf("Created FileIntegrity: %+v", testIntegrityCheck)
 
-	dsName := common.GetDaemonSetName(testIntegrityCheck.Name)
+	dsName := common.DaemonSetName(testIntegrityCheck.Name)
 	err = waitForDaemonSet(daemonSetIsReady(f.KubeClient, dsName, namespace))
 	if err != nil {
 		t.Fatalf("Timed out waiting for DaemonSet %s", dsName)
@@ -566,7 +566,7 @@ func setupTolerationTest(t *testing.T, integrityName string) (*framework.Framewo
 		t.Errorf("could not create fileintegrity object: %v", err)
 	}
 
-	dsName := common.GetDaemonSetName(testIntegrityCheck.Name)
+	dsName := common.DaemonSetName(testIntegrityCheck.Name)
 	err = waitForDaemonSet(daemonSetIsReady(f.KubeClient, dsName, namespace))
 	if err != nil {
 		t.Errorf("Timed out waiting for DaemonSet %s", dsName)
@@ -1139,7 +1139,7 @@ func isNodeReady(node corev1.Node) bool {
 
 func assertDSPodHasArg(t *testing.T, f *framework.Framework, fiName, namespace, expectedLine string, interval, timeout time.Duration) error {
 	return wait.PollImmediate(interval, timeout, func() (bool, error) {
-		ds, getErr := f.KubeClient.AppsV1().DaemonSets(namespace).Get(goctx.TODO(), common.GetDaemonSetName(fiName), metav1.GetOptions{})
+		ds, getErr := f.KubeClient.AppsV1().DaemonSets(namespace).Get(goctx.TODO(), common.DaemonSetName(fiName), metav1.GetOptions{})
 		if getErr != nil {
 			t.Logf("Retrying. Got error: %v\n", getErr)
 			return false, nil
@@ -1155,7 +1155,7 @@ func assertDSPodHasArg(t *testing.T, f *framework.Framework, fiName, namespace, 
 }
 
 func getFiDsPods(f *framework.Framework, fileIntegrityName, namespace string) (*corev1.PodList, error) {
-	dsName := common.GetDaemonSetName(fileIntegrityName)
+	dsName := common.DaemonSetName(fileIntegrityName)
 	ds, err := f.KubeClient.AppsV1().DaemonSets(namespace).Get(goctx.TODO(), dsName, metav1.GetOptions{})
 	if err != nil {
 		return nil, err

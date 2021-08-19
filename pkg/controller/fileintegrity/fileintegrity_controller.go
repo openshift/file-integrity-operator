@@ -2,6 +2,7 @@ package fileintegrity
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -150,9 +151,33 @@ func (r *ReconcileFileIntegrity) handleDefaultConfigMaps(logger logr.Logger, f *
 	return confCm, scriptsUpdated, nil
 }
 
-func (r *ReconcileFileIntegrity) createReinitDaemonSet(instance *fileintegrityv1alpha1.FileIntegrity) error {
+// narrowNodeSelector returns a LabelSelector as-is from instance if node == nil, otherwise, return a LabelSelector for
+// node if node is contained in the node group. Used for making a node-specific DS.
+func (r *ReconcileFileIntegrity) narrowNodeSelector(instance *fileintegrityv1alpha1.FileIntegrity, node *corev1.Node) (metav1.LabelSelector, error) {
+	narrowSelector := metav1.LabelSelector{}
+	if node == nil {
+		narrowSelector.MatchLabels = instance.Spec.NodeSelector
+		return narrowSelector, nil
+	}
+
+	hostnameFromLabel, ok := node.Labels["kubernetes.io/hostname"]
+	if !ok || len(hostnameFromLabel) == 0 {
+		return narrowSelector, errors.New("couldn't find hostname label from node")
+	}
+
+	narrowSelector.MatchLabels = map[string]string{
+		"kubernetes.io/hostname": hostnameFromLabel,
+	}
+
+	return narrowSelector, nil
+}
+
+// createReinitDaemonSet creates a re-init daemonSet. The daemonSet will be a single-node reinit if node is not "" (like
+// in the node update case), otherwise, it will apply to the whole node instance node group (like in the manual re-init
+// case).
+func (r *ReconcileFileIntegrity) createReinitDaemonSet(instance *fileintegrityv1alpha1.FileIntegrity, node string) error {
 	daemonSet := &appsv1.DaemonSet{}
-	dsName := common.GetReinitDaemonSetName(instance.Name)
+	dsName := common.ReinitDaemonSetNodeName(instance.Name, node)
 	dsNamespace := common.FileIntegrityNamespace
 
 	err := r.client.Get(context.TODO(), types.NamespacedName{Name: dsName, Namespace: dsNamespace}, daemonSet)
@@ -165,7 +190,27 @@ func (r *ReconcileFileIntegrity) createReinitDaemonSet(instance *fileintegrityv1
 		return err
 	}
 
-	ds := reinitAideDaemonset(common.GetReinitDaemonSetName(instance.Name), instance)
+	var reinitNode *corev1.Node
+	if len(node) > 0 {
+		n := corev1.Node{}
+		getErr := r.client.Get(context.TODO(), types.NamespacedName{Name: node}, &n)
+		if getErr != nil && !kerr.IsNotFound(getErr) {
+			return getErr
+		}
+		// Something happened to the node we wanted, continue without spawning the re-init daemonSet.
+		if kerr.IsNotFound(getErr) {
+			return nil
+		}
+		reinitNode = &n
+	}
+
+	// The reinit daemonset may need to apply to a single node only.
+	selectorOverride, narrowErr := r.narrowNodeSelector(instance, reinitNode)
+	if narrowErr != nil {
+		return narrowErr
+	}
+
+	ds := reinitAideDaemonset(common.ReinitDaemonSetNodeName(instance.Name, node), instance, selectorOverride)
 	if err := controllerutil.SetControllerReference(instance, ds, r.scheme); err != nil {
 		return err
 	}
@@ -178,7 +223,7 @@ func (r *ReconcileFileIntegrity) createReinitDaemonSet(instance *fileintegrityv1
 	return err
 }
 
-func (r *ReconcileFileIntegrity) updateAideConfig(conf *corev1.ConfigMap, data string) error {
+func (r *ReconcileFileIntegrity) updateAideConfig(conf *corev1.ConfigMap, data, node string) error {
 	confCopy := conf.DeepCopy()
 	confCopy.Data[common.DefaultConfDataKey] = data
 
@@ -187,12 +232,12 @@ func (r *ReconcileFileIntegrity) updateAideConfig(conf *corev1.ConfigMap, data s
 	}
 
 	// Mark the configMap as updated by the user-provided config, for the configMap-controller to trigger an update.
-	confCopy.Annotations[common.AideConfigUpdatedAnnotationKey] = "true"
+	confCopy.Annotations[common.AideConfigUpdatedAnnotationKey] = node
 
 	return r.client.Update(context.TODO(), confCopy)
 }
 
-func (r *ReconcileFileIntegrity) retrieveAndAnnotateAideConfig(conf *corev1.ConfigMap) error {
+func (r *ReconcileFileIntegrity) retrieveAndAnnotateAideConfig(conf *corev1.ConfigMap, node string) error {
 	cachedconf := &corev1.ConfigMap{}
 	// Get the latest config...
 	err := r.client.Get(context.TODO(), types.NamespacedName{Name: conf.Name, Namespace: conf.Namespace}, cachedconf)
@@ -200,7 +245,7 @@ func (r *ReconcileFileIntegrity) retrieveAndAnnotateAideConfig(conf *corev1.Conf
 		return err
 	}
 
-	return r.updateAideConfig(cachedconf, cachedconf.Data[common.DefaultConfDataKey])
+	return r.updateAideConfig(cachedconf, cachedconf.Data[common.DefaultConfDataKey], node)
 }
 
 func (r *ReconcileFileIntegrity) aideConfigIsDefault(instance *fileintegrityv1alpha1.FileIntegrity) (bool, error) {
@@ -229,7 +274,7 @@ func (r *ReconcileFileIntegrity) reconcileUserConfig(instance *fileintegrityv1al
 		if !hasDefaultConfig {
 			// The configuration was previously replaced. We want to restore it now.
 			reqLogger.Info("Restoring the AIDE configuration defaults.")
-			if err := r.updateAideConfig(currentConfig, DefaultAideConfig); err != nil {
+			if err := r.updateAideConfig(currentConfig, DefaultAideConfig, ""); err != nil {
 				return false, err
 			}
 			return true, nil
@@ -277,7 +322,7 @@ func (r *ReconcileFileIntegrity) reconcileUserConfig(instance *fileintegrityv1al
 		return false, nil
 	}
 
-	if err := r.updateAideConfig(currentConfig, preparedConf); err != nil {
+	if err := r.updateAideConfig(currentConfig, preparedConf, ""); err != nil {
 		return false, err
 	}
 
@@ -306,7 +351,7 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 		return reconcile.Result{}, err
 	}
 
-	daemonSetName := common.GetDaemonSetName(instance.Name)
+	daemonSetName := common.DaemonSetName(instance.Name)
 
 	defaultAideConf, scriptsUpdated, err := r.handleDefaultConfigMaps(reqLogger, instance)
 	if err != nil {
@@ -324,14 +369,15 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 		return reconcile.Result{}, err
 	}
 
-	_, forceReinit := instance.Annotations[common.AideDatabaseReinitAnnotationKey]
+	nodeToReinit := ""
+	nodeToReinit, forceReinit := instance.Annotations[common.AideDatabaseReinitAnnotationKey]
 	if hasNewConfig || forceReinit {
-		if err := r.createReinitDaemonSet(instance); err != nil {
+		if err := r.createReinitDaemonSet(instance, nodeToReinit); err != nil {
 			return reconcile.Result{}, err
 		}
 
 		if forceReinit {
-			reqLogger.Info("re-init daemonSet created, triggered by demand or node")
+			reqLogger.Info("re-init daemonSet created, triggered by demand or node", "node", nodeToReinit)
 			r.metrics.IncFileIntegrityReinitByDemand()
 		} else {
 			reqLogger.Info("re-init daemonSet created, triggered by configuration change")
@@ -342,7 +388,7 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 	// Remove re-init annotation
 	if forceReinit {
 		reqLogger.Info("Annotating AIDE config to be updated.")
-		if err := r.retrieveAndAnnotateAideConfig(defaultAideConf); err != nil {
+		if err := r.retrieveAndAnnotateAideConfig(defaultAideConf, nodeToReinit); err != nil {
 			return reconcile.Result{}, err
 		}
 		fiCopy := instance.DeepCopy()
@@ -395,7 +441,7 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 
 			// TODO: We might want to change this to something that signals to the daemonSet pods that they need to
 			// gracefully exit, and let them restart that way.
-			err := common.RestartFileIntegrityDs(r.client, common.GetDaemonSetName(instance.Name))
+			err := common.RestartFileIntegrityDs(r.client, common.DaemonSetName(instance.Name))
 			if err != nil {
 				return reconcile.Result{}, err
 			}
@@ -477,7 +523,8 @@ func defaultAIDEConfigMap(name string) *corev1.ConfigMap {
 			Name:      name,
 			Namespace: common.FileIntegrityNamespace,
 			Labels: map[string]string{
-				common.AideConfigLabelKey: "",
+				common.AideConfigLabelKey:     "",
+				common.IntegrityOwnerLabelKey: name,
 			},
 		},
 		Data: map[string]string{
@@ -526,7 +573,7 @@ func configMapKeyDataMatches(cm1, cm2 *corev1.ConfigMap, key string) bool {
 
 // reinitAideDaemonset returns a DaemonSet that runs a one-shot pod on each node. This pod touches a file
 // on the host OS that informs the AIDE daemon to back up and reinitialize the AIDE db.
-func reinitAideDaemonset(reinitDaemonSetName string, fi *fileintegrityv1alpha1.FileIntegrity) *appsv1.DaemonSet {
+func reinitAideDaemonset(reinitDaemonSetName string, fi *fileintegrityv1alpha1.FileIntegrity, selector metav1.LabelSelector) *appsv1.DaemonSet {
 	priv := true
 	runAs := int64(0)
 	mode := int32(0744)
@@ -549,7 +596,7 @@ func reinitAideDaemonset(reinitDaemonSetName string, fi *fileintegrityv1alpha1.F
 					},
 				},
 				Spec: corev1.PodSpec{
-					NodeSelector:       fi.Spec.NodeSelector,
+					NodeSelector:       selector.MatchLabels,
 					Tolerations:        fi.Spec.Tolerations,
 					ServiceAccountName: common.OperatorServiceAccountName,
 					InitContainers: []corev1.Container{

@@ -117,16 +117,22 @@ func GetScriptName(fiName string) string {
 	return AideScriptConfigMapPrefix + "-" + fiName
 }
 
-// GetDaemonSetName gets the name of the owner (usually a FileIntegrity CR) and
-// returns an appropriate name for the DaemonSet that's owned by it.
-func GetDaemonSetName(name string) string {
-	return DaemonSetPrefix + "-" + name
+// DaemonSetName returns a friendly name for the AIDE daemonSet
+func DaemonSetName(name string) string {
+	return DNSLengthName(DaemonSetPrefix, "%s-%s", DaemonSetPrefix, name)
 }
 
-// GetReinitDaemonSetName gets the name of the owner (usually a FileIntegrity CR) and
-// returns an appropriate name for the DaemonSet that's owned by it.
-func GetReinitDaemonSetName(name string) string {
-	return ReinitDaemonSetPrefix + "-" + name
+// ReinitDaemonSetName returns a friendly name for the re-init daemonSet
+func ReinitDaemonSetName(name string) string {
+	return DNSLengthName(ReinitDaemonSetPrefix, "%s-%s", ReinitDaemonSetPrefix, name)
+}
+
+// ReinitDaemonSetNodeName returns a friendly name for the re-init daemonSet for one node.
+func ReinitDaemonSetNodeName(name, node string) string {
+	if len(node) == 0 {
+		return ReinitDaemonSetName(name)
+	}
+	return DNSLengthName(ReinitDaemonSetPrefix, "%s-%s-%s", ReinitDaemonSetPrefix, name, node)
 }
 
 // RestartFileIntegrityDs restarts all pods that belong to a given DaemonSet. This can be

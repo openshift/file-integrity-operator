@@ -57,7 +57,7 @@ E2E_USE_DEFAULT_IMAGES?=false
 # Pass extra flags to the e2e test run.
 # e.g. to run a specific test in the e2e test suite, do:
 # 	make e2e E2E_GO_TEST_FLAGS="-v -run TestE2E/TestScanWithNodeSelectorFiltersCorrectly"
-E2E_GO_TEST_FLAGS?=-v -timeout 45m
+E2E_GO_TEST_FLAGS?=-v -timeout 60m
 
 # operator-sdk arguments for `make release`.
 QUAY_NAMESPACE=file-integrity-operator

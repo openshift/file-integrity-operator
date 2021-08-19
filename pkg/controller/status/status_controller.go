@@ -2,8 +2,9 @@ package status
 
 import (
 	"context"
-	"github.com/openshift/file-integrity-operator/pkg/controller/metrics"
 	"time"
+
+	"github.com/openshift/file-integrity-operator/pkg/controller/metrics"
 
 	"github.com/go-logr/logr"
 
@@ -121,26 +122,55 @@ func (r *ReconcileFileIntegrityStatus) Reconcile(request reconcile.Request) (rec
 		return reconcile.Result{}, err
 	}
 
-	// first check is for the reinit daemonset, when this exists at all we are in an initialization phase.
-	reinitDS := &appsv1.DaemonSet{}
-	reinitDSName := common.GetReinitDaemonSetName(instance.Name)
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: reinitDSName, Namespace: common.FileIntegrityNamespace}, reinitDS)
+	// List the nodes associated with the FI
+	nodeList, getErr := r.getFileIntegrityNodes(instance)
+	if getErr != nil {
+		return reconcile.Result{}, getErr
+	}
+
+	// If any of the associated nodes have an active re-init daemonSet, then the FI is initializing
+	for _, node := range nodeList.Items {
+		nodeName := node.Name
+		ds := &appsv1.DaemonSet{}
+		dsName := common.ReinitDaemonSetNodeName(instance.Name, nodeName)
+		err = r.client.Get(context.TODO(), types.NamespacedName{Name: dsName, Namespace: common.FileIntegrityNamespace}, ds)
+		if err != nil && !kerr.IsNotFound(err) {
+			reqLogger.Error(err, "error getting reinit daemonSet")
+			return reconcile.Result{}, err
+		}
+		if err == nil {
+			// One of the reinit daemonsets for the node group is present
+			reqLogger.Info("node has an active re-init", "Name", nodeName, "daemonSet name", ds.Name)
+			updateErr := r.updateStatus(reqLogger, instance, fileintegrityv1alpha1.PhaseInitializing)
+			if updateErr != nil {
+				reqLogger.Error(updateErr, "error updating FileIntegrity status")
+				return reconcile.Result{}, updateErr
+			}
+			return reconcile.Result{RequeueAfter: statusRequeue}, nil
+		}
+	}
+
+	// There was no node-specific daemonset, so now try to handle the general one to see if the FI is initializing
+	generalDs := &appsv1.DaemonSet{}
+	generalDsName := common.ReinitDaemonSetName(instance.Name)
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: generalDsName, Namespace: common.FileIntegrityNamespace}, generalDs)
 	if err != nil && !kerr.IsNotFound(err) {
 		reqLogger.Error(err, "error getting reinit daemonSet")
 		return reconcile.Result{}, err
 	}
+
+	// Found, so we are initializing
 	if err == nil {
-		// reinit daemonset is active, thus we are initializing
-		err := r.updateStatus(reqLogger, instance, fileintegrityv1alpha1.PhaseInitializing)
-		if err != nil {
-			reqLogger.Error(err, "error updating FileIntegrity status")
-			return reconcile.Result{}, err
+		statusErr := r.updateStatus(reqLogger, instance, fileintegrityv1alpha1.PhaseInitializing)
+		if statusErr != nil {
+			reqLogger.Error(statusErr, "error updating FileIntegrity status")
+			return reconcile.Result{}, statusErr
 		}
-		return reconcile.Result{}, nil
+		return reconcile.Result{RequeueAfter: statusRequeue}, nil
 	}
 
 	ds := &appsv1.DaemonSet{}
-	dsName := common.GetDaemonSetName(instance.Name)
+	dsName := common.DaemonSetName(instance.Name)
 	err = r.client.Get(context.TODO(), types.NamespacedName{Name: dsName, Namespace: common.FileIntegrityNamespace}, ds)
 	if err != nil && !kerr.IsNotFound(err) {
 		reqLogger.Error(err, "error getting daemonSet")
@@ -149,26 +179,26 @@ func (r *ReconcileFileIntegrityStatus) Reconcile(request reconcile.Request) (rec
 
 	if err == nil {
 		if common.DaemonSetIsReady(ds) && !common.DaemonSetIsUpdating(ds) {
-			phase, err := r.mapActiveStatus(instance)
-			if err != nil {
-				reqLogger.Error(err, "error getting FileIntegrityNodeStatusList")
-				return reconcile.Result{}, err
+			phase, mapStatusErr := r.mapActiveStatus(instance)
+			if mapStatusErr != nil {
+				reqLogger.Error(mapStatusErr, "error getting FileIntegrityNodeStatusList")
+				return reconcile.Result{}, mapStatusErr
 			}
 
-			err = r.updateStatus(reqLogger, instance, phase)
-			if err != nil {
-				reqLogger.Error(err, "error updating FileIntegrity status")
-				return reconcile.Result{}, err
+			updateErr := r.updateStatus(reqLogger, instance, phase)
+			if updateErr != nil {
+				reqLogger.Error(updateErr, "error updating FileIntegrity status")
+				return reconcile.Result{}, updateErr
 			}
-			return reconcile.Result{}, nil
+			return reconcile.Result{RequeueAfter: statusRequeue}, nil
 		}
 		// Not ready, set to initializing
-		err := r.updateStatus(reqLogger, instance, fileintegrityv1alpha1.PhaseInitializing)
-		if err != nil {
-			reqLogger.Error(err, "error updating FileIntegrity status")
-			return reconcile.Result{}, err
+		updateErr := r.updateStatus(reqLogger, instance, fileintegrityv1alpha1.PhaseInitializing)
+		if updateErr != nil {
+			reqLogger.Error(updateErr, "error updating FileIntegrity status")
+			return reconcile.Result{}, updateErr
 		}
-		return reconcile.Result{}, nil
+		return reconcile.Result{RequeueAfter: statusRequeue}, nil
 	}
 
 	// both daemonSets were missing, so we're currently inactive.
@@ -178,7 +208,7 @@ func (r *ReconcileFileIntegrityStatus) Reconcile(request reconcile.Request) (rec
 		return reconcile.Result{}, err
 	}
 
-	return reconcile.Result{}, nil
+	return reconcile.Result{RequeueAfter: statusRequeue}, nil
 }
 
 // mapActiveStatus returns the FileIntegrityStatus relative to the node status; If any nodes have an error, return
@@ -233,4 +263,16 @@ func (r *ReconcileFileIntegrityStatus) updateStatus(logger logr.Logger, integrit
 		r.recorder.Eventf(integrity, eventType, "FileIntegrityStatus", "%s", integrityCopy.Status.Phase)
 	}
 	return nil
+}
+
+func (r *ReconcileFileIntegrityStatus) getFileIntegrityNodes(instance *fileintegrityv1alpha1.FileIntegrity) (*corev1.NodeList, error) {
+	listOpts := &client.ListOptions{
+		LabelSelector: labels.SelectorFromSet(instance.Spec.NodeSelector),
+	}
+	nodes := &corev1.NodeList{}
+	err := r.client.List(context.TODO(), nodes, listOpts)
+	if err != nil {
+		return nil, err
+	}
+	return nodes, nil
 }
