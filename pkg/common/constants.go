@@ -17,6 +17,8 @@ const (
 	IntegrityLogResultLabelKey = "file-integrity.openshift.io/result-log"
 	// IntegrityOwnerLabelKey tells us what FileIntegrity object owns a specific ConfigMap
 	IntegrityOwnerLabelKey = "file-integrity.openshift.io/owner"
+	// IntegrityReinitOwnerLabelKey tells us what FileIntegrity object owns a re-init daemonSet
+	IntegrityReinitOwnerLabelKey = "file-integrity.openshift.io/reinit-owner"
 	// IntegrityConfigMapNodeLabelKey tells us from which node did the configmap come from
 	IntegrityConfigMapNodeLabelKey = "file-integrity.openshift.io/node"
 	// IntegrityLogContentKey is the key in the configmap where the logs are stored
