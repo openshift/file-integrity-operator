@@ -5,6 +5,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.18] - 2021-08-20
+### Changes
+- Optimize per-node reinit calls
+- Handle metrics service during operator start
+- Bug 1862022: Per-node reinit during update
+- Update Dockerfile.ci goland and base image
+- Use fedora-minimal:34 base image
+
 ## [0.1.17] - 2021-08-05
 ### Changes
 - Move test-specific permissions out of deploy manifests
