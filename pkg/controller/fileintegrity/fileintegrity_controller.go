@@ -180,28 +180,23 @@ func (r *ReconcileFileIntegrity) createReinitDaemonSet(instance *fileintegrityv1
 	dsName := common.ReinitDaemonSetNodeName(instance.Name, node)
 	dsNamespace := common.FileIntegrityNamespace
 
-	err := r.client.Get(context.TODO(), types.NamespacedName{Name: dsName, Namespace: dsNamespace}, daemonSet)
-	if err == nil {
+	getErr := r.client.Get(context.TODO(), types.NamespacedName{Name: dsName, Namespace: dsNamespace}, daemonSet)
+	if getErr == nil {
 		// Exists, so continue.
 		return nil
 	}
-
-	if !kerr.IsNotFound(err) {
-		return err
+	if !kerr.IsNotFound(getErr) {
+		return getErr
 	}
 
-	var reinitNode *corev1.Node
-	if len(node) > 0 {
-		n := corev1.Node{}
-		getErr := r.client.Get(context.TODO(), types.NamespacedName{Name: node}, &n)
-		if getErr != nil && !kerr.IsNotFound(getErr) {
-			return getErr
-		}
-		// Something happened to the node we wanted, continue without spawning the re-init daemonSet.
-		if kerr.IsNotFound(getErr) {
-			return nil
-		}
-		reinitNode = &n
+	reinitNode, tryNodeErr := r.tryGettingNode(node)
+	if tryNodeErr != nil && !kerr.IsNotFound(tryNodeErr) {
+		return tryNodeErr
+	}
+	if kerr.IsNotFound(tryNodeErr) {
+		// We wanted a node, but it was not found. It might be scaled down. Return with no error so we don't continue with
+		// creating a re-init daemonSet.
+		return nil
 	}
 
 	// The reinit daemonset may need to apply to a single node only.
@@ -215,12 +210,26 @@ func (r *ReconcileFileIntegrity) createReinitDaemonSet(instance *fileintegrityv1
 		return err
 	}
 
-	err = r.client.Create(context.TODO(), ds)
-	if err == nil {
+	createErr := r.client.Create(context.TODO(), ds)
+	if createErr == nil {
 		r.metrics.IncFileIntegrityReinitDaemonsetUpdate()
 	}
 
-	return err
+	return createErr
+}
+
+// If node == "", return nil, nil, otherwise try to find a node with that name. Not found needs to be handled outside
+// of this function.
+func (r *ReconcileFileIntegrity) tryGettingNode(node string) (*corev1.Node, error) {
+	if len(node) == 0 {
+		return nil, nil
+	}
+	n := corev1.Node{}
+	err := r.client.Get(context.TODO(), types.NamespacedName{Name: node}, &n)
+	if err != nil {
+		return nil, err
+	}
+	return &n, nil
 }
 
 func (r *ReconcileFileIntegrity) updateAideConfig(conf *corev1.ConfigMap, data, node string) error {
@@ -582,6 +591,9 @@ func reinitAideDaemonset(reinitDaemonSetName string, fi *fileintegrityv1alpha1.F
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      reinitDaemonSetName,
 			Namespace: common.FileIntegrityNamespace,
+			Labels: map[string]string{
+				common.IntegrityReinitOwnerLabelKey: fi.Name,
+			},
 		},
 		Spec: appsv1.DaemonSetSpec{
 			Selector: &metav1.LabelSelector{
