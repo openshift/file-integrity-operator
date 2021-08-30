@@ -87,6 +87,7 @@ CONTENT_EX = sha512+ftype+p+u+g+n+acl+selinux+xattrs
 /hostroot/boot/        CONTENT_EX
 /hostroot/root/\..* PERMS
 /hostroot/root/   CONTENT_EX
+!/hostroot/root/\.kube
 !/hostroot/usr/src/
 !/hostroot/usr/tmp/
 
@@ -105,6 +106,9 @@ CONTENT_EX = sha512+ftype+p+u+g+n+acl+selinux+xattrs
 !/hostroot/etc/selinux/targeted
 !/hostroot/etc/openvswitch/conf.db
 !/hostroot/etc/kubernetes/cni/net.d/*
+!/hostroot/etc/machine-config-daemon/currentconfig$
+!/hostroot/etc/pki/ca-trust/extracted/java/cacerts$
+!/hostroot/etc/cvo/updatepayloads
 
 # Catch everything else in /etc
 /hostroot/etc/    CONTENT_EX`
