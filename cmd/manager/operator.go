@@ -250,7 +250,7 @@ func ensureMetricsServiceAndSecret(ctx context.Context, kClient *kubernetes.Clie
 func createIntegrityFailureAlert(ctx context.Context, client *monclientv1.MonitoringV1Client, namespace string) error {
 	rule := monitoring.Rule{
 		Alert: "NodeHasIntegrityFailure",
-		Expr:  intstr.FromString(`file_integrity_operator_node_failed{node=~".+"} == 1`),
+		Expr:  intstr.FromString(`file_integrity_operator_node_failed{node=~".+"} * on(node) kube_node_info > 0`),
 		For:   "1s",
 		Labels: map[string]string{
 			"severity": "warning",
