@@ -332,7 +332,7 @@ spec:
         description: Node {{ $labels.node }} has an an integrity check status of Failed for
           more than 1 second.
         summary: Node {{ $labels.node }} has a file integrity failure
-      expr: file_integrity_operator_node_failed{node=~".+"} == 1
+      expr: file_integrity_operator_node_failed{node=~".+"} * on(node) kube_node_info > 0
       for: 1s
       labels:
         severity: warning
