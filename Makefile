@@ -244,6 +244,8 @@ deploy: namespace deploy-crds ## Deploy the operator from the manifests in the d
 deploy-local: namespace image-to-cluster deploy-crds ## Deploy the operator from the manifests in the deploy/ directory and the images from a local build
 	@sed -i 's%$(IMAGE_REPO)/$(APP_NAME):latest%$(RELATED_IMAGE_OPERATOR_PATH)%' deploy/operator.yaml
 	@oc apply -n $(NAMESPACE) -f deploy/
+	@oc apply -f deploy/olm-catalog/file-integrity-operator/manifests/monitoring_clusterrole.yaml
+	@oc apply -f deploy/olm-catalog/file-integrity-operator/manifests/monitoring_clusterrolebinding.yaml
 	@sed -i 's%$(RELATED_IMAGE_OPERATOR_PATH)%$(IMAGE_REPO)/$(APP_NAME):latest%' deploy/operator.yaml
 
 .PHONY: deploy-crds
