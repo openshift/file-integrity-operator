@@ -187,12 +187,12 @@ endif
 	@echo "Restoring image references in deploy/operator.yaml"
 	@sed -i 's%$(RELATED_IMAGE_OPERATOR_PATH)%$(IMAGE_REPO)/$(APP_NAME):latest%' deploy/operator.yaml
 
-# If IMAGE_FORMAT is not defined, it means that we're not running on CI, so we
+# If IMAGE_FROM_CI is not defined, it means that we're not running on CI, so we
 # probably want to push the file-integrity-operator image to the cluster we're
 # developing on. This target exposes temporarily the image registry, pushes the
 # image, and remove the route in the end.
 #
-# The IMAGE_FORMAT variable comes from CI. It is of the format:
+# The IMAGE_FROM_CI variable comes from CI. It is of the format:
 #     <image path in CI registry>:${component}
 # Here define the `component` variable, so, when we overwrite the
 # RELATED_IMAGE_OPERATOR_PATH variable, it'll expand to the component we need.
@@ -204,12 +204,12 @@ endif
 # If the E2E_USE_DEFAULT_IMAGES environment variable is used, this will do
 # nothing, and the default images will be used.
 .PHONY: image-to-cluster
-ifdef IMAGE_FORMAT
+ifdef IMAGE_FROM_CI
 image-to-cluster:
-	@echo "IMAGE_FORMAT variable detected. We're in a CI enviornment."
+	@echo "IMAGE_FROM_CI variable detected. We're in a CI enviornment."
 	@echo "Skipping image-to-cluster target."
 	$(eval component = $(APP_NAME))
-	$(eval RELATED_IMAGE_OPERATOR_PATH = $(IMAGE_FORMAT))
+	$(eval RELATED_IMAGE_OPERATOR_PATH = $(IMAGE_FROM_CI))
 else ifeq ($(E2E_USE_DEFAULT_IMAGES), true)
 image-to-cluster:
 	@echo "E2E_USE_DEFAULT_IMAGES variable detected. Using default images."
@@ -219,7 +219,7 @@ image-to-cluster:
 	$(eval RELATED_IMAGE_OPERATOR_PATH = image-registry.openshift-image-registry.svc:5000/$(NAMESPACE)/$(APP_NAME):$(TAG))
 else
 image-to-cluster: namespace openshift-user image
-	@echo "IMAGE_FORMAT variable missing. We're in local enviornment."
+	@echo "IMAGE_FROM_CI variable missing. We're in local enviornment."
 	@echo "Temporarily exposing the default route to the image registry"
 	@oc patch configs.imageregistry.operator.openshift.io/cluster --patch '{"spec":{"defaultRoute":true}}' --type=merge
 	@echo "Pushing image $(RELATED_IMAGE_OPERATOR_PATH):$(TAG) to the image registry"
