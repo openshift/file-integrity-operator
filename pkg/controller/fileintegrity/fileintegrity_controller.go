@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"strings"
+
+	"k8s.io/apimachinery/pkg/labels"
 
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -417,6 +420,11 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 			reqLogger.Error(err, "error getting daemonSet")
 			return reconcile.Result{}, err
 		}
+
+		if legacyDeleteErr := r.deleteLegacyDaemonSets(instance); legacyDeleteErr != nil {
+			return reconcile.Result{}, legacyDeleteErr
+		}
+
 		// create
 		ds := aideDaemonset(daemonSetName, instance)
 
@@ -459,6 +467,26 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 		}
 	}
 	return reconcile.Result{}, nil
+}
+
+// The old daemonSets had a "aide-ds-" prefix, but that is no longer. If any are around after upgrade, delete them.
+func (r *ReconcileFileIntegrity) deleteLegacyDaemonSets(instance *fileintegrityv1alpha1.FileIntegrity) error {
+	daemonSetList := &appsv1.DaemonSetList{}
+	if err := r.client.List(context.TODO(), daemonSetList, &client.ListOptions{LabelSelector: labels.SelectorFromSet(labels.Set{
+		common.IntegrityOwnerLabelKey: instance.Name,
+	})}); err != nil {
+		return err
+	}
+	for i, _ := range daemonSetList.Items {
+		daemonSet := &daemonSetList.Items[i]
+		// Check for the old prefixed ds, delete it (it's being replaced by the newly named ones.)
+		if strings.HasPrefix(daemonSet.Name, "aide-ds-") {
+			if deleteErr := r.client.Delete(context.TODO(), daemonSet, nil); deleteErr != nil {
+				return deleteErr
+			}
+		}
+	}
+	return nil
 }
 
 func updateDSNodeSelector(currentDS *appsv1.DaemonSet, fi *fileintegrityv1alpha1.FileIntegrity, logger logr.Logger) bool {
