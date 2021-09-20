@@ -12,7 +12,14 @@ RUNTIME?=podman
 # the cluster or if we're on CI.
 RELATED_IMAGE_OPERATOR_PATH?=$(IMAGE_REPO)/$(APP_NAME)
 BUNDLE_IMAGE_PATH=$(IMAGE_REPO)/file-integrity-operator-bundle
-INDEX_IMAGE_PATH=$(IMAGE_REPO)/file-integrity-operator-index
+BUNDLE_IMAGE_TAG?=latest
+TEST_BUNDLE_IMAGE_TAG?=testonly
+INDEX_IMAGE_NAME=file-integrity-operator-index
+INDEX_IMAGE_PATH=$(IMAGE_REPO)/$(INDEX_IMAGE_NAME)
+INDEX_IMAGE_TAG?=latest
+
+#
+DOWNLEVEL_VERSION?=0.1.16
 
 # Image tag to use. Set this if you want to use a specific tag for building
 # or your e2e tests.
@@ -85,11 +92,53 @@ operator-image: operator-sdk
 
 .PHONY: bundle-image
 bundle-image:
-	$(RUNTIME) build -t $(BUNDLE_IMAGE_PATH):$(TAG) -f bundle.Dockerfile .
+	$(RUNTIME) build -t $(BUNDLE_IMAGE_PATH):$(BUNDLE_IMAGE_TAG) -f bundle.Dockerfile .
+
+.PHONY: test-bundle-image
+test-bundle-image:
+	$(RUNTIME) build -t $(BUNDLE_IMAGE_PATH):$(TEST_BUNDLE_IMAGE_TAG) -f bundle.Dockerfile .
 
 .PHONY: index-image
 index-image: opm
-	$(GOPATH)/bin/opm index add -b $(BUNDLE_IMAGE_PATH):$(TAG) -f $(INDEX_IMAGE_PATH):latest -t $(INDEX_IMAGE_PATH):latest -c $(RUNTIME) --overwrite-latest
+	$(GOPATH)/bin/opm index add -b $(BUNDLE_IMAGE_PATH):$(BUNDLE_IMAGE_TAG) -f $(INDEX_IMAGE_PATH):$(INDEX_IMAGE_TAG) -t $(INDEX_IMAGE_PATH):$(INDEX_IMAGE_TAG) -c $(RUNTIME) --overwrite-latest
+
+.PHONY: test-index-image
+test-index-image: opm test-bundle-image push-test-bundle
+	$(GOPATH)/bin/opm index add -b $(BUNDLE_IMAGE_PATH):$(TEST_BUNDLE_IMAGE_TAG) -t $(INDEX_IMAGE_PATH):$(INDEX_IMAGE_TAG) -c $(RUNTIME)
+
+# Like the above, but for making an index image out of an old published (not built here) operator version. Useful for upgrade testing.
+# Run `make index-downlevel` and then `make index-to-cluster` to push an index that installs the 0.1.16 bundle.
+# Then run `make test-catalog` to build a test bundle and index from HEAD.
+.PHONY: index-downlevel
+index-downlevel: opm
+	$(GOPATH)/bin/opm index add -b $(BUNDLE_IMAGE_PATH):$(DOWNLEVEL_VERSION) -t $(INDEX_IMAGE_PATH):$(INDEX_IMAGE_TAG) -c $(RUNTIME)
+
+.PHONY: test-index-to-cluster
+test-index-to-cluster: namespace openshift-user test-index-image index-to-cluster
+
+# Doesn't build the index; for use after running `make index-downlevel`
+.PHONY: index-to-cluster
+index-to-cluster: namespace openshift-user
+	@echo "Temporarily exposing the default route to the image registry"
+	@oc patch configs.imageregistry.operator.openshift.io/cluster --patch '{"spec":{"defaultRoute":true}}' --type=merge
+	@echo "Pushing image $(INDEX_IMAGE_PATH):$(INDEX_IMAGE_TAG) to the image registry"
+	IMAGE_REGISTRY_HOST=$$(oc get route default-route -n openshift-image-registry --template='{{ .spec.host }}'); \
+		$(RUNTIME) login --tls-verify=false -u $(OPENSHIFT_USER) -p $(shell oc whoami -t) $${IMAGE_REGISTRY_HOST}; \
+		$(RUNTIME) push --tls-verify=false $(INDEX_IMAGE_PATH):$(INDEX_IMAGE_TAG) $${IMAGE_REGISTRY_HOST}/openshift/$(INDEX_IMAGE_NAME):$(INDEX_IMAGE_TAG)
+	@echo "Removing the route from the image registry"
+	@oc patch configs.imageregistry.operator.openshift.io/cluster --patch '{"spec":{"defaultRoute":false}}' --type=merge
+	$(eval LOCAL_INDEX_IMAGE_PATH = image-registry.openshift-image-registry.svc:5000/openshift/$(INDEX_IMAGE_NAME):$(INDEX_IMAGE_TAG))
+
+.PHONY: test-catalog
+test-catalog: test-index-to-cluster
+	@echo "WARNING: This will temporarily modify deploy/olm-catalog/catalog-source.yaml"
+	@echo "Replacing image reference in deploy/olm-catalog/catalog-source.yaml to $(LOCAL_INDEX_IMAGE_PATH)"
+	@sed -i 's%quay.io/file-integrity-operator/file-integrity-operator-index:latest%$(LOCAL_INDEX_IMAGE_PATH)%' deploy/olm-catalog/catalog-source.yaml
+	@oc apply -f deploy/olm-catalog/catalog-source.yaml
+	@echo "Restoring image reference in deploy/olm-catalog/catalog-source.yaml"
+	@sed -i 's%$(LOCAL_INDEX_IMAGE_PATH)%quay.io/file-integrity-operator/file-integrity-operator-index:latest%' deploy/olm-catalog/catalog-source.yaml
+	@oc apply -f deploy/olm-catalog/operator-group.yaml
+	@oc apply -f deploy/olm-catalog/subscription.yaml
 
 .PHONY: build
 build: operator-bin ## Build the file-integrity-operator binaries
@@ -279,9 +328,18 @@ else
 endif
 
 .PHONY: push
-push: image
+push: image push-bundle
 	$(RUNTIME) push $(RELATED_IMAGE_OPERATOR_PATH):$(TAG)
-	$(RUNTIME) push $(BUNDLE_IMAGE_PATH):$(TAG)
+
+.PHONY: push-bundle
+push-bundle: bundle-image
+	# bundle image
+	$(RUNTIME) push $(BUNDLE_IMAGE_PATH):$(BUNDLE_IMAGE_TAG)
+
+.PHONY: push-test-bundle
+push-test-bundle: test-bundle-image
+	# test bundle image
+	$(RUNTIME) push $(BUNDLE_IMAGE_PATH):$(TEST_BUNDLE_IMAGE_TAG)
 
 .PHONY: push-index
 push-index: index-image
