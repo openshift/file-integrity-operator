@@ -5,6 +5,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.19] - 2021-09-24
+### Changes
+- Delete old aide-ds- prefixed daemonSets if they exist
+- Makefile: Add test-catalog targets
+- Makefile: Apply monitoring resources during deploy-local
+- Makefile: Rename IMAGE_FORMAT var
+- Use ClusterRole/ClusterRoleBinding for monitoring perms
+- Add MCO and CVO related config excludes
+- adapt prometheusrule to only alert on currently existing nodes
+
 ## [0.1.18] - 2021-08-20
 ### Changes
 - Optimize per-node reinit calls
