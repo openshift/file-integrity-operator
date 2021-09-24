@@ -19,12 +19,12 @@ metadata:
       ]
     capabilities: Seamless Upgrades
     categories: Monitoring,Security
-    olm.skipRange: '>=0.1.6 <0.1.18'
+    olm.skipRange: '>=0.1.6 <0.1.19'
     operatorframework.io/cluster-monitoring: "true"
     operatorframework.io/suggested-namespace: openshift-file-integrity
     operators.openshift.io/infrastructure-features: '["Disconnected"]'
     repository: https://github.com/openshift/file-integrity-operator
-  name: file-integrity-operator.v0.1.18
+  name: file-integrity-operator.v0.1.19
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -46,6 +46,29 @@ spec:
   install:
     spec:
       clusterPermissions:
+      - rules:
+        - apiGroups:
+          - ""
+          resources:
+          - pods
+          - services
+          - endpoints
+          verbs:
+          - get
+          - list
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - configmaps
+          verbs:
+          - get
+        - nonResourceURLs:
+          - /metrics
+          - /metrics-fio
+          verbs:
+          - get
+        serviceAccountName: file-integrity-operator-metrics
       - rules:
         - apiGroups:
           - ""
@@ -86,8 +109,8 @@ spec:
                 - name: OPERATOR_NAME
                   value: file-integrity-operator
                 - name: RELATED_IMAGE_OPERATOR
-                  value: quay.io/file-integrity-operator/file-integrity-operator:0.1.18
-                image: quay.io/file-integrity-operator/file-integrity-operator:0.1.18
+                  value: quay.io/file-integrity-operator/file-integrity-operator:0.1.19
+                image: quay.io/file-integrity-operator/file-integrity-operator:0.1.19
                 imagePullPolicy: Always
                 name: file-integrity-operator
                 resources:
@@ -225,18 +248,6 @@ spec:
           - create
           - update
         serviceAccountName: file-integrity-daemon
-      - rules:
-        - apiGroups:
-          - ""
-          resources:
-          - services
-          - endpoints
-          - pods
-          verbs:
-          - get
-          - list
-          - watch
-        serviceAccountName: prometheus-k8s
     strategy: deployment
   installModes:
   - supported: true
@@ -262,4 +273,4 @@ spec:
   provider:
     name: Red Hat
     url: https://github.com/openshift/file-integrity-operator
-  version: 0.1.18
+  version: 0.1.19
