@@ -7,12 +7,16 @@ export APP_NAME=file-integrity-operator
 IMAGE_REPO?=quay.io/file-integrity-operator
 RUNTIME?=podman
 
+# Image tag to use. Set this if you want to use a specific tag for building
+# or your e2e tests.
+TAG?=latest
+
 # Image path to use. Set this if you want to use a specific path for building
 # or your e2e tests. This is overwritten if we bulid the image and push it to
 # the cluster or if we're on CI.
 RELATED_IMAGE_OPERATOR_PATH?=$(IMAGE_REPO)/$(APP_NAME)
 BUNDLE_IMAGE_PATH=$(IMAGE_REPO)/file-integrity-operator-bundle
-BUNDLE_IMAGE_TAG?=latest
+BUNDLE_IMAGE_TAG?=$(TAG)
 TEST_BUNDLE_IMAGE_TAG?=testonly
 INDEX_IMAGE_NAME=file-integrity-operator-index
 INDEX_IMAGE_PATH=$(IMAGE_REPO)/$(INDEX_IMAGE_NAME)
@@ -20,10 +24,6 @@ INDEX_IMAGE_TAG?=latest
 
 #
 DOWNLEVEL_VERSION?=0.1.16
-
-# Image tag to use. Set this if you want to use a specific tag for building
-# or your e2e tests.
-TAG?=latest
 
 # Build variables
 # ===============
