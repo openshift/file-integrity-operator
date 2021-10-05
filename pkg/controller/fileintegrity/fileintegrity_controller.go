@@ -481,7 +481,7 @@ func (r *ReconcileFileIntegrity) deleteLegacyDaemonSets(instance *fileintegrityv
 		daemonSet := &daemonSetList.Items[i]
 		// Check for the old prefixed ds, delete it (it's being replaced by the newly named ones.)
 		if strings.HasPrefix(daemonSet.Name, "aide-ds-") {
-			if deleteErr := r.client.Delete(context.TODO(), daemonSet, nil); deleteErr != nil {
+			if deleteErr := r.client.Delete(context.TODO(), daemonSet); deleteErr != nil {
 				return deleteErr
 			}
 		}
