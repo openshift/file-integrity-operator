@@ -27,6 +27,8 @@ const (
 
 const AIDE_RETFAIL = 255
 
+const AIDE_IO_ERROR = 18
+
 var componentDefaults = []struct {
 	defaultImage string
 	envVar       string

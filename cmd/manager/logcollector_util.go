@@ -24,6 +24,7 @@ import (
 	"io"
 	"io/ioutil"
 	"regexp"
+	"time"
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/spf13/cobra"
@@ -42,6 +43,7 @@ const (
 	maxRetries    = 5
 	// These need to be lessened for normal use.
 	defaultTimeout   = 600
+	defaultSleep     = 5 * time.Second
 	configMapMaxSize = 1048570 // 1MB for etcd limit. Over this, you get an error.
 )
 

@@ -25,10 +25,13 @@ import (
 	"path/filepath"
 	"time"
 
+	backoff "github.com/cenkalti/backoff/v4"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/api/events/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/openshift/file-integrity-operator/pkg/common"
 )
 
 func aideReadDBPath(c *daemonConfig) string {
@@ -88,9 +91,22 @@ func reportDaemonError(ctx context.Context, rt *daemonRuntime, conf *daemonConfi
 
 func runAideInitDBCmd(ctx context.Context, c *daemonConfig) error {
 	configPath := aideConfigPath(c)
-	// CWE-78 - configPath is only made of user input during standalone debugging
-	// #nosec
-	return exec.CommandContext(ctx, "aide", "-c", configPath, "-i").Run()
+
+	return backoff.Retry(func() error {
+		// CWE-78 - configPath is only made of user input during standalone debugging
+		// #nosec
+		err := exec.CommandContext(ctx, "aide", "-c", configPath, "-i").Run()
+		// IO error happened, could be an issue with another AIDE pod
+		// not being deleted on time
+		if common.GetAideExitCode(err) == common.AIDE_IO_ERROR {
+			return err
+		}
+		if err != nil {
+			// Don't retry on any other error
+			return backoff.Permanent(err)
+		}
+		return nil
+	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries))
 }
 
 func runAideScanCmd(ctx context.Context, c *daemonConfig) error {
