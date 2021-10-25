@@ -282,8 +282,8 @@ endif
 
 .PHONY: namespace
 namespace:
-	@echo "Creating '$(NAMESPACE)' namespace/project"
-	@oc create -f deploy/ns.yaml || true
+	@echo "Ensuring '$(NAMESPACE)' namespace/project"
+	@oc apply -f deploy/ns.yaml
 
 .PHONY: deploy
 deploy: namespace deploy-crds ## Deploy the operator from the manifests in the deploy/ directory
