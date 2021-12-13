@@ -3,7 +3,7 @@ package fileintegrity
 const aideLogPath = "/hostroot/etc/kubernetes/aide.log"
 
 var aideReinitContainerScript = `#!/bin/sh
-    touch /hostroot/etc/kubernetes/aide.reinit
+    touch /hostroot/run/aide.reinit
 `
 
 var aidePauseContainerScript = `#!/bin/sh

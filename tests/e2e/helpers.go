@@ -56,6 +56,7 @@ const (
 	nodeWorkerRoleLabelKey  = "node-role.kubernetes.io/worker"
 	mcWorkerRoleLabelKey    = "machineconfiguration.openshift.io/role"
 	defaultTestGracePeriod  = 20
+	legacyReinitOnHost      = "/hostroot/etc/kubernetes/aide.reinit"
 )
 
 const (
@@ -418,6 +419,60 @@ func addLotsOfFilesDaemonset(namespace string) *appsv1.DaemonSet {
 	return privCommandDaemonset(namespace, "aide-add-lots-of-files",
 		"for i in `seq 1 10000`; do mktemp \"/hostroot/etc/addedbytest$i.XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\"; done || true",
 	)
+}
+
+func privPodOnNode(namespace, name, nodeName, command string) *corev1.Pod {
+	priv := true
+	runAs := int64(0)
+
+	return &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: corev1.PodSpec{
+			RestartPolicy: "Never",
+			Tolerations: []corev1.Toleration{
+				{
+					Key:      "node-role.kubernetes.io/master",
+					Operator: "Exists",
+					Effect:   "NoSchedule",
+				},
+			},
+			ServiceAccountName: common.OperatorServiceAccountName,
+			Containers: []corev1.Container{
+				{
+					SecurityContext: &corev1.SecurityContext{
+						Privileged: &priv,
+						RunAsUser:  &runAs,
+					},
+					Name:    name,
+					Image:   "busybox",
+					Command: []string{"/bin/sh"},
+					Args:    []string{"-c", command},
+					VolumeMounts: []corev1.VolumeMount{
+						{
+							Name:      "hostroot",
+							MountPath: "/hostroot",
+						},
+					},
+				},
+			},
+			Volumes: []corev1.Volume{
+				{
+					Name: "hostroot",
+					VolumeSource: corev1.VolumeSource{
+						HostPath: &corev1.HostPathVolumeSource{
+							Path: "/",
+						},
+					},
+				},
+			},
+			NodeSelector: map[string]string{
+				corev1.LabelHostname: nodeName,
+			},
+		},
+	}
 }
 
 func privCommandDaemonset(namespace, name, command string) *appsv1.DaemonSet {
@@ -1059,6 +1114,71 @@ func cleanAddedFilesOnNodes(f *framework.Framework, namespace string) error {
 	return nil
 }
 
+func waitForPod(podCallback wait.ConditionFunc) error {
+	return wait.PollImmediate(retryInterval, timeout, podCallback)
+}
+
+// containerCompleted returns a ConditionFunc that passes if all containers have succeeded and match the exit code.
+func containerCompleted(t *testing.T, c kubernetes.Interface, name, namespace string, matchExit int32) wait.ConditionFunc {
+	return func() (bool, error) {
+		pod, err := c.CoreV1().Pods(namespace).Get(goctx.TODO(), name, metav1.GetOptions{})
+		if err != nil && !kerr.IsNotFound(err) {
+			return false, err
+		}
+		if kerr.IsNotFound(err) {
+			t.Logf("Pod %s not found yet", name)
+			return false, nil
+		}
+
+		for _, podStatus := range pod.Status.ContainerStatuses {
+			t.Log(podStatus)
+
+			// the container must have terminated
+			if podStatus.State.Terminated == nil {
+				t.Log("container did not terminate yet")
+				return false, nil
+			}
+
+			if podStatus.State.Terminated.ExitCode != matchExit {
+				return true, errors.New(fmt.Sprintf("the expected exit code did not match %d", matchExit))
+			} else {
+				t.Logf("container in pod %s has finished", name)
+				return true, nil
+			}
+		}
+
+		t.Logf("container in pod %s not finished yet", name)
+		return false, nil
+	}
+}
+
+func createLegacyReinitFile(t *testing.T, ctx *framework.Context, f *framework.Framework, node, namespace string) error {
+	pod := privPodOnNode(namespace, "test-touch-pod", node, "touch "+legacyReinitOnHost+" || true")
+	if err := f.Client.Create(goctx.TODO(), pod, &framework.CleanupOptions{
+		TestContext:   ctx,
+		Timeout:       cleanupTimeout,
+		RetryInterval: cleanupRetryInterval,
+	}); err != nil {
+		return err
+	}
+
+	return waitForPod(containerCompleted(t, f.KubeClient, pod.Name, namespace, 0))
+}
+
+func confirmRemovedLegacyReinitFile(t *testing.T, ctx *framework.Context, f *framework.Framework, node, namespace string) error {
+	pod := privPodOnNode(namespace, "test-ls-pod", node, "ls "+legacyReinitOnHost)
+	if err := f.Client.Create(goctx.TODO(), pod, &framework.CleanupOptions{
+		TestContext:   ctx,
+		Timeout:       cleanupTimeout,
+		RetryInterval: cleanupRetryInterval,
+	}); err != nil {
+		return err
+	}
+
+	// We expect the ls command to exit 1 when the legacy reinit file is missing
+	return waitForPod(containerCompleted(t, f.KubeClient, pod.Name, namespace, 1))
+}
+
 func getTestMcfg(t *testing.T) *mcfgv1.MachineConfig {
 	mode := 420
 	trueish := true
@@ -1309,23 +1429,35 @@ func logContainerOutput(t *testing.T, f *framework.Framework, namespace, name st
 }
 
 func getMetricResults(t *testing.T) string {
+	out := runOCandGetOutput(t, []string{
+		"run", "--rm", "-i", "--restart=Never", "--image=registry.fedoraproject.org/fedora-minimal:latest",
+		"-nopenshift-file-integrity", "metrics-test", "--", "bash", "-c",
+		curlFIOCMD,
+	})
+
+	t.Logf("metrics output:\n%s\n", out)
+	return out
+}
+
+func getOCpath(t *testing.T) string {
 	ocPath, err := exec.LookPath("oc")
 	if err != nil {
 		t.Fatal(err)
 	}
+	return ocPath
+}
+
+func runOCandGetOutput(t *testing.T, arg []string) string {
+	ocPath := getOCpath(t)
+
 	// We're just under test.
 	// G204 (CWE-78): Subprocess launched with variable (Confidence: HIGH, Severity: MEDIUM)
 	// #nosec
-	cmd := exec.Command(ocPath,
-		"run", "--rm", "-i", "--restart=Never", "--image=registry.fedoraproject.org/fedora-minimal:latest",
-		"-nopenshift-file-integrity", "metrics-test", "--", "bash", "-c",
-		curlFIOCMD,
-	)
+	cmd := exec.Command(ocPath, arg...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Errorf("error getting output %s", err)
 	}
-	t.Logf("metrics output:\n%s\n", string(out))
 	return string(out)
 }
 

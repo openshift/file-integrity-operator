@@ -130,6 +130,65 @@ func TestFileIntegrityLogAndReinitDatabase(t *testing.T) {
 	}
 }
 
+// Ensures that on re-init, a /hostroot/etc/kubernetes/aide.reinit file (the old, unused path)
+// would be cleaned up by the daemon. The file test is on a single node.
+func TestFileIntegrityLegacyReinitCleanup(t *testing.T) {
+	f, testctx, namespace := setupTest(t)
+	testName := testIntegrityNamePrefix + "-reinit-legacy"
+	setupFileIntegrity(t, f, testctx, testName, namespace)
+	defer testctx.Cleanup()
+	defer func() {
+		if err := cleanNodes(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+	}()
+	defer logContainerOutput(t, f, namespace, testName)
+
+	// wait to go active.
+	err := waitForScanStatus(t, f, namespace, testName, fileintv1alpha1.PhaseActive)
+	if err != nil {
+		t.Errorf("Timeout waiting for scan status")
+	}
+
+	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute)
+
+	t.Log("Asserting that we have OK node condition events")
+	assertNodeOKStatusEvents(t, f, namespace, 2*time.Second, 5*time.Minute)
+
+	nodes, err := f.KubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
+		LabelSelector: nodeWorkerRoleLabelKey,
+	})
+	if err != nil {
+		t.Error(err)
+	}
+
+	testNode := nodes.Items[0].Labels["kubernetes.io/hostname"]
+
+	t.Logf("Staging /hostroot/etc/kubernetes/aide.reinit on node %s", testNode)
+	err = createLegacyReinitFile(t, testctx, f, testNode, namespace)
+	if err != nil {
+		t.Error(err)
+	}
+
+	reinitFileIntegrityDatabase(t, f, testName, namespace, time.Second, 2*time.Minute)
+
+	// wait to go active.
+	err = waitForSuccessiveScanStatus(t, f, namespace, testName, fileintv1alpha1.PhaseActive)
+	if err != nil {
+		t.Errorf("Timeout waiting for scan status")
+	}
+
+	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after re-initializing the database")
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute)
+
+	t.Log("Verifying that /hostroot/etc/kubernetes/aide.reinit no longer exists")
+	err = confirmRemovedLegacyReinitFile(t, testctx, f, testNode, namespace)
+	if err != nil {
+		t.Error(err)
+	}
+}
+
 func TestFileIntegrityConfigurationRevert(t *testing.T) {
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-configrevert"
