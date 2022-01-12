@@ -37,8 +37,9 @@ import (
 )
 
 const (
-	defaultAideFileDir   = "/hostroot/etc/kubernetes"
-	defaultAideConfigDir = "/tmp"
+	defaultAideFileDir    = "/hostroot/etc/kubernetes"
+	defaultAideConfigDir  = "/tmp"
+	defaultAideRuntimeDir = "/hostroot/run"
 	// Files for checks and reading. We copy the AIDE output files to here.
 	aideReadDBFileName  = "aide.db.gz"
 	aideReadLogFileName = "aide.log"
@@ -74,6 +75,7 @@ type daemonConfig struct {
 	Local                     bool
 	Pprof                     bool
 	FileDir                   string
+	RunDir                    string
 	ConfigDir                 string
 }
 
@@ -184,6 +186,7 @@ func defineFlags(cmd *cobra.Command) {
 	cmd.Flags().String("lc-config-map-prefix", "", "Prefix for the configMap name, typically the podname.")
 	cmd.Flags().String("namespace", "", "Namespace")
 	cmd.Flags().String("aidefiledir", defaultAideFileDir, "The directory where the daemon will look for AIDE runtime files. Should only be changed when debugging.")
+	cmd.Flags().String("aideruntimedir", defaultAideRuntimeDir, "The directory where the daemon will look for AIDE temporary runtime files. Should only be changed when debugging.")
 	cmd.Flags().String("aideconfigdir", defaultAideConfigDir, "The directory where the daemon will look for the AIDE config. Should only be changed when debugging.")
 	cmd.Flags().Int64("lc-timeout", defaultTimeout, "How long to poll for the log and indicator files in seconds.")
 	cmd.Flags().Int64("interval", common.DefaultGracePeriod, "How often to recheck for AIDE results.")
@@ -199,6 +202,7 @@ func parseDaemonConfig(cmd *cobra.Command) *daemonConfig {
 	conf.FileIntegrityName = getValidStringArg(cmd, "owner")
 	conf.Namespace = getValidStringArg(cmd, "namespace")
 	conf.FileDir = getValidStringArg(cmd, "aidefiledir")
+	conf.RunDir = getValidStringArg(cmd, "aideruntimedir")
 	conf.ConfigDir = getValidStringArg(cmd, "aideconfigdir")
 	conf.LogCollectorNode = os.Getenv("NODE_NAME")
 	conf.LogCollectorConfigMapName = getConfigMapName(getValidStringArg(cmd, "lc-config-map-prefix"), conf.LogCollectorNode)

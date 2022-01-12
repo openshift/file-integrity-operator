@@ -51,6 +51,11 @@ func aideWriteLogPath(c *daemonConfig) string {
 }
 
 func aideReinitPath(c *daemonConfig) string {
+	return path.Join(c.RunDir, aideReinitFileName)
+}
+
+// We still care about this for upgrades, so it can be cleaned up.
+func legacyAideReinitPath(c *daemonConfig) string {
 	return path.Join(c.FileDir, aideReinitFileName)
 }
 
@@ -124,13 +129,22 @@ func backUpAideFiles(c *daemonConfig) error {
 }
 
 func removeAideReinitFileIfExists(c *daemonConfig) error {
-	_, err := os.Stat(path.Clean(aideReinitPath(c)))
+	// Clean up the legacy reinit file. Eventually this temporary file stuff will be replaced by a CRD.
+	if err := removeFileIfExists(legacyAideReinitPath(c)); err != nil {
+		return err
+	}
+	return removeFileIfExists(aideReinitPath(c))
+}
+
+func removeFileIfExists(filePath string) error {
+	p := path.Clean(filePath)
+	_, err := os.Stat(p)
 	if err != nil && os.IsNotExist(err) {
 		return nil
 	} else if err != nil {
 		return err
 	}
-	return os.Remove(aideReinitPath(c))
+	return os.Remove(p)
 }
 
 // updateAideLogFile copies the AIDE-written-to log file (aide.log.new) and copies it to the one our routines read
