@@ -132,6 +132,7 @@ func TestFileIntegrityLogAndReinitDatabase(t *testing.T) {
 
 // Ensures that on re-init, a /hostroot/etc/kubernetes/aide.reinit file (the old, unused path)
 // would be cleaned up by the daemon. The file test is on a single node.
+// TODO: flaky
 func TestFileIntegrityLegacyReinitCleanup(t *testing.T) {
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-reinit-legacy"
