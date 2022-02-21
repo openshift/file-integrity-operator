@@ -44,6 +44,12 @@ spec:
                       in a configmap specified by Name and Namespace. Defaults to
                       aide.conf
                     type: string
+                  maxBackups:
+                    default: 5
+                    description: The maximum number of AIDE database and log backups
+                      (leftover from the re-init process) to keep on a node. Older
+                      backups beyond this number are automatically pruned by the daemon.
+                    type: integer
                   name:
                     description: Name of a configMap that contains custom AIDE configuration.
                       A default configuration would be created if omitted.

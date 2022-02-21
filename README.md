@@ -72,6 +72,7 @@ spec:
     namespace: "openshift-file-integrity"
     key: "config"
     gracePeriod: 20
+    maxBackups: 5
   debug: false
 status:
   phase: Active
@@ -81,6 +82,7 @@ In the `spec`:
 * **tolerations**: Specify tolerations to schedule on nodes with custom taints. When not specified, a default toleration allowing running on master nodes is applied.
 * **config**: Point to a ConfigMap containing an AIDE configuration to use instead of the CoreOS optimized default. See "Applying an AIDE config" below.
 * **config.gracePeriod**: The number of seconds to pause in between AIDE integrity checks. Frequent AIDE checks on a node may be resource intensive, so it can be useful to specify a longer interval. Defaults to 900 (15 mins).
+* **config.maxBackups**: The maximum number of AIDE database and log backups (leftover from the re-init process) to keep on a node. Older backups beyond this number are automatically pruned by the daemon. Defaults to 5.
 
 In the `status`:
 * **phase**: The running status of the `FileIntegrity` instance. Can be `Initializing`, `Pending`, or `Active`. `Initializing` is displayed if the FileIntegrity is currently initializing or re-initializing the AIDE database, `Pending` if the FileIntegrity deployment is still being created, and `Active` if the scans are active and ongoing. For node scan results, see the `FileIntegrityNodeStatus` objects explained below.

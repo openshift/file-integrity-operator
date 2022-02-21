@@ -1179,6 +1179,21 @@ func confirmRemovedLegacyReinitFile(t *testing.T, ctx *framework.Context, f *fra
 	return waitForPod(containerCompleted(t, f.KubeClient, pod.Name, namespace, 1))
 }
 
+// tests for a set of re-init backups when MaxBackups is set to 1.
+func confirmMaxBackupFiles(t *testing.T, ctx *framework.Context, f *framework.Framework, node, namespace string) error {
+	pod := privPodOnNode(namespace, "test-backup-pod", node, "test `ls -1 /hostroot/etc/kubernetes/aide.db.gz.backup-* | wc -l` -eq 1")
+	if err := f.Client.Create(goctx.TODO(), pod, &framework.CleanupOptions{
+		TestContext:   ctx,
+		Timeout:       cleanupTimeout,
+		RetryInterval: cleanupRetryInterval,
+	}); err != nil {
+		return err
+	}
+
+	// We expect the test command to return 0 when there's only one aide.db.gz backup
+	return waitForPod(containerCompleted(t, f.KubeClient, pod.Name, namespace, 0))
+}
+
 func getTestMcfg(t *testing.T) *mcfgv1.MachineConfig {
 	mode := 420
 	trueish := true

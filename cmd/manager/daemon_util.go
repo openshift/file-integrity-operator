@@ -19,10 +19,14 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/fs"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 
 	backoff "github.com/cenkalti/backoff/v4"
@@ -122,10 +126,10 @@ func runAideScanCmd(ctx context.Context, c *daemonConfig) error {
 }
 
 func backUpAideFiles(c *daemonConfig) error {
-	if err := backupFile(aideReadDBPath(c)); err != nil {
+	if err := backupReadDB(c); err != nil {
 		return err
 	}
-	return backupFile(aideReadLogPath(c))
+	return backupReadLog(c)
 }
 
 func removeAideReinitFileIfExists(c *daemonConfig) error {
@@ -241,6 +245,24 @@ func copyNonEmptyFile(src, dst string) error {
 	return destination.Close()
 }
 
+func backupReadLog(c *daemonConfig) error {
+	readLog := aideReadLogPath(c)
+	err := backupFile(readLog)
+	if err != nil {
+		return err
+	}
+	return pruneBackupFiles(c.FileDir, aideReadLogFileName, c.MaxBackups)
+}
+
+func backupReadDB(c *daemonConfig) error {
+	readDB := aideReadDBPath(c)
+	err := backupFile(readDB)
+	if err != nil {
+		return err
+	}
+	return pruneBackupFiles(c.FileDir, aideReadDBFileName, c.MaxBackups)
+}
+
 func backupFile(file string) error {
 	missingOrEmpty, err := fileIsMissingOrEmpty(file)
 	if err != nil {
@@ -252,6 +274,51 @@ func backupFile(file string) error {
 	}
 
 	return copyNonEmptyFile(file, fmt.Sprintf("%s.backup-%s", file, time.Now().Format(backupTimeFormat)))
+}
+
+// Prune the oldest backup files (above max number) created by backupFile()
+func pruneBackupFiles(dirPath, fileName string, max int) error {
+	// find the related backup files
+	files, err := ioutil.ReadDir(dirPath)
+	if err != nil {
+		return err
+	}
+
+	backups := []fs.FileInfo{}
+	for i, _ := range files {
+		f := files[i]
+		if f.IsDir() {
+			continue
+		}
+		if strings.HasPrefix(f.Name(), fmt.Sprintf("%s.backup-", fileName)) {
+			backups = append(backups, files[i])
+		}
+	}
+
+	if len(backups) <= max {
+		// no pruning needed
+		return nil
+	}
+
+	// Sort backups oldest first
+	sort.Slice(backups, func(i, j int) bool {
+		return backups[i].ModTime().Unix() < backups[j].ModTime().Unix()
+	})
+
+	// Delete the older entries
+	last := len(backups) - max
+	for i, _ := range backups {
+		if i < last {
+			removeErr := os.Remove(path.Join(dirPath, backups[i].Name()))
+			if removeErr != nil {
+				LOG("error removing backup files: %s", removeErr)
+				continue
+			}
+			DBG("pruned backup files - removed %s", path.Join(dirPath, backups[i].Name()))
+		}
+	}
+
+	return nil
 }
 
 func getNonEmptyFile(filename string) *os.File {
