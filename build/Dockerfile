@@ -1,5 +1,5 @@
 # Step one: build file-integrity-operator
-FROM registry.access.redhat.com/ubi8/go-toolset as builder
+FROM golang:1.16 as builder
 USER root
 
 WORKDIR /go/src/github.com/openshift/file-integrity-operator
