@@ -189,6 +189,93 @@ func TestFileIntegrityLegacyReinitCleanup(t *testing.T) {
 	}
 }
 
+// Ensures that on re-init, a /hostroot/etc/kubernetes/aide.reinit file (the old, unused path)
+// would be cleaned up by the daemon. The file test is on a single node.
+func TestFileIntegrityPruneBackup(t *testing.T) {
+	f, testctx, namespace := setupTest(t)
+	testName := testIntegrityNamePrefix + "-prune-backup"
+	setupFileIntegrity(t, f, testctx, testName, namespace)
+	defer testctx.Cleanup()
+	defer func() {
+		if err := cleanNodes(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+	}()
+	defer logContainerOutput(t, f, namespace, testName)
+
+	// wait to go active.
+	err := waitForScanStatus(t, f, namespace, testName, fileintv1alpha1.PhaseActive)
+	if err != nil {
+		t.Errorf("Timeout waiting for scan status")
+	}
+
+	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute)
+
+	t.Log("Asserting that we have OK node condition events")
+	assertNodeOKStatusEvents(t, f, namespace, 2*time.Second, 5*time.Minute)
+
+	t.Log("Setting MaxBackups to 1")
+	fileIntegrity := &fileintv1alpha1.FileIntegrity{}
+	err = f.Client.Get(context.TODO(), types.NamespacedName{Name: testName, Namespace: namespace}, fileIntegrity)
+	if err != nil {
+		t.Errorf("failed to retrieve FI object: %v\n", err)
+	}
+	fileIntegrityCopy := fileIntegrity.DeepCopy()
+	fileIntegrityCopy.Spec.Config = fileintv1alpha1.FileIntegrityConfig{
+		MaxBackups: 1,
+	}
+	err = f.Client.Update(context.TODO(), fileIntegrityCopy)
+	if err != nil {
+		t.Errorf("failed to update FI object: %v\n", err)
+	}
+
+	// wait to go active.
+	err = waitForSuccessiveScanStatus(t, f, namespace, testName, fileintv1alpha1.PhaseActive)
+	if err != nil {
+		t.Errorf("Timeout waiting for scan status")
+	}
+	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after updating config")
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute)
+
+	// Reinit
+	reinitFileIntegrityDatabase(t, f, testName, namespace, time.Second, 2*time.Minute)
+
+	// wait to go active.
+	err = waitForSuccessiveScanStatus(t, f, namespace, testName, fileintv1alpha1.PhaseActive)
+	if err != nil {
+		t.Errorf("Timeout waiting for scan status")
+	}
+	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after re-initializing the database")
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute)
+
+	// Reinit again
+	reinitFileIntegrityDatabase(t, f, testName, namespace, time.Second, 2*time.Minute)
+
+	// wait to go active.
+	err = waitForSuccessiveScanStatus(t, f, namespace, testName, fileintv1alpha1.PhaseActive)
+	if err != nil {
+		t.Errorf("Timeout waiting for scan status")
+	}
+	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after re-initializing the database")
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute)
+
+	// Test the result on one node.
+	nodes, err := f.KubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
+		LabelSelector: nodeWorkerRoleLabelKey,
+	})
+	if err != nil {
+		t.Error(err)
+	}
+	testNode := nodes.Items[0].Labels["kubernetes.io/hostname"]
+
+	t.Log("Verifying that there's only a single DB and log backup")
+	err = confirmMaxBackupFiles(t, testctx, f, testNode, namespace)
+	if err != nil {
+		t.Error(err)
+	}
+}
+
 func TestFileIntegrityConfigurationRevert(t *testing.T) {
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-configrevert"

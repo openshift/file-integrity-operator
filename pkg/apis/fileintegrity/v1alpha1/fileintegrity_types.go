@@ -48,6 +48,10 @@ type FileIntegrityConfig struct {
 	// Time between individual aide scans
 	// +kubebuilder:default=900
 	GracePeriod int `json:"gracePeriod,omitempty"`
+	// The maximum number of AIDE database and log backups (leftover from the re-init process) to keep on a node.
+	// Older backups beyond this number are automatically pruned by the daemon.
+	// +kubebuilder:default=5
+	MaxBackups int `json:"maxBackups,omitempty"`
 }
 
 // FileIntegrityStatus defines the observed state of FileIntegrity

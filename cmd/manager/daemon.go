@@ -71,6 +71,7 @@ type daemonConfig struct {
 	LogCollectorNode          string
 	LogCollectorTimeout       int64
 	Interval                  int64
+	MaxBackups                int
 	LogCollectorCompress      bool
 	Local                     bool
 	Pprof                     bool
@@ -190,6 +191,7 @@ func defineFlags(cmd *cobra.Command) {
 	cmd.Flags().String("aideconfigdir", defaultAideConfigDir, "The directory where the daemon will look for the AIDE config. Should only be changed when debugging.")
 	cmd.Flags().Int64("lc-timeout", defaultTimeout, "How long to poll for the log and indicator files in seconds.")
 	cmd.Flags().Int64("interval", common.DefaultGracePeriod, "How often to recheck for AIDE results.")
+	cmd.Flags().Int("maxbackups", 5, "The maximum number of re-init backups to keep")
 	cmd.Flags().Bool("lc-compress", false, "Use gzip+base64 to compress the log file contents.")
 	cmd.Flags().Bool("debug", false, "Print debug messages")
 	cmd.Flags().Bool("local", false, "Run the daemon locally, using KUBECONFIG. Should only be used when debugging.")
@@ -208,6 +210,7 @@ func parseDaemonConfig(cmd *cobra.Command) *daemonConfig {
 	conf.LogCollectorConfigMapName = getConfigMapName(getValidStringArg(cmd, "lc-config-map-prefix"), conf.LogCollectorNode)
 	conf.LogCollectorTimeout, _ = cmd.Flags().GetInt64("lc-timeout")
 	conf.Interval, _ = cmd.Flags().GetInt64("interval")
+	conf.MaxBackups, _ = cmd.Flags().GetInt("maxbackups")
 	conf.LogCollectorCompress, _ = cmd.Flags().GetBool("lc-compress")
 	debugLog, _ = cmd.Flags().GetBool("debug")
 	conf.Local, _ = cmd.Flags().GetBool("local")

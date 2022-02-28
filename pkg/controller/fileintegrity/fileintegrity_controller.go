@@ -847,6 +847,10 @@ func aideDaemonset(dsName string, fi *fileintegrityv1alpha1.FileIntegrity) *apps
 	}
 }
 
+func getMaxBackups(fi *fileintegrityv1alpha1.FileIntegrity) string {
+	return strconv.Itoa(fi.Spec.Config.MaxBackups)
+}
+
 func getGracePeriod(fi *fileintegrityv1alpha1.FileIntegrity) string {
 	gracePeriod := fi.Spec.Config.GracePeriod
 	if gracePeriod < 10 {
@@ -867,6 +871,7 @@ func daemonArgs(dsName string, fi *fileintegrityv1alpha1.FileIntegrity) []string
 		"--namespace=" + fi.Namespace,
 		"--interval=" + getGracePeriod(fi),
 		"--debug=" + getDebug(fi),
+		"--maxbackups=" + getMaxBackups(fi),
 		"--aideconfigdir=/config",
 		//"--pprof=true",
 	}
