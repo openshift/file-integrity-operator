@@ -23,11 +23,12 @@ func (s *fileIntegrityMapper) Map(obj handler.MapObject) []reconcile.Request {
 	}
 
 	for _, fi := range fiList.Items {
-		if fi.Spec.Config.Name != obj.Meta.GetName() {
+		// Check for the desired user config, or the default (in the upgrade case).
+		if fi.Spec.Config.Name != obj.Meta.GetName() && fi.Name != obj.Meta.GetName() {
 			continue
 		}
 
-		if fi.Spec.Config.Namespace != obj.Meta.GetNamespace() {
+		if fi.Spec.Config.Namespace != obj.Meta.GetNamespace() && fi.Namespace != obj.Meta.GetNamespace() {
 			continue
 		}
 

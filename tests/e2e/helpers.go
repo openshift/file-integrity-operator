@@ -680,6 +680,35 @@ func updateFileIntegrityConfig(t *testing.T, f *framework.Framework, integrityNa
 	}
 }
 
+func removeFileIntegrityConfigMapLabel(t *testing.T, f *framework.Framework, integrityName, namespace string) {
+	var lastErr error
+	pollErr := wait.PollImmediate(time.Second, 2*time.Minute, func() (bool, error) {
+		confMap := &corev1.ConfigMap{}
+		err := f.Client.Get(goctx.TODO(), types.NamespacedName{Name: integrityName, Namespace: namespace}, confMap)
+		if err != nil {
+			lastErr = err
+			return false, nil
+		}
+
+		// Remove the label, keep the aide-conf tag.
+		confMapCopy := confMap.DeepCopy()
+		confMapCopy.Labels = nil
+		confMapCopy.Labels = map[string]string{
+			"file-integrity.openshift.io/aide-conf": "",
+		}
+
+		err = f.Client.Update(goctx.TODO(), confMapCopy)
+		if err != nil {
+			lastErr = err
+			return false, nil
+		}
+		return true, nil
+	})
+	if pollErr != nil {
+		t.Errorf("Error updating configMap with a nil label: (%s) (%s)", pollErr, lastErr)
+	}
+}
+
 func reinitFileIntegrityDatabase(t *testing.T, f *framework.Framework, integrityName, namespace string, interval, timeout time.Duration) {
 	var lastErr error
 	pollErr := wait.PollImmediate(interval, timeout, func() (bool, error) {
@@ -1018,6 +1047,20 @@ func pollUntilConfigMapExists(t *testing.T, f *framework.Framework, namespace, n
 		return true, nil
 	})
 	return data, err
+}
+
+func pollUntilConfigMapHasLabel(t *testing.T, f *framework.Framework, namespace, name, labelName string, interval, timeout time.Duration) error {
+	return wait.PollImmediate(interval, timeout, func() (bool, error) {
+		cm, getErr := f.KubeClient.CoreV1().ConfigMaps(namespace).Get(goctx.TODO(), name, metav1.GetOptions{})
+		if getErr != nil {
+			return false, nil
+		}
+		_, ok := cm.Labels[labelName]
+		if !ok {
+			return false, nil
+		}
+		return true, nil
+	})
 }
 
 func containsUncompressedScanFailLog(data map[string]string) bool {

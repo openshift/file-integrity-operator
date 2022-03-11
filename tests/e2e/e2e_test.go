@@ -483,6 +483,34 @@ func TestFileIntegrityConfigurationIgnoreMissing(t *testing.T) {
 	}
 }
 
+// Ensure that the owner-label remains on the configmap.
+func TestFileIntegrityConfigMapOwnerUpdate(t *testing.T) {
+	f, testctx, namespace := setupTest(t)
+	testName := testIntegrityNamePrefix + "-ownerupdate"
+	setupFileIntegrity(t, f, testctx, testName, namespace)
+	defer testctx.Cleanup()
+	defer func() {
+		if err := cleanNodes(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+	}()
+	defer logContainerOutput(t, f, namespace, testName)
+
+	t.Log("removing label from configmap")
+	removeFileIntegrityConfigMapLabel(t, f, testName, namespace)
+
+	// Confirm active.
+	err := waitForSuccessiveScanStatus(t, f, namespace, testName, fileintv1alpha1.PhaseActive)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if err := pollUntilConfigMapHasLabel(t, f, namespace, testName, common.IntegrityOwnerLabelKey,
+		time.Second*1, time.Minute*2); err != nil {
+		t.Error(err)
+	}
+}
+
 func TestFileIntegrityChangeGracePeriod(t *testing.T) {
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-graceperiod"
