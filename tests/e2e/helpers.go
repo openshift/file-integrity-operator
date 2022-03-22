@@ -1309,6 +1309,16 @@ func getFiDsPods(f *framework.Framework, fileIntegrityName, namespace string) (*
 	return pods, nil
 }
 
+func getFiOperatorPods(f *framework.Framework, namespace string) (*corev1.PodList, error) {
+	lo := metav1.ListOptions{LabelSelector: "name=file-integrity-operator"}
+	pods, err := f.KubeClient.CoreV1().Pods(namespace).List(goctx.TODO(), lo)
+	if err != nil {
+		return nil, err
+	}
+
+	return pods, nil
+}
+
 func waitUntilPodsAreGone(t *testing.T, c client.Client, pods *corev1.PodList, interval, timeout time.Duration) error {
 	return wait.PollImmediate(interval, timeout, func() (bool, error) {
 		for _, pod := range pods.Items {
@@ -1402,41 +1412,50 @@ func logContainerOutput(t *testing.T, f *framework.Framework, namespace, name st
 	if artifacts == "" {
 		return
 	}
+
 	pods, err := getFiDsPods(f, name, namespace)
 	if err != nil {
 		t.Logf("Warning: Error getting pods for container logging: %s", err)
-	} else {
-		for _, pod := range pods.Items {
-			for _, con := range containers {
-				logOpts := &corev1.PodLogOptions{}
-				if con != "self" {
-					logOpts.Container = con
+		return
+	}
+	operatorPods, err := getFiOperatorPods(f, namespace)
+	if err != nil {
+		t.Logf("Warning: Error getting pods for container logging: %s", err)
+		return
+	}
+
+	pods.Items = append(operatorPods.Items)
+
+	for _, pod := range pods.Items {
+		for _, con := range containers {
+			logOpts := &corev1.PodLogOptions{}
+			if con != "self" {
+				logOpts.Container = con
+			}
+			req := f.KubeClient.CoreV1().Pods(namespace).GetLogs(pod.Name, logOpts)
+			podLogs, err := req.Stream(goctx.TODO())
+			if err != nil {
+				// Silence this error if the container is not valid for the pod
+				if !kerr.IsBadRequest(err) {
+					t.Logf("error getting logs for %s/%s: reason: %v, err: %v", pod.Name, con, kerr.ReasonForError(err), err)
 				}
-				req := f.KubeClient.CoreV1().Pods(namespace).GetLogs(pod.Name, logOpts)
-				podLogs, err := req.Stream(goctx.TODO())
+				continue
+			}
+			buf := new(bytes.Buffer)
+			_, err = io.Copy(buf, podLogs)
+			if err != nil {
+				t.Logf("error copying logs for %s/%s: %v", pod.Name, con, err)
+				continue
+			}
+			logs := buf.String()
+			if len(logs) == 0 {
+				t.Logf("no logs for %s/%s", pod.Name, con)
+			} else {
+				err := writeToArtifactsDir(artifacts, name, pod.Name, con, logs)
 				if err != nil {
-					// Silence this error if the container is not valid for the pod
-					if !kerr.IsBadRequest(err) {
-						t.Logf("error getting logs for %s/%s: reason: %v, err: %v", pod.Name, con, kerr.ReasonForError(err), err)
-					}
-					continue
-				}
-				buf := new(bytes.Buffer)
-				_, err = io.Copy(buf, podLogs)
-				if err != nil {
-					t.Logf("error copying logs for %s/%s: %v", pod.Name, con, err)
-					continue
-				}
-				logs := buf.String()
-				if len(logs) == 0 {
-					t.Logf("no logs for %s/%s", pod.Name, con)
+					t.Logf("error writing logs for %s/%s: %v", pod.Name, con, err)
 				} else {
-					err := writeToArtifactsDir(artifacts, name, pod.Name, con, logs)
-					if err != nil {
-						t.Logf("error writing logs for %s/%s: %v", pod.Name, con, err)
-					} else {
-						t.Logf("wrote logs for %s/%s", pod.Name, con)
-					}
+					t.Logf("wrote logs for %s/%s", pod.Name, con)
 				}
 			}
 		}
