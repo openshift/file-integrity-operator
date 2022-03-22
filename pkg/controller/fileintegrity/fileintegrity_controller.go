@@ -143,12 +143,16 @@ func (r *ReconcileFileIntegrity) handleDefaultConfigMaps(logger logr.Logger, f *
 			return nil, scriptsUpdated, err
 		}
 		return nil, scriptsUpdated, nil
-	} else if _, ok := confCm.Data[common.DefaultConfDataKey]; !ok {
-		// we had the configMap but its data was missing for some reason, so restore it.
-		if err := r.client.Update(context.TODO(), defaultAIDEConfigMap(f.Name)); err != nil {
-			return nil, scriptsUpdated, err
+	} else {
+		_, hasData := confCm.Data[common.DefaultConfDataKey]
+		_, hasOwner := confCm.Labels[common.IntegrityOwnerLabelKey]
+		if !hasData || !hasOwner {
+			// we had the configMap but its data or owner label was missing, so restore it.
+			if err := r.client.Update(context.TODO(), defaultAIDEConfigMap(f.Name)); err != nil {
+				return nil, scriptsUpdated, err
+			}
+			return nil, scriptsUpdated, nil
 		}
-		return nil, scriptsUpdated, nil
 	}
 
 	return confCm, scriptsUpdated, nil
