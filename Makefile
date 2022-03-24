@@ -378,13 +378,19 @@ git-release: package-version-to-tag changelog
 	git checkout -b "release-v$(TAG)"
 	git add "deploy/olm-catalog/file-integrity-operator/"
 	git add "CHANGELOG.md"
+
+.PHONY: prepare-release
+prepare-release: release-tag-image bundle git-release
+
+.PHONY: push-release ## Do an official release (Requires permissions)
+push-release: package-version-to-tag
 	git commit -m "Release v$(TAG)"
 	git tag "v$(TAG)"
 	git push origin "v$(TAG)"
 	git push origin "release-v$(TAG)"
 
-.PHONY: release
-release: release-tag-image bundle push push-index undo-deploy-tag-image git-release ## Do an official release (Requires permissions)
+.PHONY: release-images
+release-images: package-version-to-tag push push-index undo-deploy-tag-image
 	# This will ensure that we also push to the latest tag
 	$(MAKE) push TAG=latest
 
