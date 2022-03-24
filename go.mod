@@ -15,12 +15,14 @@ require (
 	github.com/operator-framework/operator-registry v1.13.4
 	github.com/operator-framework/operator-sdk v0.19.4
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/client_golang v1.7.1
+	github.com/prometheus/client_golang v1.12.1
 	github.com/prometheus/client_model v0.2.0
 	github.com/securego/gosec/v2 v2.8.0
 	github.com/spf13/cobra v1.1.1
 	github.com/stretchr/testify v1.6.1
+	golang.org/x/sys v0.0.0-20220319134239-a9b59b0215f8 // indirect
 	golang.org/x/tools v0.1.4 // indirect
+	google.golang.org/protobuf v1.28.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20200902074654-038fdea0a05b // indirect
 	k8s.io/api v0.21.1
 	k8s.io/apimachinery v0.21.1
