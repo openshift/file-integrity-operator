@@ -5,6 +5,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.23] - 2022-03-31
+### Changes
+- deps: Bump the github.com/prometheus/client_golang dependency
+- Break apart the make target for release
+- e2e: Add the operator logs to artifacts
+- Bug 2049206: Re-create AIDE configMaps with missing owner
+- Unset --skip-cleanup-error for e2e
+- Use golang:1.16 for upstream builder
+- Add FileIntegrityConfig MaxBackups
+- CSV: We support FIPS
+
 ## [0.1.22] - 2022-01-13
 ### Changes
 - Move aide.reinit to /run
