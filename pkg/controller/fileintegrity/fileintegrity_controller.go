@@ -593,17 +593,17 @@ func aidePauseScript() *corev1.ConfigMap {
 			Namespace: common.FileIntegrityNamespace,
 		},
 		Data: map[string]string{
-			"pause.sh": aidePauseContainerScript,
+			common.AidePauseScriptKey: aidePauseContainerScript,
 		},
 	}
 }
 
 func dataMatchesReinitScript(cm *corev1.ConfigMap) bool {
-	return configMapKeyDataMatches(cm, aideReinitScript(), common.DefaultConfDataKey)
+	return configMapKeyDataMatches(cm, aideReinitScript(), common.AideScriptKey)
 }
 
 func dataMatchesPauseScript(cm *corev1.ConfigMap) bool {
-	return configMapKeyDataMatches(cm, aidePauseScript(), common.DefaultConfDataKey)
+	return configMapKeyDataMatches(cm, aidePauseScript(), common.AidePauseScriptKey)
 }
 
 func configMapKeyDataMatches(cm1, cm2 *corev1.ConfigMap, key string) bool {

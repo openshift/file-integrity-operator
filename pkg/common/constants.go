@@ -40,6 +40,7 @@ const (
 	DaemonSetPrefix                    = "aide"
 	DefaultConfDataKey                 = "aide.conf"
 	AideScriptKey                      = "aide.sh"
+	AidePauseScriptKey                 = "pause.sh"
 	OperatorServiceAccountName         = "file-integrity-operator"
 	DaemonServiceAccountName           = "file-integrity-daemon"
 	ReinitDaemonSetPrefix              = "aide-ini"
