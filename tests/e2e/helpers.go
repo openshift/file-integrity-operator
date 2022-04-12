@@ -6,7 +6,11 @@ import (
 	goctx "context"
 	"encoding/json"
 	"fmt"
+	"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
+	"github.com/openshift/file-integrity-operator/pkg/controller/metrics"
+	"github.com/pborman/uuid"
 	"io"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
@@ -23,11 +27,11 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	igntypes "github.com/coreos/ignition/v2/config/v3_2/types"
 
+	"github.com/openshift/file-integrity-operator/tests/e2eutil"
+	"github.com/openshift/file-integrity-operator/tests/framework"
 	mcfgapi "github.com/openshift/machine-config-operator/pkg/apis/machineconfiguration.openshift.io"
 	mcfgv1 "github.com/openshift/machine-config-operator/pkg/apis/machineconfiguration.openshift.io/v1"
 	mcfgconst "github.com/openshift/machine-config-operator/pkg/daemon/constants"
-	framework "github.com/operator-framework/operator-sdk/pkg/test"
-	"github.com/operator-framework/operator-sdk/pkg/test/e2eutil"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -38,8 +42,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/openshift/file-integrity-operator/pkg/apis"
-	fileintv1alpha1 "github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
 	"github.com/openshift/file-integrity-operator/pkg/common"
 )
 
@@ -57,12 +59,14 @@ const (
 	mcWorkerRoleLabelKey    = "machineconfiguration.openshift.io/role"
 	defaultTestGracePeriod  = 20
 	legacyReinitOnHost      = "/hostroot/etc/kubernetes/aide.reinit"
+	metricsTestCRBName      = "fio-metrics-client"
+	metricsTestSAName       = "default"
+	metricsTestTokenName    = "metrics-token"
 )
 
 const (
-	curlCMD    = "curl -ks -H \"Authorization: Bearer `cat /var/run/secrets/kubernetes.io/serviceaccount/token`\" "
-	metricsURL = "https://metrics.openshift-file-integrity.svc:8585/"
-	curlFIOCMD = curlCMD + metricsURL + "metrics-fio"
+	curlCMD       = "curl -ks -H \"Authorization: Bearer `cat /var/run/secrets/kubernetes.io/serviceaccount/token`\" "
+	metricsURLFmt = "https://metrics.%s.svc:8585/"
 )
 
 var mcLabelForWorkerRole = map[string]string{
@@ -116,15 +120,15 @@ CONTENT_EX = sha512+ftype+p+u+g+n+acl+selinux+xattrs
 
 var brokenAideConfig = testAideConfig + "\n" + "NORMAL = p+i+n+u+g+s+m+c+acl+selinux+xattrs+sha513+md5+XXXXXX"
 
-func newTestFileIntegrity(name, ns string, nodeSelector map[string]string, grace int, debug bool) *fileintv1alpha1.FileIntegrity {
-	return &fileintv1alpha1.FileIntegrity{
+func newTestFileIntegrity(name, ns string, nodeSelector map[string]string, grace int, debug bool) *v1alpha1.FileIntegrity {
+	return &v1alpha1.FileIntegrity{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: ns,
 		},
-		Spec: fileintv1alpha1.FileIntegritySpec{
+		Spec: v1alpha1.FileIntegritySpec{
 			NodeSelector: nodeSelector,
-			Config: fileintv1alpha1.FileIntegrityConfig{
+			Config: v1alpha1.FileIntegrityConfig{
 				GracePeriod: grace,
 			},
 			Debug: debug,
@@ -132,7 +136,7 @@ func newTestFileIntegrity(name, ns string, nodeSelector map[string]string, grace
 	}
 }
 
-func cleanUp(namespace string) func() error {
+func cleanUp(t *testing.T, namespace string) func() error {
 	return func() error {
 		f := framework.Global
 
@@ -147,8 +151,36 @@ func cleanUp(namespace string) func() error {
 				}
 			}
 		}
+
+		if err := deleteMetricsTestResources(f); err != nil {
+			return err
+		}
+
+		revertManifestFileNamespace(t, f, namespace)
+
 		return deleteStatusEvents(f, namespace)
 	}
+}
+
+// Revert the test namespace back to a stock value, so subsequent tests deploy properly with a new namespace.
+func revertManifestFileNamespace(t *testing.T, f *framework.Framework, namespace string) {
+	replaceNamespaceFromManifest(t, namespace, "openshift-file-integrity", f.NamespacedManPath)
+}
+
+func deleteMetricsTestResources(f *framework.Framework) error {
+	// Delete the metrics test pod's ClusterRoleBinding
+	if err := f.KubeClient.RbacV1().ClusterRoleBindings().Delete(goctx.TODO(), metricsTestCRBName, metav1.DeleteOptions{}); err != nil {
+		if !kerr.IsNotFound(err) {
+			return err
+		}
+	}
+	// Delete the metrics test pod's ClusterRole
+	if err := f.KubeClient.RbacV1().ClusterRoles().Delete(goctx.TODO(), metricsTestCRBName, metav1.DeleteOptions{}); err != nil {
+		if !kerr.IsNotFound(err) {
+			return err
+		}
+	}
+	return nil
 }
 
 func deleteStatusEvents(f *framework.Framework, namespace string) error {
@@ -170,10 +202,10 @@ func deleteStatusEvents(f *framework.Framework, namespace string) error {
 }
 
 func setupTestRequirements(t *testing.T) *framework.Context {
-	fileIntegrities := &fileintv1alpha1.FileIntegrityList{}
-	nodeStatus := &fileintv1alpha1.FileIntegrityNodeStatus{}
+	fileIntegrities := &v1alpha1.FileIntegrityList{}
+	nodeStatus := &v1alpha1.FileIntegrityNodeStatusList{}
 
-	err := framework.AddToFrameworkScheme(apis.AddToScheme, fileIntegrities)
+	err := framework.AddToFrameworkScheme(v1alpha1.AddToScheme, fileIntegrities)
 	if err != nil {
 		t.Fatalf("TEST SETUP: failed to add custom resource scheme to framework: %v", err)
 	}
@@ -184,11 +216,31 @@ func setupTestRequirements(t *testing.T) *framework.Context {
 		t.Fatalf("TEST SETUP: failed to add custom resource scheme to framework: %v", err)
 	}
 
-	err = framework.AddToFrameworkScheme(apis.AddToScheme, nodeStatus)
+	err = framework.AddToFrameworkScheme(v1alpha1.AddToScheme, nodeStatus)
 	if err != nil {
 		t.Fatalf("TEST SETUP: failed to add custom resource scheme to framework: %v", err)
 	}
 	return framework.NewContext(t)
+}
+
+func replaceNamespaceFromManifest(t *testing.T, nsFrom, nsTo string, namespacedManPath *string) {
+	if namespacedManPath == nil {
+		t.Fatal("Error: no namespaced manifest given as test argument. operator-sdk might have changed.")
+	}
+	manPath := *namespacedManPath
+	// #nosec
+	read, err := ioutil.ReadFile(manPath)
+	if err != nil {
+		t.Fatalf("Error reading namespaced manifest file: %s", err)
+	}
+
+	newContents := strings.Replace(string(read), nsFrom, nsTo, -1)
+
+	// #nosec
+	err = ioutil.WriteFile(manPath, []byte(newContents), 644)
+	if err != nil {
+		t.Fatalf("Error writing namespaced manifest file: %s", err)
+	}
 }
 
 func setupFileIntegrityOperatorCluster(t *testing.T, ctx *framework.Context) {
@@ -197,16 +249,19 @@ func setupFileIntegrityOperatorCluster(t *testing.T, ctx *framework.Context) {
 		Timeout:       cleanupTimeout,
 		RetryInterval: cleanupRetryInterval,
 	}
-	err := ctx.InitializeClusterResources(&cleanupOptions)
-	if err != nil {
-		t.Fatalf("failed to initialize cluster resources: %v", err)
-	}
 
 	// get global framework variables
 	f := framework.Global
 	namespace, err := ctx.GetOperatorNamespace()
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	replaceNamespaceFromManifest(t, "openshift-file-integrity", namespace, f.NamespacedManPath)
+
+	err = ctx.InitializeClusterResources(&cleanupOptions)
+	if err != nil {
+		t.Fatalf("failed to initialize cluster resources: %v", err)
 	}
 
 	err = initializeMetricsTestResources(f, namespace)
@@ -226,12 +281,12 @@ func setupFileIntegrityOperatorCluster(t *testing.T, ctx *framework.Context) {
 func initializeMetricsTestResources(f *framework.Framework, namespace string) error {
 	if _, err := f.KubeClient.RbacV1().ClusterRoles().Create(goctx.TODO(), &v1.ClusterRole{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "fio-metrics-client",
+			Name: metricsTestCRBName,
 		},
 		Rules: []v1.PolicyRule{
 			{
 				NonResourceURLs: []string{
-					"/metrics-fio",
+					metrics.HandlerPath,
 				},
 				Verbs: []string{
 					"get",
@@ -244,19 +299,19 @@ func initializeMetricsTestResources(f *framework.Framework, namespace string) er
 
 	if _, err := f.KubeClient.RbacV1().ClusterRoleBindings().Create(goctx.TODO(), &v1.ClusterRoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "fio-metrics-client",
+			Name: metricsTestCRBName,
 		},
 		Subjects: []v1.Subject{
 			{
 				Kind:      "ServiceAccount",
-				Name:      "default",
+				Name:      metricsTestSAName,
 				Namespace: namespace,
 			},
 		},
 		RoleRef: v1.RoleRef{
 			APIGroup: "rbac.authorization.k8s.io",
 			Kind:     "ClusterRole",
-			Name:     "fio-metrics-client",
+			Name:     metricsTestCRBName,
 		},
 	}, metav1.CreateOptions{}); err != nil && !kerr.IsAlreadyExists(err) {
 		return err
@@ -264,10 +319,10 @@ func initializeMetricsTestResources(f *framework.Framework, namespace string) er
 
 	if _, err := f.KubeClient.CoreV1().Secrets(namespace).Create(goctx.TODO(), &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "metrics-token",
+			Name:      metricsTestTokenName,
 			Namespace: namespace,
 			Annotations: map[string]string{
-				"kubernetes.io/service-account.name": "default",
+				"kubernetes.io/service-account.name": metricsTestSAName,
 			},
 		},
 		Type: "kubernetes.io/service-account-token",
@@ -284,7 +339,7 @@ func setupTest(t *testing.T) (*framework.Framework, *framework.Context, string) 
 	if err != nil {
 		t.Fatalf("could not get namespace: %v", err)
 	}
-	testctx.AddCleanupFn(cleanUp(namespace))
+	testctx.AddCleanupFn(cleanUp(t, namespace))
 
 	setupFileIntegrityOperatorCluster(t, testctx)
 	return framework.Global, testctx, namespace
@@ -336,7 +391,7 @@ func setupFileIntegrity(t *testing.T, f *framework.Framework, testCtx *framework
 	}
 
 	// wait to go active
-	err = waitForScanStatus(t, f, namespace, integrityName, fileintv1alpha1.PhaseActive)
+	err = waitForScanStatus(t, f, namespace, integrityName, v1alpha1.PhaseActive)
 	if err != nil {
 		t.Fatalf("Timed out waiting for scan status to go Active")
 	}
@@ -585,7 +640,7 @@ func setupTolerationTest(t *testing.T, integrityName string) (*framework.Framewo
 	testctx.AddCleanupFn(func() error {
 		return removeNodeTaint(t, f, taintedNode.Name, taintKey)
 	})
-	testctx.AddCleanupFn(cleanUp(namespace))
+	testctx.AddCleanupFn(cleanUp(t, namespace))
 	setupFileIntegrityOperatorCluster(t, testctx)
 
 	if err := taintNode(t, f, taintedNode, taint); err != nil {
@@ -593,17 +648,17 @@ func setupTolerationTest(t *testing.T, integrityName string) (*framework.Framewo
 	}
 
 	t.Log("Creating FileIntegrity object for Toleration tests")
-	testIntegrityCheck := &fileintv1alpha1.FileIntegrity{
+	testIntegrityCheck := &v1alpha1.FileIntegrity{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      integrityName,
 			Namespace: namespace,
 		},
-		Spec: fileintv1alpha1.FileIntegritySpec{
+		Spec: v1alpha1.FileIntegritySpec{
 			NodeSelector: map[string]string{
 				// Schedule on the tainted host
 				corev1.LabelHostname: taintedNode.Labels[corev1.LabelHostname],
 			},
-			Config: fileintv1alpha1.FileIntegrityConfig{
+			Config: v1alpha1.FileIntegrityConfig{
 				GracePeriod: defaultTestGracePeriod,
 			},
 			Tolerations: []corev1.Toleration{
@@ -655,7 +710,7 @@ func setupTolerationTest(t *testing.T, integrityName string) (*framework.Framewo
 func updateFileIntegrityConfig(t *testing.T, f *framework.Framework, integrityName, configMapName, namespace, key string, interval, timeout time.Duration) {
 	var lastErr error
 	pollErr := wait.PollImmediate(interval, timeout, func() (bool, error) {
-		fileIntegrity := &fileintv1alpha1.FileIntegrity{}
+		fileIntegrity := &v1alpha1.FileIntegrity{}
 		err := f.Client.Get(goctx.TODO(), types.NamespacedName{Name: integrityName, Namespace: namespace}, fileIntegrity)
 		if err != nil {
 			lastErr = err
@@ -712,7 +767,7 @@ func removeFileIntegrityConfigMapLabel(t *testing.T, f *framework.Framework, int
 func reinitFileIntegrityDatabase(t *testing.T, f *framework.Framework, integrityName, namespace string, interval, timeout time.Duration) {
 	var lastErr error
 	pollErr := wait.PollImmediate(interval, timeout, func() (bool, error) {
-		fileIntegrity := &fileintv1alpha1.FileIntegrity{}
+		fileIntegrity := &v1alpha1.FileIntegrity{}
 		err := f.Client.Get(goctx.TODO(), types.NamespacedName{Name: integrityName, Namespace: namespace}, fileIntegrity)
 		if err != nil {
 			lastErr = err
@@ -767,8 +822,8 @@ func updateTestConfigMap(t *testing.T, f *framework.Framework, configMapName, na
 	}
 }
 
-func waitForScanStatusWithTimeout(t *testing.T, f *framework.Framework, namespace, name string, targetStatus fileintv1alpha1.FileIntegrityStatusPhase, interval, timeout time.Duration, successiveResults int) error {
-	exampleFileIntegrity := &fileintv1alpha1.FileIntegrity{}
+func waitForScanStatusWithTimeout(t *testing.T, f *framework.Framework, namespace, name string, targetStatus v1alpha1.FileIntegrityStatusPhase, interval, timeout time.Duration, successiveResults int) error {
+	exampleFileIntegrity := &v1alpha1.FileIntegrity{}
 	resultNum := 0
 	// retry and ignore errors until timeout
 	err := wait.Poll(interval, timeout, func() (bool, error) {
@@ -796,17 +851,17 @@ func waitForScanStatusWithTimeout(t *testing.T, f *framework.Framework, namespac
 	return nil
 }
 
-func waitForFailedResultForNode(t *testing.T, f *framework.Framework, namespace, name, node string, interval, timeout time.Duration) (*fileintv1alpha1.FileIntegrityScanResult, error) {
-	var foundResult *fileintv1alpha1.FileIntegrityScanResult
+func waitForFailedResultForNode(t *testing.T, f *framework.Framework, namespace, name, node string, interval, timeout time.Duration) (*v1alpha1.FileIntegrityScanResult, error) {
+	var foundResult *v1alpha1.FileIntegrityScanResult
 	// retry and ignore errors until timeout
 	err := wait.Poll(interval, timeout, func() (bool, error) {
-		nodeStatus := &fileintv1alpha1.FileIntegrityNodeStatus{}
+		nodeStatus := &v1alpha1.FileIntegrityNodeStatus{}
 		getErr := f.Client.Get(goctx.TODO(), types.NamespacedName{Name: name + "-" + node, Namespace: namespace}, nodeStatus)
 		if getErr != nil {
 			return false, nil
 		}
 
-		if nodeStatus.LastResult.Condition == fileintv1alpha1.NodeConditionFailed {
+		if nodeStatus.LastResult.Condition == v1alpha1.NodeConditionFailed {
 			foundResult = &nodeStatus.LastResult
 			t.Logf("failed result for node %s found, r:%d a:%d c:%d", node, foundResult.FilesRemoved,
 				foundResult.FilesAdded, foundResult.FilesChanged)
@@ -823,7 +878,7 @@ func waitForFailedResultForNode(t *testing.T, f *framework.Framework, namespace,
 }
 
 func waitForFIStatusEvent(t *testing.T, f *framework.Framework, namespace, name, expectedMessage string) error {
-	exampleFileIntegrity := &fileintv1alpha1.FileIntegrity{}
+	exampleFileIntegrity := &v1alpha1.FileIntegrity{}
 	err := wait.Poll(pollInterval, pollTimeout, func() (bool, error) {
 		getErr := f.Client.Get(goctx.TODO(), types.NamespacedName{Name: name, Namespace: namespace}, exampleFileIntegrity)
 		if getErr != nil {
@@ -910,7 +965,7 @@ func assertNodesConditionIsSuccess(t *testing.T, f *framework.Framework, integri
 	var lastErr error
 	type nodeStatus struct {
 		LastProbeTime metav1.Time
-		Condition     fileintv1alpha1.FileIntegrityNodeCondition
+		Condition     v1alpha1.FileIntegrityNodeCondition
 	}
 
 	nodes, err := f.KubeClient.CoreV1().Nodes().List(goctx.TODO(), metav1.ListOptions{LabelSelector: nodeWorkerRoleLabelKey})
@@ -921,7 +976,7 @@ func assertNodesConditionIsSuccess(t *testing.T, f *framework.Framework, integri
 		// Node names are the key
 		latestStatuses := map[string]nodeStatus{}
 		for _, node := range nodes.Items {
-			fileIntegNodeStatus := &fileintv1alpha1.FileIntegrityNodeStatus{}
+			fileIntegNodeStatus := &v1alpha1.FileIntegrityNodeStatus{}
 			getErr := f.Client.Get(goctx.TODO(), types.NamespacedName{Name: integrityName + "-" + node.Name, Namespace: namespace}, fileIntegNodeStatus)
 			if getErr != nil {
 				lastErr = getErr
@@ -938,7 +993,7 @@ func assertNodesConditionIsSuccess(t *testing.T, f *framework.Framework, integri
 
 		// iterate gathered statuses
 		for nodeName, status := range latestStatuses {
-			if status.Condition != fileintv1alpha1.NodeConditionSucceeded {
+			if status.Condition != v1alpha1.NodeConditionSucceeded {
 				lastErr = fmt.Errorf("status.nodeStatus for node %s NOT SUCCESS: But instead %s", nodeName, status.Condition)
 				return false, nil
 
@@ -960,7 +1015,7 @@ func assertSingleNodeConditionIsSuccess(t *testing.T, f *framework.Framework, in
 	var lastErr error
 	type nodeStatus struct {
 		LastProbeTime metav1.Time
-		Condition     fileintv1alpha1.FileIntegrityNodeCondition
+		Condition     v1alpha1.FileIntegrityNodeCondition
 	}
 
 	nodes, err := f.KubeClient.CoreV1().Nodes().List(goctx.TODO(), metav1.ListOptions{LabelSelector: nodeWorkerRoleLabelKey})
@@ -975,7 +1030,7 @@ func assertSingleNodeConditionIsSuccess(t *testing.T, f *framework.Framework, in
 			if node.Name != nodeName {
 				continue
 			}
-			fileIntegNodeStatus := &fileintv1alpha1.FileIntegrityNodeStatus{}
+			fileIntegNodeStatus := &v1alpha1.FileIntegrityNodeStatus{}
 			getErr := f.Client.Get(goctx.TODO(), types.NamespacedName{Name: integrityName + "-" + node.Name, Namespace: namespace}, fileIntegNodeStatus)
 			if getErr != nil {
 				lastErr = getErr
@@ -992,7 +1047,7 @@ func assertSingleNodeConditionIsSuccess(t *testing.T, f *framework.Framework, in
 
 		// iterate gathered statuses
 		for name, status := range latestStatuses {
-			if status.Condition != fileintv1alpha1.NodeConditionSucceeded {
+			if status.Condition != v1alpha1.NodeConditionSucceeded {
 				lastErr = fmt.Errorf("status.nodeStatus for node %s NOT SUCCESS: But instead %s", name, status.Condition)
 				return false, nil
 			}
@@ -1011,7 +1066,7 @@ func assertSingleNodeConditionIsSuccess(t *testing.T, f *framework.Framework, in
 
 // waitForScanStatus will poll until the fileintegrity that we're looking for reaches a certain status, or until
 // a timeout is reached.
-func waitForScanStatus(t *testing.T, f *framework.Framework, namespace, name string, targetStatus fileintv1alpha1.FileIntegrityStatusPhase) error {
+func waitForScanStatus(t *testing.T, f *framework.Framework, namespace, name string, targetStatus v1alpha1.FileIntegrityStatusPhase) error {
 	return waitForScanStatusWithTimeout(t, f, namespace, name, targetStatus, retryInterval, timeout, 0)
 }
 
@@ -1019,7 +1074,7 @@ func waitForScanStatus(t *testing.T, f *framework.Framework, namespace, name str
 // poll intervals, or until a timeout is reached. The poll interval lets it avoid continuing prematurely if
 // the targetStatus is reached from a flapping condition. (i.e., Initializing -> Active -> Initializing where Active is
 // seen for a half of a second.
-func waitForSuccessiveScanStatus(t *testing.T, f *framework.Framework, namespace, name string, targetStatus fileintv1alpha1.FileIntegrityStatusPhase) error {
+func waitForSuccessiveScanStatus(t *testing.T, f *framework.Framework, namespace, name string, targetStatus v1alpha1.FileIntegrityStatusPhase) error {
 	return waitForScanStatusWithTimeout(t, f, namespace, name, targetStatus, retryInterval, timeout, 5)
 }
 
@@ -1208,8 +1263,19 @@ func createLegacyReinitFile(t *testing.T, ctx *framework.Context, f *framework.F
 	return waitForPod(containerCompleted(t, f.KubeClient, pod.Name, namespace, 0))
 }
 
+func waitForLegacyReinitConfirm(t *testing.T, ctx *framework.Context, f *framework.Framework, node, namespace string) error {
+	return wait.PollImmediate(5*time.Second, 5*time.Minute, func() (bool, error) {
+		err := confirmRemovedLegacyReinitFile(t, ctx, f, node, namespace)
+		if err == nil {
+			return true, nil
+		}
+		t.Logf("legacy reinit file not removed yet, trying again")
+		return false, nil
+	})
+}
+
 func confirmRemovedLegacyReinitFile(t *testing.T, ctx *framework.Context, f *framework.Framework, node, namespace string) error {
-	pod := privPodOnNode(namespace, "test-ls-pod", node, "ls "+legacyReinitOnHost)
+	pod := privPodOnNode(namespace, "ls"+"-"+uuid.NewRandom().String(), node, "ls "+legacyReinitOnHost)
 	if err := f.Client.Create(goctx.TODO(), pod, &framework.CleanupOptions{
 		TestContext:   ctx,
 		Timeout:       cleanupTimeout,
@@ -1505,15 +1571,19 @@ func logContainerOutput(t *testing.T, f *framework.Framework, namespace, name st
 	}
 }
 
-func getMetricResults(t *testing.T) string {
+func getMetricResults(t *testing.T, namespace string) string {
 	out := runOCandGetOutput(t, []string{
 		"run", "--rm", "-i", "--restart=Never", "--image=registry.fedoraproject.org/fedora-minimal:latest",
-		"-nopenshift-file-integrity", "metrics-test", "--", "bash", "-c",
-		curlFIOCMD,
+		"-n" + namespace, "metrics-test", "--", "bash", "-c",
+		getCurlFIOCMD(namespace),
 	})
 
 	t.Logf("metrics output:\n%s\n", out)
 	return out
+}
+
+func getCurlFIOCMD(namespace string) string {
+	return curlCMD + fmt.Sprintf(metricsURLFmt, namespace) + "metrics-fio"
 }
 
 func getOCpath(t *testing.T) string {
@@ -1545,9 +1615,9 @@ func assertMetric(t *testing.T, content, metric string, expected int) error {
 	return nil
 }
 
-func assertEachMetric(t *testing.T, expectedMetrics map[string]int) error {
+func assertEachMetric(t *testing.T, namespace string, expectedMetrics map[string]int) error {
 	metricErrs := make([]error, 0)
-	metricsOutput := getMetricResults(t)
+	metricsOutput := getMetricResults(t, namespace)
 	for metric, i := range expectedMetrics {
 		err := assertMetric(t, metricsOutput, metric, i)
 		if err != nil {

@@ -1,66 +1,32 @@
 module github.com/openshift/file-integrity-operator
 
-go 1.15
+go 1.16
 
 require (
-	github.com/cenkalti/backoff/v4 v4.1.1
-	github.com/coreos/ignition/v2 v2.9.0
-	github.com/coreos/prometheus-operator v0.38.1-0.20200424145508-7e176fda06cc
+	github.com/cenkalti/backoff/v4 v4.1.2
+	github.com/coreos/ignition/v2 v2.13.0
 	github.com/go-logr/logr v0.4.0
-	github.com/go-logr/zapr v0.4.0 // indirect
-	github.com/go-openapi/spec v0.19.4
-	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
-	github.com/openshift/library-go v0.0.0-20210708191609-4b9033d00d37
+	github.com/mitchellh/go-homedir v1.1.0
+	github.com/openshift/library-go v0.0.0-20200831114015-2ab0c61c15de
 	github.com/openshift/machine-config-operator v0.0.1-0.20200913004441-7eba765c69c9
-	github.com/operator-framework/operator-registry v1.13.4
-	github.com/operator-framework/operator-sdk v0.19.4
+	github.com/operator-framework/operator-registry v1.21.0
+	github.com/pborman/uuid v1.2.0
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/client_golang v1.12.1
+	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.52.1
+	github.com/prometheus-operator/prometheus-operator/pkg/client v0.52.1
+	github.com/prometheus/client_golang v1.11.0
 	github.com/prometheus/client_model v0.2.0
-	github.com/securego/gosec/v2 v2.8.0
-	github.com/spf13/cobra v1.1.1
-	github.com/stretchr/testify v1.6.1
-	golang.org/x/sys v0.0.0-20220319134239-a9b59b0215f8 // indirect
-	golang.org/x/tools v0.1.4 // indirect
-	google.golang.org/protobuf v1.28.0 // indirect
-	gopkg.in/check.v1 v1.0.0-20200902074654-038fdea0a05b // indirect
-	k8s.io/api v0.21.1
-	k8s.io/apimachinery v0.21.1
-	k8s.io/client-go v12.0.0+incompatible
-	k8s.io/kube-openapi v0.0.0-20200805222855-6aeccd4b50c6
-	sigs.k8s.io/controller-runtime v0.6.2
+	github.com/securego/gosec/v2 v2.11.0
+	github.com/sirupsen/logrus v1.8.1
+	github.com/spf13/cobra v1.2.1
+	github.com/stretchr/testify v1.7.0
+	golang.org/x/mod v0.5.1
+	golang.org/x/net v0.0.0-20211112202133-69e39bad7dc2
+	k8s.io/api v0.22.3
+	k8s.io/apiextensions-apiserver v0.22.3
+	k8s.io/apimachinery v0.22.3
+	k8s.io/client-go v0.22.3
+	rsc.io/letsencrypt v0.0.3 // indirect
+	sigs.k8s.io/controller-runtime v0.10.0
+	sigs.k8s.io/yaml v1.2.0
 )
-
-// Pinned to kubernetes-1.16.2
-replace (
-	github.com/Azure/go-autorest => github.com/Azure/go-autorest v13.3.2+incompatible // Required by OLM
-	github.com/openshift/machine-config-operator => github.com/openshift/machine-config-operator v0.0.1-0.20200913004441-7eba765c69c9
-	k8s.io/api => k8s.io/api v0.19.11
-	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.19.11
-	k8s.io/apimachinery => k8s.io/apimachinery v0.19.11
-	k8s.io/apiserver => k8s.io/apiserver v0.19.11
-	k8s.io/cli-runtime => k8s.io/cli-runtime v0.19.11
-	k8s.io/client-go => k8s.io/client-go v0.19.11
-	k8s.io/cloud-provider => k8s.io/cloud-provider v0.19.11
-	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.19.11
-	k8s.io/code-generator => k8s.io/code-generator v0.19.11
-	k8s.io/component-base => k8s.io/component-base v0.19.11
-	k8s.io/cri-api => k8s.io/cri-api v0.19.11
-	k8s.io/csi-translation-lib => k8s.io/csi-translation-lib v0.19.11
-	k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.19.11
-	k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.19.11
-	k8s.io/kube-proxy => k8s.io/kube-proxy v0.19.11
-	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.19.11
-	k8s.io/kubectl => k8s.io/kubectl v0.19.11
-	k8s.io/kubelet => k8s.io/kubelet v0.19.11
-	k8s.io/kubernetes => k8s.io/kubernetes v1.19.11
-	k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.19.11
-	k8s.io/metrics => k8s.io/metrics v0.19.11
-	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.19.11
-)
-
-replace github.com/docker/docker => github.com/moby/moby v0.7.3-0.20190826074503-38ab9da00309 // Required by Helm
-
-replace github.com/openshift/api => github.com/openshift/api v0.0.0-20190924102528-32369d4db2ad // Required until https://github.com/operator-framework/operator-lifecycle-manager/pull/1241 is resolved
-
-replace github.com/gorilla/websocket => github.com/gorilla/websocket v1.4.2

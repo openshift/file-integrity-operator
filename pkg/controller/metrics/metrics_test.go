@@ -48,7 +48,7 @@ func TestRegisterMetrics(t *testing.T) {
 		mock := &metricsfakes.FakeImpl{}
 		tc.prepare(mock)
 
-		sut := New()
+		sut := NewControllerMetrics()
 		sut.impl = mock
 
 		err := sut.Register()
@@ -120,7 +120,7 @@ func TestFileIntegrityMetrics(t *testing.T) {
 		},
 	} {
 		mock := &metricsfakes.FakeImpl{}
-		sut := New()
+		sut := NewControllerMetrics()
 		sut.impl = mock
 
 		tc.when(sut)

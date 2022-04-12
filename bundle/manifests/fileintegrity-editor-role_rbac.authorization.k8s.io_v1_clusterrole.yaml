@@ -1,0 +1,24 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: fileintegrity-editor-role
+rules:
+- apiGroups:
+  - fileintegrity.openshift.io
+  resources:
+  - fileintegrities
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - fileintegrity.openshift.io
+  resources:
+  - fileintegrities/status
+  verbs:
+  - get

@@ -2,10 +2,10 @@ package configmap
 
 import (
 	"context"
+	"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
+	"github.com/openshift/file-integrity-operator/pkg/controller/metrics"
 	"strconv"
 	"time"
-
-	"github.com/openshift/file-integrity-operator/pkg/controller/metrics"
 
 	"github.com/go-logr/logr"
 
@@ -13,10 +13,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -25,28 +22,27 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	fileintegrityv1alpha1 "github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
 	"github.com/openshift/file-integrity-operator/pkg/common"
 )
 
-var log = logf.Log.WithName("controller_configmap")
+var configMapControllerLog = logf.Log.WithName("controller_configmap")
 
 // Add creates a new ConfigMap Controller and adds it to the Manager. The Manager will set fields on the Controller
 // and Start it when the Manager is Started.
-func Add(mgr manager.Manager, met *metrics.Metrics) error {
-	return add(mgr, newReconciler(mgr, met))
+func AddConfigmapController(mgr manager.Manager, met *metrics.Metrics) error {
+	return addConfigmapController(mgr, newConfigmapReconciler(mgr, met), met)
 }
 
 // newReconciler returns a new reconcile.Reconciler
-func newReconciler(mgr manager.Manager, met *metrics.Metrics) reconcile.Reconciler {
-	return &ReconcileConfigMap{client: mgr.GetClient(), scheme: mgr.GetScheme(),
-		recorder: mgr.GetEventRecorderFor("configmapctrl"),
-		metrics:  met,
+func newConfigmapReconciler(mgr manager.Manager, met *metrics.Metrics) reconcile.Reconciler {
+	return &ReconcileConfigMap{Client: mgr.GetClient(), Scheme: mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("configmapctrl"),
+		Metrics:  met,
 	}
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
-func add(mgr manager.Manager, r reconcile.Reconciler) error {
+func addConfigmapController(mgr manager.Manager, r reconcile.Reconciler, met *metrics.Metrics) error {
 	// Create a new controller
 	c, err := controller.New("configmap-controller", mgr, controller.Options{Reconciler: r})
 	if err != nil {
@@ -75,28 +71,18 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 // blank assignment to verify that ReconcileConfigMap implements reconcile.Reconciler
 var _ reconcile.Reconciler = &ReconcileConfigMap{}
 
-// ReconcileConfigMap reconciles a ConfigMap object
-type ReconcileConfigMap struct {
-	// This client, initialized using mgr.Client() above, is a split client
-	// that reads objects from the cache and writes to the apiserver
-	client   client.Client
-	scheme   *runtime.Scheme
-	recorder record.EventRecorder
-	metrics  *metrics.Metrics
-}
-
 // Reconcile reads that state of the cluster for a ConfigMap object and makes changes based on the state read
 // and what is in the ConfigMap.Spec
 // Note:
 // The Controller will requeue the Request to be processed again if the returned error is non-nil or
 // Result.Requeue is true, otherwise upon completion it will remove the work from the queue.
-func (r *ReconcileConfigMap) Reconcile(request reconcile.Request) (reconcile.Result, error) {
-	reqLogger := log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
+func (r *ReconcileConfigMap) ConfigMapReconcile(request reconcile.Request) (reconcile.Result, error) {
+	reqLogger := configMapControllerLog.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
 	reqLogger.Info("Reconciling ConfigMap")
 
 	// Fetch the ConfigMap instance
 	instance := &corev1.ConfigMap{}
-	err := r.client.Get(context.TODO(), request.NamespacedName, instance)
+	err := r.Client.Get(context.TODO(), request.NamespacedName, instance)
 	if err != nil {
 		if kerr.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
@@ -130,8 +116,8 @@ func (r *ReconcileConfigMap) reconcileAideConfAndHandleReinitDs(instance *corev1
 		return reconcile.Result{}, err
 	}
 
-	integrityInstance := &fileintegrityv1alpha1.FileIntegrity{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: ownerName, Namespace: instance.Namespace},
+	integrityInstance := &v1alpha1.FileIntegrity{}
+	err = r.Client.Get(context.TODO(), types.NamespacedName{Name: ownerName, Namespace: instance.Namespace},
 		integrityInstance)
 	if err != nil {
 		return reconcile.Result{}, err
@@ -145,7 +131,7 @@ func (r *ReconcileConfigMap) reconcileAideConfAndHandleReinitDs(instance *corev1
 	// daemonSets that they need to back up and re-initialize the AIDE database.
 	reinitDS := &appsv1.DaemonSet{}
 	reinitDSName := common.ReinitDaemonSetNodeName(integrityInstance.Name, nodeName)
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: reinitDSName,
+	err = r.Client.Get(context.TODO(), types.NamespacedName{Name: reinitDSName,
 		Namespace: common.FileIntegrityNamespace}, reinitDS)
 	if err != nil && kerr.IsNotFound(err) {
 		return reconcile.Result{Requeue: true}, nil
@@ -160,15 +146,15 @@ func (r *ReconcileConfigMap) reconcileAideConfAndHandleReinitDs(instance *corev1
 	}
 
 	// reinit daemonSet is ready, so we're finished with it
-	if deleteErr := r.client.Delete(context.TODO(), reinitDS); deleteErr != nil {
+	if deleteErr := r.Client.Delete(context.TODO(), reinitDS); deleteErr != nil {
 		return reconcile.Result{}, deleteErr
 	}
 
-	r.metrics.IncFileIntegrityReinitDaemonsetDelete()
+	r.Metrics.IncFileIntegrityReinitDaemonsetDelete()
 	// unset update annotation
 	conf := instance.DeepCopy()
 	conf.Annotations = nil
-	if updateErr := r.client.Update(context.TODO(), conf); updateErr != nil {
+	if updateErr := r.Client.Update(context.TODO(), conf); updateErr != nil {
 		logger.Error(updateErr, "error clearing configMap annotations")
 		return reconcile.Result{}, updateErr
 	}
@@ -188,8 +174,8 @@ func (r *ReconcileConfigMap) handleIntegrityLog(cm *corev1.ConfigMap, logger log
 		return reconcile.Result{}, nil
 	}
 
-	cachedfi := &fileintegrityv1alpha1.FileIntegrity{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: owner, Namespace: cm.Namespace}, cachedfi)
+	cachedfi := &v1alpha1.FileIntegrity{}
+	err = r.Client.Get(context.TODO(), types.NamespacedName{Name: owner, Namespace: cm.Namespace}, cachedfi)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
@@ -206,8 +192,8 @@ func (r *ReconcileConfigMap) handleIntegrityLog(cm *corev1.ConfigMap, logger log
 			}
 		}
 
-		status := fileintegrityv1alpha1.FileIntegrityScanResult{
-			Condition:     fileintegrityv1alpha1.NodeConditionErrored,
+		status := v1alpha1.FileIntegrityScanResult{
+			Condition:     v1alpha1.NodeConditionErrored,
 			LastProbeTime: cm.GetCreationTimestamp(),
 			ErrorMsg:      errorMsg,
 		}
@@ -217,10 +203,10 @@ func (r *ReconcileConfigMap) handleIntegrityLog(cm *corev1.ConfigMap, logger log
 		}
 	} else if common.IsIntegrityLogAFailure(cm) {
 		failedCM := getConfigMapForFailureLog(cm)
-		if err = r.client.Create(context.TODO(), failedCM); err != nil {
+		if err = r.Client.Create(context.TODO(), failedCM); err != nil {
 			// Update if it already existed
 			if kerr.IsAlreadyExists(err) {
-				if err = r.client.Update(context.TODO(), failedCM); err != nil {
+				if err = r.Client.Update(context.TODO(), failedCM); err != nil {
 					return reconcile.Result{}, err
 				}
 			} else {
@@ -228,8 +214,8 @@ func (r *ReconcileConfigMap) handleIntegrityLog(cm *corev1.ConfigMap, logger log
 			}
 		}
 
-		status := fileintegrityv1alpha1.FileIntegrityScanResult{
-			Condition:                fileintegrityv1alpha1.NodeConditionFailed,
+		status := v1alpha1.FileIntegrityScanResult{
+			Condition:                v1alpha1.NodeConditionFailed,
 			LastProbeTime:            cm.GetCreationTimestamp(),
 			ResultConfigMapName:      failedCM.Name,
 			ResultConfigMapNamespace: failedCM.Namespace,
@@ -243,8 +229,8 @@ func (r *ReconcileConfigMap) handleIntegrityLog(cm *corev1.ConfigMap, logger log
 			return reconcile.Result{}, err
 		}
 	} else {
-		status := fileintegrityv1alpha1.FileIntegrityScanResult{
-			Condition:     fileintegrityv1alpha1.NodeConditionSucceeded,
+		status := v1alpha1.FileIntegrityScanResult{
+			Condition:     v1alpha1.NodeConditionSucceeded,
 			LastProbeTime: cm.GetCreationTimestamp(),
 		}
 		if err := r.createOrUpdateNodeStatus(node, fi, status); err != nil {
@@ -254,7 +240,7 @@ func (r *ReconcileConfigMap) handleIntegrityLog(cm *corev1.ConfigMap, logger log
 
 	// No need to keep the ConfigMap, the log collector will try to create
 	// another one on its next run
-	if err = r.client.Delete(context.TODO(), cm); err != nil {
+	if err = r.Client.Delete(context.TODO(), cm); err != nil {
 		return reconcile.Result{}, err
 	}
 	return reconcile.Result{}, nil
@@ -262,16 +248,16 @@ func (r *ReconcileConfigMap) handleIntegrityLog(cm *corev1.ConfigMap, logger log
 
 // Creates or updates a FileIntegrityNodeStatus object for the node. If a result exists for a node matching the new result, we update that result.
 // At the most there will be three results per status. One for each condition type. The most recently updated reflects the current result.
-func (r *ReconcileConfigMap) createOrUpdateNodeStatus(node string, instance *fileintegrityv1alpha1.FileIntegrity, new fileintegrityv1alpha1.FileIntegrityScanResult) error {
-	nodeStatus := &fileintegrityv1alpha1.FileIntegrityNodeStatus{}
-	err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: instance.Namespace, Name: instance.Name + "-" + node}, nodeStatus)
+func (r *ReconcileConfigMap) createOrUpdateNodeStatus(node string, instance *v1alpha1.FileIntegrity, new v1alpha1.FileIntegrityScanResult) error {
+	nodeStatus := &v1alpha1.FileIntegrityNodeStatus{}
+	err := r.Client.Get(context.TODO(), types.NamespacedName{Namespace: instance.Namespace, Name: instance.Name + "-" + node}, nodeStatus)
 	if err != nil && !kerr.IsNotFound(err) {
 		return err
 	}
 
 	if kerr.IsNotFound(err) {
 		// This node does not have a corresponding FileIntegrityNodeStatus yet, create with this initial result.
-		nodeStatus = &fileintegrityv1alpha1.FileIntegrityNodeStatus{
+		nodeStatus = &v1alpha1.FileIntegrityNodeStatus{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      instance.Name + "-" + node,
 				Namespace: instance.Namespace,
@@ -280,16 +266,16 @@ func (r *ReconcileConfigMap) createOrUpdateNodeStatus(node string, instance *fil
 				},
 			},
 			NodeName: node,
-			Results:  []fileintegrityv1alpha1.FileIntegrityScanResult{},
+			Results:  []v1alpha1.FileIntegrityScanResult{},
 		}
 		nodeStatus.Results = append(nodeStatus.Results, new)
 		nodeStatus.LastResult = *new.DeepCopy()
-		refErr := controllerutil.SetControllerReference(instance, nodeStatus, r.scheme)
+		refErr := controllerutil.SetControllerReference(instance, nodeStatus, r.Scheme)
 		if refErr != nil {
 			return refErr
 		}
 
-		createErr := r.client.Create(context.TODO(), nodeStatus)
+		createErr := r.Client.Create(context.TODO(), nodeStatus)
 		if createErr != nil {
 			return createErr
 		}
@@ -299,7 +285,7 @@ func (r *ReconcileConfigMap) createOrUpdateNodeStatus(node string, instance *fil
 		return nil
 	}
 
-	updateResults := make([]fileintegrityv1alpha1.FileIntegrityScanResult, 0)
+	updateResults := make([]v1alpha1.FileIntegrityScanResult, 0)
 	// Filter to keep the other results. We only want to replace one of the same.
 	for _, result := range nodeStatus.Results {
 		if result.Condition != new.Condition {
@@ -318,7 +304,7 @@ func (r *ReconcileConfigMap) createOrUpdateNodeStatus(node string, instance *fil
 		statusCopy.LastResult = *new.DeepCopy()
 	}
 
-	updateErr := r.client.Update(context.TODO(), statusCopy)
+	updateErr := r.Client.Update(context.TODO(), statusCopy)
 	if updateErr != nil {
 		return updateErr
 	}
@@ -332,14 +318,14 @@ func (r *ReconcileConfigMap) createOrUpdateNodeStatus(node string, instance *fil
 }
 
 // isLatestScanResult returns true if result is newer than nodeStatus.LastResult
-func isLatestScanResult(result fileintegrityv1alpha1.FileIntegrityScanResult, nodeStatus *fileintegrityv1alpha1.FileIntegrityNodeStatus) bool {
+func isLatestScanResult(result v1alpha1.FileIntegrityScanResult, nodeStatus *v1alpha1.FileIntegrityNodeStatus) bool {
 	return result.LastProbeTime.After(nodeStatus.LastResult.LastProbeTime.Time)
 }
 
 // conditionIsNewFailureOrTransition return true if cur has an updated failure count over prev (if both were failed conditions),
 // or if cur's condition is different than prev.
-func conditionIsNewFailureOrTransition(prev, cur *fileintegrityv1alpha1.FileIntegrityNodeStatus) bool {
-	if cur.LastResult.Condition == fileintegrityv1alpha1.NodeConditionFailed && prev.LastResult.Condition == fileintegrityv1alpha1.NodeConditionFailed {
+func conditionIsNewFailureOrTransition(prev, cur *v1alpha1.FileIntegrityNodeStatus) bool {
+	if cur.LastResult.Condition == v1alpha1.NodeConditionFailed && prev.LastResult.Condition == v1alpha1.NodeConditionFailed {
 		return cur.LastResult.FilesRemoved != prev.LastResult.FilesRemoved ||
 			cur.LastResult.FilesAdded != prev.LastResult.FilesAdded ||
 			cur.LastResult.FilesChanged != prev.LastResult.FilesChanged
@@ -350,18 +336,18 @@ func conditionIsNewFailureOrTransition(prev, cur *fileintegrityv1alpha1.FileInte
 }
 
 // createNodeStatusEvent creates an event to report the latest check result
-func createNodeStatusEvent(r *ReconcileConfigMap, fi *fileintegrityv1alpha1.FileIntegrity, status *fileintegrityv1alpha1.FileIntegrityNodeStatus) {
+func createNodeStatusEvent(r *ReconcileConfigMap, fi *v1alpha1.FileIntegrity, status *v1alpha1.FileIntegrityNodeStatus) {
 	switch status.LastResult.Condition {
-	case fileintegrityv1alpha1.NodeConditionSucceeded:
-		r.recorder.Eventf(fi, corev1.EventTypeNormal, "NodeIntegrityStatus", "no changes to node %s",
+	case v1alpha1.NodeConditionSucceeded:
+		r.Recorder.Eventf(fi, corev1.EventTypeNormal, "NodeIntegrityStatus", "no changes to node %s",
 			status.NodeName)
-	case fileintegrityv1alpha1.NodeConditionFailed:
-		r.recorder.Eventf(fi, corev1.EventTypeWarning, "NodeIntegrityStatus",
+	case v1alpha1.NodeConditionFailed:
+		r.Recorder.Eventf(fi, corev1.EventTypeWarning, "NodeIntegrityStatus",
 			"node %s has changed! a:%d,c:%d,r:%d log:%s/%s", status.NodeName,
 			status.LastResult.FilesAdded, status.LastResult.FilesChanged, status.LastResult.FilesRemoved,
 			status.LastResult.ResultConfigMapNamespace, status.LastResult.ResultConfigMapName)
-	case fileintegrityv1alpha1.NodeConditionErrored:
-		r.recorder.Eventf(fi, corev1.EventTypeWarning, "NodeIntegrityStatus",
+	case v1alpha1.NodeConditionErrored:
+		r.Recorder.Eventf(fi, corev1.EventTypeWarning, "NodeIntegrityStatus",
 			"node %s has an error! %s", status.NodeName, status.LastResult.ErrorMsg)
 	}
 }
@@ -383,15 +369,15 @@ func getConfigMapForFailureLog(cm *corev1.ConfigMap) *corev1.ConfigMap {
 	return failedCM
 }
 
-func updateNodeStatusMetrics(r *ReconcileConfigMap, status *fileintegrityv1alpha1.FileIntegrityNodeStatus) {
-	r.metrics.IncFileIntegrityNodeStatus(string(status.LastResult.Condition), status.NodeName)
+func updateNodeStatusMetrics(r *ReconcileConfigMap, status *v1alpha1.FileIntegrityNodeStatus) {
+	r.Metrics.IncFileIntegrityNodeStatus(string(status.LastResult.Condition), status.NodeName)
 
 	switch status.LastResult.Condition {
-	case fileintegrityv1alpha1.NodeConditionSucceeded:
-		r.metrics.SetFileIntegrityNodeStatusGaugeGood(status.NodeName)
-	case fileintegrityv1alpha1.NodeConditionFailed:
-		r.metrics.SetFileIntegrityNodeStatusGaugeBad(status.NodeName)
-	case fileintegrityv1alpha1.NodeConditionErrored:
-		r.metrics.IncFileIntegrityNodeStatusError(status.LastResult.ErrorMsg, status.NodeName)
+	case v1alpha1.NodeConditionSucceeded:
+		r.Metrics.SetFileIntegrityNodeStatusGaugeGood(status.NodeName)
+	case v1alpha1.NodeConditionFailed:
+		r.Metrics.SetFileIntegrityNodeStatusGaugeBad(status.NodeName)
+	case v1alpha1.NodeConditionErrored:
+		r.Metrics.IncFileIntegrityNodeStatusError(status.LastResult.ErrorMsg, status.NodeName)
 	}
 }

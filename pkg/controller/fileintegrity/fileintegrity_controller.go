@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
+	"github.com/openshift/file-integrity-operator/pkg/controller/metrics"
 	"reflect"
 	"strconv"
 	"strings"
@@ -18,7 +20,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -29,26 +30,24 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	fileintegrityv1alpha1 "github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
 	"github.com/openshift/file-integrity-operator/pkg/common"
-	"github.com/openshift/file-integrity-operator/pkg/controller/metrics"
 )
 
-var log = logf.Log.WithName("controller_fileintegrity")
+var controllerFileIntegritylog = logf.Log.WithName("controller_fileintegrity")
 
 // Add creates a new FileIntegrity Controller and adds it to the Manager. The Manager will set fields on the Controller
 // and Start it when the Manager is Started.
-func Add(mgr manager.Manager, met *metrics.Metrics) error {
-	return add(mgr, newReconciler(mgr, met), met)
+func AddFileIntegrityController(mgr manager.Manager, met *metrics.Metrics) error {
+	return addFileIntegrityController(mgr, newFileIntegrityReconciler(mgr, met), met)
 }
 
 // newReconciler returns a new reconcile.Reconciler
-func newReconciler(mgr manager.Manager, met *metrics.Metrics) reconcile.Reconciler {
-	return &ReconcileFileIntegrity{client: mgr.GetClient(), scheme: mgr.GetScheme(), metrics: met}
+func newFileIntegrityReconciler(mgr manager.Manager, met *metrics.Metrics) reconcile.Reconciler {
+	return &FileIntegrityReconciler{Client: mgr.GetClient(), Scheme: mgr.GetScheme(), Metrics: met}
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
-func add(mgr manager.Manager, r reconcile.Reconciler, met *metrics.Metrics) error {
+func addFileIntegrityController(mgr manager.Manager, r reconcile.Reconciler, met *metrics.Metrics) error {
 	// Create a new controller
 	c, err := controller.New("fileintegrity-controller", mgr, controller.Options{Reconciler: r})
 	if err != nil {
@@ -56,15 +55,14 @@ func add(mgr manager.Manager, r reconcile.Reconciler, met *metrics.Metrics) erro
 	}
 
 	// Watch for changes to primary resource FileIntegrity
-	err = c.Watch(&source.Kind{Type: &fileintegrityv1alpha1.FileIntegrity{}}, &handler.EnqueueRequestForObject{})
+	err = c.Watch(&source.Kind{Type: &v1alpha1.FileIntegrity{}}, &handler.EnqueueRequestForObject{})
 	if err != nil {
 		return err
 	}
 
 	// Watch for changes to configMaps that are used by a FI instance. We use a mapper to map the CM to FI
-	err = c.Watch(&source.Kind{Type: &corev1.ConfigMap{}}, &handler.EnqueueRequestsFromMapFunc{
-		ToRequests: &fileIntegrityMapper{mgr.GetClient()},
-	})
+	mapper := &fileIntegrityMapper{Client: mgr.GetClient()}
+	err = c.Watch(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(mapper.Map))
 	if err != nil {
 		return err
 	}
@@ -72,24 +70,15 @@ func add(mgr manager.Manager, r reconcile.Reconciler, met *metrics.Metrics) erro
 	return nil
 }
 
-// blank assignment to verify that ReconcileFileIntegrity implements reconcile.Reconciler
-var _ reconcile.Reconciler = &ReconcileFileIntegrity{}
-
-// ReconcileFileIntegrity reconciles a FileIntegrity object
-type ReconcileFileIntegrity struct {
-	// This client, initialized using mgr.Client() above, is a split client
-	// that reads objects from the cache and writes to the apiserver
-	client  client.Client
-	scheme  *runtime.Scheme
-	metrics *metrics.Metrics
-}
+// blank assignment to verify that FileIntegrityReconciler implements reconcile.Reconciler
+var _ reconcile.Reconciler = &FileIntegrityReconciler{}
 
 // handleDefaultConfigMaps creates the inital configMaps needed by the operator and aide pods. It returns the
 // active AIDE configuration configMap
-func (r *ReconcileFileIntegrity) handleDefaultConfigMaps(logger logr.Logger, f *fileintegrityv1alpha1.FileIntegrity) (*corev1.ConfigMap, bool, error) {
+func (r *FileIntegrityReconciler) handleDefaultConfigMaps(logger logr.Logger, f *v1alpha1.FileIntegrity) (*corev1.ConfigMap, bool, error) {
 	var scriptsUpdated bool
 	scriptCm := &corev1.ConfigMap{}
-	if err := r.client.Get(context.TODO(), types.NamespacedName{
+	if err := r.Client.Get(context.TODO(), types.NamespacedName{
 		Name:      common.AideReinitScriptConfigMapName,
 		Namespace: common.FileIntegrityNamespace,
 	}, scriptCm); err != nil {
@@ -97,20 +86,20 @@ func (r *ReconcileFileIntegrity) handleDefaultConfigMaps(logger logr.Logger, f *
 			return nil, scriptsUpdated, err
 		}
 		// does not exist, create
-		if err := r.client.Create(context.TODO(), aideReinitScript()); err != nil {
+		if err := r.Client.Create(context.TODO(), aideReinitScript()); err != nil {
 			return nil, scriptsUpdated, err
 		}
 	} else if ok := dataMatchesReinitScript(scriptCm); !ok {
 		// The script data is outdated because of a manual change or an operator update, so we need to restore it.
 		logger.Info("re-init script configMap has changed, restoring")
-		if err := r.client.Update(context.TODO(), aideReinitScript()); err != nil {
+		if err := r.Client.Update(context.TODO(), aideReinitScript()); err != nil {
 			return nil, scriptsUpdated, err
 		}
 		scriptsUpdated = true
 	}
 
 	pauseCm := &corev1.ConfigMap{}
-	if err := r.client.Get(context.TODO(), types.NamespacedName{
+	if err := r.Client.Get(context.TODO(), types.NamespacedName{
 		Name:      common.PauseConfigMapName,
 		Namespace: common.FileIntegrityNamespace,
 	}, pauseCm); err != nil {
@@ -118,20 +107,20 @@ func (r *ReconcileFileIntegrity) handleDefaultConfigMaps(logger logr.Logger, f *
 			return nil, scriptsUpdated, err
 		}
 		// does not exist, create
-		if err := r.client.Create(context.TODO(), aidePauseScript()); err != nil {
+		if err := r.Client.Create(context.TODO(), aidePauseScript()); err != nil {
 			return nil, scriptsUpdated, err
 		}
 	} else if ok := dataMatchesPauseScript(pauseCm); !ok {
 		// The script data is outdated because of a manual change or an operator update, so we need to restore it.
 		logger.Info("holdoff script configMap has changed, restoring")
-		if err := r.client.Update(context.TODO(), aidePauseScript()); err != nil {
+		if err := r.Client.Update(context.TODO(), aidePauseScript()); err != nil {
 			return nil, scriptsUpdated, err
 		}
 		scriptsUpdated = true
 	}
 
 	confCm := &corev1.ConfigMap{}
-	if err := r.client.Get(context.TODO(), types.NamespacedName{
+	if err := r.Client.Get(context.TODO(), types.NamespacedName{
 		Name:      f.Name,
 		Namespace: common.FileIntegrityNamespace,
 	}, confCm); err != nil {
@@ -139,7 +128,7 @@ func (r *ReconcileFileIntegrity) handleDefaultConfigMaps(logger logr.Logger, f *
 			return nil, scriptsUpdated, err
 		}
 		// does not exist, create
-		if err := r.client.Create(context.TODO(), defaultAIDEConfigMap(f.Name)); err != nil {
+		if err := r.Client.Create(context.TODO(), defaultAIDEConfigMap(f.Name)); err != nil {
 			return nil, scriptsUpdated, err
 		}
 		return nil, scriptsUpdated, nil
@@ -148,7 +137,7 @@ func (r *ReconcileFileIntegrity) handleDefaultConfigMaps(logger logr.Logger, f *
 		_, hasOwner := confCm.Labels[common.IntegrityOwnerLabelKey]
 		if !hasData || !hasOwner {
 			// we had the configMap but its data or owner label was missing, so restore it.
-			if err := r.client.Update(context.TODO(), defaultAIDEConfigMap(f.Name)); err != nil {
+			if err := r.Client.Update(context.TODO(), defaultAIDEConfigMap(f.Name)); err != nil {
 				return nil, scriptsUpdated, err
 			}
 			return nil, scriptsUpdated, nil
@@ -160,7 +149,7 @@ func (r *ReconcileFileIntegrity) handleDefaultConfigMaps(logger logr.Logger, f *
 
 // narrowNodeSelector returns a LabelSelector as-is from instance if node == nil, otherwise, return a LabelSelector for
 // node if node is contained in the node group. Used for making a node-specific DS.
-func (r *ReconcileFileIntegrity) narrowNodeSelector(instance *fileintegrityv1alpha1.FileIntegrity, node *corev1.Node) (metav1.LabelSelector, error) {
+func (r *FileIntegrityReconciler) narrowNodeSelector(instance *v1alpha1.FileIntegrity, node *corev1.Node) (metav1.LabelSelector, error) {
 	narrowSelector := metav1.LabelSelector{}
 	if node == nil {
 		narrowSelector.MatchLabels = instance.Spec.NodeSelector
@@ -182,12 +171,12 @@ func (r *ReconcileFileIntegrity) narrowNodeSelector(instance *fileintegrityv1alp
 // createReinitDaemonSet creates a re-init daemonSet. The daemonSet will be a single-node reinit if node is not "" (like
 // in the node update case), otherwise, it will apply to the whole node instance node group (like in the manual re-init
 // case).
-func (r *ReconcileFileIntegrity) createReinitDaemonSet(instance *fileintegrityv1alpha1.FileIntegrity, node string) error {
+func (r *FileIntegrityReconciler) createReinitDaemonSet(instance *v1alpha1.FileIntegrity, node, operatorImage string) error {
 	daemonSet := &appsv1.DaemonSet{}
 	dsName := common.ReinitDaemonSetNodeName(instance.Name, node)
 	dsNamespace := common.FileIntegrityNamespace
 
-	getErr := r.client.Get(context.TODO(), types.NamespacedName{Name: dsName, Namespace: dsNamespace}, daemonSet)
+	getErr := r.Client.Get(context.TODO(), types.NamespacedName{Name: dsName, Namespace: dsNamespace}, daemonSet)
 	if getErr == nil {
 		// Exists, so continue.
 		return nil
@@ -212,14 +201,14 @@ func (r *ReconcileFileIntegrity) createReinitDaemonSet(instance *fileintegrityv1
 		return narrowErr
 	}
 
-	ds := reinitAideDaemonset(common.ReinitDaemonSetNodeName(instance.Name, node), instance, selectorOverride)
-	if err := controllerutil.SetControllerReference(instance, ds, r.scheme); err != nil {
+	ds := reinitAideDaemonset(common.ReinitDaemonSetNodeName(instance.Name, node), instance, selectorOverride, operatorImage)
+	if err := controllerutil.SetControllerReference(instance, ds, r.Scheme); err != nil {
 		return err
 	}
 
-	createErr := r.client.Create(context.TODO(), ds)
+	createErr := r.Client.Create(context.TODO(), ds)
 	if createErr == nil {
-		r.metrics.IncFileIntegrityReinitDaemonsetUpdate()
+		r.Metrics.IncFileIntegrityReinitDaemonsetUpdate()
 	}
 
 	return createErr
@@ -227,19 +216,19 @@ func (r *ReconcileFileIntegrity) createReinitDaemonSet(instance *fileintegrityv1
 
 // If node == "", return nil, nil, otherwise try to find a node with that name. Not found needs to be handled outside
 // of this function.
-func (r *ReconcileFileIntegrity) tryGettingNode(node string) (*corev1.Node, error) {
+func (r *FileIntegrityReconciler) tryGettingNode(node string) (*corev1.Node, error) {
 	if len(node) == 0 {
 		return nil, nil
 	}
 	n := corev1.Node{}
-	err := r.client.Get(context.TODO(), types.NamespacedName{Name: node}, &n)
+	err := r.Client.Get(context.TODO(), types.NamespacedName{Name: node}, &n)
 	if err != nil {
 		return nil, err
 	}
 	return &n, nil
 }
 
-func (r *ReconcileFileIntegrity) updateAideConfig(conf *corev1.ConfigMap, data, node string) error {
+func (r *FileIntegrityReconciler) updateAideConfig(conf *corev1.ConfigMap, data, node string) error {
 	confCopy := conf.DeepCopy()
 	confCopy.Data[common.DefaultConfDataKey] = data
 
@@ -250,13 +239,13 @@ func (r *ReconcileFileIntegrity) updateAideConfig(conf *corev1.ConfigMap, data, 
 	// Mark the configMap as updated by the user-provided config, for the configMap-controller to trigger an update.
 	confCopy.Annotations[common.AideConfigUpdatedAnnotationKey] = node
 
-	return r.client.Update(context.TODO(), confCopy)
+	return r.Client.Update(context.TODO(), confCopy)
 }
 
-func (r *ReconcileFileIntegrity) retrieveAndAnnotateAideConfig(conf *corev1.ConfigMap, node string) error {
+func (r *FileIntegrityReconciler) retrieveAndAnnotateAideConfig(conf *corev1.ConfigMap, node string) error {
 	cachedconf := &corev1.ConfigMap{}
 	// Get the latest config...
-	err := r.client.Get(context.TODO(), types.NamespacedName{Name: conf.Name, Namespace: conf.Namespace}, cachedconf)
+	err := r.Client.Get(context.TODO(), types.NamespacedName{Name: conf.Name, Namespace: conf.Namespace}, cachedconf)
 	if err != nil {
 		return err
 	}
@@ -264,10 +253,10 @@ func (r *ReconcileFileIntegrity) retrieveAndAnnotateAideConfig(conf *corev1.Conf
 	return r.updateAideConfig(cachedconf, cachedconf.Data[common.DefaultConfDataKey], node)
 }
 
-func (r *ReconcileFileIntegrity) aideConfigIsDefault(instance *fileintegrityv1alpha1.FileIntegrity) (bool, error) {
+func (r *FileIntegrityReconciler) aideConfigIsDefault(instance *v1alpha1.FileIntegrity) (bool, error) {
 	defaultConfigMap := defaultAIDEConfigMap(instance.Name)
 	currentConfigMap := &corev1.ConfigMap{}
-	err := r.client.Get(context.TODO(), types.NamespacedName{
+	err := r.Client.Get(context.TODO(), types.NamespacedName{
 		Name:      defaultConfigMap.Name,
 		Namespace: defaultConfigMap.Namespace,
 	}, currentConfigMap)
@@ -280,7 +269,7 @@ func (r *ReconcileFileIntegrity) aideConfigIsDefault(instance *fileintegrityv1al
 
 // reconcileUserConfig checks if the user provided a configuration of their own and prepares it. Returns true if a new
 // configuration was added, false if not.
-func (r *ReconcileFileIntegrity) reconcileUserConfig(instance *fileintegrityv1alpha1.FileIntegrity,
+func (r *FileIntegrityReconciler) reconcileUserConfig(instance *v1alpha1.FileIntegrity,
 	reqLogger logr.Logger, currentConfig *corev1.ConfigMap) (bool, error) {
 	if len(instance.Spec.Config.Name) == 0 || len(instance.Spec.Config.Namespace) == 0 {
 		hasDefaultConfig, err := r.aideConfigIsDefault(instance)
@@ -301,7 +290,7 @@ func (r *ReconcileFileIntegrity) reconcileUserConfig(instance *fileintegrityv1al
 	reqLogger.Info("reconciling user-provided configMap")
 
 	userConfigMap := &corev1.ConfigMap{}
-	err := r.client.Get(context.TODO(), types.NamespacedName{
+	err := r.Client.Get(context.TODO(), types.NamespacedName{
 		Name:      instance.Spec.Config.Name,
 		Namespace: instance.Spec.Config.Namespace,
 	}, userConfigMap)
@@ -345,17 +334,31 @@ func (r *ReconcileFileIntegrity) reconcileUserConfig(instance *fileintegrityv1al
 	return true, nil
 }
 
+// gets the image of the first container in the operator deployment spec. We expect this to be the deployment named
+// file-integrity-operator in the openshift-file-integrity namespace.
+func (r *FileIntegrityReconciler) getOperatorDeploymentImage() (string, error) {
+	operatorDeployment := &appsv1.Deployment{}
+	image := ""
+	if err := r.Client.Get(context.TODO(), types.NamespacedName{Name: "file-integrity-operator", Namespace: common.FileIntegrityNamespace}, operatorDeployment); err != nil {
+		return "", err
+	}
+	if len(operatorDeployment.Spec.Template.Spec.Containers) > 0 {
+		image = operatorDeployment.Spec.Template.Spec.Containers[0].Image
+	}
+	return image, nil
+}
+
 // Note:
 // The Controller will requeue the Request to be processed again if the returned error is non-nil or
 // Result.Requeue is true, otherwise upon completion it will remove the work from the queue.
 // Reconcile handles the creation and update of configMaps as well as the initial daemonSets for the AIDE pods.
-func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile.Result, error) {
-	reqLogger := log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
+func (r *FileIntegrityReconciler) FileIntegrityControllerReconcile(request reconcile.Request) (reconcile.Result, error) {
+	reqLogger := controllerFileIntegritylog.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
 	reqLogger.Info("reconciling FileIntegrity")
 
 	// Fetch the FileIntegrity instance
-	instance := &fileintegrityv1alpha1.FileIntegrity{}
-	err := r.client.Get(context.TODO(), request.NamespacedName, instance)
+	instance := &v1alpha1.FileIntegrity{}
+	err := r.Client.Get(context.TODO(), request.NamespacedName, instance)
 	if err != nil {
 		if kerr.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
@@ -364,6 +367,12 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 			return reconcile.Result{}, nil
 		}
 		// Error reading the object - requeue the request.
+		return reconcile.Result{}, err
+	}
+
+	// Get the operator image to later set as the daemonSet image. They need to always match before we deprecate RELATED_IMAGE_OPERATOR.
+	operatorImage, err := r.getOperatorDeploymentImage()
+	if err != nil {
 		return reconcile.Result{}, err
 	}
 
@@ -388,16 +397,16 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 	nodeToReinit := ""
 	nodeToReinit, forceReinit := instance.Annotations[common.AideDatabaseReinitAnnotationKey]
 	if hasNewConfig || forceReinit {
-		if err := r.createReinitDaemonSet(instance, nodeToReinit); err != nil {
+		if err := r.createReinitDaemonSet(instance, nodeToReinit, operatorImage); err != nil {
 			return reconcile.Result{}, err
 		}
 
 		if forceReinit {
 			reqLogger.Info("re-init daemonSet created, triggered by demand or node", "node", nodeToReinit)
-			r.metrics.IncFileIntegrityReinitByDemand()
+			r.Metrics.IncFileIntegrityReinitByDemand()
 		} else {
 			reqLogger.Info("re-init daemonSet created, triggered by configuration change")
-			r.metrics.IncFileIntegrityReinitByConfig()
+			r.Metrics.IncFileIntegrityReinitByConfig()
 		}
 	}
 
@@ -412,13 +421,13 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 		reqLogger.Info("Removing re-init annotation.")
 		// TODO: We need to retry gracefully here (not leave the annotation active, causing a doubled metric in the
 		// forceReinit case)
-		if err := r.client.Update(context.TODO(), fiCopy); err != nil {
+		if err := r.Client.Update(context.TODO(), fiCopy); err != nil {
 			return reconcile.Result{}, err
 		}
 	}
 
 	daemonSet := &appsv1.DaemonSet{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: daemonSetName, Namespace: common.FileIntegrityNamespace}, daemonSet)
+	err = r.Client.Get(context.TODO(), types.NamespacedName{Name: daemonSetName, Namespace: common.FileIntegrityNamespace}, daemonSet)
 	if err != nil {
 		if !kerr.IsNotFound(err) {
 			reqLogger.Error(err, "error getting daemonSet")
@@ -430,53 +439,53 @@ func (r *ReconcileFileIntegrity) Reconcile(request reconcile.Request) (reconcile
 		}
 
 		// create
-		ds := aideDaemonset(daemonSetName, instance)
+		ds := aideDaemonset(daemonSetName, instance, operatorImage)
 
-		if ownerErr := controllerutil.SetControllerReference(instance, ds, r.scheme); ownerErr != nil {
-			log.Error(ownerErr, "Failed to set daemonset ownership", "DaemonSet", ds)
+		if ownerErr := controllerutil.SetControllerReference(instance, ds, r.Scheme); ownerErr != nil {
+			controllerFileIntegritylog.Error(ownerErr, "Failed to set daemonset ownership", "DaemonSet", ds)
 			return reconcile.Result{}, err
 		}
 
-		createErr := r.client.Create(context.TODO(), ds)
+		createErr := r.Client.Create(context.TODO(), ds)
 		if createErr != nil && !kerr.IsAlreadyExists(createErr) {
 			reqLogger.Error(createErr, "error creating daemonSet")
 			return reconcile.Result{}, createErr
 		}
 		if !kerr.IsAlreadyExists(createErr) {
-			r.metrics.IncFileIntegrityDaemonsetUpdate()
+			r.Metrics.IncFileIntegrityDaemonsetUpdate()
 		}
 	} else {
 		dsCopy := daemonSet.DeepCopy()
 		argsNeedUpdate := updateDSArgs(dsCopy, instance, reqLogger)
-		imgNeedsUpdate := updateDSImage(dsCopy, reqLogger)
+		imgNeedsUpdate := updateDSImage(dsCopy, operatorImage, reqLogger)
 		nsNeedsUpdate := updateDSNodeSelector(dsCopy, instance, reqLogger)
 		tolsNeedsUpdate := updateDSTolerations(dsCopy, instance, reqLogger)
-		volsNeedUpdate := updateDSContainerVolumes(dsCopy, instance, reqLogger)
+		volsNeedUpdate := updateDSContainerVolumes(dsCopy, instance, operatorImage, reqLogger)
 
 		if argsNeedUpdate || imgNeedsUpdate || nsNeedsUpdate || tolsNeedsUpdate || volsNeedUpdate || scriptsUpdated {
-			if err := r.client.Update(context.TODO(), dsCopy); err != nil {
+			if err := r.Client.Update(context.TODO(), dsCopy); err != nil {
 				return reconcile.Result{}, err
 			}
 
-			r.metrics.IncFileIntegrityDaemonsetUpdate()
+			r.Metrics.IncFileIntegrityDaemonsetUpdate()
 
 			// TODO: We might want to change this to something that signals to the daemonSet pods that they need to
 			// gracefully exit, and let them restart that way.
-			err := common.RestartFileIntegrityDs(r.client, common.DaemonSetName(instance.Name))
+			err := common.RestartFileIntegrityDs(r.Client, common.DaemonSetName(instance.Name))
 			if err != nil {
 				return reconcile.Result{}, err
 			}
 			reqLogger.Info("FileIntegrity daemon configuration changed - pods restarted.")
-			r.metrics.IncFileIntegrityDaemonsetPodKill()
+			r.Metrics.IncFileIntegrityDaemonsetPodKill()
 		}
 	}
 	return reconcile.Result{}, nil
 }
 
 // The old daemonSets had a "aide-ds-" prefix, but that is no longer. If any are around after upgrade, delete them.
-func (r *ReconcileFileIntegrity) deleteLegacyDaemonSets(instance *fileintegrityv1alpha1.FileIntegrity) error {
+func (r *FileIntegrityReconciler) deleteLegacyDaemonSets(instance *v1alpha1.FileIntegrity) error {
 	daemonSetList := &appsv1.DaemonSetList{}
-	if err := r.client.List(context.TODO(), daemonSetList, &client.ListOptions{LabelSelector: labels.SelectorFromSet(labels.Set{
+	if err := r.Client.List(context.TODO(), daemonSetList, &client.ListOptions{LabelSelector: labels.SelectorFromSet(labels.Set{
 		common.IntegrityOwnerLabelKey: instance.Name,
 	})}); err != nil {
 		return err
@@ -485,7 +494,7 @@ func (r *ReconcileFileIntegrity) deleteLegacyDaemonSets(instance *fileintegrityv
 		daemonSet := &daemonSetList.Items[i]
 		// Check for the old prefixed ds, delete it (it's being replaced by the newly named ones.)
 		if strings.HasPrefix(daemonSet.Name, "aide-ds-") {
-			if deleteErr := r.client.Delete(context.TODO(), daemonSet); deleteErr != nil {
+			if deleteErr := r.Client.Delete(context.TODO(), daemonSet); deleteErr != nil {
 				return deleteErr
 			}
 		}
@@ -493,7 +502,7 @@ func (r *ReconcileFileIntegrity) deleteLegacyDaemonSets(instance *fileintegrityv
 	return nil
 }
 
-func updateDSNodeSelector(currentDS *appsv1.DaemonSet, fi *fileintegrityv1alpha1.FileIntegrity, logger logr.Logger) bool {
+func updateDSNodeSelector(currentDS *appsv1.DaemonSet, fi *v1alpha1.FileIntegrity, logger logr.Logger) bool {
 	nsRef := &currentDS.Spec.Template.Spec.NodeSelector
 	expectedNS := fi.Spec.NodeSelector
 	needsUpdate := !reflect.DeepEqual(*nsRef, expectedNS)
@@ -504,7 +513,7 @@ func updateDSNodeSelector(currentDS *appsv1.DaemonSet, fi *fileintegrityv1alpha1
 	return needsUpdate
 }
 
-func updateDSTolerations(currentDS *appsv1.DaemonSet, fi *fileintegrityv1alpha1.FileIntegrity, logger logr.Logger) bool {
+func updateDSTolerations(currentDS *appsv1.DaemonSet, fi *v1alpha1.FileIntegrity, logger logr.Logger) bool {
 	tRef := &currentDS.Spec.Template.Spec.Tolerations
 	expectedTolerations := fi.Spec.Tolerations
 	needsUpdate := !reflect.DeepEqual(*tRef, expectedTolerations)
@@ -518,7 +527,7 @@ func updateDSTolerations(currentDS *appsv1.DaemonSet, fi *fileintegrityv1alpha1.
 // Returns true when the daemon pod args derived from the FileIntegrity object differ from the current DS.
 // Returns false if there was no difference.
 // If an update is needed, this will update the arguments from the given DaemonSet
-func updateDSArgs(currentDS *appsv1.DaemonSet, fi *fileintegrityv1alpha1.FileIntegrity, logger logr.Logger) bool {
+func updateDSArgs(currentDS *appsv1.DaemonSet, fi *v1alpha1.FileIntegrity, logger logr.Logger) bool {
 	argsRef := &currentDS.Spec.Template.Spec.Containers[0].Args
 	expectedArgs := daemonArgs(currentDS.Name, fi)
 	needsUpdate := !reflect.DeepEqual(*argsRef, expectedArgs)
@@ -532,8 +541,8 @@ func updateDSArgs(currentDS *appsv1.DaemonSet, fi *fileintegrityv1alpha1.FileInt
 // Returns true when the daemon pod volumeMounts differ from the provided (i.e., during update).
 // Returns false if there was no difference.
 // If an update is needed, this will update the arguments from the given DaemonSet
-func updateDSContainerVolumes(currentDS *appsv1.DaemonSet, fi *fileintegrityv1alpha1.FileIntegrity, logger logr.Logger) bool {
-	expected := aideDaemonset(currentDS.Name, fi)
+func updateDSContainerVolumes(currentDS *appsv1.DaemonSet, fi *v1alpha1.FileIntegrity, operatorImage string, logger logr.Logger) bool {
+	expected := aideDaemonset(currentDS.Name, fi, operatorImage)
 	volumeMountRef := &currentDS.Spec.Template.Spec.Containers[0].VolumeMounts
 	volumeMountsNeedUpdate := !reflect.DeepEqual(*volumeMountRef, expected.Spec.Template.Spec.Containers[0].VolumeMounts)
 	if volumeMountsNeedUpdate {
@@ -547,9 +556,9 @@ func updateDSContainerVolumes(currentDS *appsv1.DaemonSet, fi *fileintegrityv1al
 // Returns true when the daemon pod image differs from the current DS.
 // Returns false if there was no difference.
 // If an update is needed, this will update the image reference from the given DaemonSet
-func updateDSImage(currentDS *appsv1.DaemonSet, logger logr.Logger) bool {
+func updateDSImage(currentDS *appsv1.DaemonSet, operatorImage string, logger logr.Logger) bool {
 	currentImgRef := &currentDS.Spec.Template.Spec.Containers[0].Image
-	expectedImg := common.GetComponentImage(common.OPERATOR)
+	expectedImg := common.GetComponentImage(operatorImage, common.OPERATOR)
 	needsUpdate := *currentImgRef != expectedImg
 	if needsUpdate {
 		logger.Info("FileIntegrity needed image update", "Expected-Image", expectedImg, "Current-Image", currentImgRef)
@@ -614,7 +623,7 @@ func configMapKeyDataMatches(cm1, cm2 *corev1.ConfigMap, key string) bool {
 
 // reinitAideDaemonset returns a DaemonSet that runs a one-shot pod on each node. This pod touches a file
 // on the host OS that informs the AIDE daemon to back up and reinitialize the AIDE db.
-func reinitAideDaemonset(reinitDaemonSetName string, fi *fileintegrityv1alpha1.FileIntegrity, selector metav1.LabelSelector) *appsv1.DaemonSet {
+func reinitAideDaemonset(reinitDaemonSetName string, fi *v1alpha1.FileIntegrity, selector metav1.LabelSelector, operatorImage string) *appsv1.DaemonSet {
 	priv := true
 	runAs := int64(0)
 	mode := int32(0744)
@@ -650,7 +659,7 @@ func reinitAideDaemonset(reinitDaemonSetName string, fi *fileintegrityv1alpha1.F
 								RunAsUser:  &runAs,
 							},
 							Name:    "reinit-script",
-							Image:   common.GetComponentImage(common.OPERATOR),
+							Image:   common.GetComponentImage(operatorImage, common.OPERATOR),
 							Command: []string{common.AideScriptPath},
 							VolumeMounts: []corev1.VolumeMount{
 								{
@@ -679,7 +688,7 @@ func reinitAideDaemonset(reinitDaemonSetName string, fi *fileintegrityv1alpha1.F
 						{
 							Name:    "pause-script",
 							Command: []string{common.PausePath},
-							Image:   common.GetComponentImage(common.OPERATOR),
+							Image:   common.GetComponentImage(operatorImage, common.OPERATOR),
 							VolumeMounts: []corev1.VolumeMount{
 								{
 									Name:      common.PauseConfigMapName,
@@ -736,7 +745,7 @@ func reinitAideDaemonset(reinitDaemonSetName string, fi *fileintegrityv1alpha1.F
 	}
 }
 
-func aideDaemonset(dsName string, fi *fileintegrityv1alpha1.FileIntegrity) *appsv1.DaemonSet {
+func aideDaemonset(dsName string, fi *v1alpha1.FileIntegrity, operatorImage string) *appsv1.DaemonSet {
 	priv := true
 	runAs := int64(0)
 	return &appsv1.DaemonSet{
@@ -772,7 +781,7 @@ func aideDaemonset(dsName string, fi *fileintegrityv1alpha1.FileIntegrity) *apps
 								RunAsUser:  &runAs,
 							},
 							Name:  "daemon",
-							Image: common.GetComponentImage(common.OPERATOR),
+							Image: common.GetComponentImage(operatorImage, common.OPERATOR),
 							Args:  daemonArgs(dsName, fi),
 							Env: []corev1.EnvVar{
 								{
@@ -851,11 +860,11 @@ func aideDaemonset(dsName string, fi *fileintegrityv1alpha1.FileIntegrity) *apps
 	}
 }
 
-func getMaxBackups(fi *fileintegrityv1alpha1.FileIntegrity) string {
+func getMaxBackups(fi *v1alpha1.FileIntegrity) string {
 	return strconv.Itoa(fi.Spec.Config.MaxBackups)
 }
 
-func getGracePeriod(fi *fileintegrityv1alpha1.FileIntegrity) string {
+func getGracePeriod(fi *v1alpha1.FileIntegrity) string {
 	gracePeriod := fi.Spec.Config.GracePeriod
 	if gracePeriod < 10 {
 		gracePeriod = 10
@@ -863,11 +872,11 @@ func getGracePeriod(fi *fileintegrityv1alpha1.FileIntegrity) string {
 	return strconv.Itoa(gracePeriod)
 }
 
-func getDebug(fi *fileintegrityv1alpha1.FileIntegrity) string {
+func getDebug(fi *v1alpha1.FileIntegrity) string {
 	return strconv.FormatBool(fi.Spec.Debug)
 }
 
-func daemonArgs(dsName string, fi *fileintegrityv1alpha1.FileIntegrity) []string {
+func daemonArgs(dsName string, fi *v1alpha1.FileIntegrity) []string {
 	return []string{"daemon",
 		"--lc-file=" + aideLogPath,
 		"--lc-config-map-prefix=" + dsName,

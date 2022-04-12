@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"net/http"
@@ -76,8 +77,8 @@ type Metrics struct {
 	metricFileIntegrityNodeStatusGauge       *prometheus.GaugeVec
 }
 
-// New returns a new Metrics instance.
-func New() *Metrics {
+// NewControllerMetrics returns a new Metrics instance.
+func NewControllerMetrics() *Metrics {
 	return &Metrics{
 		impl: &defaultImpl{},
 		log:  ctrllog.Log.WithName("metrics"),
@@ -159,7 +160,7 @@ func New() *Metrics {
 	}
 }
 
-// Register iterates over all available metrics and registers them.
+// Register iterates over all available Metrics and registers them.
 func (m *Metrics) Register() error {
 	for name, collector := range map[string]prometheus.Collector{
 		metricNameFileIntegrityPhase:                 m.metricFileIntegrityPhase,
@@ -181,7 +182,8 @@ func (m *Metrics) Register() error {
 	return nil
 }
 
-func (m *Metrics) Start(s <-chan struct{}) error {
+func (m *Metrics) Start(ctx context.Context) error {
+
 	m.log.Info("Starting to serve controller metrics")
 	http.Handle(HandlerPath, promhttp.Handler())
 
@@ -198,7 +200,6 @@ func (m *Metrics) Start(s <-chan struct{}) error {
 	if err != nil {
 		m.log.Error(err, "Metrics service failed")
 	}
-	<-s
 	return nil
 }
 

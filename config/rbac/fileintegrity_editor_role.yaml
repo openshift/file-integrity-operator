@@ -1,0 +1,24 @@
+# permissions for end users to edit fileintegrities.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: fileintegrity-editor-role
+rules:
+- apiGroups:
+  - fileintegrity.openshift.io
+  resources:
+  - fileintegrities
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - fileintegrity.openshift.io
+  resources:
+  - fileintegrities/status
+  verbs:
+  - get

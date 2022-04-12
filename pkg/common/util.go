@@ -9,14 +9,16 @@ import (
 	"os/exec"
 	"strconv"
 
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/types"
-
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/discovery"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 )
 
 type FileIntegrityComponent uint
@@ -37,12 +39,14 @@ var componentDefaults = []struct {
 }
 
 // GetComponentImage returns a full image pull spec for a given component
-// based on the component type
-func GetComponentImage(component FileIntegrityComponent) string {
+// based on the component type, if override is set then we always use that.
+func GetComponentImage(override string, component FileIntegrityComponent) string {
 	comp := componentDefaults[component]
 
 	imageTag := os.Getenv(comp.envVar)
-	if imageTag == "" {
+	if len(override) > 0 {
+		imageTag = override
+	} else if imageTag == "" {
 		imageTag = comp.defaultImage
 	}
 	return imageTag
@@ -292,4 +296,71 @@ func GetAideErrorMessage(rv int) string {
 
 	rv -= aideErrBase // the array index still starts at zero...
 	return aideErrLookup[rv].errString
+}
+
+// ResourceExists returns true if the given resource kind exists
+// in the given api groupversion
+func ResourceExists(dc discovery.DiscoveryInterface, apiGroupVersion, kind string) (bool, error) {
+
+	_, apiLists, err := dc.ServerGroupsAndResources()
+	if err != nil {
+		return false, err
+	}
+	for _, apiList := range apiLists {
+		if apiList.GroupVersion == apiGroupVersion {
+			for _, r := range apiList.APIResources {
+				if r.Kind == kind {
+					return true, nil
+				}
+			}
+		}
+	}
+	return false, nil
+}
+
+var ErrServiceMonitorNotPresent = fmt.Errorf("no ServiceMonitor registered with the API")
+
+type ServiceMonitorUpdater func(*monitoringv1.ServiceMonitor) error
+
+// GenerateServiceMonitor generates a prometheus-operator ServiceMonitor object
+// based on the passed Service object.
+func GenerateServiceMonitor(s *corev1.Service) *monitoringv1.ServiceMonitor {
+	labels := make(map[string]string)
+	for k, v := range s.ObjectMeta.Labels {
+		labels[k] = v
+	}
+	endpoints := populateEndpointsFromServicePorts(s)
+	boolTrue := true
+
+	return &monitoringv1.ServiceMonitor{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      s.ObjectMeta.Name,
+			Namespace: s.ObjectMeta.Namespace,
+			Labels:    labels,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion:         "v1",
+					BlockOwnerDeletion: &boolTrue,
+					Controller:         &boolTrue,
+					Kind:               "Service",
+					Name:               s.Name,
+					UID:                s.UID,
+				},
+			},
+		},
+		Spec: monitoringv1.ServiceMonitorSpec{
+			Selector: metav1.LabelSelector{
+				MatchLabels: labels,
+			},
+			Endpoints: endpoints,
+		},
+	}
+}
+
+func populateEndpointsFromServicePorts(s *corev1.Service) []monitoringv1.Endpoint {
+	var endpoints []monitoringv1.Endpoint
+	for _, port := range s.Spec.Ports {
+		endpoints = append(endpoints, monitoringv1.Endpoint{Port: port.Name})
+	}
+	return endpoints
 }
