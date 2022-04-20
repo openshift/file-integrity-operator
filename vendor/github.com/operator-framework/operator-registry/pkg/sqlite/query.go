@@ -1,3 +1,5 @@
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o sqlitefakes/fake_rowscanner.go . RowScanner
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o sqlitefakes/fake_querier.go . Querier
 package sqlite
 
 import (
@@ -13,23 +15,64 @@ import (
 	"github.com/operator-framework/operator-registry/pkg/registry"
 )
 
-type SQLQuerier struct {
+type RowScanner interface {
+	Next() bool
+	Close() error
+	Scan(dest ...interface{}) error
+}
+
+type Querier interface {
+	QueryContext(ctx context.Context, query string, args ...interface{}) (RowScanner, error)
+}
+
+type dbQuerierAdapter struct {
 	db *sql.DB
+}
+
+func (a dbQuerierAdapter) QueryContext(ctx context.Context, query string, args ...interface{}) (RowScanner, error) {
+	return a.db.QueryContext(ctx, query, args...)
+}
+
+type SQLQuerier struct {
+	db Querier
+	querierConfig
 }
 
 var _ registry.Query = &SQLQuerier{}
 
-func NewSQLLiteQuerier(dbFilename string) (*SQLQuerier, error) {
-	db, err := sql.Open("sqlite3", "file:"+dbFilename+"?immutable=true")
+type querierConfig struct {
+	omitManifests bool
+}
+
+type SQLiteQuerierOption func(*querierConfig)
+
+// If true, ListBundles will omit inline manifests (the object and
+// csvJson fields) from response elements that contain a bundle image
+// reference.
+func OmitManifests(b bool) SQLiteQuerierOption {
+	return func(c *querierConfig) {
+		c.omitManifests = b
+	}
+}
+
+func NewSQLLiteQuerier(dbFilename string, opts ...SQLiteQuerierOption) (*SQLQuerier, error) {
+	db, err := OpenReadOnly(dbFilename)
 	if err != nil {
 		return nil, err
 	}
-
-	return &SQLQuerier{db}, nil
+	return NewSQLLiteQuerierFromDb(db, opts...), nil
 }
 
-func NewSQLLiteQuerierFromDb(db *sql.DB) *SQLQuerier {
-	return &SQLQuerier{db}
+func NewSQLLiteQuerierFromDb(db *sql.DB, opts ...SQLiteQuerierOption) *SQLQuerier {
+	return NewSQLLiteQuerierFromDBQuerier(dbQuerierAdapter{db}, opts...)
+}
+
+func NewSQLLiteQuerierFromDBQuerier(q Querier, opts ...SQLiteQuerierOption) *SQLQuerier {
+	sq := SQLQuerier{db: q}
+	for _, opt := range opts {
+		opt(&sq.querierConfig)
+	}
+	return &sq
 }
 
 func (s *SQLQuerier) ListTables(ctx context.Context) ([]string, error) {
@@ -244,64 +287,32 @@ func (s *SQLQuerier) GetBundle(ctx context.Context, pkgName, channelName, csvNam
 	return out, nil
 }
 
-func (s *SQLQuerier) GetBundleForChannel(ctx context.Context, pkgName string, channelName string) (*api.Bundle, error) {
-	query := `SELECT DISTINCT channel_entry.entry_id, operatorbundle.name, operatorbundle.bundle, operatorbundle.bundlepath, operatorbundle.version, operatorbundle.skiprange FROM channel
-              INNER JOIN operatorbundle ON channel.head_operatorbundle_name=operatorbundle.name
-              INNER JOIN channel_entry ON (channel_entry.channel_name = channel.name and channel_entry.package_name=channel.package_name and channel_entry.operatorbundle_name=operatorbundle.name)
-              WHERE channel.package_name=? AND channel.name=? LIMIT 1`
-	rows, err := s.db.QueryContext(ctx, query, pkgName, channelName)
+func (s *SQLQuerier) GetBundleForChannel(ctx context.Context, pkg string, channel string) (*api.Bundle, error) {
+	query := `
+SELECT operatorbundle.name, operatorbundle.csv FROM operatorbundle INNER JOIN channel
+ON channel.head_operatorbundle_name = operatorbundle.name
+WHERE channel.name = :channel AND channel.package_name = :package`
+	rows, err := s.db.QueryContext(ctx, query, sql.Named("channel", channel), sql.Named("package", pkg))
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
 	if !rows.Next() {
-		return nil, fmt.Errorf("no entry found for %s %s", pkgName, channelName)
+		return nil, fmt.Errorf("no entry found for %s %s", pkg, channel)
 	}
-	var entryId sql.NullInt64
-	var name sql.NullString
-	var bundle sql.NullString
-	var bundlePath sql.NullString
-	var version sql.NullString
-	var skipRange sql.NullString
-	if err := rows.Scan(&entryId, &name, &bundle, &bundlePath, &version, &skipRange); err != nil {
+	var (
+		name sql.NullString
+		csv  sql.NullString
+	)
+	if err := rows.Scan(&name, &csv); err != nil {
 		return nil, err
 	}
 
-	out := &api.Bundle{}
-	if bundle.Valid && bundle.String != "" {
-		out, err = registry.BundleStringToAPIBundle(bundle.String)
-		if err != nil {
-			return nil, err
-		}
-	}
-	out.CsvName = name.String
-	out.PackageName = pkgName
-	out.ChannelName = channelName
-	out.BundlePath = bundlePath.String
-	out.Version = version.String
-	out.SkipRange = skipRange.String
-
-	provided, required, err := s.GetApisForEntry(ctx, entryId.Int64)
-	if err != nil {
-		return nil, err
-	}
-	out.ProvidedApis = provided
-	out.RequiredApis = required
-
-	dependencies, err := s.GetDependenciesForBundle(ctx, name.String, version.String, bundlePath.String)
-	if err != nil {
-		return nil, err
-	}
-	out.Dependencies = dependencies
-
-	properties, err := s.GetPropertiesForBundle(ctx, name.String, version.String, bundlePath.String)
-	if err != nil {
-		return nil, err
-	}
-	out.Properties = properties
-
-	return out, nil
+	return &api.Bundle{
+		CsvName: name.String,
+		CsvJson: csv.String,
+	}, nil
 }
 
 func (s *SQLQuerier) GetChannelEntriesThatReplace(ctx context.Context, name string) (entries []*registry.ChannelEntry, err error) {
@@ -621,7 +632,7 @@ func (s *SQLQuerier) GetApisForEntry(ctx context.Context, entryID int64) (provid
 	kinds := map[string]struct{}{}
 	versions := map[string]struct{}{}
 
-	providedQuery := `SELECT properties.value FROM properties 
+	providedQuery := `SELECT properties.value FROM properties
 		 	  		  INNER JOIN channel_entry ON channel_entry.operatorbundle_name = properties.operatorbundle_name
 			  		  WHERE properties.type=? AND channel_entry.entry_id=?`
 
@@ -779,7 +790,7 @@ func (s *SQLQuerier) GetBundleVersion(ctx context.Context, image string) (string
 	if version.Valid {
 		return version.String, nil
 	}
-	return "", fmt.Errorf("bundle %s not found", image)
+	return "", nil
 }
 
 func (s *SQLQuerier) GetBundlePathsForPackage(ctx context.Context, pkgName string) ([]string, error) {
@@ -797,11 +808,10 @@ func (s *SQLQuerier) GetBundlePathsForPackage(ctx context.Context, pkgName strin
 		if err := rows.Scan(&imgName); err != nil {
 			return nil, err
 		}
-		if imgName.Valid && imgName.String != "" {
-			images = append(images, imgName.String)
-		} else {
+		if imgName.Valid && imgName.String == "" {
 			return nil, fmt.Errorf("Index malformed: cannot find paths to bundle images")
 		}
+		images = append(images, imgName.String)
 	}
 	return images, nil
 }
@@ -900,140 +910,217 @@ func (s *SQLQuerier) GetCurrentCSVNameForChannel(ctx context.Context, pkgName, c
 	return "", nil
 }
 
-func (s *SQLQuerier) ListBundles(ctx context.Context) (bundles []*api.Bundle, err error) {
-	query := `SELECT DISTINCT channel_entry.entry_id, operatorbundle.bundle, operatorbundle.bundlepath,
-	channel_entry.operatorbundle_name, channel_entry.package_name, channel_entry.channel_name, operatorbundle.replaces, operatorbundle.skips,
-	operatorbundle.version, operatorbundle.skiprange,
-	dependencies.type, dependencies.value,
-	properties.type, properties.value
-	FROM channel_entry
-	INNER JOIN operatorbundle ON operatorbundle.name = channel_entry.operatorbundle_name
-	LEFT OUTER JOIN dependencies ON dependencies.operatorbundle_name = channel_entry.operatorbundle_name
-	LEFT OUTER JOIN properties ON properties.operatorbundle_name = channel_entry.operatorbundle_name
-	INNER JOIN package ON package.name = channel_entry.package_name`
+// Rows in the channel_entry table essentially represent inbound
+// upgrade edges to a bundle. There may be no linear "replaces" chain
+// (for example, when an index is populated using semver-skippatch
+// mode), and there may be multiple inbound "skips" to a single
+// bundle. The ListBundles query determines a single "replaces" value
+// per bundle per channel by recursively following "replaces"
+// references beginning from the entries with minimal depth, which
+// represent channel heads. All other edges are merged into an
+// aggregate "skips" column. The result contains one row per bundle
+// for each channel in which the bundle appears.
+const listBundlesQuery = `
+WITH RECURSIVE
+tip (depth) AS (
+  SELECT min(depth)
+  FROM channel_entry
+), replaces_entry (entry_id, replaces) AS (
+  SELECT entry_id, replaces
+    FROM channel_entry
+      INNER JOIN tip ON channel_entry.depth = tip.depth
+  UNION
+  SELECT channel_entry.entry_id, channel_entry.replaces
+    FROM channel_entry
+      INNER JOIN replaces_entry
+        ON channel_entry.entry_id = replaces_entry.replaces
+), replaces_bundle (entry_id, operatorbundle_name, package_name, channel_name, replaces) AS (
+  SELECT min(all_entry.entry_id), all_entry.operatorbundle_name, all_entry.package_name, all_entry.channel_name, max(replaced_entry.operatorbundle_name)
+    FROM channel_entry AS all_entry
+      LEFT OUTER JOIN replaces_entry
+        ON all_entry.entry_id = replaces_entry.entry_id
+      LEFT OUTER JOIN channel_entry AS replaced_entry
+        ON replaces_entry.replaces = replaced_entry.entry_id
+    GROUP BY all_entry.operatorbundle_name, all_entry.package_name, all_entry.channel_name
+), skips_entry (entry_id, skips) AS (
+  SELECT entry_id, replaces
+    FROM channel_entry
+    WHERE replaces IS NOT NULL
+  EXCEPT
+  SELECT entry_id, replaces
+    FROM replaces_entry
+), skips_bundle (operatorbundle_name, package_name, channel_name, skips) AS (
+  SELECT all_entry.operatorbundle_name, all_entry.package_name, all_entry.channel_name, group_concat(skipped_entry.operatorbundle_name, ",")
+    FROM skips_entry
+      INNER JOIN channel_entry AS all_entry
+        ON skips_entry.entry_id = all_entry.entry_id
+      INNER JOIN channel_entry AS skipped_entry
+        ON skips_entry.skips = skipped_entry.entry_id
+    GROUP BY all_entry.operatorbundle_name, all_entry.package_name, all_entry.channel_name
+),
+merged_properties (bundle_name, merged) AS (
+  SELECT operatorbundle_name, json_group_array(json_object('type', CAST(properties.type AS TEXT), 'value', CAST(properties.value AS TEXT)))
+    FROM properties
+    GROUP BY operatorbundle_name
+),
+merged_dependencies (bundle_name, merged) AS (
+  SELECT operatorbundle_name, json_group_array(json_object('type', CAST(dependencies.type AS TEXT), 'value', CAST(dependencies.value AS TEXT)))
+    FROM dependencies
+    GROUP BY operatorbundle_name
+)
+SELECT
+    replaces_bundle.entry_id,
+    CASE WHEN :omit_manifests AND length(coalesce(operatorbundle.bundlepath, "")) > 0 THEN NULL ELSE operatorbundle.bundle END,
+    operatorbundle.bundlepath,
+    operatorbundle.name,
+    replaces_bundle.package_name,
+    replaces_bundle.channel_name,
+    replaces_bundle.replaces,
+    skips_bundle.skips,
+    operatorbundle.version,
+    operatorbundle.skiprange,
+    merged_dependencies.merged,
+    merged_properties.merged
+  FROM replaces_bundle
+    INNER JOIN operatorbundle
+      ON replaces_bundle.operatorbundle_name = operatorbundle.name
+    LEFT OUTER JOIN skips_bundle
+      ON replaces_bundle.operatorbundle_name = skips_bundle.operatorbundle_name
+        AND replaces_bundle.package_name = skips_bundle.package_name
+        AND replaces_bundle.channel_name = skips_bundle.channel_name
+    LEFT OUTER JOIN merged_dependencies
+      ON operatorbundle.name = merged_dependencies.bundle_name
+    LEFT OUTER JOIN merged_properties
+      ON operatorbundle.name = merged_properties.bundle_name`
 
-	rows, err := s.db.QueryContext(ctx, query)
+func (s *SQLQuerier) SendBundles(ctx context.Context, stream registry.BundleSender) error {
+	rows, err := s.db.QueryContext(ctx, listBundlesQuery, sql.Named("omit_manifests", s.omitManifests))
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer rows.Close()
 
-	bundles = []*api.Bundle{}
-	bundlesMap := map[string]*api.Bundle{}
 	for rows.Next() {
-		var entryID sql.NullInt64
-		var bundle sql.NullString
-		var bundlePath sql.NullString
-		var bundleName sql.NullString
-		var pkgName sql.NullString
-		var channelName sql.NullString
-		var replaces sql.NullString
-		var skips sql.NullString
-		var version sql.NullString
-		var skipRange sql.NullString
-		var depType sql.NullString
-		var depValue sql.NullString
-		var propType sql.NullString
-		var propValue sql.NullString
-		if err := rows.Scan(&entryID, &bundle, &bundlePath, &bundleName, &pkgName, &channelName, &replaces, &skips, &version, &skipRange, &depType, &depValue, &propType, &propValue); err != nil {
-			return nil, err
+		var (
+			entryID     sql.NullInt64
+			bundle      sql.NullString
+			bundlePath  sql.NullString
+			bundleName  sql.NullString
+			pkgName     sql.NullString
+			channelName sql.NullString
+			replaces    sql.NullString
+			skips       sql.NullString
+			version     sql.NullString
+			skipRange   sql.NullString
+			deps        sql.NullString
+			props       sql.NullString
+		)
+		if err := rows.Scan(&entryID, &bundle, &bundlePath, &bundleName, &pkgName, &channelName, &replaces, &skips, &version, &skipRange, &deps, &props); err != nil {
+			return err
 		}
 
-		bundleKey := fmt.Sprintf("%s/%s/%s", bundleName.String, version.String, bundlePath.String)
-		bundleItem, ok := bundlesMap[bundleKey]
-		if ok {
-			// Create new dependency object
-			if depType.Valid && depValue.Valid {
-				dep := &api.Dependency{}
-				dep.Type = depType.String
-				dep.Value = depValue.String
+		if !bundleName.Valid || !version.Valid || !bundlePath.Valid || !channelName.Valid {
+			continue
+		}
 
-				// Add new dependency to the existing list
-				existingDeps := bundleItem.Dependencies
-				existingDeps = append(existingDeps, dep)
-				bundleItem.Dependencies = existingDeps
-			}
-
-
-			// Create new property object
-			if propType.Valid && propValue.Valid {
-				prop := &api.Property{}
-				prop.Type = propType.String
-				prop.Value = propValue.String
-
-				// Add new property to the existing list
-				existingProps := bundleItem.Properties
-				existingProps = append(existingProps, prop)
-				bundleItem.Properties = existingProps
-			}
-		} else {
-			// Create new bundle
-			out := &api.Bundle{}
-			if bundle.Valid && bundle.String != "" {
-				out, err = registry.BundleStringToAPIBundle(bundle.String)
-				if err != nil {
-					return nil, err
-				}
-			}
-
-			out.CsvName = bundleName.String
-			out.PackageName = pkgName.String
-			out.ChannelName = channelName.String
-			out.BundlePath = bundlePath.String
-			out.Version = version.String
-			out.SkipRange = skipRange.String
-			out.Replaces = replaces.String
-			out.Skips = strings.Split(skips.String, ",")
-
-			provided, required, err := s.GetApisForEntry(ctx, entryID.Int64)
+		out := &api.Bundle{}
+		if bundle.Valid && bundle.String != "" {
+			out, err = registry.BundleStringToAPIBundle(bundle.String)
 			if err != nil {
-				return nil, err
+				return err
 			}
-			out.ProvidedApis = provided
-			out.RequiredApis = required
+		}
+		out.CsvName = bundleName.String
+		out.PackageName = pkgName.String
+		out.ChannelName = channelName.String
+		out.BundlePath = bundlePath.String
+		out.Version = version.String
+		out.SkipRange = skipRange.String
+		out.Replaces = replaces.String
 
-			// Create new dependency and dependency list
-			dep := &api.Dependency{}
-			dependencies := []*api.Dependency{}
-			dep.Type = depType.String
-			dep.Value = depValue.String
-			dependencies = append(dependencies, dep)
-			out.Dependencies = dependencies
+		if skips.Valid {
+			out.Skips = strings.Split(skips.String, ",")
+		}
 
-			// Create new property and property list
-			prop := &api.Property{}
-			properties := []*api.Property{}
-			prop.Type = propType.String
-			prop.Value = propValue.String
-			properties = append(properties, prop)
-			out.Properties = properties
+		if deps.Valid {
+			if err := json.Unmarshal([]byte(deps.String), &out.Dependencies); err != nil {
+				return err
+			}
+		}
+		buildLegacyRequiredAPIs(out.Dependencies, &out.RequiredApis)
+		out.Dependencies = uniqueDeps(out.Dependencies)
 
-			bundlesMap[bundleKey] = out
+		if props.Valid {
+			if err := json.Unmarshal([]byte(props.String), &out.Properties); err != nil {
+				return err
+			}
+		}
+		buildLegacyProvidedAPIs(out.Properties, &out.ProvidedApis)
+		out.Properties = uniqueProps(out.Properties)
+		if err := stream.Send(out); err != nil {
+			return err
 		}
 	}
 
-	for _, v := range bundlesMap {
-		if len(v.Dependencies) > 1 {
-			newDeps := unique(v.Dependencies)
-			v.Dependencies = newDeps
-		}
-		if len(v.Properties) > 1 {
-			newProps := uniqueProps(v.Properties)
-			v.Properties = newProps
-		}
-		bundles = append(bundles, v)
-	}
-
-	return
+	return nil
 }
 
-func unique(deps []*api.Dependency) []*api.Dependency {
-	keys := make(map[string]bool)
-	list := []*api.Dependency{}
+func (s *SQLQuerier) ListBundles(ctx context.Context) ([]*api.Bundle, error) {
+	var bundleSender registry.SliceBundleSender
+	err := s.SendBundles(ctx, &bundleSender)
+	if err != nil {
+		return nil, err
+	}
+	return bundleSender, nil
+
+}
+
+func buildLegacyRequiredAPIs(src []*api.Dependency, dst *[]*api.GroupVersionKind) error {
+	for _, p := range src {
+		if p.GetType() != registry.GVKType {
+			continue
+		}
+		var value registry.GVKDependency
+		if err := json.Unmarshal([]byte(p.GetValue()), &value); err != nil {
+			return err
+		}
+		*dst = append(*dst, &api.GroupVersionKind{
+			Group:   value.Group,
+			Version: value.Version,
+			Kind:    value.Kind,
+		})
+	}
+	return nil
+}
+
+func buildLegacyProvidedAPIs(src []*api.Property, dst *[]*api.GroupVersionKind) error {
+	for _, p := range src {
+		if p.GetType() != registry.GVKType {
+			continue
+		}
+		var value registry.GVKProperty
+		if err := json.Unmarshal([]byte(p.GetValue()), &value); err != nil {
+			return err
+		}
+		*dst = append(*dst, &api.GroupVersionKind{
+			Group:   value.Group,
+			Version: value.Version,
+			Kind:    value.Kind,
+		})
+	}
+	return nil
+}
+
+func uniqueDeps(deps []*api.Dependency) []*api.Dependency {
+	if len(deps) <= 1 {
+		return deps
+	}
+	keys := make(map[string]struct{})
+	var list []*api.Dependency
 	for _, entry := range deps {
 		depKey := fmt.Sprintf("%s/%s", entry.Type, entry.Value)
 		if _, value := keys[depKey]; !value {
-			keys[depKey] = true
+			keys[depKey] = struct{}{}
 			list = append(list, entry)
 		}
 	}
@@ -1041,12 +1128,15 @@ func unique(deps []*api.Dependency) []*api.Dependency {
 }
 
 func uniqueProps(props []*api.Property) []*api.Property {
-	keys := make(map[string]bool)
-	list := []*api.Property{}
+	if len(props) <= 1 {
+		return props
+	}
+	keys := make(map[string]struct{})
+	var list []*api.Property
 	for _, entry := range props {
 		propKey := fmt.Sprintf("%s/%s", entry.Type, entry.Value)
 		if _, value := keys[propKey]; !value {
-			keys[propKey] = true
+			keys[propKey] = struct{}{}
 			list = append(list, entry)
 		}
 	}
@@ -1086,7 +1176,7 @@ func (s *SQLQuerier) GetDependenciesForBundle(ctx context.Context, name, version
 }
 
 func (s *SQLQuerier) GetPropertiesForBundle(ctx context.Context, name, version, path string) (properties []*api.Property, err error) {
-	propQuery := `SELECT DISTINCT type, value FROM properties 
+	propQuery := `SELECT DISTINCT type, value FROM properties
 				 WHERE operatorbundle_name=?
 				 AND (operatorbundle_version=? OR operatorbundle_version is NULL)
 				 AND (operatorbundle_path=? OR operatorbundle_path is NULL)`
@@ -1115,4 +1205,191 @@ func (s *SQLQuerier) GetPropertiesForBundle(ctx context.Context, name, version, 
 	}
 
 	return
+}
+
+func (s *SQLQuerier) GetBundlePathIfExists(ctx context.Context, bundleName string) (bundlePath string, err error) {
+	getBundlePathQuery := `
+	  SELECT bundlepath
+	  FROM operatorbundle
+	  WHERE operatorbundle.name=? LIMIT 1`
+
+	rows, err := s.db.QueryContext(ctx, getBundlePathQuery, bundleName)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+
+	if !rows.Next() {
+		// no bundlepath set
+		err = registry.ErrBundleImageNotInDatabase
+		return
+	}
+
+	var bundlePathSQL sql.NullString
+	if err = rows.Scan(&bundlePathSQL); err != nil {
+		return
+	}
+
+	if bundlePathSQL.Valid {
+		bundlePath = bundlePathSQL.String
+	}
+
+	return
+}
+
+// ListRegistryBundles returns a set of registry bundles.
+// The set can be filtered by package by setting the given context's 'package' key to a desired package name.
+// e.g.
+// ctx := ContextWithPackage(context.TODO(), "etcd")
+// bundles, err := querier.ListRegistryBundles(ctx)
+// // ...
+func (s *SQLQuerier) ListRegistryBundles(ctx context.Context) ([]*registry.Bundle, error) {
+	listBundlesQuery := `
+	SELECT DISTINCT operatorbundle.name, operatorbundle.version, operatorbundle.bundle, channel_entry.package_name
+	FROM operatorbundle
+	LEFT OUTER JOIN channel_entry ON operatorbundle.name = channel_entry.operatorbundle_name`
+
+	var (
+		err  error
+		rows RowScanner
+	)
+	if pkg, ok := registry.PackageFromContext(ctx); ok {
+		listBundlesQuery += " WHERE channel_entry.package_name=?"
+		rows, err = s.db.QueryContext(ctx, listBundlesQuery, pkg)
+	} else {
+		rows, err = s.db.QueryContext(ctx, listBundlesQuery)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var bundles []*registry.Bundle
+	for rows.Next() {
+		var (
+			bundleName    sql.NullString
+			bundleVersion sql.NullString
+			bundle        sql.NullString
+			packageName   sql.NullString
+		)
+		if err := rows.Scan(&bundleName, &bundleVersion, &bundle, &packageName); err != nil {
+			return nil, err
+		}
+
+		switch {
+		case !bundleName.Valid:
+			return nil, fmt.Errorf("bundle name column corrupted")
+		case !bundleVersion.Valid:
+			// Version field is currently nullable
+		case !bundle.Valid:
+			// Bundle field is currently nullable
+		case !packageName.Valid:
+			return nil, fmt.Errorf("package name column corrupted")
+		}
+
+		// Allow the channel_entry table to be authoritative
+		channels, err := s.listBundleChannels(ctx, bundleName.String)
+		if err != nil {
+			return nil, fmt.Errorf("unable to list channels for bundle %s: %s", bundleName.String, err)
+		}
+
+		defaultChannel, err := s.GetDefaultChannelForPackage(ctx, packageName.String)
+		if err != nil {
+			return nil, fmt.Errorf("unable to get default channel for package %s: %s", packageName.String, err)
+		}
+
+		b, err := registry.NewBundleFromStrings(bundleName.String, bundleVersion.String, packageName.String, defaultChannel, strings.Join(channels, ","), bundle.String)
+		if err != nil {
+			return nil, fmt.Errorf("unable to unmarshal bundle %s from database: %s", bundleName.String, err)
+		}
+
+		bundles = append(bundles, b)
+	}
+
+	return bundles, nil
+}
+
+func (s *SQLQuerier) listBundleChannels(ctx context.Context, bundleName string) ([]string, error) {
+	listBundleChannelsQuery := `
+	SELECT DISTINCT channel_entry.channel_name
+	FROM channel_entry
+	INNER JOIN operatorbundle ON channel_entry.operatorbundle_name = operatorbundle.name
+	WHERE operatorbundle.name = ?`
+
+	rows, err := s.db.QueryContext(ctx, listBundleChannelsQuery, bundleName)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var channels []string
+	for rows.Next() {
+		var channel sql.NullString
+		if err := rows.Scan(&channel); err != nil {
+			return nil, err
+		}
+
+		if !channel.Valid {
+			return nil, fmt.Errorf("channel name column corrupt for bundle %s", bundleName)
+		}
+
+		channels = append(channels, channel.String)
+	}
+
+	return channels, nil
+}
+
+// PackageFromDefaultChannelHeadBundle returns the package name if the provided bundle is the head of its default channel.
+func (s *SQLQuerier) PackageFromDefaultChannelHeadBundle(ctx context.Context, bundle string) (string, error) {
+	packageFromDefaultChannelHeadBundle := `
+	SELECT package_name FROM package, channel 
+	WHERE channel.package_name == package.name
+	AND package.default_channel == channel.name
+	AND channel.head_operatorbundle_name = (SELECT name FROM operatorbundle WHERE bundlepath=? LIMIT 1) `
+
+	rows, err := s.db.QueryContext(ctx, packageFromDefaultChannelHeadBundle, bundle)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+
+	var packageName sql.NullString
+	for rows.Next() {
+		if err := rows.Scan(&packageName); err != nil {
+			return "", err
+		}
+
+		if !packageName.Valid {
+			return "", fmt.Errorf("package name column corrupt for bundle %s", bundle)
+		}
+	}
+
+	return packageName.String, nil
+}
+
+// BundlePathForChannelHead returns the bundlepath for the given package and channel
+func (s *SQLQuerier) BundlePathForChannelHead(ctx context.Context, pkg string, channel string) (string, error) {
+	bundlePathForChannelHeadQuery := `
+	SELECT bundlepath FROM operatorbundle
+	INNER JOIN channel ON channel.head_operatorbundle_name = operatorbundle.name 
+	WHERE channel.package_name = ? AND channel.name = ?
+`
+
+	rows, err := s.db.QueryContext(ctx, bundlePathForChannelHeadQuery, pkg, channel)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+
+	var bundlePath sql.NullString
+	for rows.Next() {
+		if err := rows.Scan(&bundlePath); err != nil {
+			return "", err
+		}
+		if !bundlePath.Valid {
+			return "", fmt.Errorf("bundlepath column corrupt for package %s, channel %s", pkg, channel)
+		}
+	}
+
+	return bundlePath.String, nil
 }

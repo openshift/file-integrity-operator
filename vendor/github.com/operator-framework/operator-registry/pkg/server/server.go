@@ -1,21 +1,21 @@
 package server
 
 import (
+	"golang.org/x/net/context"
+
 	"github.com/operator-framework/operator-registry/pkg/api"
 	"github.com/operator-framework/operator-registry/pkg/registry"
-
-	"golang.org/x/net/context"
 )
 
 type RegistryServer struct {
 	api.UnimplementedRegistryServer
-	store registry.Query
+	store registry.GRPCQuery
 }
 
 var _ api.RegistryServer = &RegistryServer{}
 
-func NewRegistryServer(store registry.Query) *RegistryServer {
-	return &RegistryServer{UnimplementedRegistryServer: api.UnimplementedRegistryServer{},  store: store}
+func NewRegistryServer(store registry.GRPCQuery) *RegistryServer {
+	return &RegistryServer{UnimplementedRegistryServer: api.UnimplementedRegistryServer{}, store: store}
 }
 
 func (s *RegistryServer) ListPackages(req *api.ListPackageRequest, stream api.Registry_ListPackagesServer) error {
@@ -33,17 +33,7 @@ func (s *RegistryServer) ListPackages(req *api.ListPackageRequest, stream api.Re
 }
 
 func (s *RegistryServer) ListBundles(req *api.ListBundlesRequest, stream api.Registry_ListBundlesServer) error {
-	bundles, err := s.store.ListBundles(stream.Context())
-	if err != nil {
-		return err
-	}
-	for _, b := range bundles {
-		if err := stream.Send(b); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return s.store.SendBundles(stream.Context(), stream)
 }
 
 func (s *RegistryServer) GetPackage(ctx context.Context, req *api.GetPackageRequest) (*api.Package, error) {

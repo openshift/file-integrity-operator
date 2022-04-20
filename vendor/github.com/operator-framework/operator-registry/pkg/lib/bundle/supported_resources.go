@@ -16,6 +16,10 @@ const (
 	PodDisruptionBudgetKind   = "PodDisruptionBudget"
 	PriorityClassKind         = "PriorityClass"
 	VerticalPodAutoscalerKind = "VerticalPodAutoscaler"
+	ConsoleYAMLSampleKind     = "ConsoleYAMLSample"
+	ConsoleQuickStartKind     = "ConsoleQuickStart"
+	ConsoleCLIDownloadKind    = "ConsoleCLIDownload"
+	ConsoleLinkKind           = "ConsoleLink"
 )
 
 // Namespaced indicates whether the resource is namespace scoped (true) or cluster-scoped (false).
@@ -39,6 +43,10 @@ var supportedResources = map[string]Namespaced{
 	PodDisruptionBudgetKind:   true,
 	PriorityClassKind:         false,
 	VerticalPodAutoscalerKind: false,
+	ConsoleYAMLSampleKind:     false,
+	ConsoleQuickStartKind:     false,
+	ConsoleCLIDownloadKind:    false,
+	ConsoleLinkKind:           false,
 }
 
 // IsSupported checks if the object kind is OLM-supported and if it is namespaced
