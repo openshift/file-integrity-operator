@@ -1,0 +1,9 @@
+resources:
+- deployment.yaml
+
+images:
+- name: file-integrity-operator
+  newName: quay.io/file-integrity-operator/file-integrity-operator
+  newTag: latest
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization

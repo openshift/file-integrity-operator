@@ -7,9 +7,11 @@ import (
 	"github.com/spf13/cobra"
 	"k8s.io/kubectl/pkg/util/templates"
 
+	"github.com/operator-framework/operator-registry/cmd/opm/internal/util"
 	"github.com/operator-framework/operator-registry/pkg/containertools"
 	"github.com/operator-framework/operator-registry/pkg/lib/indexer"
 	"github.com/operator-framework/operator-registry/pkg/registry"
+	"github.com/operator-framework/operator-registry/pkg/sqlite"
 )
 
 var (
@@ -17,7 +19,15 @@ var (
 		Add operator bundles to an index.
 
 		This command will add the given set of bundle images (specified by the --bundles option) to an index image (provided by the --from-index option).
-	`)
+
+		If multiple bundles are given with '--mode=replaces' (the default), bundles are added to the index by order of ascending (semver) version unless the update graph specified by replaces requires a different input order; e.g. 1.0.0 replaces 1.0.1 would result in [1.0.1, 1.0.0] instead of the [1.0.0, 1.0.1] normally expected of semver. However, for most cases (e.g. 1.0.1 replaces 1.0.0) the bundle with the highest version is used to set the default channel of the related package.  
+
+		Caveat: in replaces mode, the head of a channel is always the bundle with the highest semver. Any bundles upgrading from this channel-head will be pruned.  
+		An upgrade graph that looks like:  
+		0.1.1 -> 0.1.2 -> 0.1.2-1  
+		will be pruned on add to:  
+		0.1.1 -> 0.1.2
+`) + "\n\n" + sqlite.DeprecationMessage
 
 	addExample = templates.Examples(`
 		# Create an index image from scratch with a single bundle image
@@ -36,24 +46,25 @@ func addIndexAddCmd(parent *cobra.Command) {
 		Use:   "add",
 		Short: "Add operator bundles to an index.",
 		Long:  addLong,
-		PreRunE: func(cmd *cobra.Command, args []string) error {
+		PreRunE: func(cmd *cobra.Command, _ []string) error {
 			if debug, _ := cmd.Flags().GetBool("debug"); debug {
 				logrus.SetLevel(logrus.DebugLevel)
 			}
 			return nil
 		},
 		RunE: runIndexAddCmdFunc,
+		Args: cobra.NoArgs,
 	}
 
 	indexCmd.Flags().Bool("debug", false, "enable debug logging")
 	indexCmd.Flags().Bool("generate", false, "if enabled, just creates the dockerfile and saves it to local disk")
 	indexCmd.Flags().StringP("out-dockerfile", "d", "", "if generating the dockerfile, this flag is used to (optionally) specify a dockerfile name")
 	indexCmd.Flags().StringP("from-index", "f", "", "previous index to add to")
+	// adding empty list of strings is a valid value.
 	indexCmd.Flags().StringSliceP("bundles", "b", nil, "comma separated list of bundles to add")
 	if err := indexCmd.MarkFlagRequired("bundles"); err != nil {
 		logrus.Panic("Failed to set required `bundles` flag for `index add`")
 	}
-	indexCmd.Flags().Bool("skip-tls", false, "skip TLS certificate verification for container image registries while pulling bundles")
 	indexCmd.Flags().StringP("binary-image", "i", "", "container image for on-image `opm` command")
 	indexCmd.Flags().StringP("container-tool", "c", "", "tool to interact with container images (save, build, etc.). One of: [docker, podman]")
 	indexCmd.Flags().StringP("build-tool", "u", "", "tool to build container images. One of: [docker, podman]. Defaults to podman. Overrides part of container-tool.")
@@ -62,6 +73,14 @@ func addIndexAddCmd(parent *cobra.Command) {
 	indexCmd.Flags().Bool("permissive", false, "allow registry load errors")
 	indexCmd.Flags().StringP("mode", "", "replaces", "graph update mode that defines how channel graphs are updated. One of: [replaces, semver, semver-skippatch]")
 
+	indexCmd.Flags().Bool("overwrite-latest", false, "overwrite the latest bundles (channel heads) with those of the same csv name given by --bundles")
+	if err := indexCmd.Flags().MarkHidden("overwrite-latest"); err != nil {
+		logrus.Panic(err.Error())
+	}
+	indexCmd.Flags().Bool("enable-alpha", false, "enable unsupported alpha features of the OPM CLI")
+	if err := indexCmd.Flags().MarkHidden("enable-alpha"); err != nil {
+		logrus.Panic(err.Error())
+	}
 	if err := indexCmd.Flags().MarkHidden("debug"); err != nil {
 		logrus.Panic(err.Error())
 	}
@@ -72,7 +91,7 @@ func addIndexAddCmd(parent *cobra.Command) {
 
 }
 
-func runIndexAddCmdFunc(cmd *cobra.Command, args []string) error {
+func runIndexAddCmdFunc(cmd *cobra.Command, _ []string) error {
 	generate, err := cmd.Flags().GetBool("generate")
 	if err != nil {
 		return err
@@ -108,12 +127,22 @@ func runIndexAddCmdFunc(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	skipTLS, err := cmd.Flags().GetBool("skip-tls")
+	skipTLSVerify, useHTTP, err := util.GetTLSOptions(cmd)
 	if err != nil {
 		return err
 	}
 
 	mode, err := cmd.Flags().GetString("mode")
+	if err != nil {
+		return err
+	}
+
+	overwrite, err := cmd.Flags().GetBool("overwrite-latest")
+	if err != nil {
+		return err
+	}
+
+	enableAlpha, err := cmd.Flags().GetBool("enable-alpha")
 	if err != nil {
 		return err
 	}
@@ -146,7 +175,10 @@ func runIndexAddCmdFunc(cmd *cobra.Command, args []string) error {
 		Bundles:           bundles,
 		Permissive:        permissive,
 		Mode:              modeEnum,
-		SkipTLS:           skipTLS,
+		SkipTLSVerify:     skipTLSVerify,
+		PlainHTTP:         useHTTP,
+		Overwrite:         overwrite,
+		EnableAlpha:       enableAlpha,
 	}
 
 	err = indexAdder.AddToIndex(request)
@@ -183,9 +215,8 @@ func getContainerTools(cmd *cobra.Command) (string, string, error) {
 	if containerTool != "" {
 		if pullTool == "" && buildTool == "" {
 			return containerTool, containerTool, nil
-		} else {
-			return "", "", fmt.Errorf("container-tool cannot be set alongside pull-tool or build-tool")
 		}
+		return "", "", fmt.Errorf("container-tool cannot be set alongside pull-tool or build-tool")
 	}
 
 	// Check for defaults, then return

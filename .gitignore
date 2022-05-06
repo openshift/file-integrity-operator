@@ -1,2 +1,10 @@
 *.idea
 build/_output*
+build/bin/manager
+build/controller-gen
+build/kustomize
+build/setup-envtest
+build/operator-sdk
+build/opm
+bundle_*
+_testdata

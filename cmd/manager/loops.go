@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package main
+package manager
 
 import (
 	"context"
@@ -22,6 +22,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cenkalti/backoff/v4"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -32,7 +33,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 	watch2 "k8s.io/client-go/tools/watch"
 
-	"github.com/cenkalti/backoff/v4"
 	"github.com/openshift/file-integrity-operator/pkg/common"
 )
 

@@ -1,0 +1,13 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: file-integrity-operator
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - nodes  # We need to list the nodes to be able to selectively scan
+    verbs:
+      - get
+      - list
+      - watch

@@ -1,9 +1,8 @@
 package e2e
 
 import (
+	"github.com/openshift/file-integrity-operator/tests/framework"
 	"testing"
-
-	framework "github.com/operator-framework/operator-sdk/pkg/test"
 )
 
 func TestMain(m *testing.M) {

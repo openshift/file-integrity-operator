@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package main
+package manager
 
 import (
 	"context"
@@ -52,7 +52,7 @@ const (
 	pprofAddr              = "127.0.0.1:6060"
 )
 
-var daemonCmd = &cobra.Command{
+var DaemonCmd = &cobra.Command{
 	Use:   "daemon",
 	Short: "daemon",
 	Long:  `The file-integrity-operator daemon subcommand.`,
@@ -60,7 +60,7 @@ var daemonCmd = &cobra.Command{
 }
 
 func init() {
-	defineFlags(daemonCmd)
+	defineFlags(DaemonCmd)
 }
 
 type daemonConfig struct {

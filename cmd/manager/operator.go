@@ -1,5 +1,5 @@
 /*
-Copyright © 2019 Red Hat Inc.
+Copyright © 2019 - 2022 Red Hat Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package main
+package manager
 
 import (
 	"context"
@@ -25,36 +25,51 @@ import (
 
 	"github.com/spf13/cobra"
 
-	monitoring "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
-	monclientv1 "github.com/coreos/prometheus-operator/pkg/client/versioned/typed/monitoring/v1"
-	"github.com/operator-framework/operator-sdk/pkg/k8sutil"
-	kubemetrics "github.com/operator-framework/operator-sdk/pkg/kube-metrics"
-	"github.com/operator-framework/operator-sdk/pkg/leader"
-	"github.com/operator-framework/operator-sdk/pkg/log/zap"
-	"github.com/operator-framework/operator-sdk/pkg/metrics"
-	sdkVersion "github.com/operator-framework/operator-sdk/version"
 	v1 "k8s.io/api/core/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	ctrl "sigs.k8s.io/controller-runtime"
 	runtimeconfig "sigs.k8s.io/controller-runtime/pkg/client/config"
+	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
-	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	"github.com/openshift/file-integrity-operator/pkg/apis"
-	"github.com/openshift/file-integrity-operator/pkg/controller"
-	ctrlMetrics "github.com/openshift/file-integrity-operator/pkg/controller/metrics"
+	monitoring "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	monclientv1 "github.com/prometheus-operator/prometheus-operator/pkg/client/versioned/typed/monitoring/v1"
+
+	"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
+	"github.com/openshift/file-integrity-operator/pkg/common"
+	"github.com/openshift/file-integrity-operator/pkg/controller/configmap"
+	"github.com/openshift/file-integrity-operator/pkg/controller/fileintegrity"
+	"github.com/openshift/file-integrity-operator/pkg/controller/metrics"
+	"github.com/openshift/file-integrity-operator/pkg/controller/node"
+	"github.com/openshift/file-integrity-operator/pkg/controller/status"
 )
 
-var operatorCmd = &cobra.Command{
+var OperatorCmd = &cobra.Command{
 	Use:   "operator",
 	Short: "The file-integrity-operator command",
 	Long:  `An OpenShift operator that manages file integrity checking on cluster nodes.`,
 	Run:   RunOperator,
+}
+
+var (
+	scheme = runtime.NewScheme()
+	log    = logf.Log.WithName("cmd")
+)
+
+func init() {
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+
+	utilruntime.Must(v1alpha1.AddToScheme(scheme))
+	//+kubebuilder:scaffold:scheme
 }
 
 // Change below variables to serve metrics on different host or port.
@@ -64,46 +79,29 @@ var (
 	operatorMetricsPort int32 = 8686
 	alertName                 = "file-integrity"
 	metricsServiceName        = "metrics"
+	leaderElectionID          = "962a0cf2.openshift.io"
 )
-var log = logf.Log.WithName("cmd")
 
 func printVersion() {
 	log.Info(fmt.Sprintf("Go Version: %s", rt.Version()))
 	log.Info(fmt.Sprintf("Go OS/Arch: %s/%s", rt.GOOS, rt.GOARCH))
-	log.Info(fmt.Sprintf("Version of operator-sdk: %v", sdkVersion.Version))
 }
 
 func RunOperator(cmd *cobra.Command, args []string) {
-	// Add the zap logger flag set to the CLI. The flag set must
-	// be added before calling pflag.Parse().
 	flags := cmd.Flags()
-	flags.AddFlagSet(zap.FlagSet())
-
-	// Add flags registered by imported packages (e.g. glog and
-	// controller-runtime)
 	flags.AddGoFlagSet(flag.CommandLine)
-	if err := flags.Parse(zap.FlagSet().Args()); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to parse zap flagset: %v", zap.FlagSet().Args())
-		os.Exit(1)
-	}
+	flags.Parse(args)
 
-	// Use a zap logr.Logger implementation. If none of the zap
-	// flags are configured (or if the zap flag set is not being
-	// used), this defaults to a production zap logger.
-	//
-	// The logger instantiated here can be changed to any logger
-	// implementing the logr.Logger interface. This logger will
-	// be propagated through the whole operator, generating
-	// uniform and structured logs.
-	logf.SetLogger(zap.Logger())
+	ctrl.SetLogger(zap.New())
 
 	printVersion()
 
-	namespace, err := k8sutil.GetWatchNamespace()
+	namespace, err := common.GetWatchNamespace()
 	if err != nil {
 		log.Error(err, "Failed to get watch namespace")
 		os.Exit(1)
 	}
+	log.Info("using watch namespace", "WatchNamespace", namespace)
 
 	// Get a config to talk to the apiserver
 	cfg, err := runtimeconfig.GetConfig()
@@ -116,46 +114,63 @@ func RunOperator(cmd *cobra.Command, args []string) {
 	monitoringClient := monclientv1.NewForConfigOrDie(cfg)
 
 	ctx := context.TODO()
-	// Become the leader before proceeding
-	err = leader.Become(ctx, "file-integrity-operator-lock")
-	if err != nil {
-		log.Error(err, "")
-		os.Exit(1)
-	}
-
-	// Create a new Cmd to provide shared dependencies and start components
-	mgr, err := manager.New(cfg, manager.Options{
-		Namespace:          namespace,
-		MetricsBindAddress: fmt.Sprintf("%s:%d", metricsHost, metricsPort),
-	})
-	if err != nil {
-		log.Error(err, "")
-		os.Exit(1)
-	}
 
 	log.Info("Registering Components.")
 
-	met := ctrlMetrics.New()
+	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+		Namespace:              namespace,
+		Scheme:                 scheme,
+		MetricsBindAddress:     fmt.Sprintf("%s:%d", metricsHost, metricsPort),
+		HealthProbeBindAddress: ":8081",
+		LeaderElection:         true,
+		LeaderElectionID:       leaderElectionID,
+	})
+	if err != nil {
+		log.Error(err, "unable to create manager")
+		os.Exit(1)
+	}
+
+	met := metrics.NewControllerMetrics()
 	if err := met.Register(); err != nil {
 		log.Error(err, "Error registering metrics")
 		os.Exit(1)
 	}
 
-	// Setup Scheme for all resources
-	if err := apis.AddToScheme(mgr.GetScheme()); err != nil {
-		log.Error(err, "Error adding to scheme")
+	//+kubebuilder:scaffold:builder
+
+	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
+		log.Error(err, "unable to set up health check")
+		os.Exit(1)
+	}
+	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
+		log.Error(err, "unable to set up ready check")
 		os.Exit(1)
 	}
 
 	// Setup all Controllers
-	if err := controller.AddToManager(mgr, met); err != nil {
-		log.Error(err, "Error registering manager")
+	if err := fileintegrity.AddFileIntegrityController(mgr, met); err != nil {
+		log.Error(err, "Error registering manager with FI controller")
 		os.Exit(1)
 	}
 
-	// Serves metrics on the CRDs, separate from the controller metrics.
-	if err = serveCRMetrics(cfg); err != nil {
-		log.Error(err, "Could not generate and serve custom resource metrics")
+	if err := node.AddNodeController(mgr, met); err != nil {
+		log.Error(err, "Error registering manager with Node controller")
+		os.Exit(1)
+	}
+
+	if err := status.AddStatusController(mgr, met); err != nil {
+		log.Error(err, "Error registering manager with Status controller")
+		os.Exit(1)
+	}
+
+	if err := configmap.AddConfigmapController(mgr, met); err != nil {
+		log.Error(err, "Error registering manager with Configmap controller")
+		os.Exit(1)
+	}
+
+	// Add metrics controller to manager
+	if err := mgr.Add(met); err != nil {
+		log.Error(err, "Error registering controller metrics")
 		os.Exit(1)
 	}
 
@@ -177,7 +192,7 @@ func RunOperator(cmd *cobra.Command, args []string) {
 	}
 
 	log.Info("Starting manager")
-	if err := mgr.Start(signals.SetupSignalHandler()); err != nil {
+	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		log.Error(err, "Manager exited non-zero")
 		os.Exit(1)
 	}
@@ -194,27 +209,27 @@ func ensureMetricsServiceAndSecret(ctx context.Context, kClient *kubernetes.Clie
 			Annotations: map[string]string{
 				"service.beta.openshift.io/serving-cert-secret-name": "file-integrity-operator-serving-cert",
 			},
-			Name:      "metrics",
+			Name:      metricsServiceName,
 			Namespace: ns,
 		},
 		Spec: v1.ServiceSpec{
 			Ports: []v1.ServicePort{
 				{
 					Name:       "http-metrics",
-					Port:       8383,
-					TargetPort: intstr.FromInt(8383),
+					Port:       metricsPort,
+					TargetPort: intstr.FromInt(int(metricsPort)),
 					Protocol:   v1.ProtocolTCP,
 				},
 				{
 					Name:       "cr-metrics",
-					Port:       8686,
-					TargetPort: intstr.FromInt(8686),
+					Port:       operatorMetricsPort,
+					TargetPort: intstr.FromInt(int(operatorMetricsPort)),
 					Protocol:   v1.ProtocolTCP,
 				},
 				{
 					Name:       "metrics-fio",
-					Port:       8585,
-					TargetPort: intstr.FromInt(8585),
+					Port:       metrics.ControllerMetricsPort,
+					TargetPort: intstr.FromInt(int(metrics.ControllerMetricsPort)),
 					Protocol:   v1.ProtocolTCP,
 				},
 			},
@@ -228,7 +243,7 @@ func ensureMetricsServiceAndSecret(ctx context.Context, kClient *kubernetes.Clie
 		return nil, err
 	}
 	if kerr.IsAlreadyExists(err) {
-		mService, err = kClient.CoreV1().Services(ns).Get(ctx, "metrics", metav1.GetOptions{})
+		mService, err = kClient.CoreV1().Services(ns).Get(ctx, metricsServiceName, metav1.GetOptions{})
 		if err != nil {
 			return nil, err
 		}
@@ -286,7 +301,7 @@ func createIntegrityFailureAlert(ctx context.Context, client *monclientv1.Monito
 // metrics paths.
 func createServiceMonitor(ctx context.Context, cfg *rest.Config, mClient *monclientv1.MonitoringV1Client,
 	namespace string, service *v1.Service) error {
-	ok, err := k8sutil.ResourceExists(discovery.NewDiscoveryClientForConfigOrDie(cfg),
+	ok, err := common.ResourceExists(discovery.NewDiscoveryClientForConfigOrDie(cfg),
 		"monitoring.coreos.com/v1", "ServiceMonitor")
 	if err != nil {
 		return err
@@ -296,15 +311,17 @@ func createServiceMonitor(ctx context.Context, cfg *rest.Config, mClient *moncli
 		return nil
 	}
 
-	serviceMonitor := metrics.GenerateServiceMonitor(service)
+	serviceMonitor := common.GenerateServiceMonitor(service)
 	for i, _ := range serviceMonitor.Spec.Endpoints {
-		if serviceMonitor.Spec.Endpoints[i].Port == ctrlMetrics.ControllerMetricsServiceName {
-			serviceMonitor.Spec.Endpoints[i].Path = ctrlMetrics.HandlerPath
+		if serviceMonitor.Spec.Endpoints[i].Port == metrics.ControllerMetricsServiceName {
+			serviceMonitor.Spec.Endpoints[i].Path = metrics.HandlerPath
 			serviceMonitor.Spec.Endpoints[i].Scheme = "https"
 			serviceMonitor.Spec.Endpoints[i].BearerTokenFile = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 			serviceMonitor.Spec.Endpoints[i].TLSConfig = &monitoring.TLSConfig{
-				CAFile:     "/etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt",
-				ServerName: "metrics.openshift-file-integrity.svc",
+				SafeTLSConfig: monitoring.SafeTLSConfig{
+					ServerName: "metrics." + namespace + ".svc",
+				},
+				CAFile: "/etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt",
 			}
 		}
 	}
@@ -325,30 +342,6 @@ func createServiceMonitor(ctx context.Context, cfg *rest.Config, mClient *moncli
 			metav1.UpdateOptions{}); updateErr != nil {
 			return updateErr
 		}
-	}
-	return nil
-}
-
-// serveCRMetrics gets the Operator/CustomResource GVKs and generates metrics based on those types.
-// It serves those metrics on "http://metricsHost:operatorMetricsPort".
-func serveCRMetrics(cfg *rest.Config) error {
-	// Below function returns filtered operator/CustomResource specific GVKs.
-	// For more control override the below GVK list with your own custom logic.
-	filteredGVK, err := k8sutil.GetGVKsFromAddToScheme(apis.AddToScheme)
-	if err != nil {
-		return err
-	}
-	// Get the namespace the operator is currently deployed in.
-	operatorNs, err := k8sutil.GetOperatorNamespace()
-	if err != nil {
-		return err
-	}
-	// To generate metrics in other namespaces, add the values below.
-	ns := []string{operatorNs}
-	// Generate and serve custom resource specific metrics.
-	err = kubemetrics.GenerateAndServeCRMetrics(cfg, ns, filteredGVK, metricsHost, operatorMetricsPort)
-	if err != nil {
-		return err
 	}
 	return nil
 }

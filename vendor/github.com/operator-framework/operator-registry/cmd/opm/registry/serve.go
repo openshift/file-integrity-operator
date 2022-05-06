@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -15,6 +17,7 @@ import (
 	"github.com/operator-framework/operator-registry/pkg/api"
 	health "github.com/operator-framework/operator-registry/pkg/api/grpc_health_v1"
 	"github.com/operator-framework/operator-registry/pkg/lib/dns"
+	"github.com/operator-framework/operator-registry/pkg/lib/graceful"
 	"github.com/operator-framework/operator-registry/pkg/lib/log"
 	"github.com/operator-framework/operator-registry/pkg/lib/tmp"
 	"github.com/operator-framework/operator-registry/pkg/server"
@@ -25,9 +28,11 @@ func newRegistryServeCmd() *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:   "serve",
 		Short: "serve an operator-registry database",
-		Long:  `serve an operator-registry database that is queriable using grpc`,
+		Long: `serve an operator-registry database that is queriable using grpc
 
-		PreRunE: func(cmd *cobra.Command, args []string) error {
+` + sqlite.DeprecationMessage,
+
+		PreRunE: func(cmd *cobra.Command, _ []string) error {
 			if debug, _ := cmd.Flags().GetBool("debug"); debug {
 				logrus.SetLevel(logrus.DebugLevel)
 			}
@@ -35,6 +40,7 @@ func newRegistryServeCmd() *cobra.Command {
 		},
 
 		RunE: serveFunc,
+		Args: cobra.NoArgs,
 	}
 
 	rootCmd.Flags().Bool("debug", false, "enable debug logging")
@@ -42,11 +48,12 @@ func newRegistryServeCmd() *cobra.Command {
 	rootCmd.Flags().StringP("port", "p", "50051", "port number to serve on")
 	rootCmd.Flags().StringP("termination-log", "t", "/dev/termination-log", "path to a container termination log file")
 	rootCmd.Flags().Bool("skip-migrate", false, "do  not attempt to migrate to the latest db revision when starting")
-	return rootCmd
+	rootCmd.Flags().String("timeout-seconds", "infinite", "Timeout in seconds. This flag will be removed later.")
 
+	return rootCmd
 }
 
-func serveFunc(cmd *cobra.Command, args []string) error {
+func serveFunc(cmd *cobra.Command, _ []string) error {
 	// Immediately set up termination log
 	terminationLogPath, err := cmd.Flags().GetString("termination-log")
 	if err != nil {
@@ -59,7 +66,7 @@ func serveFunc(cmd *cobra.Command, args []string) error {
 
 	// Ensure there is a default nsswitch config
 	if err := dns.EnsureNsswitch(); err != nil {
-		return err
+		logrus.WithError(err).Warn("unable to write default nsswitch config")
 	}
 
 	dbName, err := cmd.Flags().GetString("database")
@@ -81,9 +88,13 @@ func serveFunc(cmd *cobra.Command, args []string) error {
 	}
 	defer os.Remove(tmpdb)
 
-	db, err := sql.Open("sqlite3", tmpdb)
+	db, err := sqlite.Open(tmpdb)
 	if err != nil {
 		return err
+	}
+
+	if _, err := db.ExecContext(context.TODO(), `PRAGMA soft_heap_limit=1`); err != nil {
+		logger.WithError(err).Warnf("error setting soft heap limit for sqlite")
 	}
 
 	// migrate to the latest version
@@ -91,7 +102,7 @@ func serveFunc(cmd *cobra.Command, args []string) error {
 		logger.WithError(err).Warnf("couldn't migrate db")
 	}
 
-	store := sqlite.NewSQLLiteQuerierFromDb(db)
+	store := sqlite.NewSQLLiteQuerierFromDb(db, sqlite.OmitManifests(true))
 
 	// sanity check that the db is available
 	tables, err := store.ListTables(context.TODO())
@@ -106,17 +117,37 @@ func serveFunc(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		logger.Fatalf("failed to listen: %s", err)
 	}
+
+	timeout, err := cmd.Flags().GetString("timeout-seconds")
+	if err != nil {
+		return err
+	}
+
 	s := grpc.NewServer()
+	logger.Printf("Keeping server open for %s seconds", timeout)
+	if timeout != "infinite" {
+		timeoutSeconds, err := strconv.ParseUint(timeout, 10, 16)
+		if err != nil {
+			return err
+		}
+
+		timeoutDuration := time.Duration(timeoutSeconds) * time.Second
+		timer := time.AfterFunc(timeoutDuration, func() {
+			logger.Info("Timeout expired. Gracefully stopping.")
+			s.GracefulStop()
+		})
+		defer timer.Stop()
+	}
 
 	api.RegisterRegistryServer(s, server.NewRegistryServer(store))
 	health.RegisterHealthServer(s, server.NewHealthServer())
 	reflection.Register(s)
 	logger.Info("serving registry")
-	if err := s.Serve(lis); err != nil {
-		logger.Fatalf("failed to serve: %s", err)
-	}
-
-	return nil
+	return graceful.Shutdown(logger, func() error {
+		return s.Serve(lis)
+	}, func() {
+		s.GracefulStop()
+	})
 }
 
 func migrate(cmd *cobra.Command, db *sql.DB) error {

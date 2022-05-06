@@ -1,0 +1,282 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  annotations:
+    alm-examples: |-
+      [
+        {
+          "apiVersion": "fileintegrity.openshift.io/v1alpha1",
+          "kind": "FileIntegrity",
+          "metadata": {
+            "name": "example-fileintegrity",
+            "namespace": "openshift-file-integrity"
+          },
+          "spec": {
+            "config": {},
+            "debug": false
+          }
+        }
+      ]
+    capabilities: Seamless Upgrades
+    categories: Monitoring,Security
+    olm.skipRange: '>=0.1.6 <0.1.24'
+    operatorframework.io/cluster-monitoring: "true"
+    operatorframework.io/suggested-namespace: openshift-file-integrity
+    operators.openshift.io/infrastructure-features: '["disconnected", "fips"]'
+    operators.operatorframework.io/builder: operator-sdk-v1.14.0+git
+    operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
+    repository: https://github.com/openshift/file-integrity-operator
+  name: file-integrity-operator.v0.1.24
+  namespace: placeholder
+spec:
+  apiservicedefinitions: {}
+  customresourcedefinitions:
+    owned:
+    - description: FileIntegrity is the Schema for the fileintegrities API
+      displayName: File Integrity
+      kind: FileIntegrity
+      name: fileintegrities.fileintegrity.openshift.io
+      version: v1alpha1
+    - description: FileIntegrityNodeStatus defines the status of a specific node
+      kind: FileIntegrityNodeStatus
+      name: fileintegritynodestatuses.fileintegrity.openshift.io
+      version: v1alpha1
+  description: An operator that manages file integrity checks on nodes.
+  displayName: File Integrity Operator
+  icon:
+  - base64data: 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
+    mediatype: image/png
+  install:
+    spec:
+      clusterPermissions:
+      - rules:
+        - apiGroups:
+          - ""
+          resources:
+          - nodes
+          verbs:
+          - get
+          - list
+          - watch
+        serviceAccountName: file-integrity-operator
+      deployments:
+      - name: file-integrity-operator
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              name: file-integrity-operator
+          strategy: {}
+          template:
+            metadata:
+              labels:
+                name: file-integrity-operator
+            spec:
+              containers:
+              - args:
+                - operator
+                command:
+                - file-integrity-operator
+                env:
+                - name: WATCH_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.annotations['olm.targetNamespaces']
+                - name: POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+                - name: OPERATOR_NAME
+                  value: file-integrity-operator
+                - name: RELATED_IMAGE_OPERATOR
+                  value: quay.io/file-integrity-operator/file-integrity-operator:latest
+                image: quay.io/file-integrity-operator/file-integrity-operator:latest
+                imagePullPolicy: Always
+                name: file-integrity-operator
+                resources:
+                  limits:
+                    cpu: 100m
+                    memory: 200Mi
+                  requests:
+                    cpu: 10m
+                    memory: 10Mi
+                volumeMounts:
+                - mountPath: /var/run/secrets/serving-cert
+                  name: serving-cert
+                  readOnly: true
+              nodeSelector:
+                node-role.kubernetes.io/master: ""
+              serviceAccountName: file-integrity-operator
+              tolerations:
+              - effect: NoSchedule
+                key: node-role.kubernetes.io/master
+                operator: Exists
+              - effect: NoExecute
+                key: node.kubernetes.io/unreachable
+                operator: Exists
+                tolerationSeconds: 120
+              - effect: NoExecute
+                key: node.kubernetes.io/not-ready
+                operator: Exists
+                tolerationSeconds: 120
+              volumes:
+              - name: serving-cert
+                secret:
+                  optional: true
+                  secretName: file-integrity-operator-serving-cert
+      permissions:
+      - rules:
+        - apiGroups:
+          - ""
+          resources:
+          - nodes
+          verbs:
+          - get
+          - list
+          - watch
+        - apiGroups:
+          - apps
+          resources:
+          - daemonsets
+          - deployments
+          - replicasets
+          - statefulsets
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - apps
+          resourceNames:
+          - file-integrity-operator
+          resources:
+          - deployments/finalizers
+          verbs:
+          - update
+        - apiGroups:
+          - coordination.k8s.io
+          resources:
+          - leases
+          verbs:
+          - create
+          - get
+          - list
+          - update
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - configmaps
+          - deployments
+          - endpoints
+          - events
+          - persistentvolumeclaims
+          - pods
+          - secrets
+          - services
+          - services/finalizers
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - fileintegrity.openshift.io
+          resources:
+          - fileintegrities
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - fileintegrity.openshift.io
+          resources:
+          - fileintegrities/finalizers
+          verbs:
+          - update
+        - apiGroups:
+          - fileintegrity.openshift.io
+          resources:
+          - fileintegrities/status
+          verbs:
+          - get
+          - patch
+          - update
+        - apiGroups:
+          - fileintegrity.openshift.io
+          resources:
+          - fileintegritynodestatuses
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - fileintegrity.openshift.io
+          resources:
+          - fileintegritynodestatuses/finalizers
+          verbs:
+          - update
+        - apiGroups:
+          - monitoring.coreos.com
+          resources:
+          - prometheusrules
+          verbs:
+          - create
+        - apiGroups:
+          - monitoring.coreos.com
+          resources:
+          - servicemonitors
+          verbs:
+          - create
+          - get
+          - update
+        - apiGroups:
+          - security.openshift.io
+          resourceNames:
+          - privileged
+          resources:
+          - securitycontextconstraints
+          verbs:
+          - use
+        serviceAccountName: file-integrity-operator
+    strategy: deployment
+  installModes:
+  - supported: true
+    type: OwnNamespace
+  - supported: true
+    type: SingleNamespace
+  - supported: false
+    type: MultiNamespace
+  - supported: false
+    type: AllNamespaces
+  keywords:
+  - Integrity
+  - security
+  links:
+  - name: File Integrity Operator upstream repo
+    url: https://github.com/openshift/file-integrity-operator
+  - name: File Integrity Operator documentation
+    url: https://docs.openshift.com/container-platform/latest/security/file_integrity_operator/file-integrity-operator-understanding.html
+  maintainers:
+  - email: mrogers@redhat.com
+    name: Matt Rogers
+  maturity: alpha
+  provider:
+    name: Red Hat
+    url: https://github.com/openshift/file-integrity-operator
+  version: 0.1.24

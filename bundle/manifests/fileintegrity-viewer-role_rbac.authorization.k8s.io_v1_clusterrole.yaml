@@ -1,0 +1,20 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: fileintegrity-viewer-role
+rules:
+- apiGroups:
+  - fileintegrity.openshift.io
+  resources:
+  - fileintegrities
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - fileintegrity.openshift.io
+  resources:
+  - fileintegrities/status
+  verbs:
+  - get

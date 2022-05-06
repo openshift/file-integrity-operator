@@ -1,54 +1,36 @@
 # file-integrity-operator
 The file-integrity-operator is a OpenShift Operator that continually runs file integrity checks on the cluster nodes. It deploys a DaemonSet that initializes and runs privileged AIDE ([Advanced Intrusion Detection Environment](https://aide.github.io)) containers on each node, providing a log of files that have been modified since the initial run of the DaemonSet pods.
 
-### Deploying from source:
-Default upstream images:
+### Deploying:
+
+To deploy the operator using the latest released file-integrity-operator image available on quay.io, run:
 ```
-$ (clone repo)
-$ oc create -f deploy/crds/
-$ oc create -f deploy/
+$ make deploy
+```
+Alternately, to deploy the latest release through OLM, run:
+```
+$ make catalog-deploy
 ```
 
-Images built from HEAD:
-```
-$ (clone repo)
-$ oc login -u kubeadmin -p <pw>
-$ make deploy-to-cluster
-```
+### Building and deploying from source:
 
-### Deploying from OLM:
-Deploying from OLM would deploy the latest released upstream version.
-
-First, create the `CatalogSource` and optionally verify it's been created
-successfuly:
+First set an image repo and tag to use. Make sure that you have permissions to push `file-integrity-operator*` images (and relevant tag) to the repo.
 ```
-$ oc create -f deploy/olm-catalog/catalog-source.yaml
-$ oc get catalogsource -nopenshift-marketplace
+$ export IMAGE_REPO=quay.io/myrepo
+$ export TAG=mytag
 ```
-
-Next, create the target namespace and finally either install the operator
-from the Web Console or from the CLI following these steps:
+With these set, they will apply to the rest of the Makefile targets. Next, build and push the operator and bundle images by running:
 ```
-$ oc create -f deploy/ns.yaml
-$ oc create -f deploy/olm-catalog/operator-group.yaml
-$ oc create -f deploy/olm-catalog/subscription.yaml
+$ make images && make push
 ```
-The Subscription file can be edited to optionally deploy a custom version,
-see the `startingCSV` attribute in the `deploy/olm-catalog/subscription.yaml`
-file.
-
-Verify that the expected objects have been created:
+Finally, deploy the operator with the built images,
 ```
-$ oc get sub -nopenshift-file-integrity
-$ oc get ip -nopenshift-file-integrity
-$ oc get csv -nopenshift-file-integrity
+$ make deploy
 ```
-
-At this point, the operator should be up and running:
+or build a catalog and deploy from OLM:
 ```
-$ oc get deploy -nopenshift-file-integrity
-$ oc get pods -nopenshift-file-integrity
-```
+$ make catalog && make catalog-deploy
+``` 
 
 ### FileIntegrity API:
 
@@ -349,9 +331,10 @@ This guide provides useful information for contributors.
 ### Proposing Releases
 
 The release process is separated into three phases, with dedicated `make`
-targets. All targets require that you supply the `OPERATOR_VERSION` prior to
+targets. All targets require that you supply the `VERSION` prior to
 running `make`, which should be a semantic version formatted string (e.g.,
-`OPERATOR_VERSION=0.1.49`).
+`VERSION=0.1.49`). Additionally, you should ensure that `IMAGE_REPO` and 
+`TAG` environment variables are unset before running the targets.
 
 #### Preparing the Release
 

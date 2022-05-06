@@ -8,7 +8,7 @@ ENV GOFLAGS="-mod=vendor"
 
 COPY . .
 
-RUN make operator-bin
+RUN make build
 
 # Step two: containerize file-integrity-operator and AIDE together
 FROM registry.fedoraproject.org/fedora-minimal:latest
@@ -19,7 +19,7 @@ ENV OPERATOR=/usr/local/bin/file-integrity-operator \
     USER_NAME=file-integrity-operator
 
 # install operator binary
-COPY --from=builder /go/src/github.com/openshift/file-integrity-operator/build/_output/bin/file-integrity-operator ${OPERATOR}
+COPY --from=builder /go/src/github.com/openshift/file-integrity-operator/build/bin/manager ${OPERATOR}
 COPY build/bin /usr/local/bin
 RUN  /usr/local/bin/user_setup
 

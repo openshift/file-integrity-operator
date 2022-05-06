@@ -4,17 +4,21 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
+	"github.com/operator-framework/operator-registry/cmd/opm/internal/util"
 	"github.com/operator-framework/operator-registry/pkg/containertools"
 	"github.com/operator-framework/operator-registry/pkg/lib/indexer"
+	"github.com/operator-framework/operator-registry/pkg/sqlite"
 )
 
 func newIndexDeleteCmd() *cobra.Command {
 	indexCmd := &cobra.Command{
 		Use:   "rm",
 		Short: "delete an entire operator from an index",
-		Long:  `delete an entire operator from an index`,
+		Long: `delete an entire operator from an index
 
-		PreRunE: func(cmd *cobra.Command, args []string) error {
+` + sqlite.DeprecationMessage,
+
+		PreRunE: func(cmd *cobra.Command, _ []string) error {
 			if debug, _ := cmd.Flags().GetBool("debug"); debug {
 				logrus.SetLevel(logrus.DebugLevel)
 			}
@@ -22,6 +26,7 @@ func newIndexDeleteCmd() *cobra.Command {
 		},
 
 		RunE: runIndexDeleteCmdFunc,
+		Args: cobra.NoArgs,
 	}
 
 	indexCmd.Flags().Bool("debug", false, "enable debug logging")
@@ -50,7 +55,7 @@ func newIndexDeleteCmd() *cobra.Command {
 
 }
 
-func runIndexDeleteCmdFunc(cmd *cobra.Command, args []string) error {
+func runIndexDeleteCmdFunc(cmd *cobra.Command, _ []string) error {
 	generate, err := cmd.Flags().GetBool("generate")
 	if err != nil {
 		return err
@@ -91,6 +96,11 @@ func runIndexDeleteCmdFunc(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	skipTLSVerify, useHTTP, err := util.GetTLSOptions(cmd)
+	if err != nil {
+		return err
+	}
+
 	logger := logrus.WithFields(logrus.Fields{"operators": operators})
 
 	logger.Info("building the index")
@@ -108,6 +118,8 @@ func runIndexDeleteCmdFunc(cmd *cobra.Command, args []string) error {
 		Operators:         operators,
 		Tag:               tag,
 		Permissive:        permissive,
+		SkipTLSVerify:     skipTLSVerify,
+		PlainHTTP:         useHTTP,
 	}
 
 	err = indexDeleter.DeleteFromIndex(request)

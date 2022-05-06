@@ -3,20 +3,17 @@ package node
 import (
 	"context"
 	"fmt"
+	"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
+	"github.com/openshift/file-integrity-operator/pkg/controller/metrics"
 
 	"github.com/go-logr/logr"
 
-	"github.com/openshift/file-integrity-operator/pkg/controller/metrics"
-
-	fiv1alpha1 "github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
 	"github.com/openshift/file-integrity-operator/pkg/common"
 	mcfgconst "github.com/openshift/machine-config-operator/pkg/daemon/constants"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -26,27 +23,27 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
-var log = logf.Log.WithName("controller_node")
+var controllerNodeLog = logf.Log.WithName("controller_node")
 
 // Add creates a new Node Controller and adds it to the Manager. The Manager will set fields on the Controller
 // and Start it when the Manager is Started.
-func Add(mgr manager.Manager, met *metrics.Metrics) error {
-	return add(mgr, newReconciler(mgr, met))
+func AddNodeController(mgr manager.Manager, met *metrics.Metrics) error {
+	return addNodeControllerReconciler(mgr, newNodeControllerReconciler(mgr, met))
 }
 
 // newReconciler returns a new reconcile.Reconciler
-func newReconciler(mgr manager.Manager, met *metrics.Metrics) reconcile.Reconciler {
+func newNodeControllerReconciler(mgr manager.Manager, met *metrics.Metrics) reconcile.Reconciler {
 	cfg := mgr.GetConfig()
 	clientset, err := kubernetes.NewForConfig(cfg)
 	if err != nil {
 		panic(fmt.Errorf("Unable to get clientset: %v", err))
 	}
 	restclient := clientset.CoreV1().RESTClient()
-	return &ReconcileNode{client: mgr.GetClient(), scheme: mgr.GetScheme(), restclient: restclient, cfg: cfg, metrics: met}
+	return &NodeReconciler{Client: mgr.GetClient(), Scheme: mgr.GetScheme(), RestClient: restclient, Cfg: cfg, Metrics: met}
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
-func add(mgr manager.Manager, r reconcile.Reconciler) error {
+func addNodeControllerReconciler(mgr manager.Manager, r reconcile.Reconciler) error {
 	// Create a new controller
 	c, err := controller.New("node-controller", mgr, controller.Options{Reconciler: r})
 	if err != nil {
@@ -70,33 +67,21 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 	return nil
 }
 
-// blank assignment to verify that ReconcileNode implements reconcile.Reconciler
-var _ reconcile.Reconciler = &ReconcileNode{}
-
-// ReconcileNode reconciles a Node object
-type ReconcileNode struct {
-	// This client, initialized using mgr.Client() above, is a split client
-	// that reads objects from the cache and writes to the apiserver
-	client client.Client
-	// Used for pods
-	restclient rest.Interface
-	cfg        *rest.Config
-	scheme     *runtime.Scheme
-	metrics    *metrics.Metrics
-}
+// blank assignment to verify that NodeReconciler implements reconcile.Reconciler
+var _ reconcile.Reconciler = &NodeReconciler{}
 
 // Reconcile reads that state of the cluster for a Node object and makes changes based on the state read
 // and what is in the Node.Spec
 // Note:
 // The Controller will requeue the Request to be processed again if the returned error is non-nil or
 // Result.Requeue is true, otherwise upon completion it will remove the work from the queue.
-func (r *ReconcileNode) Reconcile(request reconcile.Request) (reconcile.Result, error) {
-	reqLogger := log.WithValues("Node.Name", request.Name)
+func (r *NodeReconciler) NodeControllerReconcile(request reconcile.Request) (reconcile.Result, error) {
+	reqLogger := controllerNodeLog.WithValues("Node.Name", request.Name)
 	reqLogger.Info("Reconciling Node")
 
 	// Fetch the Node instance
 	node := &corev1.Node{}
-	err := r.client.Get(context.TODO(), request.NamespacedName, node)
+	err := r.Client.Get(context.TODO(), request.NamespacedName, node)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return reconcile.Result{}, nil
@@ -136,10 +121,10 @@ func (r *ReconcileNode) Reconcile(request reconcile.Request) (reconcile.Result, 
 	return reconcile.Result{}, nil
 }
 
-func (r *ReconcileNode) findRelevantFileIntegrities(currentnode *corev1.Node) ([]*fiv1alpha1.FileIntegrity, error) {
-	resultingFIs := []*fiv1alpha1.FileIntegrity{}
-	fiList := fiv1alpha1.FileIntegrityList{}
-	err := r.client.List(context.TODO(), &fiList)
+func (r *NodeReconciler) findRelevantFileIntegrities(currentnode *corev1.Node) ([]*v1alpha1.FileIntegrity, error) {
+	resultingFIs := []*v1alpha1.FileIntegrity{}
+	fiList := v1alpha1.FileIntegrityList{}
+	err := r.Client.List(context.TODO(), &fiList)
 	if err != nil {
 		return resultingFIs, err
 	}
@@ -150,7 +135,7 @@ func (r *ReconcileNode) findRelevantFileIntegrities(currentnode *corev1.Node) ([
 			LabelSelector: labels.SelectorFromSet(fi.Spec.NodeSelector),
 		}
 
-		err = r.client.List(context.TODO(), &nodeList, &listOpts)
+		err = r.Client.List(context.TODO(), &nodeList, &listOpts)
 		if err != nil {
 			return resultingFIs, err
 		}
@@ -165,7 +150,7 @@ func (r *ReconcileNode) findRelevantFileIntegrities(currentnode *corev1.Node) ([
 	return resultingFIs, nil
 }
 
-func (r *ReconcileNode) addHoldOffAnnotations(logger logr.Logger, fis []*fiv1alpha1.FileIntegrity, n *corev1.Node) error {
+func (r *NodeReconciler) addHoldOffAnnotations(logger logr.Logger, fis []*v1alpha1.FileIntegrity, n *corev1.Node) error {
 	for _, fi := range fis {
 		// Only update if we don't already have the holdoff annotation
 		if fi.Annotations != nil {
@@ -180,17 +165,17 @@ func (r *ReconcileNode) addHoldOffAnnotations(logger logr.Logger, fis []*fiv1alp
 		}
 
 		fiCopy.Annotations[common.IntegrityHoldoffAnnotationKey] = ""
-		if err := r.client.Update(context.TODO(), fiCopy); err != nil {
+		if err := r.Client.Update(context.TODO(), fiCopy); err != nil {
 			return err
 		}
 		logger.Info("Added Holdoff annotation to FileIntegrity")
-		r.metrics.IncFileIntegrityPause(n.Name)
+		r.Metrics.IncFileIntegrityPause(n.Name)
 	}
 	return nil
 }
 
-func (r *ReconcileNode) getAnnotatedFileIntegrities(fis []*fiv1alpha1.FileIntegrity) []*fiv1alpha1.FileIntegrity {
-	annotatedFIs := []*fiv1alpha1.FileIntegrity{}
+func (r *NodeReconciler) getAnnotatedFileIntegrities(fis []*v1alpha1.FileIntegrity) []*v1alpha1.FileIntegrity {
+	annotatedFIs := []*v1alpha1.FileIntegrity{}
 	for _, fi := range fis {
 		if fi.Annotations == nil {
 			continue
@@ -204,7 +189,7 @@ func (r *ReconcileNode) getAnnotatedFileIntegrities(fis []*fiv1alpha1.FileIntegr
 	return annotatedFIs
 }
 
-func (r *ReconcileNode) removeHoldoffAnnotationAndReinitFileIntegrityDatabases(fis []*fiv1alpha1.FileIntegrity,
+func (r *NodeReconciler) removeHoldoffAnnotationAndReinitFileIntegrityDatabases(fis []*v1alpha1.FileIntegrity,
 	n *corev1.Node) error {
 	for _, fi := range fis {
 		// Only reinit for FIs that were previously in holdoff.
@@ -212,11 +197,11 @@ func (r *ReconcileNode) removeHoldoffAnnotationAndReinitFileIntegrityDatabases(f
 			fiCopy := fi.DeepCopy()
 			fiCopy.Annotations[common.AideDatabaseReinitAnnotationKey] = n.Name
 			delete(fiCopy.Annotations, common.IntegrityHoldoffAnnotationKey)
-			if err := r.client.Update(context.TODO(), fiCopy); err != nil {
+			if err := r.Client.Update(context.TODO(), fiCopy); err != nil {
 				return err
 			}
-			r.metrics.IncFileIntegrityUnpause(n.Name)
-			r.metrics.IncFileIntegrityReinitByNode(n.Name)
+			r.Metrics.IncFileIntegrityUnpause(n.Name)
+			r.Metrics.IncFileIntegrityReinitByNode(n.Name)
 		}
 	}
 	return nil

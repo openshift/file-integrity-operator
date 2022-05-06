@@ -1,0 +1,4 @@
+## Append samples you want in your CSV to this file as resources ##
+resources:
+- fileintegrity.openshift.io_v1alpha1_fileintegrity_cr.yaml
+#+kubebuilder:scaffold:manifestskustomizesamples

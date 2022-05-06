@@ -1,3 +1,19 @@
+/*
+Copyright © 2019 - 2022 Red Hat Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package v1alpha1
 
 import (
@@ -26,7 +42,6 @@ const (
 )
 
 // FileIntegritySpec defines the desired state of FileIntegrity
-// +k8s:openapi-gen=true
 type FileIntegritySpec struct {
 	NodeSelector map[string]string   `json:"nodeSelector,omitempty"`
 	Config       FileIntegrityConfig `json:"config"`
@@ -37,7 +52,6 @@ type FileIntegritySpec struct {
 }
 
 // FileIntegrityConfig defines the name, namespace, and data key for an AIDE config to use for integrity checking.
-// +k8s:openapi-gen=true
 type FileIntegrityConfig struct {
 	// Name of a configMap that contains custom AIDE configuration. A default configuration would be created if omitted.
 	Name string `json:"name,omitempty"`
@@ -55,15 +69,13 @@ type FileIntegrityConfig struct {
 }
 
 // FileIntegrityStatus defines the observed state of FileIntegrity
-// +k8s:openapi-gen=true
 type FileIntegrityStatus struct {
 	Phase FileIntegrityStatusPhase `json:"phase,omitempty"`
 }
 
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
 
 // FileIntegrityNodeStatus defines the status of a specific node
-// +k8s:openapi-gen=true
 // +kubebuilder:printcolumn:name="Node",type="string",JSONPath=`.nodeName`
 // +kubebuilder:printcolumn:name="Status",type="string",JSONPath=`.lastResult.condition`
 type FileIntegrityNodeStatus struct {
@@ -75,7 +87,6 @@ type FileIntegrityNodeStatus struct {
 }
 
 // FileIntegrityScanResult defines the one-time result of a scan.
-// +k8s:openapi-gen=true
 type FileIntegrityScanResult struct {
 	LastProbeTime            metav1.Time                `json:"lastProbeTime"`
 	Condition                FileIntegrityNodeCondition `json:"condition"`
@@ -87,10 +98,9 @@ type FileIntegrityScanResult struct {
 	FilesRemoved             int                        `json:"filesRemoved,omitempty"`
 }
 
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
 
 // FileIntegrity is the Schema for the fileintegrities API
-// +k8s:openapi-gen=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:path=fileintegrities,scope=Namespaced
 type FileIntegrity struct {
@@ -101,7 +111,7 @@ type FileIntegrity struct {
 	Status FileIntegrityStatus `json:"status,omitempty"`
 }
 
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
 
 // FileIntegrityList contains a list of FileIntegrity
 type FileIntegrityList struct {
@@ -110,7 +120,7 @@ type FileIntegrityList struct {
 	Items           []FileIntegrity `json:"items"`
 }
 
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
 
 // FileIntegrityNodeStatusList contains a list of FileIntegrityNodeStatus
 type FileIntegrityNodeStatusList struct {
