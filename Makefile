@@ -8,6 +8,14 @@ export APP_NAME=file-integrity-operator
 # =========================
 IMAGE_REPO?=quay.io/file-integrity-operator
 RUNTIME?=podman
+# Required for podman < 3.4.7 and buildah to use microdnf in fedora 35
+RUNTIME_BUILD_OPTS=--security-opt seccomp=unconfined
+
+ifeq ($(RUNTIME),buildah)
+RUNTIME_BUILD_CMD=bud
+else
+RUNTIME_BUILD_CMD=build
+endif
 
 # Git options.
 GIT_OPTS?=
@@ -125,7 +133,6 @@ endif
 # Options are set to exit when a recipe line exits non-zero or a piped command fails.
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
-
 
 # Setup targets (prep/tools/clean)
 # =============
@@ -276,7 +283,7 @@ build: generate ## Build the operator binary.
 	$(GO) build -o $(TARGET_OPERATOR) $(MAIN_PKG)
 
 image: test-unit ## Build the operator image.
-	$(RUNTIME) build -f build/Dockerfile -t ${IMG} .
+	$(RUNTIME) $(RUNTIME_BUILD_CMD) $(RUNTIME_BUILD_OPTS) -f build/Dockerfile -t ${IMG} .
 
 .PHONY: bundle
 bundle: check-operator-version operator-sdk manifests update-skip-range kustomize ## Generate bundle manifests and metadata, then validate generated files.
@@ -288,7 +295,7 @@ bundle: check-operator-version operator-sdk manifests update-skip-range kustomiz
 
 .PHONY: bundle-image
 bundle-image: bundle ## Build the bundle image.
-	$(RUNTIME) build -f bundle.Dockerfile -t $(BUNDLE_IMG) .
+	$(RUNTIME) $(RUNTIME_BUILD_CMD) -f bundle.Dockerfile -t $(BUNDLE_IMG) .
 
 # Build a catalog image by adding bundle images to an empty catalog using the operator package manager tool, 'opm'.
 # This recipe invokes 'opm' in 'semver' bundle add mode. For more information on add modes, see:
