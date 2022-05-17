@@ -41,17 +41,10 @@ const (
 	filePathSep = string(filepath.Separator)
 
 	// dirs
-	CmdDir         = "cmd"
-	ManagerDir     = CmdDir + filePathSep + "manager"
-	PkgDir         = "pkg"
-	ApisDir        = PkgDir + filePathSep + "apis"
-	ControllerDir  = PkgDir + filePathSep + "controller"
-	BuildDir       = "build"
-	BuildTestDir   = BuildDir + filePathSep + "test-framework"
-	BuildBinDir    = BuildDir + filePathSep + "_output" + filePathSep + "bin"
-	BuildScriptDir = BuildDir + filePathSep + "bin"
-	DeployDir      = "deploy"
-	CRDsDir        = DeployDir + filePathSep + "crds"
+	CmdDir      = "cmd"
+	ManagerDir  = CmdDir + filePathSep + "manager"
+	BuildDir    = "build"
+	BuildBinDir = BuildDir + filePathSep + "_output" + filePathSep + "bin"
 )
 
 const (
@@ -63,14 +56,6 @@ const (
 	// which is the namespace where the watch activity happens.
 	// this value is empty if the operator is running with clusterScope.
 	WatchNamespaceEnvVar = "WATCH_NAMESPACE"
-
-	// OperatorNameEnvVar is the constant for env variable OPERATOR_NAME
-	// which is the name of the current operator
-	OperatorNameEnvVar = "OPERATOR_NAME"
-
-	// PodNameEnvVar is the constant for env variable POD_NAME
-	// which is the name of the current pod.
-	PodNameEnvVar = "POD_NAME"
 )
 
 type Framework struct {
