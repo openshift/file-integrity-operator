@@ -3,7 +3,7 @@ include version.Makefile
 # Operator variables
 # ==================
 export APP_NAME=file-integrity-operator
-
+export GOARCH = $(shell go env GOARCH)
 # Container image variables
 # =========================
 IMAGE_REPO?=quay.io/file-integrity-operator
@@ -39,7 +39,7 @@ INDEX_IMAGE_TAG?=latest
 NEW_IMAGE_BASE?=$(RELATED_IMAGE_OPERATOR_PATH)
 
 TARGET_DIR=$(PWD)/build/bin
-GO=GOFLAGS=-mod=vendor GO111MODULE=auto go
+GO=GOFLAGS=-mod=vendor GOARCH=$(GOARCH) GO111MODULE=auto go
 TARGET_OPERATOR=$(TARGET_DIR)/manager
 MAIN_PKG=main.go
 PKGS=$(shell go list ./... | grep -v -E '/vendor/|/tests|/examples')
