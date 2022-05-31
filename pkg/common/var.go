@@ -29,7 +29,9 @@ func GetOperatorNamespace() (string, error) {
 	return ns, nil
 }
 
-// GetWatchNamespace returns the Namespace the operator should be watching for changes
+// GetWatchNamespace returns the Namespace the operator should be watching for changes. Eventually the watch namespace
+// will not be used when OLM begins to support only the AllNamespaces install type. To support AllNamespaces initially,
+// GetWatchNamespace will return the operator namespace if WATCH_NAMESPACE is empty.
 func GetWatchNamespace() (string, error) {
 	// WatchNamespaceEnvVar is the constant for env variable WATCH_NAMESPACE
 	// which specifies the Namespace to watch.
@@ -39,6 +41,14 @@ func GetWatchNamespace() (string, error) {
 	ns, found := os.LookupEnv(watchNamespaceEnvVar)
 	if !found {
 		return "", fmt.Errorf("%s must be set", watchNamespaceEnvVar)
+	}
+
+	if ns == "" {
+		opns, err := GetOperatorNamespace()
+		if err != nil {
+			return "", err
+		}
+		ns = opns
 	}
 	return ns, nil
 }
