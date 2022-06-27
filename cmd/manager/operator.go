@@ -268,7 +268,8 @@ func createIntegrityFailureAlert(ctx context.Context, client *monclientv1.Monito
 		Expr:  intstr.FromString(`file_integrity_operator_node_failed{node=~".+"} * on(node) kube_node_info > 0`),
 		For:   "1s",
 		Labels: map[string]string{
-			"severity": "warning",
+			"severity":  "warning",
+			"namespace": namespace,
 		},
 		Annotations: map[string]string{
 			"summary":     "Node {{ $labels.node }} has a file integrity failure",
