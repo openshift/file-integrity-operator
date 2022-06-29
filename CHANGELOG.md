@@ -5,6 +5,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.25] - 2022-06-28
+
+### Enhancements
+
+- Added support for using the File Integrity Operator on s390x and ppc64le
+  architectures.
+
+### Internal Changes
+
+- Updated operator framework to use operator-sdk version 1.15.0.
+- Added formal support for watching all namespaces using `AllNamespaces` in a
+  backwards compatible way to adhere to changes required by the operator-sdk
+  update.
+- Removed unused test framework code that was obsolete after updating the
+  operator-sdk framework dependency.
+- Added additional flexibility to the container build process to support
+  building content across different operating systems.
+- Upgraded golang dependency to version 1.17
+
 ## [0.1.24] - 2022-04-20
 ### Changes
 - Bug 2072058: Use correct data keys for script configMaps
