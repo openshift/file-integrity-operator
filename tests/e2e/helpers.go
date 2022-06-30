@@ -502,7 +502,7 @@ func privPodOnNode(namespace, name, nodeName, command string) *corev1.Pod {
 						RunAsUser:  &runAs,
 					},
 					Name:    name,
-					Image:   "busybox",
+					Image:   "quay.io/prometheus/busybox",
 					Command: []string{"/bin/sh"},
 					Args:    []string{"-c", command},
 					VolumeMounts: []corev1.VolumeMount{
@@ -567,7 +567,7 @@ func privCommandDaemonset(namespace, name, command string) *appsv1.DaemonSet {
 								RunAsUser:  &runAs,
 							},
 							Name:    name,
-							Image:   "busybox",
+							Image:   "quay.io/prometheus/busybox",
 							Command: []string{"/bin/sh"},
 							Args:    []string{"-c", command},
 							VolumeMounts: []corev1.VolumeMount{
