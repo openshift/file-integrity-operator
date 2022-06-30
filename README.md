@@ -358,4 +358,8 @@ This steps also requires that you have necessary permissions on the repository.
 The third and final step of the release is to build new images and push them to
 an offical image registry. You can build new images and push using `make
 release-images`. Note that this operation also requires you have proper
-permissions on the remote registry.
+permissions on the remote registry. By default, `make release-images` will push
+images to
+[Quay](https://quay.io/repository/file-integrity-operator/file-integrity-operator).
+You can specify a different repository using the `IMAGE_REPO` environment
+variable.
