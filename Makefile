@@ -70,7 +70,11 @@ TEST_DEPLOY=$(TEST_SETUP_DIR)/deploy_rbac.yaml
 # e.g. to run a specific test in the e2e test suite, do:
 # E2E_GO_TEST_FLAGS="-v -timeout 20m -run TestFileIntegrityLogAndReinitDatabase" make e2e
 E2E_GO_TEST_FLAGS?=-v -timeout 60m
-E2E_ARGS=-root=$(PROJECT_DIR) -globalMan=$(TEST_CRD) -namespacedMan=$(TEST_DEPLOY) -skipCleanupOnError=true
+# By default, the tests skip cleanup on failures. Set this variable to false if you prefer
+# the tests to cleanup regardless of test status, e.g.:
+# E2E_SKIP_CLEANUP_ON_ERROR=false make e2e
+E2E_SKIP_CLEANUP_ON_ERROR?=true
+E2E_ARGS=-root=$(PROJECT_DIR) -globalMan=$(TEST_CRD) -namespacedMan=$(TEST_DEPLOY) -skipCleanupOnError=$(E2E_SKIP_CLEANUP_ON_ERROR)
 # Skip pushing the container to your cluster
 E2E_SKIP_CONTAINER_PUSH?=false
 # Use default images in the e2e test run. Note that this takes precedence over E2E_SKIP_CONTAINER_PUSH
