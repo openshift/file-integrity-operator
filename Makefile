@@ -25,8 +25,10 @@ endif
 
 # Git options.
 GIT_OPTS?=
-# Set this to the remote used for the upstream repo (for release)
-GIT_REMOTE?=origin
+# Set this to the remote used for the upstream repo (for release). Use an
+# absolute reference since we don't know if origin is the contributor's fork or
+# if it's the upstream repository.
+GIT_REMOTE?=git@github-redhat:openshift/file-integrity-operator.git
 
 # Image tag to use. Set this if you want to use a specific tag for building
 # or your e2e tests.
