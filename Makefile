@@ -17,6 +17,12 @@ else
 RUNTIME_BUILD_CMD=build
 endif
 
+ifeq ($(RUNTIME), podman)
+    LOGIN_PUSH_OPTS="--tls-verify=false"
+else ifeq ($(RUNTIME), docker)
+    LOGIN_PUSH_OPTS=
+endif
+
 # Git options.
 GIT_OPTS?=
 # Set this to the remote used for the upstream repo (for release)
@@ -283,6 +289,8 @@ build: generate ## Build the operator binary.
 	$(GO) build -o $(TARGET_OPERATOR) $(MAIN_PKG)
 
 image: test-unit ## Build the operator image.
+	# otherwise the build fails with a link failure
+	rm -f $(CONTROLLER_GEN)
 	$(RUNTIME) $(RUNTIME_BUILD_CMD) $(RUNTIME_BUILD_OPTS) -f build/Dockerfile -t ${IMG} .
 
 .PHONY: bundle
@@ -326,6 +334,26 @@ deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in
 
 undeploy: manifests kustomize ## Undeploy controller from the K8s cluster specified in ~/.kube/config or KUBECONFIG.
 	$(KUSTOMIZE) build config/default | kubectl delete -f -
+
+.PHONY: deploy-local
+deploy-local: install image-to-cluster
+	@sed -i 's%$(IMG)%$(RELATED_IMAGE_OPERATOR_PATH)%' config/manager/deployment.yaml
+	@git diff config/manager/deployment.yaml
+	@$(MAKE) deploy IMG=$(RELATED_IMAGE_OPERATOR_PATH)
+	@git restore config/manager/kustomization.yaml
+	@git restore config/manager/deployment.yaml
+
+.PHONY: image-to-cluster
+image-to-cluster: openshift-user image
+	@echo "Exposing the default route to the image registry"
+	@oc patch configs.imageregistry.operator.openshift.io/cluster --patch '{"spec":{"defaultRoute":true}}' --type=merge
+	@echo "Pushing image $(IMG) to the image registry"
+	@IMAGE_REGISTRY_HOST=$$(oc get route default-route -n openshift-image-registry --template='{{ .spec.host }}'); \
+	$(RUNTIME) login $(LOGIN_PUSH_OPTS) -u $(OPENSHIFT_USER) -p $(shell oc whoami -t) $${IMAGE_REGISTRY_HOST}; \
+	$(RUNTIME) push $(LOGIN_PUSH_OPTS) $(IMG) $${IMAGE_REGISTRY_HOST}/openshift/$(APP_NAME):$(TAG)
+	@echo "Removing the route from the image registry"
+	@oc patch configs.imageregistry.operator.openshift.io/cluster --patch '{"spec":{"defaultRoute":false}}' --type=merge
+	$(eval RELATED_IMAGE_OPERATOR_PATH = image-registry.openshift-image-registry.svc:5000/openshift/$(APP_NAME):$(TAG))
 
 .PHONY: tear-down
 tear-down: undeploy uninstall ## Run undeploy and uninstall targets.
