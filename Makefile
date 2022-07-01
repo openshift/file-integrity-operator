@@ -10,6 +10,7 @@ IMAGE_REPO?=quay.io/file-integrity-operator
 RUNTIME?=podman
 # Required for podman < 3.4.7 and buildah to use microdnf in fedora 35
 RUNTIME_BUILD_OPTS=--security-opt seccomp=unconfined
+BUILD_DIR := build
 
 ifeq ($(RUNTIME),buildah)
 RUNTIME_BUILD_CMD=bud
@@ -204,8 +205,8 @@ gosec: ## Run gosec against code.
 	@$(GO) run github.com/securego/gosec/v2/cmd/gosec -severity medium -confidence medium -quiet $(PKGS)
 
 CONTROLLER_GEN = $(shell pwd)/build/controller-gen
-controller-gen: ## Download controller-gen locally if necessary.
-	$(call go-get-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@v0.7.0)
+controller-gen: ## Build controller-gen from what's in vendor.
+	$(call go-build,./vendor/sigs.k8s.io/controller-tools/cmd/controller-gen)
 
 KUSTOMIZE = $(shell pwd)/build/kustomize
 kustomize: ## Download kustomize locally if necessary.
@@ -227,6 +228,17 @@ echo "Downloading $(2)" ;\
 GOBIN=$(PROJECT_DIR)/build go get $(2) ;\
 rm -rf $$TMP_DIR ;\
 }
+endef
+
+
+$(BUILD_DIR):
+	mkdir -p $(BUILD_DIR)
+
+# Build a go module from a single argument, which is a file path to a go
+# module. The module is built and output to the build/ directory.
+define go-build
+	go build -o $(BUILD_DIR)/$(shell basename $(1)) $(1)
+	@echo > /dev/null
 endef
 
 .PHONY: opm
