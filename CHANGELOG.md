@@ -5,6 +5,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.26] - 2022-07-01
+
+### Internal Changes
+
+- Included `controller-gen` as a dependency using tools.go.
+- Removed remote naming assumptions from `Makefile` release targets, making the
+  release process more consistent.
+- Added a `deploy-local` target that deploys the operator using the cluster's
+  image registry. This is primarily for development purposes.
+- Multiple fixes to help stabilize end-to-end testing.
+
 ## [0.1.25] - 2022-06-28
 
 ### Enhancements
