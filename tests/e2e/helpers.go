@@ -62,6 +62,7 @@ const (
 	metricsTestCRBName      = "fio-metrics-client"
 	metricsTestSAName       = "default"
 	metricsTestTokenName    = "metrics-token"
+	compressionFileCmd      = "for i in `seq 1 10000`; do mktemp \"/hostroot/etc/addedbytest$i.XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\"; done || true"
 )
 
 const (
@@ -467,13 +468,20 @@ func cleanAideAddedFilesDaemonset(namespace string) *appsv1.DaemonSet {
 	)
 }
 
-// this daemonset is to stuff the aide log with added files, to force compression.
-// 20000 might not be enough
-// lowered to 10000
-func addLotsOfFilesDaemonset(namespace string) *appsv1.DaemonSet {
-	return privCommandDaemonset(namespace, "aide-add-lots-of-files",
-		"for i in `seq 1 10000`; do mktemp \"/hostroot/etc/addedbytest$i.XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\"; done || true",
-	)
+// This pod is to stuff the aide log with added files, to force compression. The trick is in the long temp name that pads the aide log.
+// 10000 files.
+func addCompressionTestFilesOnNode(t *testing.T, f *framework.Framework, ctx *framework.Context, node, namespace string) error {
+	pod := privPodOnNode(namespace, "test-compression-pod", node, compressionFileCmd)
+	if err := f.Client.Create(goctx.TODO(), pod, &framework.CleanupOptions{
+		TestContext:   ctx,
+		Timeout:       cleanupTimeout,
+		RetryInterval: cleanupRetryInterval,
+	}); err != nil {
+		return err
+	}
+
+	// We expect the command to finish and return 0.
+	return waitForPod(containerCompleted(t, f.KubeClient, pod.Name, namespace, 0))
 }
 
 func privPodOnNode(namespace, name, nodeName, command string) *corev1.Pod {
@@ -1128,27 +1136,6 @@ func containsUncompressedScanFailLog(data map[string]string) bool {
 
 func editFileOnNodes(f *framework.Framework, namespace string) error {
 	daemonSet, err := f.KubeClient.AppsV1().DaemonSets(namespace).Create(goctx.TODO(), modifyFileDaemonset(namespace), metav1.CreateOptions{})
-	if err != nil {
-		return err
-	}
-
-	err = waitForDaemonSet(daemonSetExists(f.KubeClient, daemonSet.Name, namespace))
-	if err != nil {
-		return err
-	}
-	if err := waitForDaemonSet(daemonSetWasScheduled(f.KubeClient, daemonSet.Name, namespace)); err != nil {
-		return err
-	}
-
-	time.Sleep(10 * time.Second)
-	if err := f.KubeClient.AppsV1().DaemonSets(namespace).Delete(goctx.TODO(), daemonSet.Name, metav1.DeleteOptions{}); err != nil {
-		return err
-	}
-	return nil
-}
-
-func addALottaFilesOnNodes(f *framework.Framework, namespace string) error {
-	daemonSet, err := f.KubeClient.AppsV1().DaemonSets(namespace).Create(goctx.TODO(), addLotsOfFilesDaemonset(namespace), metav1.CreateOptions{})
 	if err != nil {
 		return err
 	}
