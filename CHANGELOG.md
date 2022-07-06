@@ -5,6 +5,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.27] - 2022-07-06
+
+### Fixes
+
+- The operator now sets the appropriate namespace for `NodeHasIntegrityFailure`
+  alerts. This helps users understand what component is raising the alert.
+  Please see the corresponding [bug
+  report](https://bugzilla.redhat.com/show_bug.cgi?id=2101393) for more
+  details.
+
 ## [0.1.26] - 2022-07-01
 
 ### Internal Changes
