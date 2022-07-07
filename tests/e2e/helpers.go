@@ -346,9 +346,14 @@ func setupTest(t *testing.T) (*framework.Framework, *framework.Context, string) 
 	return framework.Global, testctx, namespace
 }
 
-// setupFileIntegrity creates the FileIntegrity instance and confirms
+// setupFileIntegrity creates the FileIntegrity instance with the default grace period.
 func setupFileIntegrity(t *testing.T, f *framework.Framework, testCtx *framework.Context, integrityName, namespace string) {
-	testIntegrityCheck := newTestFileIntegrity(integrityName, namespace, nodeLabelForWorkerRole, defaultTestGracePeriod, true)
+	setupFileIntegrityWithGracePeriod(t, f, testCtx, integrityName, namespace, defaultTestGracePeriod)
+}
+
+// setupFileIntegrityWithGracePeriod creates the FileIntegrity instance and confirms that it goes active.
+func setupFileIntegrityWithGracePeriod(t *testing.T, f *framework.Framework, testCtx *framework.Context, integrityName, namespace string, grace int) {
+	testIntegrityCheck := newTestFileIntegrity(integrityName, namespace, nodeLabelForWorkerRole, grace, true)
 
 	cleanupOptions := framework.CleanupOptions{
 		TestContext:   testCtx,

@@ -719,7 +719,9 @@ func TestFileIntegrityTolerations(t *testing.T) {
 func TestFileIntegrityLogCompress(t *testing.T) {
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-logcompress"
-	setupFileIntegrity(t, f, testctx, testName, namespace)
+	setupFileIntegrityWithGracePeriod(t, f, testctx, testName, namespace,
+		defaultTestGracePeriod*3, // extend the grace period to allow the file adder enough time to finish.
+	)
 	defer testctx.Cleanup()
 	defer func() {
 		if err := cleanNodes(f, namespace); err != nil {
