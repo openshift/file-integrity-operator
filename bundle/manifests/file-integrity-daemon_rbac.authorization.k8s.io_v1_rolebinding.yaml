@@ -5,9 +5,8 @@ metadata:
   name: file-integrity-daemon
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: Role
+  kind: ClusterRole
   name: file-integrity-daemon
 subjects:
 - kind: ServiceAccount
   name: file-integrity-daemon
-  namespace: openshift-file-integrity
