@@ -141,6 +141,9 @@ ifneq ($(origin CATALOG_BASE_IMG), undefined)
 FROM_INDEX_OPT := --from-index $(CATALOG_BASE_IMG)
 endif
 
+# Set CATALOG_DEPLOY_NS= when running `make catalog-deploy` to override the default.
+CATALOG_DEPLOY_NS ?= $(NAMESPACE)
+
 # Setting SHELL to bash allows bash commands to be executed by recipes.
 # This is a requirement for 'setup-envtest.sh' in the test target.
 # Options are set to exit when a recipe line exits non-zero or a piped command fails.
@@ -378,14 +381,22 @@ tear-down: undeploy uninstall ## Run undeploy and uninstall targets.
 
 .PHONY: catalog-deploy
 catalog-deploy: namespace ## Deploy from the config/catalog sources.
-	@echo "WARNING: This will temporarily modify config/catalog/catalog-source.yaml"
+	@echo "WARNING: This will temporarily modify files in config/catalog"
 	@echo "Replacing image reference in config/catalog/catalog-source.yaml"
 	@sed -i 's%quay.io/file-integrity-operator/file-integrity-operator-catalog:latest%$(CATALOG_IMG)%' config/catalog/catalog-source.yaml
 	@oc apply -f config/catalog/catalog-source.yaml
 	@echo "Restoring image reference in config/catalog/catalog-source.yaml"
 	@sed -i 's%$(CATALOG_IMG)%quay.io/file-integrity-operator/file-integrity-operator-catalog:latest%' config/catalog/catalog-source.yaml
+	@echo "Replacing namespace reference in config/catalog/operator-group.yaml"
+	@sed -i 's%$(NAMESPACE)%$(CATALOG_DEPLOY_NS)%' config/catalog/operator-group.yaml
 	@oc apply -f config/catalog/operator-group.yaml
+	@echo "Restoring namespace reference in config/catalog/operator-group.yaml"
+	@sed -i 's%$(CATALOG_DEPLOY_NS)%$(NAMESPACE)%' config/catalog/operator-group.yaml
+	@echo "Replacing namespace reference in config/catalog/subscription.yaml"
+	@sed -i 's%$(NAMESPACE)%$(CATALOG_DEPLOY_NS)%' config/catalog/subscription.yaml
 	@oc apply -f config/catalog/subscription.yaml
+	@echo "Restoring namespace reference in config/catalog/subscription.yaml"
+	@sed -i 's%$(CATALOG_DEPLOY_NS)%$(NAMESPACE)%' config/catalog/subscription.yaml
 
 .PHONY: catalog-undeploy
 catalog-undeploy: undeploy
