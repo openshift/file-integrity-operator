@@ -10,7 +10,6 @@ resources:
 - operator_clusterrole.yaml
 - operator_clusterrolebinding.yaml
 - daemon_role.yaml
-- daemon_rolebinding.yaml
 - prometheus_rolebinding.yaml
 - leader_election_role.yaml
 - leader_election_role_binding.yaml

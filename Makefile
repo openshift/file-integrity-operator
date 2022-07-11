@@ -435,6 +435,7 @@ prep-e2e: kustomize
 	mkdir -p $(TEST_SETUP_DIR)
 	$(KUSTOMIZE) build config/e2e > $(TEST_DEPLOY)
 	$(KUSTOMIZE) build config/crd > $(TEST_CRD)
+	cat config/rbac/daemon_rolebinding.yaml >> $(TEST_DEPLOY)
 
 ifdef IMAGE_FROM_CI
 e2e-set-image: kustomize
