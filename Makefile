@@ -190,6 +190,11 @@ clean-test: clean-cache ## Clean up test cache and test setup artifacts.
 clean-kustomize: ## Reset kustomize changes in the repo.
 	@git restore bundle/manifests/file-integrity-operator.clusterserviceversion.yaml config/manager/kustomization.yaml
 
+# Used as a prereq for `make image` to avoid linker errors
+.PHONY: clean-controller-gen
+clean-controller-gen: ## Remove the controller-gen build
+	rm -f $(CONTROLLER_GEN)
+
 .PHONY: simplify
 simplify: ## Run go fmt -s against code.
 	@gofmt -s -l -w $(SRC)
@@ -305,9 +310,7 @@ images: image bundle-image  ## Build operator and bundle images.
 build: generate ## Build the operator binary.
 	$(GO) build -o $(TARGET_OPERATOR) $(MAIN_PKG)
 
-image: test-unit ## Build the operator image.
-	# otherwise the build fails with a link failure
-	rm -f $(CONTROLLER_GEN)
+image: test-unit clean-controller-gen ## Build the operator image.
 	$(RUNTIME) $(RUNTIME_BUILD_CMD) $(RUNTIME_BUILD_OPTS) -f build/Dockerfile -t ${IMG} .
 
 .PHONY: bundle
