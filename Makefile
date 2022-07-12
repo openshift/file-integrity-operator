@@ -233,10 +233,6 @@ rm -rf $$TMP_DIR ;\
 }
 endef
 
-
-$(BUILD_DIR):
-	mkdir -p $(BUILD_DIR)
-
 # Build a go module from a single argument, which is a file path to a go
 # module. The module is built and output to the build/ directory.
 define go-build
