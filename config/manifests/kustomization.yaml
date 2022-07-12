@@ -2,7 +2,7 @@
 # used to generate the 'manifests/' directory in a bundle.
 resources:
 - bases/file-integrity-operator.clusterserviceversion.yaml
-- ../default
+- ../default-bundle
 - ../samples
 - ../scorecard
 

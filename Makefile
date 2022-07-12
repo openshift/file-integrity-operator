@@ -346,15 +346,15 @@ run: manifests generate fmt vet ## Run a controller from your host.
 install: manifests kustomize ## Install CRDs into the K8s cluster specified in ~/.kube/config or KUBECONFIG.
 	$(KUSTOMIZE) build config/crd | kubectl apply -f -
 
-uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config or KUBECONFIG.
-	$(KUSTOMIZE) build config/crd | kubectl delete -f -
+uninstall: kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config or KUBECONFIG.
+	$(KUSTOMIZE) build config/crd | kubectl delete --ignore-not-found=true -f -
 
-deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config or KUBECONFIG.
+deploy: manifests kustomize install ## Deploy controller to the K8s cluster specified in ~/.kube/config or KUBECONFIG.
 	cd config/manager && $(KUSTOMIZE) edit set image $(APP_NAME)=${IMG}
 	$(KUSTOMIZE) build config/default | kubectl apply -f -
 
-undeploy: manifests kustomize ## Undeploy controller from the K8s cluster specified in ~/.kube/config or KUBECONFIG.
-	$(KUSTOMIZE) build config/default | kubectl delete -f -
+undeploy: kustomize ## Undeploy controller from the K8s cluster specified in ~/.kube/config or KUBECONFIG.
+	$(KUSTOMIZE) build config/default | kubectl delete --ignore-not-found=true -f -
 
 .PHONY: deploy-local
 deploy-local: install image-to-cluster
@@ -400,7 +400,16 @@ catalog-deploy: namespace ## Deploy from the config/catalog sources.
 
 .PHONY: catalog-undeploy
 catalog-undeploy: undeploy
-	@oc delete -f config/catalog/
+	@echo "Replacing namespace reference in config/catalog/operator-group.yaml"
+	@sed -i 's%$(NAMESPACE)%$(CATALOG_DEPLOY_NS)%' config/catalog/operator-group.yaml
+	@echo "Replacing namespace reference in config/catalog/subscription.yaml"
+	@sed -i 's%$(NAMESPACE)%$(CATALOG_DEPLOY_NS)%' config/catalog/subscription.yaml
+	@oc delete --ignore-not-found=true -f config/catalog/
+	@echo "Restoring namespace reference in config/catalog/operator-group.yaml"
+	@sed -i 's%$(CATALOG_DEPLOY_NS)%$(NAMESPACE)%' config/catalog/operator-group.yaml
+	@echo "Restoring namespace reference in config/catalog/subscription.yaml"
+	@sed -i 's%$(CATALOG_DEPLOY_NS)%$(NAMESPACE)%' config/catalog/subscription.yaml
+	@oc delete --ignore-not-found=true csv -n $(CATALOG_DEPLOY_NS) --all
 
 ##@ Push
 
@@ -435,7 +444,7 @@ prep-e2e: kustomize
 	mkdir -p $(TEST_SETUP_DIR)
 	$(KUSTOMIZE) build config/e2e > $(TEST_DEPLOY)
 	$(KUSTOMIZE) build config/crd > $(TEST_CRD)
-	cat config/rbac/daemon_rolebinding.yaml >> $(TEST_DEPLOY)
+	cat config/rbac-daemon/daemon_rolebinding.yaml >> $(TEST_DEPLOY)
 
 ifdef IMAGE_FROM_CI
 e2e-set-image: kustomize
