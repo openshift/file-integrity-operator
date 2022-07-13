@@ -719,7 +719,9 @@ func TestFileIntegrityTolerations(t *testing.T) {
 func TestFileIntegrityLogCompress(t *testing.T) {
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-logcompress"
-	setupFileIntegrity(t, f, testctx, testName, namespace)
+	setupFileIntegrityWithGracePeriod(t, f, testctx, testName, namespace,
+		defaultTestGracePeriod*3, // extend the grace period to allow the file adder enough time to finish.
+	)
 	defer testctx.Cleanup()
 	defer func() {
 		if err := cleanNodes(f, namespace); err != nil {
@@ -740,12 +742,6 @@ func TestFileIntegrityLogCompress(t *testing.T) {
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
 	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute)
 
-	// modify files
-	err = addALottaFilesOnNodes(f, namespace)
-	if err != nil {
-		t.Errorf("Timeout waiting on node file addition")
-	}
-
 	// log collection should create a configmap for each node's report after the scan runs again
 	nodes, err := f.KubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
 		LabelSelector: nodeWorkerRoleLabelKey,
@@ -753,27 +749,35 @@ func TestFileIntegrityLogCompress(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	for _, node := range nodes.Items {
-		// check the FI status for a failed condition for the node
-		result, err := waitForFailedResultForNode(t, f, namespace, testName, node.Name, time.Second, time.Minute*10)
+
+	// Grab first worker node
+	testNode := nodes.Items[0]
+
+	// modify files
+	err = addCompressionTestFilesOnNode(t, f, testctx, testNode.Name, namespace)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// check the FI status for a failed condition for the node
+	result, err := waitForFailedResultForNode(t, f, namespace, testName, testNode.Name, time.Second, time.Minute*10)
+	if err != nil {
+		t.Errorf("Timeout waiting for a failed status condition for node '%s'", testNode.Name)
+	} else {
+		// The file-adder sometimes restarts, just check it is the base number or above.
+		if result.FilesAdded < 10000 {
+			t.Errorf("Expected >= 10000 files to be added, got %d", result.FilesAdded)
+		}
+		_, err := pollUntilConfigMapExists(t, f, result.ResultConfigMapNamespace, result.ResultConfigMapName, time.Second, time.Minute*10)
 		if err != nil {
-			t.Errorf("Timeout waiting for a failed status condition for node '%s'", node.Name)
-		} else {
-			// The file-adder sometimes restarts, just check it is the base number or above.
-			if result.FilesAdded < 10000 {
-				t.Errorf("Expected >= 10000 files to be added, got %d", result.FilesAdded)
-			}
-			_, err := pollUntilConfigMapExists(t, f, result.ResultConfigMapNamespace, result.ResultConfigMapName, time.Second, time.Minute*10)
-			if err != nil {
-				t.Errorf("Timeout waiting for log configMap '%s'", result.ResultConfigMapName)
-			}
-			cm, err := f.KubeClient.CoreV1().ConfigMaps(result.ResultConfigMapNamespace).Get(context.TODO(), result.ResultConfigMapName, metav1.GetOptions{})
-			if err != nil {
-				t.Error(err)
-			}
-			if _, ok := cm.Annotations[common.CompressedLogsIndicatorLabelKey]; !ok {
-				t.Errorf("configMap '%s' does not indicate compression", result.ResultConfigMapName)
-			}
+			t.Errorf("Timeout waiting for log configMap '%s'", result.ResultConfigMapName)
+		}
+		cm, err := f.KubeClient.CoreV1().ConfigMaps(result.ResultConfigMapNamespace).Get(context.TODO(), result.ResultConfigMapName, metav1.GetOptions{})
+		if err != nil {
+			t.Error(err)
+		}
+		if _, ok := cm.Annotations[common.CompressedLogsIndicatorLabelKey]; !ok {
+			t.Errorf("configMap '%s' does not indicate compression", result.ResultConfigMapName)
 		}
 	}
 }
