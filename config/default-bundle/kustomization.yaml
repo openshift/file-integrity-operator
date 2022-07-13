@@ -1,9 +1,9 @@
-# Deploy variant - includes rbac-daemon
+# Bundle variant - no rbac-daemon inclusion
 
 namespace: openshift-file-integrity
 
 bases:
+- ../crd
 - ../rbac
-- ../rbac-daemon
 - ../manager
 - ../ns

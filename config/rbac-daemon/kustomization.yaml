@@ -1,0 +1,2 @@
+resources:
+  - daemon_rolebinding.yaml
