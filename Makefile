@@ -39,13 +39,7 @@ TAG?=latest
 # or your e2e tests. This is overwritten if we bulid the image and push it to
 # the cluster or if we're on CI.
 RELATED_IMAGE_OPERATOR_PATH?=$(IMAGE_REPO)/$(APP_NAME)
-BUNDLE_IMAGE_PATH=$(IMAGE_REPO)/$(APP_NAME)-bundle
-BUNDLE_IMAGE_TAG?=$(TAG)
-TEST_BUNDLE_IMAGE_TAG?=testonly
 INDEX_IMAGE_NAME=$(APP_NAME)-index
-INDEX_IMAGE_PATH=$(IMAGE_REPO)/$(INDEX_IMAGE_NAME)
-INDEX_IMAGE_TAG?=latest
-NEW_IMAGE_BASE?=$(RELATED_IMAGE_OPERATOR_PATH)
 
 TARGET_DIR=$(PWD)/build/bin
 GO=GOFLAGS=-mod=vendor GOARCH=$(GOARCH) GO111MODULE=auto go
@@ -78,10 +72,6 @@ E2E_GO_TEST_FLAGS?=-v -timeout 60m
 # E2E_SKIP_CLEANUP_ON_ERROR=false make e2e
 E2E_SKIP_CLEANUP_ON_ERROR?=true
 E2E_ARGS=-root=$(PROJECT_DIR) -globalMan=$(TEST_CRD) -namespacedMan=$(TEST_DEPLOY) -skipCleanupOnError=$(E2E_SKIP_CLEANUP_ON_ERROR)
-# Skip pushing the container to your cluster
-E2E_SKIP_CONTAINER_PUSH?=false
-# Use default images in the e2e test run. Note that this takes precedence over E2E_SKIP_CONTAINER_PUSH
-E2E_USE_DEFAULT_IMAGES?=false
 
 # The name of the primary generated role
 ROLE ?= $(APP_NAME)
@@ -119,8 +109,6 @@ BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:$(TAG)
 
 # Image URL to use all building/pushing image targets
 IMG ?= $(IMAGE_TAG_BASE):$(TAG)
-# ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.22
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -219,10 +207,6 @@ controller-gen: ## Build controller-gen from what's in vendor.
 KUSTOMIZE = $(shell pwd)/build/kustomize
 kustomize: ## Download kustomize locally if necessary.
 	$(call go-get-tool,$(KUSTOMIZE),sigs.k8s.io/kustomize/kustomize/v3@v3.8.7)
-
-ENVTEST = $(shell pwd)/build/setup-envtest
-envtest: ## Download envtest-setup locally if necessary.
-	$(call go-get-tool,$(ENVTEST),sigs.k8s.io/controller-runtime/tools/setup-envtest@latest)
 
 # go-get-tool will 'go get' any package $2 and install it to $1.
 PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
