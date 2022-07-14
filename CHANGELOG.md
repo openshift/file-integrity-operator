@@ -5,6 +5,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.28] - 2022-07-14
+
+### Fixes
+
+- Improved contributor experience by making cleanup `make` targets more robust.
+- Fixes a [bug](https://bugzilla.redhat.com/show_bug.cgi?id=2104897) where the
+  operator isn't able to install into namespaces other than
+  `openshift-file-integrity`.
+- Expose a new environment variable used by `make catalog-deploy` to deploy the
+  operator in a non-default namespace.
+- The operator now uses the appropriate labels to prevent
+  [warnings](https://bugzilla.redhat.com/show_bug.cgi?id=2088201) about
+  elevated privileges.
+
+### Internal Changes
+
+- Minor documentation fixes clarifying details of the release process.
+- Removed unused `setup-envtest` dependency required by older versions of
+  Operator SDK. This is no longer needed since upgrading the Operator SDK
+  version.
+- Removed unnecessary `make` targets for build directories since `build/` is
+  tracked as part of the repository.
+- Increased the grace period for end-to-end tests, giving setup functions
+  enough time to prepare test environments, reducing transient test failures.
+- End-to-end tests now use a pod for generating files for test data instead of
+  a daemon set to improve test speeds.
+
+### Documentation
+
+- The File Integrity Operator now explicitly contains an Apache 2.0 License.
+
 ## [0.1.27] - 2022-07-06
 
 ### Fixes
