@@ -5,7 +5,7 @@ metadata:
   name: file-integrity-daemon
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
+  kind: Role
   name: file-integrity-daemon
 subjects:
 - kind: ServiceAccount
