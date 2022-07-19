@@ -471,6 +471,7 @@ push-release: package-version-to-tag ## Do an official release (Requires permiss
 release-images: package-version-to-tag push catalog
 	# This will ensure that we also push to the latest tag
 	$(MAKE) push TAG=latest
+	$(MAKE) catalog-push TAG=latest
 
 .PHONY: changelog
 changelog:
