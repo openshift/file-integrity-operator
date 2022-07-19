@@ -5,6 +5,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.29] - 2022-07-19
+### Changes
+
+### Fixes
+
+- Restore role bindings for `file-integrity-daemon` to use `Role` instead of
+  `ClusterRole`. Using `ClusterRole` inadvertently broke during upgrades due to
+  expectations by Operator Lifecycle Manager. No action is required to consume
+  this fix besides upgrading to 0.1.29. Please see the [bug
+  report](https://bugzilla.redhat.com/show_bug.cgi?id=2108475) for more
+  details.
+
+### Internal Changes
+
+- The `make release-images` target was updated to publish new catalog images
+  with each release to
+  [quay.io/file-integrity-operator/file-integrity-operator-catalog](https://quay.io/repository/file-integrity-operator/file-integrity-operator-catalog).
+
 ## [0.1.28] - 2022-07-14
 
 ### Fixes
