@@ -9,6 +9,6 @@ subjects:
   - kind: ServiceAccount
     name: file-integrity-daemon
 roleRef:
-  kind: ClusterRole
+  kind: Role
   name: file-integrity-daemon
   apiGroup: rbac.authorization.k8s.io
