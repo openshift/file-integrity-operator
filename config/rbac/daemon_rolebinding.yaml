@@ -1,5 +1,3 @@
-# Daemon rolebinding is not applied to bundle/manifests by bundle generation on purpose, instead we should copy by hand
-#  to bundle/manifests. Reason being to avoid adding a namespace to subjects.
 ---
 kind: RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1

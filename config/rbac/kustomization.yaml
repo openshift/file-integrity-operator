@@ -4,16 +4,17 @@ resources:
 # if your manager will use a service account that exists at
 # runtime. Be sure to update RoleBinding and ClusterRoleBinding
 # subjects if changing service account names.
-- service_account.yaml
+- operator_serviceaccount.yaml
 - operator_role.yaml
 - operator_rolebinding.yaml
 - operator_clusterrole.yaml
 - operator_clusterrolebinding.yaml
+- daemon_serviceaccount.yaml
 - daemon_role.yaml
-- prometheus_rolebinding.yaml
+- daemon_rolebinding.yaml
 - leader_election_role.yaml
 - leader_election_role_binding.yaml
-- monitoring_clusterrole.yaml
-- monitoring_clusterrolebinding.yaml
+- metrics_clusterrole.yaml
+- metrics_rolebinding.yaml
 - fileintegrity_editor_role.yaml
 - fileintegrity_viewer_role.yaml

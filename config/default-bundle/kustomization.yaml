@@ -1,4 +1,4 @@
-# Bundle variant - no rbac-daemon inclusion
+# Bundle variant
 
 namespace: openshift-file-integrity
 

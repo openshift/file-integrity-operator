@@ -107,6 +107,9 @@ IMAGE_TAG_BASE=$(IMAGE_REPO)/$(APP_NAME)
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
 BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:$(TAG)
 
+# Includes additional service accounts into the bundle CSV.
+BUNDLE_SA_OPTS ?= --extra-service-accounts file-integrity-daemon
+
 # Image URL to use all building/pushing image targets
 IMG ?= $(IMAGE_TAG_BASE):$(TAG)
 
@@ -302,7 +305,7 @@ bundle: check-operator-version operator-sdk manifests update-skip-range kustomiz
 	$(SDK_BIN) generate kustomize manifests --apis-dir=./pkg/apis -q
 	@echo "kustomize using deployment image $(IMG)"
 	cd config/manager && $(KUSTOMIZE) edit set image $(APP_NAME)=$(IMG)
-	$(KUSTOMIZE) build config/manifests | $(SDK_BIN) generate bundle -q --overwrite --version $(VERSION) $(BUNDLE_METADATA_OPTS)
+	$(KUSTOMIZE) build config/manifests | $(SDK_BIN) generate bundle -q $(BUNDLE_SA_OPTS) --overwrite --version $(VERSION) $(BUNDLE_METADATA_OPTS)
 	$(SDK_BIN) bundle validate ./bundle
 
 .PHONY: bundle-image
@@ -427,7 +430,6 @@ prep-e2e: kustomize
 	mkdir -p $(TEST_SETUP_DIR)
 	$(KUSTOMIZE) build config/e2e > $(TEST_DEPLOY)
 	$(KUSTOMIZE) build config/crd > $(TEST_CRD)
-	cat config/rbac-daemon/daemon_rolebinding.yaml >> $(TEST_DEPLOY)
 
 ifdef IMAGE_FROM_CI
 e2e-set-image: kustomize
