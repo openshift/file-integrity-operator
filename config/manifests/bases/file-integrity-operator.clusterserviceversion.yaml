@@ -19,7 +19,7 @@ metadata:
       ]
     capabilities: Seamless Upgrades
     categories: Monitoring,Security
-    olm.skipRange: '>=0.1.6 <0.1.29'
+    olm.skipRange: '>=0.1.6 <0.1.30'
     operatorframework.io/cluster-monitoring: "true"
     operatorframework.io/suggested-namespace: openshift-file-integrity
     operators.openshift.io/infrastructure-features: '["disconnected", "fips"]'
