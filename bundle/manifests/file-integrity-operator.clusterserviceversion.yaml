@@ -135,6 +135,37 @@ spec:
         - apiGroups:
           - ""
           resources:
+          - events
+          - configmaps
+          verbs:
+          - create
+        - apiGroups:
+          - fileintegrity.openshift.io
+          resources:
+          - fileintegrities
+          verbs:
+          - get
+          - watch
+        - apiGroups:
+          - security.openshift.io
+          resourceNames:
+          - privileged
+          resources:
+          - securitycontextconstraints
+          verbs:
+          - use
+        - apiGroups:
+          - events.k8s.io
+          resources:
+          - events
+          verbs:
+          - create
+          - update
+        serviceAccountName: file-integrity-daemon
+      - rules:
+        - apiGroups:
+          - ""
+          resources:
           - nodes
           verbs:
           - get
