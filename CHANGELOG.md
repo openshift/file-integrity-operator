@@ -5,6 +5,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.30] - 2022-07-25
+
+### Fixes
+
+- Fixed an [issue](https://bugzilla.redhat.com/show_bug.cgi?id=2109153) where
+  upgrades from older versions (0.1.24) would fail due to incorrect ownership of
+  the File Integrity Operator service accounts. We recommend users upgrade to
+  version 0.1.30 to avoid the issue.
+
 ## [0.1.29] - 2022-07-19
 ### Changes
 
