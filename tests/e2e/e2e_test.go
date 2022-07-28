@@ -27,6 +27,9 @@ func TestFileIntegrityLogAndReinitDatabase(t *testing.T) {
 		if err := cleanNodes(f, namespace); err != nil {
 			t.Fatal(err)
 		}
+		if err := resetBundleTestMetrics(f, namespace); err != nil {
+			t.Fatal(err)
+		}
 	}()
 	defer logContainerOutput(t, f, namespace, testName)
 
@@ -142,6 +145,9 @@ func TestFileIntegrityLegacyReinitCleanup(t *testing.T) {
 		if err := cleanNodes(f, namespace); err != nil {
 			t.Fatal(err)
 		}
+		if err := resetBundleTestMetrics(f, namespace); err != nil {
+			t.Fatal(err)
+		}
 	}()
 	defer logContainerOutput(t, f, namespace, testName)
 
@@ -202,6 +208,9 @@ func TestFileIntegrityPruneBackup(t *testing.T) {
 	defer testctx.Cleanup()
 	defer func() {
 		if err := cleanNodes(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+		if err := resetBundleTestMetrics(f, namespace); err != nil {
 			t.Fatal(err)
 		}
 	}()
@@ -287,6 +296,9 @@ func TestFileIntegrityConfigurationRevert(t *testing.T) {
 	defer testctx.Cleanup()
 	defer func() {
 		if err := cleanNodes(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+		if err := resetBundleTestMetrics(f, namespace); err != nil {
 			t.Fatal(err)
 		}
 	}()
@@ -403,6 +415,9 @@ func TestFileIntegrityConfigurationStatus(t *testing.T) {
 		if err := cleanNodes(f, namespace); err != nil {
 			t.Fatal(err)
 		}
+		if err := resetBundleTestMetrics(f, namespace); err != nil {
+			t.Fatal(err)
+		}
 	}()
 	defer logContainerOutput(t, f, namespace, testName)
 
@@ -464,6 +479,9 @@ func TestFileIntegrityConfigurationIgnoreMissing(t *testing.T) {
 		if err := cleanNodes(f, namespace); err != nil {
 			t.Fatal(err)
 		}
+		if err := resetBundleTestMetrics(f, namespace); err != nil {
+			t.Fatal(err)
+		}
 	}()
 	defer logContainerOutput(t, f, namespace, testName)
 
@@ -499,6 +517,9 @@ func TestFileIntegrityConfigMapOwnerUpdate(t *testing.T) {
 		if err := cleanNodes(f, namespace); err != nil {
 			t.Fatal(err)
 		}
+		if err := resetBundleTestMetrics(f, namespace); err != nil {
+			t.Fatal(err)
+		}
 	}()
 	defer logContainerOutput(t, f, namespace, testName)
 
@@ -524,6 +545,9 @@ func TestFileIntegrityChangeGracePeriod(t *testing.T) {
 	defer testctx.Cleanup()
 	defer func() {
 		if err := cleanNodes(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+		if err := resetBundleTestMetrics(f, namespace); err != nil {
 			t.Fatal(err)
 		}
 	}()
@@ -599,6 +623,9 @@ func TestFileIntegrityChangeDebug(t *testing.T) {
 		if err := cleanNodes(f, namespace); err != nil {
 			t.Fatal(err)
 		}
+		if err := resetBundleTestMetrics(f, namespace); err != nil {
+			t.Fatal(err)
+		}
 	}()
 	defer logContainerOutput(t, f, namespace, testName)
 
@@ -672,6 +699,9 @@ func TestFileIntegrityBadConfig(t *testing.T) {
 		if err := cleanNodes(f, namespace); err != nil {
 			t.Fatal(err)
 		}
+		if err := resetBundleTestMetrics(f, namespace); err != nil {
+			t.Fatal(err)
+		}
 	}()
 	defer logContainerOutput(t, f, namespace, testName)
 
@@ -703,6 +733,9 @@ func TestFileIntegrityTolerations(t *testing.T) {
 		if err := cleanNodes(f, namespace); err != nil {
 			t.Fatal(err)
 		}
+		if err := resetBundleTestMetrics(f, namespace); err != nil {
+			t.Fatal(err)
+		}
 	}()
 	defer logContainerOutput(t, f, namespace, testIntegrityNamePrefix+"-tolerations")
 
@@ -728,6 +761,9 @@ func TestFileIntegrityLogCompress(t *testing.T) {
 			t.Fatal(err)
 		}
 		if err := cleanAddedFilesOnNodes(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+		if err := resetBundleTestMetrics(f, namespace); err != nil {
 			t.Fatal(err)
 		}
 	}()
@@ -800,6 +836,9 @@ func TestFileIntegrityAcceptsExpectedChange(t *testing.T) {
 	defer testctx.Cleanup()
 	defer func() {
 		if err := cleanNodes(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+		if err := resetBundleTestMetrics(f, namespace); err != nil {
 			t.Fatal(err)
 		}
 	}()

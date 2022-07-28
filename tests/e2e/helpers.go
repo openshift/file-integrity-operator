@@ -260,17 +260,21 @@ func setupFileIntegrityOperatorCluster(t *testing.T, ctx *framework.Context) {
 
 	replaceNamespaceFromManifest(t, "openshift-file-integrity", namespace, f.NamespacedManPath)
 
-	err = ctx.InitializeClusterResources(&cleanupOptions)
-	if err != nil {
-		t.Fatalf("failed to initialize cluster resources: %v", err)
+	if _, ok := os.LookupEnv(framework.TestBundleInstallEnv); !ok {
+		err = ctx.InitializeClusterResources(&cleanupOptions)
+		if err != nil {
+			t.Fatalf("Failed to initialize cluster resources: %v", err)
+		}
+		t.Log("Initialized cluster resources")
+	} else {
+		t.Logf("Using existing cluster resources in namespace %s", namespace)
 	}
 
 	err = initializeMetricsTestResources(f, namespace)
 	if err != nil {
-		t.Fatalf("failed to initialize cluster resources for metrics: %v", err)
+		t.Fatalf("Failed to initialize cluster resources for metrics: %v", err)
 	}
 
-	t.Log("Initialized cluster resources")
 	// wait for file-integrity-operator to be ready
 	err = e2eutil.WaitForOperatorDeployment(t, f.KubeClient, namespace, "file-integrity-operator", 1, retryInterval, timeout)
 	if err != nil {
@@ -1408,6 +1412,33 @@ func getFiDsPods(f *framework.Framework, fileIntegrityName, namespace string) (*
 	}
 
 	return pods, nil
+}
+
+// Kills the operator pods to reset metrics during a bundle-install test.
+func resetBundleTestMetrics(f *framework.Framework, namespace string) error {
+	// Kill the operator pod during a continuous run to reset metrics.
+	if _, ok := os.LookupEnv(framework.TestBundleInstallEnv); ok {
+		if err := killOperatorPods(f, namespace); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func killOperatorPods(f *framework.Framework, namespace string) error {
+	pods, err := getFiOperatorPods(f, namespace)
+	if err != nil && !kerr.IsNotFound(err) {
+		return err
+	}
+
+	if pods != nil {
+		for _, p := range pods.Items {
+			if err := f.KubeClient.CoreV1().Pods(p.Namespace).Delete(goctx.TODO(), p.Name, metav1.DeleteOptions{}); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func getFiOperatorPods(f *framework.Framework, namespace string) (*corev1.PodList, error) {
