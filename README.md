@@ -197,14 +197,28 @@ LAST SEEN   TYPE      REASON                OBJECT                              
 40m         Warning   NodeIntegrityStatus   fileintegrity/example-fileintegrity   node ip-10-0-152-92.ec2.internal has changed! a:3,c:1,r:0 log:openshift-file-integrity/aide-ds-example-fileintegrity-ip-10-0-152-92.ec2.internal-failed
 ```
 
-### Local testing
+## Testing
+### Unit
+```
+$ make test-unit
+```
+
+### Local
 ```
 $ make run
 ```
 
-### Running the end-to-end suite
+### End-to-end
 ```
 $ make e2e
+```
+
+Running the e2e suite normally handles the operator deployment for each test case. The e2e suite can also be run against an existing deployment with the `TEST_BUNDLE_INSTALL` variable (set to `1` or `true`). The following example builds development images including the bundle and catalog, deploys them to a running cluster, and executes the e2e suite against the deployment.
+```
+$ export IMAGE_REPO=myrepo
+$ export TAG=testing
+$ make images && make push && make catalog && make catalog-deploy
+$ TEST_BUNDLE_INSTALL=1 TEST_WATCH_NAMESPACE=openshift-file-integrity TEST_OPERATOR_NAMESPACE=openshift-file-integrity make e2e
 ```
 
 ## Overriding the AIDE configuration

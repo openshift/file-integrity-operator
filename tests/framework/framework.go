@@ -99,6 +99,7 @@ const (
 
 	TestOperatorNamespaceEnv = "TEST_OPERATOR_NAMESPACE"
 	TestWatchNamespaceEnv    = "TEST_WATCH_NAMESPACE"
+	TestBundleInstallEnv     = "TEST_BUNDLE_INSTALL"
 )
 
 func (opts *frameworkOpts) addToFlagSet(flagset *flag.FlagSet) {
