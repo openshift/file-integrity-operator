@@ -117,6 +117,8 @@ rules:
   - prometheusrules
   verbs:
   - create
+  - get
+  - update
 - apiGroups:
   - monitoring.coreos.com
   resources:
