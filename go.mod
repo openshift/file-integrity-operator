@@ -7,7 +7,8 @@ require (
 	github.com/coreos/ignition/v2 v2.13.0
 	github.com/go-logr/logr v0.4.0
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/onsi/ginkgo v1.16.5 // indirect
+	github.com/onsi/ginkgo v1.16.5
+	github.com/onsi/gomega v1.20.0
 	github.com/openshift/library-go v0.0.0-20200831114015-2ab0c61c15de
 	github.com/openshift/machine-config-operator v0.0.1-0.20200913004441-7eba765c69c9
 	github.com/operator-framework/operator-registry v1.21.0
@@ -22,8 +23,8 @@ require (
 	github.com/spf13/cobra v1.2.1
 	github.com/stretchr/testify v1.7.0
 	go.uber.org/zap v1.19.1 // indirect
-	golang.org/x/mod v0.5.1
-	golang.org/x/net v0.0.0-20211112202133-69e39bad7dc2
+	golang.org/x/mod v0.6.0-dev.0.20220106191415-9b9b3d81d5e3
+	golang.org/x/net v0.0.0-20220425223048-2871e0cb64e4
 	k8s.io/api v0.22.3
 	k8s.io/apiextensions-apiserver v0.22.3
 	k8s.io/apimachinery v0.22.3
