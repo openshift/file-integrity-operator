@@ -21,6 +21,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"reflect"
 	rt "runtime"
 
 	"github.com/spf13/cobra"
@@ -74,12 +75,12 @@ func init() {
 
 // Change below variables to serve metrics on different host or port.
 var (
-	metricsHost               = "0.0.0.0"
-	metricsPort         int32 = 8383
-	operatorMetricsPort int32 = 8686
-	alertName                 = "file-integrity"
-	metricsServiceName        = "metrics"
-	leaderElectionID          = "962a0cf2.openshift.io"
+	metricsHost                      = "0.0.0.0"
+	metricsPort                int32 = 8383
+	operatorMetricsPort        int32 = 8686
+	defaultPrometheusAlertName       = "file-integrity"
+	metricsServiceName               = "metrics"
+	leaderElectionID                 = "962a0cf2.openshift.io"
 )
 
 func printVersion() {
@@ -261,8 +262,7 @@ func ensureMetricsServiceAndSecret(ctx context.Context, kClient *kubernetes.Clie
 	return mService, nil
 }
 
-// createIntegrityFailureAlert tries to create the default PrometheusRule. Returns nil.
-func createIntegrityFailureAlert(ctx context.Context, client *monclientv1.MonitoringV1Client, namespace string) error {
+func defaultPrometheusRule(alertName, namespace string) *monitoring.PrometheusRule {
 	rule := monitoring.Rule{
 		Alert: "NodeHasIntegrityFailure",
 		Expr:  intstr.FromString(`file_integrity_operator_node_failed{node=~".+"} * on(node) kube_node_info > 0`),
@@ -276,7 +276,8 @@ func createIntegrityFailureAlert(ctx context.Context, client *monclientv1.Monito
 			"description": "Node {{ $labels.node }} has an integrity check status of Failed for more than 1 second.",
 		},
 	}
-	_, createErr := client.PrometheusRules(namespace).Create(ctx, &monitoring.PrometheusRule{
+
+	return &monitoring.PrometheusRule{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
 			Name:      alertName,
@@ -291,9 +292,31 @@ func createIntegrityFailureAlert(ctx context.Context, client *monclientv1.Monito
 				},
 			},
 		},
-	}, metav1.CreateOptions{})
+	}
+}
+
+// createIntegrityFailureAlert tries to create or update the default PrometheusRule, returning any errors.
+func createIntegrityFailureAlert(ctx context.Context, client monclientv1.MonitoringV1Interface, namespace string) error {
+	promRule := defaultPrometheusRule(defaultPrometheusAlertName, namespace)
+	_, createErr := client.PrometheusRules(namespace).Create(ctx, promRule, metav1.CreateOptions{})
 	if createErr != nil && !kerr.IsAlreadyExists(createErr) {
-		log.Info("could not create prometheus rule for alert", createErr)
+		return createErr
+	}
+
+	if kerr.IsAlreadyExists(createErr) {
+		currentPromRule, getErr := client.PrometheusRules(namespace).Get(ctx, promRule.Name,
+			metav1.GetOptions{})
+		if getErr != nil {
+			return getErr
+		}
+		if !reflect.DeepEqual(currentPromRule.Spec, promRule.Spec) {
+			promRuleCopy := currentPromRule.DeepCopy()
+			promRuleCopy.Spec = promRule.Spec
+			if _, updateErr := client.PrometheusRules(namespace).Update(ctx, promRuleCopy,
+				metav1.UpdateOptions{}); updateErr != nil {
+				return updateErr
+			}
+		}
 	}
 	return nil
 }
