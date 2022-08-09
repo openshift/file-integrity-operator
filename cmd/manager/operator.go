@@ -77,7 +77,6 @@ func init() {
 var (
 	metricsHost                      = "0.0.0.0"
 	metricsPort                int32 = 8383
-	operatorMetricsPort        int32 = 8686
 	defaultPrometheusAlertName       = "file-integrity"
 	metricsServiceName               = "metrics"
 	leaderElectionID                 = "962a0cf2.openshift.io"
@@ -200,9 +199,10 @@ func RunOperator(cmd *cobra.Command, args []string) {
 }
 
 func ensureMetricsServiceAndSecret(ctx context.Context, kClient *kubernetes.Clientset, ns string) (*v1.Service, error) {
-	var mService *v1.Service
+	var returnService *v1.Service
 	var err error
-	mService, err = kClient.CoreV1().Services(ns).Create(ctx, &v1.Service{
+
+	newService := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: map[string]string{
 				"name": "file-integrity-operator",
@@ -216,15 +216,9 @@ func ensureMetricsServiceAndSecret(ctx context.Context, kClient *kubernetes.Clie
 		Spec: v1.ServiceSpec{
 			Ports: []v1.ServicePort{
 				{
-					Name:       "http-metrics",
+					Name:       "metrics",
 					Port:       metricsPort,
 					TargetPort: intstr.FromInt(int(metricsPort)),
-					Protocol:   v1.ProtocolTCP,
-				},
-				{
-					Name:       "cr-metrics",
-					Port:       operatorMetricsPort,
-					TargetPort: intstr.FromInt(int(operatorMetricsPort)),
 					Protocol:   v1.ProtocolTCP,
 				},
 				{
@@ -239,15 +233,31 @@ func ensureMetricsServiceAndSecret(ctx context.Context, kClient *kubernetes.Clie
 			},
 			Type: v1.ServiceTypeClusterIP,
 		},
-	}, metav1.CreateOptions{})
+	}
+
+	createdService, err := kClient.CoreV1().Services(ns).Create(ctx, newService, metav1.CreateOptions{})
 	if err != nil && !kerr.IsAlreadyExists(err) {
 		return nil, err
 	}
 	if kerr.IsAlreadyExists(err) {
-		mService, err = kClient.CoreV1().Services(ns).Get(ctx, metricsServiceName, metav1.GetOptions{})
-		if err != nil {
-			return nil, err
+		curService, getErr := kClient.CoreV1().Services(ns).Get(ctx, metricsServiceName, metav1.GetOptions{})
+		if getErr != nil {
+			return nil, getErr
 		}
+		returnService = curService
+
+		// Needs update?
+		if !reflect.DeepEqual(curService.Spec, newService.Spec) {
+			serviceCopy := curService.DeepCopy()
+			serviceCopy.Spec = newService.Spec
+			updatedService, updateErr := kClient.CoreV1().Services(ns).Update(ctx, serviceCopy, metav1.UpdateOptions{})
+			if updateErr != nil {
+				return nil, updateErr
+			}
+			returnService = updatedService
+		}
+	} else {
+		returnService = createdService
 	}
 
 	// Ensure the serving-cert secret for metrics is available, we have to exit and restart if not
@@ -259,7 +269,7 @@ func ensureMetricsServiceAndSecret(ctx context.Context, kClient *kubernetes.Clie
 		}
 	}
 
-	return mService, nil
+	return returnService, nil
 }
 
 func defaultPrometheusRule(alertName, namespace string) *monitoring.PrometheusRule {
