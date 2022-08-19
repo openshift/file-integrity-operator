@@ -107,7 +107,16 @@ func (ctx *Context) getNamespace(ns string) (string, error) {
 	}
 	// create namespace
 	ns = ctx.GetID()
-	namespaceObj := &core.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}}
+	namespaceObj := &core.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: ns,
+			Labels: map[string]string{
+				"pod-security.kubernetes.io/enforce":             "privileged",
+				"security.openshift.io/scc.podSecurityLabelSync": "false",
+			},
+		},
+	}
+	fmt.Println(namespaceObj)
 	_, err := ctx.kubeclient.CoreV1().Namespaces().Create(context.TODO(), namespaceObj, metav1.CreateOptions{})
 	if apierrors.IsAlreadyExists(err) {
 		return "", fmt.Errorf("namespace %s already exists: %w", ns, err)
