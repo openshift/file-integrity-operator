@@ -274,6 +274,8 @@ spec:
           - prometheusrules
           verbs:
           - create
+          - get
+          - update
         - apiGroups:
           - monitoring.coreos.com
           resources:
