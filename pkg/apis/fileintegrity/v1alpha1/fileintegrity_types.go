@@ -46,8 +46,8 @@ type FileIntegritySpec struct {
 	NodeSelector map[string]string   `json:"nodeSelector,omitempty"`
 	Config       FileIntegrityConfig `json:"config"`
 	Debug        bool                `json:"debug,omitempty"`
-	// Specifies tolerations for custom taints. Defaults to allowing scheduling on master nodes.
-	// +kubebuilder:default={{key: "node-role.kubernetes.io/master", operator: "Exists", effect: "NoSchedule"}}
+	// Specifies tolerations for custom taints. Defaults to allowing scheduling on master and infra nodes.
+	// +kubebuilder:default={{key: "node-role.kubernetes.io/master", operator: "Exists", effect: "NoSchedule"},{key: "node-role.kubernetes.io/infra", operator: "Exists", effect: "NoSchedule"}}
 	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
 }
 
