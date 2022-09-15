@@ -8,3 +8,4 @@ build/operator-sdk
 build/opm
 bundle_*
 _testdata
+tests/_setup
