@@ -39,7 +39,6 @@ TAG?=latest
 # or your e2e tests. This is overwritten if we bulid the image and push it to
 # the cluster or if we're on CI.
 RELATED_IMAGE_OPERATOR_PATH?=$(IMAGE_REPO)/$(APP_NAME)
-INDEX_IMAGE_NAME=$(APP_NAME)-index
 
 TARGET_DIR=$(PWD)/build/bin
 GO=GOFLAGS=-mod=vendor GOARCH=$(GOARCH) GO111MODULE=auto go
