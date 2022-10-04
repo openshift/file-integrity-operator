@@ -317,7 +317,7 @@ bundle-image: bundle ## Build the bundle image.
 # https://github.com/operator-framework/community-operators/blob/7f1438c/docs/packaging-operator.md#updating-your-existing-operator
 .PHONY: catalog-image
 catalog-image: opm ## Build a catalog image.
-	$(OPM) index add --container-tool $(RUNTIME) --mode semver --tag $(CATALOG_IMG) --bundles $(BUNDLE_IMGS) $(FROM_INDEX_OPT)
+	$(OPM) index add --binary-image registry.redhat.io/openshift4/ose-operator-registry:v4.11 --container-tool $(RUNTIME) --mode semver --tag $(CATALOG_IMG) --bundles $(BUNDLE_IMGS) $(FROM_INDEX_OPT)
 
 .PHONY: catalog
 catalog: catalog-image catalog-push ## Build and push a catalog image.
