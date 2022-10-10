@@ -268,6 +268,8 @@ endif
 update-skip-range: check-operator-version
 	sed -i '/replaces:/d' config/manifests/bases/file-integrity-operator.clusterserviceversion.yaml
 	sed -i "s/\(olm.skipRange: '>=.*\)<.*'/\1<$(VERSION)'/" config/manifests/bases/file-integrity-operator.clusterserviceversion.yaml
+	sed -i "s/\(\"name\": \"file-integrity-operator.v\).*\"/\1$(VERSION)\"/" catalog/preamble.json
+	sed -i "s/\(\"skipRange\": \">=.*\)<.*\"/\1<$(VERSION)\"/" catalog/preamble.json
 
 .PHONY: namespace
 namespace:
@@ -317,7 +319,13 @@ bundle-image: bundle ## Build the bundle image.
 # https://github.com/operator-framework/community-operators/blob/7f1438c/docs/packaging-operator.md#updating-your-existing-operator
 .PHONY: catalog-image
 catalog-image: opm ## Build a catalog image.
-	$(OPM) index add --container-tool $(RUNTIME) --mode semver --tag $(CATALOG_IMG) --bundles $(BUNDLE_IMGS) $(FROM_INDEX_OPT)
+	$(eval TMP_DIR := $(shell mktemp -d))
+	$(eval CATALOG_DOCKERFILE := $(TMP_DIR).Dockerfile)
+	cp catalog/preamble.json $(TMP_DIR)/file-integrity-operator-catalog.json
+	$(OPM) render $(BUNDLE_IMGS) >> $(TMP_DIR)/file-integrity-operator-catalog.json
+	$(OPM) generate dockerfile $(TMP_DIR)
+	$(RUNTIME) build -f $(CATALOG_DOCKERFILE) -t $(CATALOG_IMG)
+	rm -rf $(TMP_DIR) $(CATALOG_DOCKERFILE)
 
 .PHONY: catalog
 catalog: catalog-image catalog-push ## Build and push a catalog image.
