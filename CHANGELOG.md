@@ -5,6 +5,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - Date TBD
+
+### Changes
+- the upstream catalog image is now built using the
+  [file format](https://olm.operatorframework.io/docs/reference/file-based-catalogs/)
+  replacing the now deprecated SQLite format.
+
+### Fixes
+
+### Internal Changes
+
 ## [0.1.30] - 2022-07-25
 
 ### Fixes
