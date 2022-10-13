@@ -16,6 +16,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Internal Changes
 
+- Update `make kustomize` to use `go install` for installing kustomize v4. This
+  is [necessary](https://github.com/openshift/file-integrity-operator/issues/287)
+  for installing kustomize using golang 1.18.
+
 ## [0.1.30] - 2022-07-25
 
 ### Fixes
