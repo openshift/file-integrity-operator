@@ -746,7 +746,7 @@ func reinitAideDaemonset(reinitDaemonSetName string, fi *v1alpha1.FileIntegrity,
 }
 
 func aideDaemonset(dsName string, fi *v1alpha1.FileIntegrity, operatorImage string) *appsv1.DaemonSet {
-	priv := true
+	priv := false
 	runAs := int64(0)
 	return &appsv1.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{
@@ -779,6 +779,9 @@ func aideDaemonset(dsName string, fi *v1alpha1.FileIntegrity, operatorImage stri
 							SecurityContext: &corev1.SecurityContext{
 								Privileged: &priv,
 								RunAsUser:  &runAs,
+								SELinuxOptions: &corev1.SELinuxOptions{
+									Type: "spc_t",
+								},
 							},
 							Name:  "daemon",
 							Image: common.GetComponentImage(operatorImage, common.OPERATOR),
