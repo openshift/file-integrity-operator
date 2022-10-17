@@ -19,7 +19,7 @@ metadata:
       ]
     capabilities: Seamless Upgrades
     categories: Monitoring,Security
-    olm.skipRange: '>=0.1.6 <0.1.30'
+    olm.skipRange: '>=0.1.6 <0.1.31'
     operatorframework.io/cluster-monitoring: "true"
     operatorframework.io/suggested-namespace: openshift-file-integrity
     operators.openshift.io/infrastructure-features: '["disconnected", "fips"]'
@@ -32,7 +32,7 @@ metadata:
     operatorframework.io/arch.s390x: supported
     operatorframework.io/os.linux: supported
     operatorframework.io/os.zos: supported
-  name: file-integrity-operator.v0.1.30
+  name: file-integrity-operator.v0.1.31
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -96,7 +96,7 @@ spec:
                   value: file-integrity-operator
                 - name: RELATED_IMAGE_OPERATOR
                   value: quay.io/file-integrity-operator/file-integrity-operator:latest
-                image: quay.io/file-integrity-operator/file-integrity-operator:0.1.30
+                image: quay.io/file-integrity-operator/file-integrity-operator:0.1.31
                 imagePullPolicy: Always
                 name: file-integrity-operator
                 resources:
@@ -318,4 +318,4 @@ spec:
   provider:
     name: Red Hat
     url: https://github.com/openshift/file-integrity-operator
-  version: 0.1.30
+  version: 0.1.31
