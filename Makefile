@@ -101,10 +101,13 @@ BUNDLE_METADATA_OPTS ?= $(BUNDLE_CHANNELS) $(BUNDLE_DEFAULT_CHANNEL)
 # For example, running 'make bundle-build bundle-push catalog-build catalog-push' will build and push both
 # openshift.io/file-integrity-operator-bundle:$VERSION and openshift.io/file-integrity-operator-catalog:$VERSION.
 IMAGE_TAG_BASE=$(IMAGE_REPO)/$(APP_NAME)
+OPERATOR_IMAGE?=$(IMAGE_TAG_BASE):$(TAG)
+
 
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
-BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:$(TAG)
+BUNDLE_TAG_BASE?=$(IMAGE_TAG_BASE)-bundle
+BUNDLE_IMG?=$(BUNDLE_TAG_BASE):$(TAG)
 
 # Includes additional service accounts into the bundle CSV.
 BUNDLE_SA_OPTS ?= --extra-service-accounts file-integrity-daemon
@@ -124,7 +127,8 @@ endif
 BUNDLE_IMGS ?= $(BUNDLE_IMG)
 
 # The image tag given to the resulting catalog image (e.g. make catalog-build CATALOG_IMG=example.com/operator-catalog:v0.2.0).
-CATALOG_IMG ?= $(IMAGE_TAG_BASE)-catalog:$(TAG)
+CATALOG_TAG_BASE?=$(IMAGE_TAG_BASE)-catalog
+CATALOG_IMG?=$(CATALOG_TAG_BASE):$(TAG)
 
 # Set CATALOG_BASE_IMG to an existing catalog image tag to add $BUNDLE_IMGS to that image.
 ifneq ($(origin CATALOG_BASE_IMG), undefined)
@@ -478,6 +482,9 @@ push-release: package-version-to-tag ## Do an official release (Requires permiss
 
 .PHONY: release-images
 release-images: package-version-to-tag push catalog
+	$(RUNTIME) image tag $(OPERATOR_IMAGE) $(IMAGE_TAG_BASE):latest
+	$(RUNTIME) image tag $(BUNDLE_IMG) $(BUNDLE_TAG_BASE):latest
+	$(RUNTIME) image tag $(CATALOG_IMG) $(CATALOG_TAG_BASE):latest
 	# This will ensure that we also push to the latest tag
 	$(MAKE) push TAG=latest
 	$(MAKE) catalog-push TAG=latest
