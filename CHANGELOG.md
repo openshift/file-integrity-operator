@@ -14,6 +14,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixes
 
+- Modify the release process to ensure the most recent version is tagged with
+  the `latest` tag for the upstream
+  [operator](https://quay.io/repository/file-integrity-operator/file-integrity-operator),
+  [catalog](https://quay.io/repository/file-integrity-operator/file-integrity-operator-catalog),
+  and
+  [bundle](https://quay.io/repository/file-integrity-operator/file-integrity-operator-bundle)
+  repositories available through quay.io.
+
 ### Internal Changes
 
 - Update `make kustomize` to use `go install` for installing kustomize v4. This
