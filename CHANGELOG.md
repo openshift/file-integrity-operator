@@ -5,6 +5,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.31] - 2022-10-17
+### Changes
+- Use go-install to fetch kustomize
+- make: Build a file-based catalog
+- make: Remove unused variable
+- Remove the OPM dependency
+- Ignore generated setup files for end-to-end tests
+- updates readme for default toleration change
+- updates default tolerations to include infra nodes
+- Generate bundle
+- Fix controller metrics port
+- e2e: Add PSP labels to test namespace
+- bump vendor, include ginkgo/gomega
+- Update PrometheusRule on operator startup
+- e2e: Allow running from an existing deployment
+- trivial: fix grammatical issue in README.md
+
 ## [Unreleased] - Date TBD
 
 ### Changes

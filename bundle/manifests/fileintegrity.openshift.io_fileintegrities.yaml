@@ -73,8 +73,11 @@ spec:
                 - effect: NoSchedule
                   key: node-role.kubernetes.io/master
                   operator: Exists
+                - effect: NoSchedule
+                  key: node-role.kubernetes.io/infra
+                  operator: Exists
                 description: Specifies tolerations for custom taints. Defaults to
-                  allowing scheduling on master nodes.
+                  allowing scheduling on master and infra nodes.
                 items:
                   description: The pod this Toleration is attached to tolerates any
                     taint that matches the triple <key,value,effect> using the matching
