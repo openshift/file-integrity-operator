@@ -56,6 +56,8 @@ export NAMESPACE=openshift-file-integrity
 # ======================
 SDK_BIN?=
 SDK_VERSION?=1.15.0
+# Ideally this should align with SDK_VERSION, but for now it needs to be newer.
+OPM_VERSION?=1.20.0
 
 # Test variables
 # ==============
@@ -243,7 +245,7 @@ ifeq (,$(shell which opm 2>/dev/null))
 	@{ \
 	set -e ;\
 	OS=$(shell go env GOOS) && ARCH=$(shell go env GOARCH) && \
-	curl -sSLo $(OPM) https://github.com/operator-framework/operator-registry/releases/download/v$(SDK_VERSION)/$${OS}-$${ARCH}-opm ;\
+	curl -sSLo $(OPM) https://github.com/operator-framework/operator-registry/releases/download/v$(OPM_VERSION)/$${OS}-$${ARCH}-opm ;\
 	chmod +x $(OPM) ;\
 	}
 else
