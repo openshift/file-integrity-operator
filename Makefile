@@ -130,11 +130,6 @@ BUNDLE_IMGS ?= $(BUNDLE_IMG)
 CATALOG_TAG_BASE?=$(IMAGE_TAG_BASE)-catalog
 CATALOG_IMG?=$(CATALOG_TAG_BASE):$(TAG)
 
-# Set CATALOG_BASE_IMG to an existing catalog image tag to add $BUNDLE_IMGS to that image.
-ifneq ($(origin CATALOG_BASE_IMG), undefined)
-FROM_INDEX_OPT := --from-index $(CATALOG_BASE_IMG)
-endif
-
 # Set CATALOG_DEPLOY_NS= when running `make catalog-deploy` to override the default.
 CATALOG_DEPLOY_NS ?= $(NAMESPACE)
 
@@ -318,8 +313,8 @@ bundle-image: bundle ## Build the bundle image.
 	$(RUNTIME) $(RUNTIME_BUILD_CMD) -f bundle.Dockerfile -t $(BUNDLE_IMG) .
 
 # Build a catalog image by adding bundle images to an empty catalog using the operator package manager tool, 'opm'.
-# This recipe invokes 'opm' in 'semver' bundle add mode. For more information on add modes, see:
-# https://github.com/operator-framework/community-operators/blob/7f1438c/docs/packaging-operator.md#updating-your-existing-operator
+# This recipe invokes 'opm render' to build a file-based catalog.
+# For more information, see https://olm.operatorframework.io/docs/reference/file-based-catalogs/
 .PHONY: catalog-image
 catalog-image: opm ## Build a catalog image.
 	$(eval TMP_DIR := $(shell mktemp -d))
