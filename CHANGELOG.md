@@ -5,6 +5,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.32] - 2022-10-24
+### Changes
+- Makefile: Update OPM version to 1.20.0
+- Fix deployment on OCP 4.6
+- Fix make release-images to properly tag `latest`
+
 ## [0.1.31] - 2022-10-17
 ### Changes
 - Use go-install to fetch kustomize
