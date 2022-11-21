@@ -459,7 +459,7 @@ git-release: fetch-git-tags package-version-to-tag changelog
 	git checkout -b "release-v$(TAG)"
 	sed -i "s/\(.*Version = \"\).*/\1$(TAG)\"/" version/version.go
 	sed -i "s/\(.*VERSION?=\).*/\1$(TAG)/" version.Makefile
-	git add version* bundle CHANGELOG.md config/manifests/bases
+	git add version* bundle CHANGELOG.md config/manifests/bases catalog/preamble.json
 	git restore config/manager/kustomization.yaml
 
 .PHONY: fetch-git-tags
