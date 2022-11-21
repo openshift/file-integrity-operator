@@ -476,9 +476,9 @@ push-release: package-version-to-tag ## Do an official release (Requires permiss
 	git tag "v$(TAG)"
 	git push $(GIT_OPTS) $(GIT_REMOTE) "v$(TAG)"
 	git push $(GIT_OPTS) $(GIT_REMOTE) "release-v$(TAG)"
-	git checkout ocp-0.1
+	git checkout ocp-1.0
 	git merge "release-v$(TAG)"
-	git push $(GIT_REMOTE) ocp-0.1
+	git push $(GIT_REMOTE) ocp-1.0
 
 .PHONY: release-images
 release-images: package-version-to-tag push catalog
