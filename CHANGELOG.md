@@ -5,6 +5,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2022-11-22
+### Changes
+- Add preamble.json to release targets
+- Update OCP release branch
+- Add OpenShift subscription annotation
+- Ensure we update the ocp-0.1 branch when releasing
+- make: Small file-based catalog cleanup
+
 ## [0.1.32] - 2022-10-24
 ### Changes
 - Makefile: Update OPM version to 1.20.0
