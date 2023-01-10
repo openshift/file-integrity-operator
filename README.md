@@ -1,6 +1,5 @@
 # file-integrity-operator
 The file-integrity-operator is a OpenShift Operator that continually runs file integrity checks on the cluster nodes. It deploys a DaemonSet that initializes and runs privileged AIDE ([Advanced Intrusion Detection Environment](https://aide.github.io)) containers on each node, providing a log of files that have been modified since the initial run of the DaemonSet pods.
-
 ### Deploying:
 
 To deploy the operator using the latest released file-integrity-operator image available on quay.io, run:
