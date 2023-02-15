@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
-	"github.com/openshift/file-integrity-operator/pkg/controller/metrics"
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
+	"github.com/openshift/file-integrity-operator/pkg/controller/metrics"
 
 	"k8s.io/apimachinery/pkg/labels"
 
@@ -438,7 +440,19 @@ func (r *FileIntegrityReconciler) FileIntegrityControllerReconcile(request recon
 			return reconcile.Result{}, legacyDeleteErr
 		}
 
-		// create
+		// Check if we're past the initial delay timer by evaluating
+		// the time since creation.
+		delayTime := time.Duration(instance.Spec.Config.InitialDelay) * time.Second
+		shouldScheduleAt := instance.CreationTimestamp.Time.Add(delayTime)
+
+		if time.Now().Before(shouldScheduleAt) {
+			s := fmt.Sprintf("Re-queuing request for %s seconds for initial delay", delayTime)
+			reqLogger.Info(s)
+			return reconcile.Result{Requeue: true, RequeueAfter: delayTime}, nil
+		}
+
+		reqLogger.Info("Creating daemonSet", "DaemonSet", daemonSetName)
+
 		ds := aideDaemonset(daemonSetName, instance, operatorImage)
 
 		if ownerErr := controllerutil.SetControllerReference(instance, ds, r.Scheme); ownerErr != nil {

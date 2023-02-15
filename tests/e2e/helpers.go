@@ -6,9 +6,6 @@ import (
 	goctx "context"
 	"encoding/json"
 	"fmt"
-	"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
-	"github.com/openshift/file-integrity-operator/pkg/controller/metrics"
-	"github.com/pborman/uuid"
 	"io"
 	"io/ioutil"
 	"os"
@@ -18,6 +15,10 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
+	"github.com/openshift/file-integrity-operator/pkg/controller/metrics"
+	"github.com/pborman/uuid"
 
 	v1 "k8s.io/api/rbac/v1"
 
@@ -58,6 +59,9 @@ const (
 	nodeWorkerRoleLabelKey  = "node-role.kubernetes.io/worker"
 	mcWorkerRoleLabelKey    = "machineconfiguration.openshift.io/role"
 	defaultTestGracePeriod  = 20
+	defaultTestInitialDelay = 0
+	testInitialDelay        = 180
+	deamonsetWaitTimeout    = 30 * time.Second
 	legacyReinitOnHost      = "/hostroot/etc/kubernetes/aide.reinit"
 	metricsTestCRBName      = "fio-metrics-client"
 	metricsTestSAName       = "default"
@@ -121,7 +125,7 @@ CONTENT_EX = sha512+ftype+p+u+g+n+acl+selinux+xattrs
 
 var brokenAideConfig = testAideConfig + "\n" + "NORMAL = p+i+n+u+g+s+m+c+acl+selinux+xattrs+sha513+md5+XXXXXX"
 
-func newTestFileIntegrity(name, ns string, nodeSelector map[string]string, grace int, debug bool) *v1alpha1.FileIntegrity {
+func newTestFileIntegrity(name, ns string, nodeSelector map[string]string, grace int, debug bool, initialDelay int) *v1alpha1.FileIntegrity {
 	return &v1alpha1.FileIntegrity{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -130,7 +134,8 @@ func newTestFileIntegrity(name, ns string, nodeSelector map[string]string, grace
 		Spec: v1alpha1.FileIntegritySpec{
 			NodeSelector: nodeSelector,
 			Config: v1alpha1.FileIntegrityConfig{
-				GracePeriod: grace,
+				GracePeriod:  grace,
+				InitialDelay: initialDelay,
 			},
 			Debug: debug,
 		},
@@ -355,9 +360,27 @@ func setupFileIntegrity(t *testing.T, f *framework.Framework, testCtx *framework
 	setupFileIntegrityWithGracePeriod(t, f, testCtx, integrityName, namespace, defaultTestGracePeriod)
 }
 
+// setupFileIntegrityWithInitialDelay creates the FileIntegrity instance with the default grace period and an initial delay.
+func setupFileIntegrityWithInitialDelay(t *testing.T, f *framework.Framework, testCtx *framework.Context, integrityName, namespace string) {
+	testIntegrityCheck := newTestFileIntegrity(integrityName, namespace, nodeLabelForWorkerRole, defaultTestGracePeriod, true, testInitialDelay)
+
+	cleanupOptions := framework.CleanupOptions{
+		TestContext:   testCtx,
+		Timeout:       cleanupTimeout,
+		RetryInterval: cleanupRetryInterval,
+	}
+
+	err := f.Client.Create(goctx.TODO(), testIntegrityCheck, &cleanupOptions)
+	if err != nil {
+		t.Fatalf("Could not create FileIntegrity: %v", err)
+	}
+
+	t.Logf("Created FileIntegrity: %+v", testIntegrityCheck)
+}
+
 // setupFileIntegrityWithGracePeriod creates the FileIntegrity instance and confirms that it goes active.
 func setupFileIntegrityWithGracePeriod(t *testing.T, f *framework.Framework, testCtx *framework.Context, integrityName, namespace string, grace int) {
-	testIntegrityCheck := newTestFileIntegrity(integrityName, namespace, nodeLabelForWorkerRole, grace, true)
+	testIntegrityCheck := newTestFileIntegrity(integrityName, namespace, nodeLabelForWorkerRole, grace, true, defaultTestInitialDelay)
 
 	cleanupOptions := framework.CleanupOptions{
 		TestContext:   testCtx,
@@ -456,6 +479,10 @@ func daemonSetWasScheduled(c kubernetes.Interface, name, namespace string) wait.
 
 func waitForDaemonSet(daemonSetCallback wait.ConditionFunc) error {
 	return wait.PollImmediate(pollInterval, timeout, daemonSetCallback)
+}
+
+func waitForDaemonSetTimeout(daemonSetCallback wait.ConditionFunc, timeoutVal time.Duration) error {
+	return wait.PollImmediate(pollInterval, timeoutVal, daemonSetCallback)
 }
 
 // This daemonSet runs a command to clear the aide content from the host

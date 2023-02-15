@@ -3,11 +3,12 @@ package e2e
 import (
 	"context"
 	"fmt"
-	"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
-	fileintegrity2 "github.com/openshift/file-integrity-operator/pkg/controller/fileintegrity"
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
+	fileintegrity2 "github.com/openshift/file-integrity-operator/pkg/controller/fileintegrity"
 
 	framework "github.com/openshift/file-integrity-operator/tests/framework"
 
@@ -132,6 +133,41 @@ func TestFileIntegrityLogAndReinitDatabase(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+}
+
+func TestFileIntegrityInitialDelay(t *testing.T) {
+	f, testctx, namespace := setupTest(t)
+	testName := testIntegrityNamePrefix + "-initialdelay"
+
+	// The test will set initialDelaySeconds to 80 seconds
+	setupFileIntegrityWithInitialDelay(t, f, testctx, testName, namespace)
+	defer testctx.Cleanup()
+	defer func() {
+		if err := cleanNodes(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+		if err := resetBundleTestMetrics(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	// We shouldn't get an ready daemonset until 180 seconds after we create the fileintegrity object
+	// The first waitForDaemonSetTimeout will wait for only 30 seconds, so we should get a timeout
+	dsName := common.DaemonSetName(testName)
+	t.Log("Testing that we don't get a ready daemonSet before the initialDelaySeconds")
+	err := waitForDaemonSetTimeout(daemonSetIsReady(f.KubeClient, dsName, namespace), deamonsetWaitTimeout)
+	if err == nil {
+		t.Fatalf("We should expect a timed out waiting for daemonSet %s", dsName)
+	}
+	t.Log("We got a timeout, as expected")
+	t.Log("Testing that we get a ready daemonSet after the initialDelaySeconds")
+	// The second waitForDaemon will wait until the daemonset is ready, which should happen shortly
+	err = waitForDaemonSet(daemonSetIsReady(f.KubeClient, dsName, namespace))
+	if err != nil {
+		t.Fatalf("We should expect the daemonSet %s to be ready", dsName)
+	}
+	t.Log("We got a ready daemonSet, as expected")
+
 }
 
 // Ensures that on re-init, a /hostroot/etc/kubernetes/aide.reinit file (the old, unused path)
