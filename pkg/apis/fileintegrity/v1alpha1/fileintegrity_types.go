@@ -66,6 +66,9 @@ type FileIntegrityConfig struct {
 	// Older backups beyond this number are automatically pruned by the daemon.
 	// +kubebuilder:default=5
 	MaxBackups int `json:"maxBackups,omitempty"`
+	// InitialDelaySeconds is the number of seconds to wait before the first scan.
+	// It is an optional field, and if not specified, the operator will default to 0
+	InitialDelay int `json:"initialDelay,omitempty"`
 }
 
 // FileIntegrityStatus defines the observed state of FileIntegrity

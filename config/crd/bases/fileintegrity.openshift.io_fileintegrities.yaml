@@ -44,6 +44,11 @@ spec:
                     default: 900
                     description: Time between individual aide scans
                     type: integer
+                  initialDelay:
+                    description: InitialDelaySeconds is the number of seconds to wait
+                      before the first scan. It is an optional field, and if not specified,
+                      the operator will default to 0
+                    type: integer
                   key:
                     description: The key that contains the actual AIDE configuration
                       in a configmap specified by Name and Namespace. Defaults to

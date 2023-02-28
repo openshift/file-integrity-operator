@@ -42,6 +42,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - the upstream catalog image is now built using the
   [file format](https://olm.operatorframework.io/docs/reference/file-based-catalogs/)
   replacing the now deprecated SQLite format.
+- We added `initialDelay` option to FileIntegrity CRD to allow users to specify
+  the initial delay before the first scan is run. This is useful for
+  environments where the operator is deployed before cluster is fully ready.
 
 ### Fixes
 
