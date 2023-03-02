@@ -1,0 +1,23 @@
+version: 2
+updates:
+- package-ecosystem: gomod
+  directory: "/"
+  schedule:
+    interval: daily
+  labels:
+    - "ok-to-test"
+    - "qe-approved"
+    - "px-approved"
+    - "docs-approved"
+  open-pull-requests-limit: 10
+- package-ecosystem: docker
+  directory: "/"
+  schedule:
+    interval: weekly
+  labels:
+    - "ok-to-test"
+    - "ok-to-test"
+    - "qe-approved"
+    - "px-approved"
+    - "docs-approved"
+  open-pull-requests-limit: 10
