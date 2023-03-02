@@ -4,7 +4,7 @@ go 1.16
 
 require (
 	github.com/cenkalti/backoff/v4 v4.1.2
-	github.com/coreos/ignition/v2 v2.13.0
+	github.com/coreos/ignition/v2 v2.14.0
 	github.com/go-logr/logr v0.4.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/onsi/ginkgo v1.16.5
