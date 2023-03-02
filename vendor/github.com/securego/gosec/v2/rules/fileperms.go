@@ -50,11 +50,15 @@ func getConfiguredMode(conf map[string]interface{}, configKey string, defaultMod
 	return mode
 }
 
+func modeIsSubset(subset int64, superset int64) bool {
+	return (subset | superset) == superset
+}
+
 func (r *filePermissions) Match(n ast.Node, c *gosec.Context) (*gosec.Issue, error) {
 	for _, pkg := range r.pkgs {
 		if callexpr, matched := gosec.MatchCallByPackage(n, c, pkg, r.calls...); matched {
 			modeArg := callexpr.Args[len(callexpr.Args)-1]
-			if mode, err := gosec.GetInt(modeArg); err == nil && mode > r.mode {
+			if mode, err := gosec.GetInt(modeArg); err == nil && !modeIsSubset(mode, r.mode) {
 				return gosec.NewIssue(c, n, r.ID(), r.What, r.Severity, r.Confidence), nil
 			}
 		}
@@ -64,7 +68,7 @@ func (r *filePermissions) Match(n ast.Node, c *gosec.Context) (*gosec.Issue, err
 
 // NewWritePerms creates a rule to detect file Writes with bad permissions.
 func NewWritePerms(id string, conf gosec.Config) (gosec.Rule, []ast.Node) {
-	mode := getConfiguredMode(conf, "G306", 0o600)
+	mode := getConfiguredMode(conf, id, 0o600)
 	return &filePermissions{
 		mode:  mode,
 		pkgs:  []string{"io/ioutil", "os"},
@@ -81,7 +85,7 @@ func NewWritePerms(id string, conf gosec.Config) (gosec.Rule, []ast.Node) {
 // NewFilePerms creates a rule to detect file creation with a more permissive than configured
 // permission mask.
 func NewFilePerms(id string, conf gosec.Config) (gosec.Rule, []ast.Node) {
-	mode := getConfiguredMode(conf, "G302", 0o600)
+	mode := getConfiguredMode(conf, id, 0o600)
 	return &filePermissions{
 		mode:  mode,
 		pkgs:  []string{"os"},
@@ -98,7 +102,7 @@ func NewFilePerms(id string, conf gosec.Config) (gosec.Rule, []ast.Node) {
 // NewMkdirPerms creates a rule to detect directory creation with more permissive than
 // configured permission mask.
 func NewMkdirPerms(id string, conf gosec.Config) (gosec.Rule, []ast.Node) {
-	mode := getConfiguredMode(conf, "G301", 0o750)
+	mode := getConfiguredMode(conf, id, 0o750)
 	return &filePermissions{
 		mode:  mode,
 		pkgs:  []string{"os"},

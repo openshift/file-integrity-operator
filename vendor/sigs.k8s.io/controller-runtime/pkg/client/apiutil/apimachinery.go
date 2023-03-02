@@ -81,7 +81,7 @@ func GVKForObject(obj runtime.Object, scheme *runtime.Scheme) (schema.GroupVersi
 	// (unstructured, partial, etc)
 
 	// check for PartialObjectMetadata, which is analogous to unstructured, but isn't handled by ObjectKinds
-	_, isPartial := obj.(*metav1.PartialObjectMetadata) //nolint:ifshort
+	_, isPartial := obj.(*metav1.PartialObjectMetadata)
 	_, isPartialList := obj.(*metav1.PartialObjectMetadataList)
 	if isPartial || isPartialList {
 		// we require that the GVK be populated in order to recognize the object
@@ -95,6 +95,7 @@ func GVKForObject(obj runtime.Object, scheme *runtime.Scheme) (schema.GroupVersi
 		return gvk, nil
 	}
 
+	// Use the given scheme to retrieve all the GVKs for the object.
 	gvks, isUnversioned, err := scheme.ObjectKinds(obj)
 	if err != nil {
 		return schema.GroupVersionKind{}, err
@@ -103,16 +104,39 @@ func GVKForObject(obj runtime.Object, scheme *runtime.Scheme) (schema.GroupVersi
 		return schema.GroupVersionKind{}, fmt.Errorf("cannot create group-version-kind for unversioned type %T", obj)
 	}
 
-	if len(gvks) < 1 {
-		return schema.GroupVersionKind{}, fmt.Errorf("no group-version-kinds associated with type %T", obj)
-	}
-	if len(gvks) > 1 {
-		// this should only trigger for things like metav1.XYZ --
-		// normal versioned types should be fine
+	switch {
+	case len(gvks) < 1:
+		// If the object has no GVK, the object might not have been registered with the scheme.
+		// or it's not a valid object.
+		return schema.GroupVersionKind{}, fmt.Errorf("no GroupVersionKind associated with Go type %T, was the type registered with the Scheme?", obj)
+	case len(gvks) > 1:
+		err := fmt.Errorf("multiple GroupVersionKinds associated with Go type %T within the Scheme, this can happen when a type is registered for multiple GVKs at the same time", obj)
+
+		// We've found multiple GVKs for the object.
+		currentGVK := obj.GetObjectKind().GroupVersionKind()
+		if !currentGVK.Empty() {
+			// If the base object has a GVK, check if it's in the list of GVKs before using it.
+			for _, gvk := range gvks {
+				if gvk == currentGVK {
+					return gvk, nil
+				}
+			}
+
+			return schema.GroupVersionKind{}, fmt.Errorf(
+				"%w: the object's supplied GroupVersionKind %q was not found in the Scheme's list; refusing to guess at one: %q", err, currentGVK, gvks)
+		}
+
+		// This should only trigger for things like metav1.XYZ --
+		// normal versioned types should be fine.
+		//
+		// See https://github.com/kubernetes-sigs/controller-runtime/issues/362
+		// for more information.
 		return schema.GroupVersionKind{}, fmt.Errorf(
-			"multiple group-version-kinds associated with type %T, refusing to guess at one", obj)
+			"%w: callers can either fix their type registration to only register it once, or specify the GroupVersionKind to use for object passed in; refusing to guess at one: %q", err, gvks)
+	default:
+		// In any other case, we've found a single GVK for the object.
+		return gvks[0], nil
 	}
-	return gvks[0], nil
 }
 
 // RESTClientForGVK constructs a new rest.Interface capable of accessing the resource associated
@@ -158,14 +182,12 @@ func createRestConfig(gvk schema.GroupVersionKind, isUnstructured bool, baseConf
 		protobufSchemeLock.RUnlock()
 	}
 
-	if cfg.NegotiatedSerializer == nil {
-		if isUnstructured {
-			// If the object is unstructured, we need to preserve the GVK information.
-			// Use our own custom serializer.
-			cfg.NegotiatedSerializer = serializerWithDecodedGVK{serializer.WithoutConversionCodecFactory{CodecFactory: codecs}}
-		} else {
-			cfg.NegotiatedSerializer = serializerWithTargetZeroingDecode{NegotiatedSerializer: serializer.WithoutConversionCodecFactory{CodecFactory: codecs}}
-		}
+	if isUnstructured {
+		// If the object is unstructured, we need to preserve the GVK information.
+		// Use our own custom serializer.
+		cfg.NegotiatedSerializer = serializerWithDecodedGVK{serializer.WithoutConversionCodecFactory{CodecFactory: codecs}}
+	} else {
+		cfg.NegotiatedSerializer = serializerWithTargetZeroingDecode{NegotiatedSerializer: serializer.WithoutConversionCodecFactory{CodecFactory: codecs}}
 	}
 
 	return cfg
