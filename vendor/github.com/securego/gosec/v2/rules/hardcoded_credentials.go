@@ -101,12 +101,19 @@ func (r *credentials) matchValueSpec(valueSpec *ast.ValueSpec, ctx *gosec.Contex
 
 func (r *credentials) matchEqualityCheck(binaryExpr *ast.BinaryExpr, ctx *gosec.Context) (*gosec.Issue, error) {
 	if binaryExpr.Op == token.EQL || binaryExpr.Op == token.NEQ {
-		if ident, ok := binaryExpr.X.(*ast.Ident); ok {
-			if r.pattern.MatchString(ident.Name) {
-				if val, err := gosec.GetString(binaryExpr.Y); err == nil {
-					if r.ignoreEntropy || (!r.ignoreEntropy && r.isHighEntropyString(val)) {
-						return gosec.NewIssue(ctx, binaryExpr, r.ID(), r.What, r.Severity, r.Confidence), nil
-					}
+		ident, ok := binaryExpr.X.(*ast.Ident)
+		if !ok {
+			ident, _ = binaryExpr.Y.(*ast.Ident)
+		}
+
+		if ident != nil && r.pattern.MatchString(ident.Name) {
+			valueNode := binaryExpr.Y
+			if !ok {
+				valueNode = binaryExpr.X
+			}
+			if val, err := gosec.GetString(valueNode); err == nil {
+				if r.ignoreEntropy || (!r.ignoreEntropy && r.isHighEntropyString(val)) {
+					return gosec.NewIssue(ctx, binaryExpr, r.ID(), r.What, r.Severity, r.Confidence), nil
 				}
 			}
 		}
@@ -122,7 +129,7 @@ func NewHardcodedCredentials(id string, conf gosec.Config) (gosec.Rule, []ast.No
 	perCharThreshold := 3.0
 	ignoreEntropy := false
 	truncateString := 16
-	if val, ok := conf["G101"]; ok {
+	if val, ok := conf[id]; ok {
 		conf := val.(map[string]interface{})
 		if configPattern, ok := conf["pattern"]; ok {
 			if cfgPattern, ok := configPattern.(string); ok {
