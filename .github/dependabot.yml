@@ -16,7 +16,6 @@ updates:
     interval: weekly
   labels:
     - "ok-to-test"
-    - "ok-to-test"
     - "qe-approved"
     - "px-approved"
     - "docs-approved"
