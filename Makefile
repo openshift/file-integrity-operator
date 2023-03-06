@@ -55,9 +55,9 @@ export NAMESPACE=openshift-file-integrity
 # Operator-sdk variables
 # ======================
 SDK_BIN?=
-SDK_VERSION?=1.15.0
+SDK_VERSION?=1.27.0
 # Ideally this should align with SDK_VERSION, but for now it needs to be newer.
-OPM_VERSION?=1.20.0
+OPM_VERSION?=$(VERSION)
 
 # Test variables
 # ==============
