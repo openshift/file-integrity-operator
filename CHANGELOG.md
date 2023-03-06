@@ -5,6 +5,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2023-03-06
+### Changes
+- Update golang version in Dockerfile for builds
+- Bump operator-sdk from 1.15.0 to 1.27.0
+- chore: go fmt fixes
+- Bump golang dependency to 1.19
+- Configure dependabot
+- Update coreos/ignition/v2 to 2.14.0
+- Update prometheus/client_golang to 1.11.1
+- Add initialDelay
+
 ## [1.0.0] - 2022-11-22
 ### Changes
 - Add preamble.json to release targets
