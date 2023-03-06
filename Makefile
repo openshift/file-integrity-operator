@@ -26,10 +26,13 @@ endif
 
 # Git options.
 GIT_OPTS?=
-# Set this to the remote used for the upstream repo (for release). Use an
-# absolute reference since we don't know if origin is the contributor's fork or
-# if it's the upstream repository.
-GIT_REMOTE?=git@github.com:openshift/file-integrity-operator.git
+# Set this to the remote used for the upstream repo (for release). Different
+# maintainers might use different names for the upstream repository. Since our
+# release process expects maintainers to propose release patches directly to
+# the upstream repository, let's make sure we're proposing it to the right one.
+# We rely on a bash script for this since it's simplier than interating over a
+# list with conditionals in GNU make.
+GIT_REMOTE?=$(shell ./utils/git-remote.sh)
 
 # Image tag to use. Set this if you want to use a specific tag for building
 # or your e2e tests.
