@@ -276,8 +276,8 @@ spec:
   - name: File Integrity Operator documentation
     url: https://docs.openshift.com/container-platform/latest/security/file_integrity_operator/file-integrity-operator-understanding.html
   maintainers:
-  - email: mrogers@redhat.com
-    name: Matt Rogers
+  - email: support@redhat.com
+    name: Red Hat Support
   maturity: alpha
   provider:
     name: Red Hat
