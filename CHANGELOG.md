@@ -5,6 +5,109 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2023-03-31
+### Changes
+- Use RHEL8 for building FIO container images in CI
+- Bump github.com/go-logr/logr from 1.2.3 to 1.2.4
+- Bump sigs.k8s.io/controller-runtime from 0.14.5 to 0.14.6
+- Bump github.com/prometheus-operator/prometheus-operator/pkg/client
+- Bump k8s.io/apiextensions-apiserver from 0.26.2 to 0.26.3
+- Update CI to use RHEL 9 and OpenShift 4.13
+- Bump github.com/onsi/gomega from 1.27.2 to 1.27.4
+- Update maintainers
+- Release v1.2.0
+- Bump golang.org/x/net from 0.7.0 to 0.8.0
+- Bump golang.org/x/mod from 0.8.0 to 0.9.0
+- Use remote detection in release process
+- dependabot.yaml: Remove duplicate value
+- Update golang version in Dockerfile for builds
+- Bump operator-sdk from 1.15.0 to 1.27.0
+- chore: go fmt fixes
+- Bump golang dependency to 1.19
+- Configure dependabot
+- Update coreos/ignition/v2 to 2.14.0
+- Update prometheus/client_golang to 1.11.1
+- Add initialDelay
+- Release v1.0.0
+- Add preamble.json to release targets
+- Update OCP release branch
+- Add OpenShift subscription annotation
+- Ensure we update the ocp-0.1 branch when releasing
+- Release v0.1.32
+- make: Small file-based catalog cleanup
+- Makefile: Update OPM version to 1.20.0
+- Fix deployment on OCP 4.6
+- Fix make release-images to properly tag `latest`
+- Release v0.1.31
+- Use go-install to fetch kustomize
+- make: Build a file-based catalog
+- make: Remove unused variable
+- Remove the OPM dependency
+- Ignore generated setup files for end-to-end tests
+- updates readme for default toleration change
+- updates default tolerations to include infra nodes
+- Generate bundle
+- Fix controller metrics port
+- e2e: Add PSP labels to test namespace
+- bump vendor, include ginkgo/gomega
+- Update PrometheusRule on operator startup
+- e2e: Allow running from an existing deployment
+- trivial: fix grammatical issue in README.md
+- Release v0.1.30
+- Restore CSV ownership of daemon ServiceAccount
+- Release v0.1.29
+- Makefile: push latest catalog for release
+- Change daemon RBAC back to Role
+- Release v0.1.28
+- Create LICENSE
+- Makefile: remove unused vars and setup-envtest download
+- Makefile: Make uninstall/undeploy targets more robust
+- Makefile: Move controller-gen comment
+- Makefile: Fix build dir recipe override
+- Use ClusterRole and local RoleBinding for daemon permissions
+- Makefile: Add CATALOG_DEPLOY_NS variable for make catalog-deploy
+- extend grace period for logcompress e2e
+- Release v0.1.27
+- e2e: Use pod instead of ds for logcompress file toucher
+- Release v0.1.26
+- Fix bad remote URL
+- Add controller-gen to tools.go
+- Use an absolute git reference for the upstream repository
+- Clarify the image repository used by default in the release process
+- make: Add a deploy-local target
+- OWNERS: Prune inactive user
+- Release v0.1.25
+- operator: Set namespace label for alert
+- config/ns: Add pod-security.kubernetes.io labels to the namespace
+- tests: Expose -skipCleanupOnError as an env variable
+- tests: Use busybox from quay to work around dockerhub's rate limit
+- Add CSV support for s390x
+- Allow running under OLM's AllNamespaces install mode
+- Added code changes for image to support ppc64le
+- Remove unused test framework code
+- Use go 1.17
+- Makefile: Add buildah as an option for RUNTIME=
+- Update vendor/
+- Update operator framework to operator-sdk v1.15
+- Use fedora-minimal:latest for container builds
+- Release v0.1.24
+- Bug 2072058: Use correct data keys for script configMaps
+- Release v0.1.23
+- Update OWNERS file
+- deps: Bump the github.com/prometheus/client_golang dependency
+- Break apart the make target for release
+- e2e: Add the operator logs to artifacts
+- Bug 2049206: Re-create AIDE configMaps with missing owner
+- Unset --skip-cleanup-error for e2e
+- Use golang:1.16 for upstream builder
+- Add FileIntegrityConfig MaxBackups
+- CSV: We support FIPS
+- Release v0.1.22
+- Move aide.reinit to /run
+- Release v0.1.21
+- Use `oc apply` instead of `oc create` for namespace
+- Handle IO error in init database more leniently
+
 ## [1.2.0] - 2023-03-06
 ### Changes
 - Update golang version in Dockerfile for builds
