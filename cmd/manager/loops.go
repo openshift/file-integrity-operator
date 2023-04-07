@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -96,10 +97,30 @@ func holdOffLoop(ctx context.Context, rt *daemonRuntime, conf *daemonConfig, err
 				// No need to hold off since there is no annotations
 				rt.SetHolding("holdOffLoop", false)
 			} else {
-				_, foundHoldOff := annotations[common.IntegrityHoldoffAnnotationKey]
-				if foundHoldOff {
-					rt.SetHolding("holdOffLoop", true)
+				// we need to get name of the node we are running on
+				nodeName := os.Getenv("NODE_NAME")
+				if nodeName == "" {
+					err := fmt.Errorf("NODE_NAME environment variable not set")
+					logAndTryReportingDaemonError(holdOffCtx, rt, conf, "Error getting node name: %v", err)
+					errChan <- err
+					return
+				}
+				if nodeList, foundHoldOff := annotations[common.IntegrityHoldoffAnnotationKey]; foundHoldOff {
+					nodeInList := false
+					for _, node := range strings.Split(nodeList, ",") {
+						if node == nodeName {
+							nodeInList = true
+							break
+						}
+					}
+					if nodeList == "" || nodeInList {
+						// All nodes are in holdoff
+						rt.SetHolding("holdOffLoop", true)
+					} else {
+						rt.SetHolding("holdOffLoop", false)
+					}
 				} else {
+					// No need to hold off since there is no annotation
 					rt.SetHolding("holdOffLoop", false)
 				}
 			}

@@ -2,10 +2,11 @@ package configmap
 
 import (
 	"context"
-	"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
-	"github.com/openshift/file-integrity-operator/pkg/controller/metrics"
 	"strconv"
 	"time"
+
+	"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
+	"github.com/openshift/file-integrity-operator/pkg/controller/metrics"
 
 	"github.com/go-logr/logr"
 
