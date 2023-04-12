@@ -194,6 +194,7 @@ github.com/onsi/gomega/types
 # github.com/openshift/api v0.0.0-20230120195050-6ba31fa438f2
 ## explicit; go 1.19
 github.com/openshift/api/config/v1
+github.com/openshift/api/machine/v1beta1
 # github.com/openshift/library-go v0.0.0-20230228181805-0899dfdba7d2
 ## explicit; go 1.19
 github.com/openshift/library-go/pkg/crypto

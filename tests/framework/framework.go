@@ -15,8 +15,7 @@ import (
 	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
-	_ "k8s.io/client-go/plugin/pkg/client/auth"
-
+	machinev1 "github.com/openshift/api/machine/v1beta1"
 	log "github.com/sirupsen/logrus"
 	extscheme "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -24,6 +23,7 @@ import (
 	cached "k8s.io/client-go/discovery/cached"
 	"k8s.io/client-go/kubernetes"
 	cgoscheme "k8s.io/client-go/kubernetes/scheme"
+	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
@@ -138,6 +138,9 @@ func newFramework(opts *frameworkOpts) (*Framework, error) {
 	}
 	if err := extscheme.AddToScheme(scheme); err != nil {
 		return nil, fmt.Errorf("failed to add api extensions scheme to runtime scheme: %w", err)
+	}
+	if err := machinev1.AddToScheme(scheme); err != nil {
+		return nil, fmt.Errorf("failed to add machine api scheme to runtime scheme: %w", err)
 	}
 
 	cachedDiscoveryClient := cached.NewMemCacheClient(kubeclient.Discovery())

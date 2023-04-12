@@ -2,9 +2,10 @@ package status
 
 import (
 	"context"
+	"time"
+
 	"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
 	"github.com/openshift/file-integrity-operator/pkg/controller/metrics"
-	"time"
 
 	"github.com/go-logr/logr"
 
@@ -171,12 +172,30 @@ func (r *StatusReconciler) mapActiveStatus(integrity *v1alpha1.FileIntegrity) (v
 		return v1alpha1.PhaseError, err
 	}
 
+	nodeList := corev1.NodeList{}
+	if err := r.client.List(context.TODO(), &nodeList, &client.ListOptions{}); err != nil {
+		return v1alpha1.PhaseError, err
+	}
+	nodeNameList := make(map[string]bool)
+	for _, node := range nodeList.Items {
+		nodeNameList[node.Name] = true
+	}
+
 	for _, nodeStatus := range nodeStatusList.Items {
+		// Check if the node is still there, and remove the node status if it's not.
+		// This is to handle the case where the node is deleted, but the node status is not.
+		if _, ok := nodeNameList[nodeStatus.NodeName]; !ok {
+			// If the node is not there, and the node status is success, we can just delete it.
+			if nodeStatus.LastResult.Condition == v1alpha1.NodeConditionSucceeded {
+				if err := r.client.Delete(context.TODO(), &nodeStatus); err != nil {
+					return v1alpha1.PhaseError, err
+				}
+			}
+		}
 		if nodeStatus.LastResult.Condition == v1alpha1.NodeConditionErrored {
 			return v1alpha1.PhaseError, nil
 		}
 	}
-
 	return v1alpha1.PhaseActive, nil
 }
 
