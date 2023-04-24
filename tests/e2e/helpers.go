@@ -3,6 +3,7 @@ package e2e
 import (
 	"bufio"
 	"bytes"
+	"context"
 	goctx "context"
 	"encoding/json"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	machinev1 "github.com/openshift/api/machine/v1beta1"
 	"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
 	"github.com/openshift/file-integrity-operator/pkg/controller/metrics"
 	"github.com/pborman/uuid"
@@ -66,6 +68,7 @@ const (
 	metricsTestCRBName      = "fio-metrics-client"
 	metricsTestSAName       = "default"
 	metricsTestTokenName    = "metrics-token"
+	machineSetNamespace     = "openshift-machine-api"
 	compressionFileCmd      = "for i in `seq 1 10000`; do mktemp \"/hostroot/etc/addedbytest$i.XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\"; done || true"
 )
 
@@ -115,6 +118,7 @@ CONTENT_EX = sha512+ftype+p+u+g+n+acl+selinux+xattrs
 !/hostroot/etc/docker/certs.d
 !/hostroot/etc/selinux/targeted
 !/hostroot/etc/openvswitch/conf.db
+!/hostroot/etc/kubernetes/cni/net.d
 !/hostroot/etc/kubernetes/cni/net.d/*
 !/hostroot/etc/machine-config-daemon/currentconfig$
 !/hostroot/etc/pki/ca-trust/extracted/java/cacerts$
@@ -1002,6 +1006,164 @@ func assertNodeOKStatusEvents(t *testing.T, f *framework.Framework, namespace st
 	if timeoutErr != nil {
 		t.Error(timeoutErr)
 		return
+	}
+}
+
+func scaleUpWorkerMachineSet(t *testing.T, f *framework.Framework, interval, timeout time.Duration) (string, string) {
+	// Add a new worker node to the cluster through the machineset
+	// Get the machineset
+	machineSets := &machinev1.MachineSetList{}
+	err := f.Client.List(context.TODO(), machineSets, &client.ListOptions{
+		Namespace: machineSetNamespace})
+	if err != nil {
+		t.Error(err)
+	}
+	if len(machineSets.Items) == 0 {
+		t.Error("No machinesets found")
+	}
+	machineSetName := ""
+	for _, ms := range machineSets.Items {
+		if ms.Spec.Replicas != nil && *ms.Spec.Replicas > 0 {
+			t.Logf("Found machineset %s with %d replicas", ms.Name, *ms.Spec.Replicas)
+			machineSetName = ms.Name
+			break
+		}
+	}
+
+	// Add one more replica to one of the machinesets
+	machineSet := &machinev1.MachineSet{}
+	err = f.Client.Get(context.TODO(), types.NamespacedName{Name: machineSetName, Namespace: machineSetNamespace}, machineSet)
+	if err != nil {
+		t.Error(err)
+	}
+	t.Logf("Scaling up machineset %s", machineSetName)
+
+	replicas := *machineSet.Spec.Replicas + 1
+	machineSet.Spec.Replicas = &replicas
+	err = f.Client.Update(context.TODO(), machineSet)
+	if err != nil {
+		t.Error(err)
+	}
+	t.Logf("Waiting for scaling up machineset %s", machineSetName)
+	provisionningMachineName := ""
+	err = wait.Poll(interval, timeout, func() (bool, error) {
+		err = f.Client.Get(context.TODO(), types.NamespacedName{Name: machineSetName, Namespace: machineSetNamespace}, machineSet)
+		if err != nil {
+			t.Error(err)
+		}
+		// get name of the new machine
+		if provisionningMachineName == "" {
+			machines := &machinev1.MachineList{}
+			err = f.Client.List(context.TODO(), machines, &client.ListOptions{
+				Namespace: machineSetNamespace})
+			if err != nil {
+				t.Error(err)
+			}
+			for _, machine := range machines.Items {
+				if *machine.Status.Phase == "Provisioning" {
+					provisionningMachineName = machine.Name
+					break
+				}
+			}
+		}
+		if machineSet.Status.Replicas == machineSet.Status.ReadyReplicas {
+			t.Logf("Machineset %s scaled up", machineSetName)
+			return true, nil
+		}
+		t.Logf("Waiting for machineset %s to scale up, current ready replicas: %d of %d", machineSetName, machineSet.Status.ReadyReplicas, machineSet.Status.Replicas)
+		return false, nil
+	})
+	if err != nil {
+		t.Error(err)
+	}
+	// get the new node name
+	newNodeName := ""
+	machine := &machinev1.Machine{}
+	err = f.Client.Get(context.TODO(), types.NamespacedName{Name: provisionningMachineName, Namespace: machineSetNamespace}, machine)
+	if err != nil {
+		t.Error(err)
+	}
+	newNodeName = machine.Status.NodeRef.Name
+	t.Logf("New node name is %s", newNodeName)
+
+	return machineSetName, newNodeName
+}
+
+func scaleDownWorkerMachineSet(t *testing.T, f *framework.Framework, machineSetName string, interval, timeout time.Duration) string {
+	// Remove the worker node from the cluster through the machineset
+	// Get the machineset
+	machineSet := &machinev1.MachineSet{}
+	err := f.Client.Get(context.TODO(), types.NamespacedName{Name: machineSetName, Namespace: machineSetNamespace}, machineSet)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Remove one replica from the machineset
+	t.Logf("Scaling down machineset %s", machineSetName)
+	replicas := *machineSet.Spec.Replicas - 1
+	machineSet.Spec.Replicas = &replicas
+	err = f.Client.Update(context.TODO(), machineSet)
+	if err != nil {
+		t.Error(err)
+	}
+	deletedNodeName := ""
+	t.Logf("Waiting for scaling down machineset %s", machineSetName)
+	err = wait.Poll(interval, timeout, func() (bool, error) {
+		err = f.Client.Get(context.TODO(), types.NamespacedName{Name: machineSetName, Namespace: machineSetNamespace}, machineSet)
+		if err != nil {
+			t.Error(err)
+		}
+		if machineSet.Status.Replicas == machineSet.Status.ReadyReplicas {
+			t.Logf("Machineset %s scaled down", machineSetName)
+			return true, nil
+		}
+		t.Logf("Waiting for machineset %s to scale down, current ready replicas: %d of %d", machineSet.Name, machineSet.Status.ReadyReplicas, machineSet.Status.Replicas)
+		return false, nil
+	})
+	if err != nil {
+		t.Error(err)
+	}
+	if deletedNodeName == "" {
+		// Get the node that was deleted
+		machineList := &machinev1.MachineList{}
+		err = f.Client.List(context.TODO(), machineList, &client.ListOptions{
+			Namespace: machineSetNamespace})
+		if err != nil {
+			t.Error(err)
+		}
+		if len(machineList.Items) == 0 {
+			t.Error("No machines found")
+		}
+		for _, machine := range machineList.Items {
+			if machine.DeletionTimestamp != nil {
+				deletedNodeName = machine.Status.NodeRef.Name
+				t.Logf("Found deleted node %s", deletedNodeName)
+				return deletedNodeName
+			}
+		}
+	}
+	return deletedNodeName
+}
+
+func assertNodeStatusForRemovedNode(t *testing.T, f *framework.Framework, integrityName, namespace, deletedNodeName string, interval, timeout time.Duration) {
+	timeoutErr := wait.PollImmediate(interval, timeout, func() (bool, error) {
+		nodestatus := &v1alpha1.FileIntegrityNodeStatus{}
+		err := f.Client.Get(goctx.TODO(), types.NamespacedName{Name: integrityName + "-" + deletedNodeName, Namespace: namespace}, nodestatus)
+		if err != nil {
+			if kerr.IsNotFound(err) {
+				t.Logf("Node status for node %s not found, as expected", deletedNodeName)
+				return true, nil
+			} else {
+				t.Errorf("error getting node status for node %s: %v", deletedNodeName, err)
+				return true, err
+			}
+		} else {
+			t.Logf("Node status for node %s found, waiting for it to be deleted", deletedNodeName)
+			return false, nil
+		}
+	})
+	if timeoutErr != nil {
+		t.Errorf("timed out waiting for node status for node %s to be deleted", deletedNodeName)
 	}
 }
 

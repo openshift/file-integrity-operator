@@ -45,6 +45,7 @@ CONTENT_EX = sha512+ftype+p+u+g+n+acl+selinux+xattrs
 !/hostroot/etc/docker/certs.d
 !/hostroot/etc/selinux/targeted
 !/hostroot/etc/openvswitch/conf.db
+!/hostroot/etc/kubernetes/cni/net.d
 !/hostroot/etc/kubernetes/cni/net.d/*
 !/hostroot/etc/machine-config-daemon/currentconfig$
 !/hostroot/etc/pki/ca-trust/extracted/java/cacerts$
