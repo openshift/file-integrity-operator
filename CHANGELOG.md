@@ -5,6 +5,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2023-03-31
+### Changes
+- Use RHEL8 for building FIO container images in CI
+- Bump github.com/go-logr/logr from 1.2.3 to 1.2.4
+- Bump sigs.k8s.io/controller-runtime from 0.14.5 to 0.14.6
+- Bump github.com/prometheus-operator/prometheus-operator/pkg/client
+- Bump k8s.io/apiextensions-apiserver from 0.26.2 to 0.26.3
+- Update CI to use RHEL 9 and OpenShift 4.13
+- Bump github.com/onsi/gomega from 1.27.2 to 1.27.4
+- Update maintainers
+- Bump golang.org/x/net from 0.7.0 to 0.8.0
+- Bump golang.org/x/mod from 0.8.0 to 0.9.0
+
 ## [1.2.0] - 2023-03-06
 ### Changes
 - Update golang version in Dockerfile for builds
