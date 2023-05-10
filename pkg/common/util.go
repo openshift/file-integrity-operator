@@ -8,7 +8,9 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 
+	"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
@@ -71,6 +73,157 @@ func IsIntegrityLog(labels map[string]string) bool {
 func IsIntegrityLogAnError(cm *corev1.ConfigMap) bool {
 	_, containsErrorAnnotation := cm.Annotations[IntegrityLogErrorAnnotationKey]
 	return containsErrorAnnotation
+}
+
+// IsNodeInHoldoff returns whether the given node is in holdoff
+func IsNodeInHoldoff(fi *v1alpha1.FileIntegrity, nodeName string) bool {
+	return IsNodeIn(fi, nodeName, IntegrityHoldoffAnnotationKey)
+}
+
+// IsNodeInReinit returns whether the given node is in reinit
+func IsNodeInReinit(fi *v1alpha1.FileIntegrity, nodeName string) bool {
+	return IsNodeIn(fi, nodeName, AideDatabaseReinitAnnotationKey)
+}
+
+// IsNodeIn returns whether the given node is in the annotation provided
+func IsNodeIn(fi *v1alpha1.FileIntegrity, nodeName string, annotation string) bool {
+	if fi.Annotations == nil {
+		return false
+	}
+	if nodeList, has := fi.Annotations[annotation]; has {
+		// If the annotation is empty, we assume all nodes are in reinit
+		if nodeList == "" {
+			return true
+		}
+		for _, node := range strings.Split(nodeList, ",") {
+			if node == nodeName {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// HasReinitAnnotation returns the list of nodes that are in reinit or empty list
+// if all nodes are in reinit. The second return value is true if the annotation
+// exists, and the third is true if all nodes are in reinit.
+func HasReinitAnnotation(fi *v1alpha1.FileIntegrity) (nodes []string, annotationExists bool, allNodesInReinit bool) {
+	if fi.Annotations == nil {
+		return []string{}, false, false
+	}
+	if nodeList, has := fi.Annotations[AideDatabaseReinitAnnotationKey]; has {
+		if nodeList == "" {
+			return []string{}, true, true
+		}
+		return strings.Split(nodeList, ","), true, false
+	}
+	return []string{}, false, false
+}
+
+// GetAddedNodeHoldoffAnnotation returns the annotation value for the added node
+// holdoff annotation, and a boolean indicating whether the annotation was
+// changed.
+func GetAddedNodeHoldoffAnnotation(fi *v1alpha1.FileIntegrity, nodeName string) (map[string]string, bool) {
+	ficopy := fi.DeepCopy()
+	if fi.Annotations == nil {
+		ficopy.Annotations = make(map[string]string)
+	}
+
+	if nodeList, has := fi.Annotations[IntegrityHoldoffAnnotationKey]; has {
+		if nodeList == "" {
+			// no need to add the node if all nodes are in holdoff
+			return ficopy.Annotations, false
+		}
+		if strings.Contains(nodeList, nodeName) {
+			return ficopy.Annotations, false
+		}
+		ficopy.Annotations[IntegrityHoldoffAnnotationKey] = nodeList + "," + nodeName
+	} else {
+		ficopy.Annotations[IntegrityHoldoffAnnotationKey] = nodeName
+	}
+	return ficopy.Annotations, true
+}
+
+// GetRemovedNodeHoldoffAnnotation returns the annotation value for the removed node
+// holdoff annotation, and a boolean indicating whether the annotation was
+// changed.
+func GetRemovedNodeHoldoffAnnotation(fi *v1alpha1.FileIntegrity, nodeName string) (map[string]string, bool) {
+	if !IsNodeInHoldoff(fi, nodeName) {
+		return nil, false
+	}
+	ficopy := fi.DeepCopy()
+	if fi.Annotations == nil {
+		ficopy.Annotations = make(map[string]string)
+	}
+	if nodeList, has := fi.Annotations[IntegrityHoldoffAnnotationKey]; has {
+		if nodeList == nodeName {
+			// remove the annotation if all nodes are in holdoff or if the node is the only one in holdoff
+			delete(ficopy.Annotations, IntegrityHoldoffAnnotationKey)
+		} else {
+			// remove the node from the holdoff list string and update the annotation along with comma separators
+			nodeList = strings.Replace(nodeList, ","+nodeName, "", -1)
+			ficopy.Annotations[IntegrityHoldoffAnnotationKey] = nodeList
+		}
+		return ficopy.Annotations, true
+	}
+	return nil, false
+}
+
+// GetAddedNodeReinitAnnotation returns the annotation value for the added node
+// reinit annotation, and a boolean indicating whether the annotation was
+// changed.
+func GetAddedNodeReinitAnnotation(fi *v1alpha1.FileIntegrity, nodeName []string) (map[string]string, bool) {
+	needChange := false
+	if len(nodeName) == 0 {
+		return nil, needChange
+	}
+	ficopy := fi.DeepCopy()
+	if fi.Annotations == nil {
+		ficopy.Annotations = make(map[string]string)
+	}
+
+	if nodeList, has := fi.Annotations[AideDatabaseReinitAnnotationKey]; has {
+		if nodeList == "" {
+			// no need to add the node if all nodes are in reinit
+			return nil, needChange
+		}
+		for _, node := range nodeName {
+			if strings.Contains(nodeList, node) {
+				continue
+			}
+			needChange = true
+			ficopy.Annotations[AideDatabaseReinitAnnotationKey] = nodeList + "," + node
+		}
+	} else {
+		needChange = true
+		ficopy.Annotations[AideDatabaseReinitAnnotationKey] = strings.Join(nodeName, ",")
+	}
+	return ficopy.Annotations, needChange
+}
+
+// GetRemovedNodeReinitAnnotation returns the annotation value for the removed node
+// reinit annotation, and a boolean indicating whether the annotation was
+// changed.
+func GetRemovedNodeReinitAnnotation(fi *v1alpha1.FileIntegrity, nodeName string) (map[string]string, bool) {
+	if !IsNodeInReinit(fi, nodeName) {
+		return nil, false
+	}
+	if fi.Annotations == nil {
+		return nil, false
+	}
+	ficopy := fi.DeepCopy()
+	if nodeList, has := fi.Annotations[AideDatabaseReinitAnnotationKey]; has {
+		if nodeList == nodeName {
+			// remove the annotation if all nodes are in reinit or if the node is the only one in reinit
+			delete(ficopy.Annotations, AideDatabaseReinitAnnotationKey)
+		} else {
+			// remove the node from the reinit list string and update the annotation along with comma separators
+			nodeList = strings.Replace(nodeList, ","+nodeName, "", -1)
+			ficopy.Annotations[AideDatabaseReinitAnnotationKey] = nodeList
+		}
+		return ficopy.Annotations, true
+	}
+	return nil, false
 }
 
 // IsIntegrityLogAFailure returns whether the given map coming

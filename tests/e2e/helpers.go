@@ -59,6 +59,7 @@ const (
 	testConfName            = "test-conf"
 	testConfDataKey         = "conf"
 	nodeWorkerRoleLabelKey  = "node-role.kubernetes.io/worker"
+	nodeMasterRoleLabelKey  = "node-role.kubernetes.io/master"
 	mcWorkerRoleLabelKey    = "machineconfiguration.openshift.io/role"
 	defaultTestGracePeriod  = 20
 	defaultTestInitialDelay = 0
@@ -360,31 +361,20 @@ func setupTest(t *testing.T) (*framework.Framework, *framework.Context, string) 
 }
 
 // setupFileIntegrity creates the FileIntegrity instance with the default grace period.
-func setupFileIntegrity(t *testing.T, f *framework.Framework, testCtx *framework.Context, integrityName, namespace string) {
-	setupFileIntegrityWithGracePeriod(t, f, testCtx, integrityName, namespace, defaultTestGracePeriod)
-}
-
-// setupFileIntegrityWithInitialDelay creates the FileIntegrity instance with the default grace period and an initial delay.
-func setupFileIntegrityWithInitialDelay(t *testing.T, f *framework.Framework, testCtx *framework.Context, integrityName, namespace string) {
-	testIntegrityCheck := newTestFileIntegrity(integrityName, namespace, nodeLabelForWorkerRole, defaultTestGracePeriod, true, testInitialDelay)
-
-	cleanupOptions := framework.CleanupOptions{
-		TestContext:   testCtx,
-		Timeout:       cleanupTimeout,
-		RetryInterval: cleanupRetryInterval,
+func setupFileIntegrity(t *testing.T, f *framework.Framework, testCtx *framework.Context, integrityName, namespace string, nodeSelectorKey string, gracePeriod int) {
+	var testIntegrityCheck *v1alpha1.FileIntegrity
+	var nodeSelector map[string]string
+	if gracePeriod == 0 {
+		gracePeriod = defaultTestGracePeriod
 	}
 
-	err := f.Client.Create(goctx.TODO(), testIntegrityCheck, &cleanupOptions)
-	if err != nil {
-		t.Fatalf("Could not create FileIntegrity: %v", err)
+	if nodeSelectorKey != "" {
+		nodeSelector = map[string]string{
+			nodeSelectorKey: "",
+		}
 	}
 
-	t.Logf("Created FileIntegrity: %+v", testIntegrityCheck)
-}
-
-// setupFileIntegrityWithGracePeriod creates the FileIntegrity instance and confirms that it goes active.
-func setupFileIntegrityWithGracePeriod(t *testing.T, f *framework.Framework, testCtx *framework.Context, integrityName, namespace string, grace int) {
-	testIntegrityCheck := newTestFileIntegrity(integrityName, namespace, nodeLabelForWorkerRole, grace, true, defaultTestInitialDelay)
+	testIntegrityCheck = newTestFileIntegrity(integrityName, namespace, nodeSelector, gracePeriod, true, defaultTestInitialDelay)
 
 	cleanupOptions := framework.CleanupOptions{
 		TestContext:   testCtx,
@@ -405,20 +395,21 @@ func setupFileIntegrityWithGracePeriod(t *testing.T, f *framework.Framework, tes
 	}
 
 	var lastErr error
+
 	pollErr := wait.PollImmediate(time.Second, 5*time.Minute, func() (bool, error) {
-		numWorkers, err := getNumberOfWorkerNodes(f.KubeClient)
-		if err != nil {
-			lastErr = err
-			return false, nil
-		}
 		numReplicas, err := getDSReplicas(f.KubeClient, dsName, namespace)
 		if err != nil {
 			lastErr = err
 			return false, nil
 		}
 
-		if numWorkers != numReplicas {
-			lastErr = errors.Errorf("The number of worker nodes (%d) doesn't match the DS replicas (%d)", numWorkers, numReplicas)
+		numOfSelectedNodes, err := getNumberOfNodesFromSelector(f.KubeClient, nodeSelectorKey)
+		if err != nil {
+			lastErr = err
+			return false, nil
+		}
+		if numOfSelectedNodes != numReplicas {
+			lastErr = errors.Errorf("The number of selected nodes with label %s (%d) doesn't match the DS replicas (%d)", nodeSelectorKey, numOfSelectedNodes, numReplicas)
 			return false, nil
 		}
 		return true, nil
@@ -433,7 +424,24 @@ func setupFileIntegrityWithGracePeriod(t *testing.T, f *framework.Framework, tes
 		t.Fatalf("Timed out waiting for scan status to go Active")
 	}
 	t.Log("FileIntegrity deployed successfully")
+}
 
+// setupFileIntegrityWithInitialDelay creates the FileIntegrity instance with the default grace period and an initial delay.
+func setupFileIntegrityWithInitialDelay(t *testing.T, f *framework.Framework, testCtx *framework.Context, integrityName, namespace string) {
+	testIntegrityCheck := newTestFileIntegrity(integrityName, namespace, nodeLabelForWorkerRole, defaultTestGracePeriod, true, testInitialDelay)
+
+	cleanupOptions := framework.CleanupOptions{
+		TestContext:   testCtx,
+		Timeout:       cleanupTimeout,
+		RetryInterval: cleanupRetryInterval,
+	}
+
+	err := f.Client.Create(goctx.TODO(), testIntegrityCheck, &cleanupOptions)
+	if err != nil {
+		t.Fatalf("Could not create FileIntegrity: %v", err)
+	}
+
+	t.Logf("Created FileIntegrity: %+v", testIntegrityCheck)
 }
 
 func daemonSetExists(c kubernetes.Interface, name, namespace string) wait.ConditionFunc {
@@ -651,9 +659,12 @@ func getDSReplicas(c kubernetes.Interface, name, namespace string) (int, error) 
 	return int(daemonSet.Status.NumberAvailable), nil
 }
 
-func getNumberOfWorkerNodes(c kubernetes.Interface) (int, error) {
-	listopts := metav1.ListOptions{
-		LabelSelector: nodeWorkerRoleLabelKey,
+func getNumberOfNodesFromSelector(c kubernetes.Interface, nodeSelectorKey string) (int, error) {
+	listopts := metav1.ListOptions{}
+	if nodeSelectorKey != "" {
+		listopts = metav1.ListOptions{
+			LabelSelector: nodeSelectorKey,
+		}
 	}
 	nodes, err := c.CoreV1().Nodes().List(goctx.TODO(), listopts)
 	if err != nil {
@@ -1167,14 +1178,19 @@ func assertNodeStatusForRemovedNode(t *testing.T, f *framework.Framework, integr
 	}
 }
 
-func assertNodesConditionIsSuccess(t *testing.T, f *framework.Framework, integrityName, namespace string, interval, timeout time.Duration) {
+func assertNodesConditionIsSuccess(t *testing.T, f *framework.Framework, integrityName, namespace string, interval, timeout time.Duration, nodeLabelKey string) {
 	var lastErr error
 	type nodeStatus struct {
 		LastProbeTime metav1.Time
 		Condition     v1alpha1.FileIntegrityNodeCondition
 	}
 
-	nodes, err := f.KubeClient.CoreV1().Nodes().List(goctx.TODO(), metav1.ListOptions{LabelSelector: nodeWorkerRoleLabelKey})
+	listopts := metav1.ListOptions{}
+	if nodeLabelKey != "" {
+		listopts.LabelSelector = nodeLabelKey
+	}
+
+	nodes, err := f.KubeClient.CoreV1().Nodes().List(goctx.TODO(), listopts)
 	if err != nil {
 		t.Errorf("error listing nodes: %v", err)
 	}
@@ -1564,10 +1580,40 @@ func isNodeReady(node corev1.Node) bool {
 		if condition.Type == corev1.NodeReady &&
 			condition.Status == corev1.ConditionTrue &&
 			node.Annotations[mcfgconst.MachineConfigDaemonStateAnnotationKey] == mcfgconst.MachineConfigDaemonStateDone {
+			time.Sleep(30 * time.Second) // wait for MCO to start updating other nodes
 			return true
 		}
 	}
 	return false
+}
+
+func assertMasterDSNoRestart(t *testing.T, f *framework.Framework, fiName, namespace string) {
+	pods, err := getFiDsPods(f, fiName, namespace)
+	if err != nil {
+		t.Errorf("Failed to get daemonset pods: %s", err)
+	}
+
+	// get master node list
+	masterNodes, err := f.KubeClient.CoreV1().Nodes().List(goctx.TODO(), metav1.ListOptions{LabelSelector: nodeMasterRoleLabelKey})
+	if err != nil {
+		t.Errorf("Failed to get master nodes: %s", err)
+	}
+	// get master node name list
+	masterNodeNames := map[string]string{}
+	for _, node := range masterNodes.Items {
+		masterNodeNames[node.Name] = ""
+	}
+
+	for _, pod := range pods.Items {
+		// check if pod is on master node
+		if _, ok := masterNodeNames[pod.Spec.NodeName]; ok {
+			// check if pod has restarted
+			if pod.Status.ContainerStatuses[0].RestartCount > 0 {
+				t.Errorf("Master node pod %s has restarted", pod.Name)
+			}
+		}
+	}
+	t.Logf("Master node pods have not restarted")
 }
 
 func assertDSPodHasArg(t *testing.T, f *framework.Framework, fiName, namespace, expectedLine string, interval, timeout time.Duration) error {

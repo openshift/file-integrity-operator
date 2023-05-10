@@ -70,7 +70,7 @@ TEST_DEPLOY=$(TEST_SETUP_DIR)/deploy_rbac.yaml
 # Pass extra flags to the e2e test run.
 # e.g. to run a specific test in the e2e test suite, do:
 # E2E_GO_TEST_FLAGS="-v -timeout 20m -run TestFileIntegrityLogAndReinitDatabase" make e2e
-E2E_GO_TEST_FLAGS?=-v -timeout 60m
+E2E_GO_TEST_FLAGS?=-v -timeout 90m
 # By default, the tests skip cleanup on failures. Set this variable to false if you prefer
 # the tests to cleanup regardless of test status, e.g.:
 # E2E_SKIP_CLEANUP_ON_ERROR=false make e2e

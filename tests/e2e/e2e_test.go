@@ -21,7 +21,7 @@ import (
 func TestFileIntegrityLogAndReinitDatabase(t *testing.T) {
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-reinitdb"
-	setupFileIntegrity(t, f, testctx, testName, namespace)
+	setupFileIntegrity(t, f, testctx, testName, namespace, nodeWorkerRoleLabelKey, defaultTestGracePeriod)
 	defer testctx.Cleanup()
 	defer func() {
 		if err := cleanNodes(f, namespace); err != nil {
@@ -40,7 +40,7 @@ func TestFileIntegrityLogAndReinitDatabase(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
 
 	t.Log("Asserting that we have OK node condition events")
 	assertNodeOKStatusEvents(t, f, namespace, 2*time.Second, 5*time.Minute)
@@ -110,7 +110,7 @@ func TestFileIntegrityLogAndReinitDatabase(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after re-initializing the database")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
 
 	expectedMetrics = map[string]int{
 		`file_integrity_operator_daemonset_update_total{operation="update"}`: 1,
@@ -174,7 +174,7 @@ func TestFileIntegrityInitialDelay(t *testing.T) {
 func TestFileIntegrityLegacyReinitCleanup(t *testing.T) {
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-reinit-legacy"
-	setupFileIntegrity(t, f, testctx, testName, namespace)
+	setupFileIntegrity(t, f, testctx, testName, namespace, nodeWorkerRoleLabelKey, defaultTestGracePeriod)
 	defer testctx.Cleanup()
 	defer func() {
 		if err := cleanNodes(f, namespace); err != nil {
@@ -193,7 +193,7 @@ func TestFileIntegrityLegacyReinitCleanup(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
 
 	t.Log("Asserting that we have OK node condition events")
 	assertNodeOKStatusEvents(t, f, namespace, 2*time.Second, 5*time.Minute)
@@ -222,7 +222,7 @@ func TestFileIntegrityLegacyReinitCleanup(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after re-initializing the database")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
 
 	// We can proceed to this point quickly, so wait for the reinit routine to catch up.
 	time.Sleep(time.Second * 10)
@@ -239,7 +239,7 @@ func TestFileIntegrityLegacyReinitCleanup(t *testing.T) {
 func TestFileIntegrityPruneBackup(t *testing.T) {
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-prune-backup"
-	setupFileIntegrity(t, f, testctx, testName, namespace)
+	setupFileIntegrity(t, f, testctx, testName, namespace, nodeWorkerRoleLabelKey, defaultTestGracePeriod)
 	defer testctx.Cleanup()
 	defer func() {
 		if err := cleanNodes(f, namespace); err != nil {
@@ -258,7 +258,7 @@ func TestFileIntegrityPruneBackup(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
 
 	t.Log("Asserting that we have OK node condition events")
 	assertNodeOKStatusEvents(t, f, namespace, 2*time.Second, 5*time.Minute)
@@ -284,7 +284,7 @@ func TestFileIntegrityPruneBackup(t *testing.T) {
 		t.Errorf("Timeout waiting for scan status")
 	}
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after updating config")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
 
 	// Reinit
 	reinitFileIntegrityDatabase(t, f, testName, namespace, time.Second, 2*time.Minute)
@@ -295,7 +295,7 @@ func TestFileIntegrityPruneBackup(t *testing.T) {
 		t.Errorf("Timeout waiting for scan status")
 	}
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after re-initializing the database")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
 
 	// Reinit again
 	reinitFileIntegrityDatabase(t, f, testName, namespace, time.Second, 2*time.Minute)
@@ -306,7 +306,7 @@ func TestFileIntegrityPruneBackup(t *testing.T) {
 		t.Errorf("Timeout waiting for scan status")
 	}
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after re-initializing the database")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
 
 	// Test the result on one node.
 	nodes, err := f.KubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
@@ -327,7 +327,7 @@ func TestFileIntegrityPruneBackup(t *testing.T) {
 func TestFileIntegrityConfigurationRevert(t *testing.T) {
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-configrevert"
-	setupFileIntegrity(t, f, testctx, testName, namespace)
+	setupFileIntegrity(t, f, testctx, testName, namespace, nodeWorkerRoleLabelKey, defaultTestGracePeriod)
 	defer testctx.Cleanup()
 	defer func() {
 		if err := cleanNodes(f, namespace); err != nil {
@@ -351,7 +351,7 @@ func TestFileIntegrityConfigurationRevert(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
 
 	// modify a file on a node
 	err = editFileOnNodes(f, namespace)
@@ -411,7 +411,7 @@ func TestFileIntegrityConfigurationRevert(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after a re-init")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
 
 	expectedMetrics := map[string]int{
 		`file_integrity_operator_daemonset_update_total{operation="update"}`: 1,
@@ -444,7 +444,7 @@ func TestFileIntegrityConfigurationRevert(t *testing.T) {
 func TestFileIntegrityConfigurationStatus(t *testing.T) {
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-configstatus"
-	setupFileIntegrity(t, f, testctx, testName, namespace)
+	setupFileIntegrity(t, f, testctx, testName, namespace, nodeWorkerRoleLabelKey, defaultTestGracePeriod)
 	defer testctx.Cleanup()
 	defer func() {
 		if err := cleanNodes(f, namespace); err != nil {
@@ -508,7 +508,7 @@ func TestFileIntegrityConfigurationStatus(t *testing.T) {
 func TestFileIntegrityConfigurationIgnoreMissing(t *testing.T) {
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-configignoremissing"
-	setupFileIntegrity(t, f, testctx, testName, namespace)
+	setupFileIntegrity(t, f, testctx, testName, namespace, nodeWorkerRoleLabelKey, defaultTestGracePeriod)
 	defer testctx.Cleanup()
 	defer func() {
 		if err := cleanNodes(f, namespace); err != nil {
@@ -546,7 +546,7 @@ func TestFileIntegrityConfigurationIgnoreMissing(t *testing.T) {
 func TestFileIntegrityConfigMapOwnerUpdate(t *testing.T) {
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-ownerupdate"
-	setupFileIntegrity(t, f, testctx, testName, namespace)
+	setupFileIntegrity(t, f, testctx, testName, namespace, nodeWorkerRoleLabelKey, defaultTestGracePeriod)
 	defer testctx.Cleanup()
 	defer func() {
 		if err := cleanNodes(f, namespace); err != nil {
@@ -576,7 +576,7 @@ func TestFileIntegrityConfigMapOwnerUpdate(t *testing.T) {
 func TestFileIntegrityChangeGracePeriod(t *testing.T) {
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-graceperiod"
-	setupFileIntegrity(t, f, testctx, testName, namespace)
+	setupFileIntegrity(t, f, testctx, testName, namespace, nodeWorkerRoleLabelKey, defaultTestGracePeriod)
 	defer testctx.Cleanup()
 	defer func() {
 		if err := cleanNodes(f, namespace); err != nil {
@@ -652,7 +652,7 @@ func TestFileIntegrityChangeGracePeriod(t *testing.T) {
 func TestFileIntegrityChangeDebug(t *testing.T) {
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-changedebug"
-	setupFileIntegrity(t, f, testctx, testName, namespace)
+	setupFileIntegrity(t, f, testctx, testName, namespace, nodeWorkerRoleLabelKey, defaultTestGracePeriod)
 	defer testctx.Cleanup()
 	defer func() {
 		if err := cleanNodes(f, namespace); err != nil {
@@ -728,7 +728,7 @@ func TestFileIntegrityChangeDebug(t *testing.T) {
 func TestFileIntegrityBadConfig(t *testing.T) {
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-badconfig"
-	setupFileIntegrity(t, f, testctx, testName, namespace)
+	setupFileIntegrity(t, f, testctx, testName, namespace, nodeWorkerRoleLabelKey, defaultTestGracePeriod)
 	defer testctx.Cleanup()
 	defer func() {
 		if err := cleanNodes(f, namespace); err != nil {
@@ -787,9 +787,7 @@ func TestFileIntegrityTolerations(t *testing.T) {
 func TestFileIntegrityLogCompress(t *testing.T) {
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-logcompress"
-	setupFileIntegrityWithGracePeriod(t, f, testctx, testName, namespace,
-		defaultTestGracePeriod*3, // extend the grace period to allow the file adder enough time to finish.
-	)
+	setupFileIntegrity(t, f, testctx, testName, namespace, nodeWorkerRoleLabelKey, defaultTestGracePeriod*3) // extend the grace period to allow the file adder enough time to finish.
 	defer testctx.Cleanup()
 	defer func() {
 		if err := cleanNodes(f, namespace); err != nil {
@@ -811,7 +809,7 @@ func TestFileIntegrityLogCompress(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
 
 	// log collection should create a configmap for each node's report after the scan runs again
 	nodes, err := f.KubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
@@ -867,7 +865,7 @@ func TestFileIntegrityLogCompress(t *testing.T) {
 func TestFileIntegrityAcceptsExpectedChange(t *testing.T) {
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-nodechange"
-	setupFileIntegrity(t, f, testctx, testName, namespace)
+	setupFileIntegrity(t, f, testctx, testName, namespace, "", defaultTestGracePeriod) // empty selector key to match all nodes
 	defer testctx.Cleanup()
 	defer func() {
 		if err := cleanNodes(f, namespace); err != nil {
@@ -886,7 +884,7 @@ func TestFileIntegrityAcceptsExpectedChange(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, "")
 
 	// Create MCFG
 	mcfg := getTestMcfg(t)
@@ -915,7 +913,8 @@ func TestFileIntegrityAcceptsExpectedChange(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after expected changes")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 5*time.Second, 10*time.Minute)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 5*time.Second, 10*time.Minute, "")
+	assertMasterDSNoRestart(t, f, testName, namespace)
 }
 
 // This checks test for adding new node and remove a existing node to the cluster and making sure
@@ -923,7 +922,7 @@ func TestFileIntegrityAcceptsExpectedChange(t *testing.T) {
 func TestFileIntegrityNodeScaling(t *testing.T) {
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-nodescale"
-	setupFileIntegrity(t, f, testctx, testName, namespace)
+	setupFileIntegrity(t, f, testctx, testName, namespace, nodeWorkerRoleLabelKey, defaultTestGracePeriod)
 	defer testctx.Cleanup()
 	defer func() {
 		if err := cleanNodes(f, namespace); err != nil {
@@ -941,7 +940,7 @@ func TestFileIntegrityNodeScaling(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
 
 	t.Log("Adding a new worker node to the cluster through the machineset")
 	scaledUpMachineSetName, newNodeName := scaleUpWorkerMachineSet(t, f, 2*time.Second, 10*time.Minute)

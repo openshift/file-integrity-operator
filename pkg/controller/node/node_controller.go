@@ -3,6 +3,7 @@ package node
 import (
 	"context"
 	"fmt"
+
 	"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
 	"github.com/openshift/file-integrity-operator/pkg/controller/metrics"
 
@@ -112,8 +113,8 @@ func (r *NodeReconciler) NodeControllerReconcile(request reconcile.Request) (rec
 				"mcdState", mcdState)
 			// No update is taking place or it's done already or
 			// MCO can't update a host, might as well not hold the integrity checks
-			relevantFIs := r.getAnnotatedFileIntegrities(fis)
-			err := r.removeHoldoffAnnotationAndReinitFileIntegrityDatabases(relevantFIs, node)
+			relevantFIs := r.getAnnotatedFileIntegrities(fis, node)
+			err := r.removeHoldoffAnnotationAndReinitFileIntegrityDatabases(reqLogger, relevantFIs, node)
 			return reconcile.Result{}, err
 		}
 	}
@@ -152,57 +153,68 @@ func (r *NodeReconciler) findRelevantFileIntegrities(currentnode *corev1.Node) (
 
 func (r *NodeReconciler) addHoldOffAnnotations(logger logr.Logger, fis []*v1alpha1.FileIntegrity, n *corev1.Node) error {
 	for _, fi := range fis {
-		// Only update if we don't already have the holdoff annotation
-		if fi.Annotations != nil {
-			if _, has := fi.Annotations[common.IntegrityHoldoffAnnotationKey]; has {
-				continue
-			}
+		if common.IsNodeInHoldoff(fi, n.Name) {
+			continue
 		}
-
-		fiCopy := fi.DeepCopy()
-		if fiCopy.Annotations == nil {
-			fiCopy.Annotations = map[string]string{}
+		newAnnotation, needsChange := common.GetAddedNodeHoldoffAnnotation(fi, n.Name)
+		if !needsChange {
+			continue
 		}
-
-		fiCopy.Annotations[common.IntegrityHoldoffAnnotationKey] = ""
-		if err := r.Client.Update(context.TODO(), fiCopy); err != nil {
-			return err
+		ficopy := fi.DeepCopy()
+		ficopy.Annotations = newAnnotation
+		err := r.Client.Update(context.TODO(), ficopy)
+		if err != nil {
+			return fmt.Errorf("failed to add node %s to holdoff list: %w", n.Name, err)
 		}
-		logger.Info("Added Holdoff annotation to FileIntegrity")
+		logger.Info("Added Holdoff annotation to FileIntegrity for node", "node", n.Name, "fi", fi.Name)
 		r.Metrics.IncFileIntegrityPause(n.Name)
 	}
 	return nil
 }
 
-func (r *NodeReconciler) getAnnotatedFileIntegrities(fis []*v1alpha1.FileIntegrity) []*v1alpha1.FileIntegrity {
+func (r *NodeReconciler) getAnnotatedFileIntegrities(fis []*v1alpha1.FileIntegrity, n *corev1.Node) []*v1alpha1.FileIntegrity {
 	annotatedFIs := []*v1alpha1.FileIntegrity{}
 	for _, fi := range fis {
-		if fi.Annotations == nil {
-			continue
-		}
-
-		_, found := fi.Annotations[common.IntegrityHoldoffAnnotationKey]
-		if found {
+		if common.IsNodeInHoldoff(fi, n.Name) {
 			annotatedFIs = append(annotatedFIs, fi)
 		}
 	}
 	return annotatedFIs
 }
 
-func (r *NodeReconciler) removeHoldoffAnnotationAndReinitFileIntegrityDatabases(fis []*v1alpha1.FileIntegrity,
+func (r *NodeReconciler) removeHoldoffAnnotationAndReinitFileIntegrityDatabases(logger logr.Logger, fis []*v1alpha1.FileIntegrity,
 	n *corev1.Node) error {
 	for _, fi := range fis {
 		// Only reinit for FIs that were previously in holdoff.
-		if _, ok := fi.Annotations[common.IntegrityHoldoffAnnotationKey]; ok {
-			fiCopy := fi.DeepCopy()
-			fiCopy.Annotations[common.AideDatabaseReinitAnnotationKey] = n.Name
-			delete(fiCopy.Annotations, common.IntegrityHoldoffAnnotationKey)
-			if err := r.Client.Update(context.TODO(), fiCopy); err != nil {
-				return err
-			}
-			r.Metrics.IncFileIntegrityUnpause(n.Name)
-			r.Metrics.IncFileIntegrityReinitByNode(n.Name)
+		if !common.IsNodeInHoldoff(fi, n.Name) {
+			continue
 		}
+		// Skip reinit if the node already has a reinit annotation.
+		if common.IsNodeInReinit(fi, n.Name) {
+			continue
+		}
+		newHoldOffAnnotation, needsChange := common.GetRemovedNodeHoldoffAnnotation(fi, n.Name)
+		if !needsChange {
+			continue
+		}
+		fi.Annotations = newHoldOffAnnotation
+		// Add the reinit annotation
+		newReinitAnnotation, needsChange := common.GetAddedNodeReinitAnnotation(fi, []string{n.Name})
+		if !needsChange {
+			continue
+		}
+		ficopy := fi.DeepCopy()
+		ficopy.Annotations = newReinitAnnotation
+		err := r.Client.Update(context.TODO(), ficopy)
+		if err != nil {
+			return fmt.Errorf("failed to update Fileintegrity %s holdoff and reinit annotations for node %s: %w", fi.Name, n.Name, err)
+		}
+
+		logger.Info("Removed Holdoff annotation from FileIntegrity for node", "node", n.Name, "fi", fi.Name)
+		logger.Info("Added Reinit annotation to FileIntegrity for node", "node", n.Name, "fi", fi.Name)
+		r.Metrics.IncFileIntegrityUnpause(n.Name)
+		r.Metrics.IncFileIntegrityReinitByNode(n.Name)
+
 	}
 	return nil
 }
