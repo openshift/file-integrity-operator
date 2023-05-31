@@ -13,11 +13,11 @@ type fileIntegrityMapper struct {
 	client.Client
 }
 
-func (s *fileIntegrityMapper) Map(obj client.Object) []reconcile.Request {
+func (s *fileIntegrityMapper) Map(ctx context.Context, obj client.Object) []reconcile.Request {
 	var requests []reconcile.Request
 
 	fiList := v1alpha1.FileIntegrityList{}
-	err := s.List(context.TODO(), &fiList, &client.ListOptions{})
+	err := s.List(ctx, &fiList, &client.ListOptions{})
 	if err != nil {
 		return requests
 	}

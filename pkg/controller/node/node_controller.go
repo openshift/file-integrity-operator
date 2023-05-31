@@ -3,6 +3,7 @@ package node
 import (
 	"context"
 	"fmt"
+	controllerruntime "sigs.k8s.io/controller-runtime"
 
 	"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
 	"github.com/openshift/file-integrity-operator/pkg/controller/metrics"
@@ -16,12 +17,9 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 var controllerNodeLog = logf.Log.WithName("controller_node")
@@ -46,26 +44,11 @@ func newNodeControllerReconciler(mgr manager.Manager, met *metrics.Metrics) reco
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
 func addNodeControllerReconciler(mgr manager.Manager, r reconcile.Reconciler) error {
 	// Create a new controller
-	c, err := controller.New("node-controller", mgr, controller.Options{Reconciler: r})
-	if err != nil {
-		return err
-	}
-
-	// Watch for changes to primary resource Node
-	err = c.Watch(&source.Kind{Type: &corev1.Node{}}, &handler.EnqueueRequestForObject{})
-	if err != nil {
-		return err
-	}
-
-	err = c.Watch(&source.Kind{Type: &corev1.Pod{}}, &handler.EnqueueRequestForOwner{
-		IsController: true,
-		OwnerType:    &corev1.Node{},
-	})
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return controllerruntime.NewControllerManagedBy(mgr).
+		Named("node-controller").
+		For(&corev1.Node{}).
+		Owns(&corev1.Pod{}).
+		Complete(r)
 }
 
 // blank assignment to verify that NodeReconciler implements reconcile.Reconciler
