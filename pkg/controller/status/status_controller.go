@@ -2,6 +2,7 @@ package status
 
 import (
 	"context"
+	controllerruntime "sigs.k8s.io/controller-runtime"
 	"time"
 
 	"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
@@ -9,20 +10,16 @@ import (
 
 	"github.com/go-logr/logr"
 
+	"github.com/openshift/file-integrity-operator/pkg/common"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
-
-	"github.com/openshift/file-integrity-operator/pkg/common"
 )
 
 var log = logf.Log.WithName("controller_status")
@@ -34,46 +31,13 @@ func AddStatusController(mgr manager.Manager, met *metrics.Metrics) error {
 	r := &StatusReconciler{client: mgr.GetClient(), scheme: mgr.GetScheme(),
 		recorder: mgr.GetEventRecorderFor("statusctrl"), metrics: met,
 	}
-	// Create a new controller
-	c, err := controller.New("status-controller", mgr, controller.Options{Reconciler: r})
-	if err != nil {
-		return err
-	}
-
-	// Watch for changes to primary resource FileIntegrity
-	err = c.Watch(&source.Kind{Type: &v1alpha1.FileIntegrity{}}, &handler.EnqueueRequestForObject{})
-	if err != nil {
-		return err
-	}
-
-	// Reconcile on FileIntegrityNodeStatus updates
-	err = c.Watch(&source.Kind{Type: &v1alpha1.FileIntegrityNodeStatus{}}, &handler.EnqueueRequestForOwner{
-		IsController: true,
-		OwnerType:    &v1alpha1.FileIntegrity{},
-	})
-	if err != nil {
-		return err
-	}
-
-	// Reconcile on configMap updates
-	err = c.Watch(&source.Kind{Type: &corev1.ConfigMap{}}, &handler.EnqueueRequestForOwner{
-		IsController: true,
-		OwnerType:    &v1alpha1.FileIntegrity{},
-	})
-	if err != nil {
-		return err
-	}
-
-	// Reconcile on daemonSet updates
-	err = c.Watch(&source.Kind{Type: &appsv1.DaemonSet{}}, &handler.EnqueueRequestForOwner{
-		IsController: true,
-		OwnerType:    &v1alpha1.FileIntegrity{},
-	})
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return controllerruntime.NewControllerManagedBy(mgr).
+		Named("status-controller").
+		For(&v1alpha1.FileIntegrity{}).
+		Owns(&v1alpha1.FileIntegrityNodeStatus{}).
+		Owns(&corev1.ConfigMap{}).
+		Owns(&appsv1.DaemonSet{}).
+		Complete(r)
 }
 
 // blank assignment to verify that StatusReconciler implements reconcile.Reconciler

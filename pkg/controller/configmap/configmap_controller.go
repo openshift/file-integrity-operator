@@ -2,6 +2,7 @@ package configmap
 
 import (
 	"context"
+	controllerruntime "sigs.k8s.io/controller-runtime"
 	"strconv"
 	"time"
 
@@ -10,20 +11,16 @@ import (
 
 	"github.com/go-logr/logr"
 
+	"github.com/openshift/file-integrity-operator/pkg/common"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
-
-	"github.com/openshift/file-integrity-operator/pkg/common"
 )
 
 var configMapControllerLog = logf.Log.WithName("controller_configmap")
@@ -31,7 +28,7 @@ var configMapControllerLog = logf.Log.WithName("controller_configmap")
 // Add creates a new ConfigMap Controller and adds it to the Manager. The Manager will set fields on the Controller
 // and Start it when the Manager is Started.
 func AddConfigmapController(mgr manager.Manager, met *metrics.Metrics) error {
-	return addConfigmapController(mgr, newConfigmapReconciler(mgr, met), met)
+	return addConfigmapController(mgr, newConfigmapReconciler(mgr, met))
 }
 
 // newReconciler returns a new reconcile.Reconciler
@@ -43,30 +40,12 @@ func newConfigmapReconciler(mgr manager.Manager, met *metrics.Metrics) reconcile
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
-func addConfigmapController(mgr manager.Manager, r reconcile.Reconciler, met *metrics.Metrics) error {
-	// Create a new controller
-	c, err := controller.New("configmap-controller", mgr, controller.Options{Reconciler: r})
-	if err != nil {
-		return err
-	}
-
-	// Watch for changes to primary resource ConfigMap
-	err = c.Watch(&source.Kind{Type: &corev1.ConfigMap{}}, &handler.EnqueueRequestForObject{})
-	if err != nil {
-		return err
-	}
-
-	// TODO(user): Modify this to be the types you create that are owned by the primary resource
-	// Watch for changes to secondary resource Pods and requeue the owner ConfigMap
-	err = c.Watch(&source.Kind{Type: &corev1.Pod{}}, &handler.EnqueueRequestForOwner{
-		IsController: true,
-		OwnerType:    &corev1.ConfigMap{},
-	})
-	if err != nil {
-		return err
-	}
-
-	return nil
+func addConfigmapController(mgr manager.Manager, r reconcile.Reconciler) error {
+	return controllerruntime.NewControllerManagedBy(mgr).
+		Named("configmap-controller").
+		For(&corev1.ConfigMap{}).
+		Owns(&corev1.Pod{}).
+		Complete(r)
 }
 
 // blank assignment to verify that ReconcileConfigMap implements reconcile.Reconciler

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	controllerruntime "sigs.k8s.io/controller-runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -18,21 +19,18 @@ import (
 
 	"github.com/go-logr/logr"
 
+	"github.com/openshift/file-integrity-operator/pkg/common"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
-
-	"github.com/openshift/file-integrity-operator/pkg/common"
 )
 
 var controllerFileIntegritylog = logf.Log.WithName("controller_fileintegrity")
@@ -40,7 +38,7 @@ var controllerFileIntegritylog = logf.Log.WithName("controller_fileintegrity")
 // Add creates a new FileIntegrity Controller and adds it to the Manager. The Manager will set fields on the Controller
 // and Start it when the Manager is Started.
 func AddFileIntegrityController(mgr manager.Manager, met *metrics.Metrics) error {
-	return addFileIntegrityController(mgr, newFileIntegrityReconciler(mgr, met), met)
+	return addFileIntegrityController(mgr, newFileIntegrityReconciler(mgr, met))
 }
 
 // newReconciler returns a new reconcile.Reconciler
@@ -49,27 +47,13 @@ func newFileIntegrityReconciler(mgr manager.Manager, met *metrics.Metrics) recon
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
-func addFileIntegrityController(mgr manager.Manager, r reconcile.Reconciler, met *metrics.Metrics) error {
-	// Create a new controller
-	c, err := controller.New("fileintegrity-controller", mgr, controller.Options{Reconciler: r})
-	if err != nil {
-		return err
-	}
-
-	// Watch for changes to primary resource FileIntegrity
-	err = c.Watch(&source.Kind{Type: &v1alpha1.FileIntegrity{}}, &handler.EnqueueRequestForObject{})
-	if err != nil {
-		return err
-	}
-
-	// Watch for changes to configMaps that are used by a FI instance. We use a mapper to map the CM to FI
+func addFileIntegrityController(mgr manager.Manager, r reconcile.Reconciler) error {
 	mapper := &fileIntegrityMapper{Client: mgr.GetClient()}
-	err = c.Watch(&source.Kind{Type: &corev1.ConfigMap{}}, handler.EnqueueRequestsFromMapFunc(mapper.Map))
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return controllerruntime.NewControllerManagedBy(mgr).
+		Named("fileintegrity-controller").
+		For(&v1alpha1.FileIntegrity{}).
+		Watches(&corev1.ConfigMap{}, handler.EnqueueRequestsFromMapFunc(mapper.Map)).
+		Complete(r)
 }
 
 // blank assignment to verify that FileIntegrityReconciler implements reconcile.Reconciler
