@@ -1883,7 +1883,7 @@ func assertEachMetric(t *testing.T, namespace string, expectedMetrics map[string
 		}
 	}
 	if len(metricErrs) > 0 {
-		for err := range metricErrs {
+		for _, err := range metricErrs {
 			t.Log(err)
 		}
 		return errors.New("unexpected metrics value")
