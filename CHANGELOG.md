@@ -5,6 +5,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2023-06-08
+### Changes
+- Bump github.com/onsi/gomega from 1.27.7 to 1.27.8
+- Bump github.com/sirupsen/logrus from 1.9.2 to 1.9.3
+- Bump github.com/prometheus-operator/prometheus-operator/pkg/client
+- Adjust FIO controller initialization to controller-runtime 0.15
+- Bump controller-runtime, k8s deps and library-go
+- Bump github.com/stretchr/testify from 1.8.3 to 1.8.4
+- Change the default config file to exclude kubelet CA
+- Bump github.com/securego/gosec/v2 from 2.15.0 to 2.16.0
+- Bump github.com/prometheus/client_golang from 1.15.0 to 1.15.1
+- Bump github.com/stretchr/testify from 1.8.2 to 1.8.3
+- Bump k8s.io/apimachinery from 0.27.1 to 0.27.2
+- Bump github.com/onsi/gomega from 1.27.6 to 1.27.7
+- Bump github.com/sirupsen/logrus from 1.9.0 to 1.9.2
+- Fix re-inits issues
+- Bump golang.org/x/net from 0.9.0 to 0.10.0
+- Bump github.com/cenkalti/backoff/v4 from 4.2.0 to 4.2.1
+- Bump k8s.io/apimachinery from 0.27.0 to 0.27.1
+- Fix Node scaling issue
+- Bump github.com/prometheus/client_golang from 1.14.0 to 1.15.0
+- Bump k8s.io/apimachinery from 0.26.3 to 0.27.0
+- Bump golang.org/x/net from 0.8.0 to 0.9.0
+- Bump github.com/spf13/cobra from 1.6.1 to 1.7.0
+- Bump golang.org/x/mod from 0.9.0 to 0.10.0
+- Bump github.com/onsi/gomega from 1.27.4 to 1.27.6
+
 ## [1.2.1] - 2023-03-31
 ### Changes
 - Use RHEL8 for building FIO container images in CI
