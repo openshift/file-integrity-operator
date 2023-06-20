@@ -956,3 +956,42 @@ func TestFileIntegrityNodeScaling(t *testing.T) {
 	}
 	assertNodeStatusForRemovedNode(t, f, testName, namespace, removedNodeName, 2*time.Second, 5*time.Minute)
 }
+
+// This checks test for roating kube-apiserver-to-kubelet-client-ca certificate
+func TestFileIntegrityCertRotation(t *testing.T) {
+	f, testctx, namespace := setupTest(t)
+	testName := testIntegrityNamePrefix + "-certrotation"
+	setupFileIntegrity(t, f, testctx, testName, namespace, nodeWorkerRoleLabelKey, defaultTestGracePeriod)
+	defer testctx.Cleanup()
+	defer func() {
+		if err := cleanNodes(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+		if err := resetBundleTestMetrics(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+	}()
+	defer logContainerOutput(t, f, namespace, testName)
+	// wait to go active.
+	err := waitForScanStatus(t, f, namespace, testName, v1alpha1.PhaseActive)
+	if err != nil {
+		t.Errorf("Timeout waiting for scan status")
+	}
+
+	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
+
+	t.Log("Rotating kube-apiserver-to-kubelet-client-ca certificate")
+	rotateKubeAPIServerToKubeletClientCA(t, f, 2*time.Second, 10*time.Minute)
+
+	t.Log("Waiting for Nodes to start updating")
+	assertNodesUpdatingStarted(t, f, 2*time.Second, 10*time.Minute)
+
+	// Wait for nodes to be ready
+	if err = waitForNodesToBeReady(t, f); err != nil {
+		t.Errorf("Timeout waiting for nodes")
+	}
+	t.Log("Asserting that the FileIntegrity is in a SUCCESS state after rotating kube-apiserver-to-kubelet-client-ca certificate")
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
+
+}

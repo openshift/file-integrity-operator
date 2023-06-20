@@ -49,28 +49,31 @@ import (
 )
 
 const (
-	pollInterval            = time.Second * 2
-	pollTimeout             = time.Minute * 5
-	retryInterval           = time.Second * 5
-	timeout                 = time.Minute * 30
-	cleanupRetryInterval    = time.Second * 1
-	cleanupTimeout          = time.Minute * 5
-	testIntegrityNamePrefix = "e2e-test"
-	testConfName            = "test-conf"
-	testConfDataKey         = "conf"
-	nodeWorkerRoleLabelKey  = "node-role.kubernetes.io/worker"
-	nodeMasterRoleLabelKey  = "node-role.kubernetes.io/master"
-	mcWorkerRoleLabelKey    = "machineconfiguration.openshift.io/role"
-	defaultTestGracePeriod  = 20
-	defaultTestInitialDelay = 0
-	testInitialDelay        = 180
-	deamonsetWaitTimeout    = 30 * time.Second
-	legacyReinitOnHost      = "/hostroot/etc/kubernetes/aide.reinit"
-	metricsTestCRBName      = "fio-metrics-client"
-	metricsTestSAName       = "default"
-	metricsTestTokenName    = "metrics-token"
-	machineSetNamespace     = "openshift-machine-api"
-	compressionFileCmd      = "for i in `seq 1 10000`; do mktemp \"/hostroot/etc/addedbytest$i.XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\"; done || true"
+	pollInterval                   = time.Second * 2
+	pollTimeout                    = time.Minute * 5
+	retryInterval                  = time.Second * 5
+	timeout                        = time.Minute * 30
+	cleanupRetryInterval           = time.Second * 1
+	cleanupTimeout                 = time.Minute * 5
+	testIntegrityNamePrefix        = "e2e-test"
+	testConfName                   = "test-conf"
+	testConfDataKey                = "conf"
+	nodeWorkerRoleLabelKey         = "node-role.kubernetes.io/worker"
+	nodeMasterRoleLabelKey         = "node-role.kubernetes.io/master"
+	mcpNodeStateAnnotationKey      = "machineconfiguration.openshift.io/state"
+	mcpNodeUpdatingAnnotationValue = "Working"
+	mcWorkerRoleLabelKey           = "machineconfiguration.openshift.io/role"
+	certRotationAnnotationKey      = "auth.openshift.io/certificate-not-after"
+	defaultTestGracePeriod         = 20
+	defaultTestInitialDelay        = 0
+	testInitialDelay               = 180
+	deamonsetWaitTimeout           = 30 * time.Second
+	legacyReinitOnHost             = "/hostroot/etc/kubernetes/aide.reinit"
+	metricsTestCRBName             = "fio-metrics-client"
+	metricsTestSAName              = "default"
+	metricsTestTokenName           = "metrics-token"
+	machineSetNamespace            = "openshift-machine-api"
+	compressionFileCmd             = "for i in `seq 1 10000`; do mktemp \"/hostroot/etc/addedbytest$i.XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\"; done || true"
 )
 
 const (
@@ -1018,6 +1021,52 @@ func assertNodeOKStatusEvents(t *testing.T, f *framework.Framework, namespace st
 		t.Error(timeoutErr)
 		return
 	}
+}
+
+func rotateKubeAPIServerToKubeletClientCA(t *testing.T, f *framework.Framework, interval, timeout time.Duration) {
+	// do the rotation
+	// oc patch secret -p='{"metadata": {"annotations": {"auth.openshift.io/certificate-not-after": null}}}' kube-apiserver-to-kubelet-signer -n openshift-kube-apiserver-operator
+	secret := &corev1.Secret{}
+	err := f.Client.Get(goctx.TODO(), types.NamespacedName{
+		Name:      "kube-apiserver-to-kubelet-signer",
+		Namespace: "openshift-kube-apiserver-operator",
+	}, secret)
+	if err != nil {
+		t.Error("Failed to get secret for kube-apiserver-to-kubelet-signer, err: ", err)
+		return
+	}
+	if secret.Annotations == nil {
+		secret.Annotations = map[string]string{}
+	}
+	secret.Annotations[certRotationAnnotationKey] = ""
+	err = f.Client.Update(goctx.TODO(), secret)
+	if err != nil {
+		t.Error("Failed to update secret for kube-apiserver-to-kubelet-signer, err: ", err)
+		return
+	}
+}
+
+func assertNodesUpdatingStarted(t *testing.T, f *framework.Framework, interval, timeout time.Duration) {
+
+	err := wait.PollImmediate(interval, timeout, func() (bool, error) {
+		// get nodes with mcpNodeStateAnnotationKey annotation set to Working
+		nodeList := &corev1.NodeList{}
+		err := f.Client.List(goctx.TODO(), nodeList)
+		if err != nil {
+			t.Error(err)
+			return false, nil
+		}
+		for _, node := range nodeList.Items {
+			if node.Annotations[mcpNodeStateAnnotationKey] == mcpNodeUpdatingAnnotationValue {
+				return true, nil
+			}
+		}
+		return false, nil
+	})
+	if err != nil {
+		t.Error("Timeout waiting for nodes to start updating, err: ", err)
+	}
+
 }
 
 func scaleUpWorkerMachineSet(t *testing.T, f *framework.Framework, interval, timeout time.Duration) (string, string) {

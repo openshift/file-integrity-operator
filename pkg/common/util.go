@@ -212,18 +212,25 @@ func GetRemovedNodeReinitAnnotation(fi *v1alpha1.FileIntegrity, nodeName string)
 		return nil, false
 	}
 	ficopy := fi.DeepCopy()
-	if nodeList, has := fi.Annotations[AideDatabaseReinitAnnotationKey]; has {
-		if nodeList == nodeName {
-			// remove the annotation if all nodes are in reinit or if the node is the only one in reinit
+	if nodeListString, has := fi.Annotations[AideDatabaseReinitAnnotationKey]; has {
+		if nodeName == "" {
+			// remove the annotation if all nodes are in reinit
 			delete(ficopy.Annotations, AideDatabaseReinitAnnotationKey)
 		} else {
 			// remove the node from the reinit list string and update the annotation along with comma separators
-			nodeList = strings.Replace(nodeList, ","+nodeName, "", -1)
-			ficopy.Annotations[AideDatabaseReinitAnnotationKey] = nodeList
+			nodeList := strings.Split(nodeListString, ",")
+			newNodeList := []string{}
+			for _, node := range nodeList {
+				if node == nodeName {
+					continue
+				}
+				newNodeList = append(newNodeList, node)
+			}
+			ficopy.Annotations[AideDatabaseReinitAnnotationKey] = strings.Join(newNodeList, ",")
 		}
 		return ficopy.Annotations, true
 	}
-	return nil, false
+	return ficopy.Annotations, false
 }
 
 // IsIntegrityLogAFailure returns whether the given map coming

@@ -2,9 +2,11 @@ package configmap
 
 import (
 	"context"
-	controllerruntime "sigs.k8s.io/controller-runtime"
 	"strconv"
+	"strings"
 	"time"
+
+	controllerruntime "sigs.k8s.io/controller-runtime"
 
 	"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
 	"github.com/openshift/file-integrity-operator/pkg/controller/metrics"
@@ -86,10 +88,14 @@ func (r *ReconcileConfigMap) ConfigMapReconcile(request reconcile.Request) (reco
 func (r *ReconcileConfigMap) reconcileAideConfAndHandleReinitDs(instance *corev1.ConfigMap,
 	logger logr.Logger) (reconcile.Result, error) {
 	// only continue if the configmap received an update through the user-provided config
-	nodeName, ok := instance.Annotations[common.AideConfigUpdatedAnnotationKey]
+	nodeListString, ok := instance.Annotations[common.AideConfigUpdatedAnnotationKey]
+
 	if !ok {
 		return reconcile.Result{}, nil
 	}
+	nodeList := strings.Split(nodeListString, ",")
+	// the last node in the list
+	nodeName := nodeList[len(nodeList)-1]
 
 	ownerName, err := common.GetConfigMapOwnerName(instance)
 	if err != nil {
@@ -133,7 +139,14 @@ func (r *ReconcileConfigMap) reconcileAideConfAndHandleReinitDs(instance *corev1
 	r.Metrics.IncFileIntegrityReinitDaemonsetDelete()
 	// unset update annotation
 	conf := instance.DeepCopy()
-	conf.Annotations = nil
+	// remove last node from annotation
+	if len(nodeList) > 1 {
+		nodeList = nodeList[:len(nodeList)-1]
+		conf.Annotations[common.AideConfigUpdatedAnnotationKey] = strings.Join(nodeList, ",")
+	} else {
+		// if there are no more nodes or just one left, remove the annotation
+		delete(conf.Annotations, common.AideConfigUpdatedAnnotationKey)
+	}
 	if updateErr := r.Client.Update(context.TODO(), conf); updateErr != nil {
 		logger.Error(updateErr, "error clearing configMap annotations")
 		return reconcile.Result{}, updateErr

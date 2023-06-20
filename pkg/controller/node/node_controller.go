@@ -3,6 +3,7 @@ package node
 import (
 	"context"
 	"fmt"
+
 	controllerruntime "sigs.k8s.io/controller-runtime"
 
 	"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
@@ -98,7 +99,7 @@ func (r *NodeReconciler) NodeControllerReconcile(request reconcile.Request) (rec
 			// MCO can't update a host, might as well not hold the integrity checks
 			relevantFIs := r.getAnnotatedFileIntegrities(fis, node)
 			err := r.removeHoldoffAnnotationAndReinitFileIntegrityDatabases(reqLogger, relevantFIs, node)
-			return reconcile.Result{}, err
+			return reconcile.Result{Requeue: true}, err
 		}
 	}
 

@@ -5,10 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	controllerruntime "sigs.k8s.io/controller-runtime"
 	"strconv"
 	"strings"
 	"time"
+
+	controllerruntime "sigs.k8s.io/controller-runtime"
 
 	"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
 	"github.com/openshift/file-integrity-operator/pkg/controller/metrics"
@@ -237,17 +238,30 @@ func (r *FileIntegrityReconciler) tryGettingNode(node string) (*corev1.Node, err
 	}
 	return &n, nil
 }
-
-func (r *FileIntegrityReconciler) updateAideConfig(conf *corev1.ConfigMap, data, node string) error {
+func (r *FileIntegrityReconciler) updateAideConfig(conf *corev1.ConfigMap, data, node string, nodeUpdate bool) error {
 	confCopy := conf.DeepCopy()
 	confCopy.Data[common.DefaultConfDataKey] = data
 
-	if confCopy.Annotations == nil {
-		confCopy.Annotations = map[string]string{}
+	if nodeUpdate {
+		// Mark the configMap as updated by the user-provided config, for the configMap-controller to trigger an update.
+		// check if there is already an annotation for the node if not add it to the list
+		if confCopy.Annotations == nil {
+			confCopy.Annotations = map[string]string{}
+		}
+		if nodeListString, ok := confCopy.Annotations[common.AideConfigUpdatedAnnotationKey]; !ok {
+			confCopy.Annotations[common.AideConfigUpdatedAnnotationKey] = node
+		} else {
+			// check if the node is already in the list
+			nodeList := strings.Split(nodeListString, ",")
+			for _, n := range nodeList {
+				if n == node {
+					return nil
+				}
+			}
+			nodeList = append(nodeList, node)
+			confCopy.Annotations[common.AideConfigUpdatedAnnotationKey] = strings.Join(nodeList, ",")
+		}
 	}
-
-	// Mark the configMap as updated by the user-provided config, for the configMap-controller to trigger an update.
-	confCopy.Annotations[common.AideConfigUpdatedAnnotationKey] = node
 
 	return r.Client.Update(context.TODO(), confCopy)
 }
@@ -260,7 +274,7 @@ func (r *FileIntegrityReconciler) retrieveAndAnnotateAideConfig(conf *corev1.Con
 		return err
 	}
 
-	return r.updateAideConfig(cachedConf, cachedConf.Data[common.DefaultConfDataKey], node)
+	return r.updateAideConfig(cachedConf, cachedConf.Data[common.DefaultConfDataKey], node, true)
 }
 
 func (r *FileIntegrityReconciler) aideConfigIsDefault(instance *v1alpha1.FileIntegrity) (bool, error) {
@@ -289,7 +303,7 @@ func (r *FileIntegrityReconciler) reconcileUserConfig(instance *v1alpha1.FileInt
 		if !hasDefaultConfig {
 			// The configuration was previously replaced. We want to restore it now.
 			reqLogger.Info("Restoring the AIDE configuration defaults.")
-			if err := r.updateAideConfig(currentConfig, DefaultAideConfig, ""); err != nil {
+			if err := r.updateAideConfig(currentConfig, DefaultAideConfig, "", false); err != nil {
 				return false, err
 			}
 			return true, nil
@@ -337,7 +351,7 @@ func (r *FileIntegrityReconciler) reconcileUserConfig(instance *v1alpha1.FileInt
 		return false, nil
 	}
 
-	if err := r.updateAideConfig(currentConfig, preparedConf, ""); err != nil {
+	if err := r.updateAideConfig(currentConfig, preparedConf, "", false); err != nil {
 		return false, err
 	}
 
@@ -356,75 +370,6 @@ func (r *FileIntegrityReconciler) getOperatorDeploymentImage() (string, error) {
 		image = operatorDeployment.Spec.Template.Spec.Containers[0].Image
 	}
 	return image, nil
-}
-
-// HandleUpdateConflictConfigMap checks if there was an conflict while removing a node from the FileIntegrity object reinit annotation in the past
-// If there was, we will remove the node from the reinit annotation and update the configMap
-func (r *FileIntegrityReconciler) HandleUpdateConflictConfigMap(logger logr.Logger, f *v1alpha1.FileIntegrity, nodeToRemove string, add bool) (bool, error) {
-	// Get the latest config
-	cachedConf := &corev1.ConfigMap{}
-	err := r.Client.Get(context.TODO(), types.NamespacedName{Name: f.Name + common.UpdateConflictConfigMapSuffix, Namespace: common.FileIntegrityNamespace}, cachedConf)
-	if err != nil {
-		if !kerr.IsNotFound(err) {
-			// We will return the error here if it is not a NotFound error
-			return true, err
-		}
-		// We will create the configMap here if it does not exist
-		cachedConf = &corev1.ConfigMap{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      f.Name + common.UpdateConflictConfigMapSuffix,
-				Namespace: common.FileIntegrityNamespace,
-			},
-			Data: map[string]string{},
-		}
-		if err := r.Client.Create(context.TODO(), cachedConf); err != nil {
-			return true, err
-		}
-		logger.Info("ConfigMap " + cachedConf.Name + " created")
-		return true, nil
-	}
-
-	if cachedConf.Data == nil {
-		cachedConf.Data = make(map[string]string)
-	}
-
-	// If nodeToRemove is not in the configMap, we will add it
-	if add {
-		if _, ok := cachedConf.Data[common.AideDatabaseReinitConfigMapKey]; !ok {
-			cachedConf.Data[common.AideDatabaseReinitConfigMapKey] = nodeToRemove
-			if err := r.Client.Update(context.TODO(), cachedConf); err != nil {
-				return true, err
-			}
-			logger.Info("Node " + nodeToRemove + " added to the configMap")
-			return true, nil
-		}
-	}
-	// If the configMap exists, we will check if the node is in the reinit annotation
-	if nodeName, ok := cachedConf.Data[common.AideDatabaseReinitConfigMapKey]; ok {
-		// If the node is in the FileIntegrity object reinit annotation, we will remove it
-		if nodeList, ok := f.Annotations[common.AideDatabaseReinitAnnotationKey]; ok {
-			if strings.Contains(nodeList, nodeName) {
-				// Remove the node from the reinit annotation
-				fcopy := f.DeepCopy()
-				newAnnotation, needchange := common.GetRemovedNodeReinitAnnotation(fcopy, nodeName)
-				if needchange {
-					fcopy.Annotations = newAnnotation
-					if err := r.Client.Update(context.TODO(), fcopy); err != nil {
-						return true, err
-					}
-					logger.Info("Node " + nodeName + " removed from the reinit annotation")
-				}
-			}
-		}
-		// Remove the node from the configMap
-		delete(cachedConf.Data, common.AideDatabaseReinitConfigMapKey)
-		if err := r.Client.Update(context.TODO(), cachedConf); err != nil {
-			return true, err
-		}
-		logger.Info("Node " + nodeName + " removed from the configMap")
-		return true, nil
-	}
-	return false, nil
 }
 
 // Note:
@@ -502,17 +447,6 @@ func (r *FileIntegrityReconciler) FileIntegrityControllerReconcile(request recon
 	}
 
 	nodeToReinit := ""
-	// handle reinit
-	needReconcile, err := r.HandleUpdateConflictConfigMap(reqLogger, instance, "", false)
-	if err != nil {
-		reqLogger.Error(err, "error handling update conflict configMap")
-		return reconcile.Result{}, err
-	}
-	if needReconcile {
-		// we need to requeue here because we need to wait for the configMap to be updated
-		reqLogger.Info("reconciling after update conflict")
-		return reconcile.Result{Requeue: true}, nil
-	}
 	nodesToReinit, forceReinit, reinitAll := common.HasReinitAnnotation(instance)
 	if forceReinit && !reinitAll {
 		nodeToReinit = nodesToReinit[0]
@@ -538,18 +472,15 @@ func (r *FileIntegrityReconciler) FileIntegrityControllerReconcile(request recon
 			return reconcile.Result{}, err
 		}
 		fiCopy := instance.DeepCopy()
+		needChange := false
+		fiCopy.Annotations, needChange = common.GetRemovedNodeReinitAnnotation(fiCopy, nodeToReinit)
 
-		fiCopy.Annotations, _ = common.GetRemovedNodeReinitAnnotation(fiCopy, nodeToReinit)
-		reqLogger.Info("Removing re-init annotation.")
-		if err := r.Client.Update(context.TODO(), fiCopy); err != nil {
-			// Create a configMap to remove the node at next reconcile
-			_, err := r.HandleUpdateConflictConfigMap(reqLogger, instance, nodeToReinit, true)
-			if err != nil {
-				reqLogger.Error(err, "error handling update conflict configMap")
-				return reconcile.Result{}, err
+		if needChange {
+			reqLogger.Info("Removing re-init annotation.")
+			if err := r.Client.Update(context.TODO(), fiCopy); err != nil {
+				reqLogger.Info("Re-init annotation failed to be removed, re-queueing")
+				return reconcile.Result{}, nil
 			}
-			reqLogger.Info("Re-init annotation failed to be removed, adding node to configMap to skip re-init, and re-queueing")
-			return reconcile.Result{Requeue: true}, nil
 		}
 	}
 
