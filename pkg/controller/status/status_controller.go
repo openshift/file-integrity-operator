@@ -2,8 +2,9 @@ package status
 
 import (
 	"context"
-	controllerruntime "sigs.k8s.io/controller-runtime"
 	"time"
+
+	controllerruntime "sigs.k8s.io/controller-runtime"
 
 	"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
 	"github.com/openshift/file-integrity-operator/pkg/controller/metrics"
@@ -149,12 +150,11 @@ func (r *StatusReconciler) mapActiveStatus(integrity *v1alpha1.FileIntegrity) (v
 		// Check if the node is still there, and remove the node status if it's not.
 		// This is to handle the case where the node is deleted, but the node status is not.
 		if _, ok := nodeNameList[nodeStatus.NodeName]; !ok {
-			// If the node is not there, and the node status is success, we can just delete it.
-			if nodeStatus.LastResult.Condition == v1alpha1.NodeConditionSucceeded {
-				if err := r.client.Delete(context.TODO(), &nodeStatus); err != nil {
-					return v1alpha1.PhaseError, err
-				}
+			// If the node is not there we will just delete it.
+			if err := r.client.Delete(context.TODO(), &nodeStatus); err != nil {
+				return v1alpha1.PhaseError, err
 			}
+
 		}
 		if nodeStatus.LastResult.Condition == v1alpha1.NodeConditionErrored {
 			return v1alpha1.PhaseError, nil
