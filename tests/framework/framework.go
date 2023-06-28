@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-logr/logr"
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 	log "github.com/sirupsen/logrus"
@@ -28,6 +29,7 @@ import (
 	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
 	dynclient "sigs.k8s.io/controller-runtime/pkg/client"
+	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 var (
@@ -167,6 +169,15 @@ func newFramework(opts *frameworkOpts) (*Framework, error) {
 		restMapper:         restMapper,
 		skipCleanupOnError: opts.skipCleanupOnError,
 	}
+
+	// This is required because controller-runtime expects its consumers to
+	// set a logger through log.SetLogger within 30 seconds of the program's
+	// initalization. If not set, the entire debug stack is printed as an
+	// error, see: https://github.com/kubernetes-sigs/controller-runtime/blob/ed8be90/pkg/log/log.go#L59
+	// Since we have our own logging and don't care about controller-runtime's
+	// logger, we configure it's logger to do nothing.
+	ctrllog.SetLogger(logr.New(ctrllog.NullLogSink{}))
+
 	return framework, nil
 }
 
