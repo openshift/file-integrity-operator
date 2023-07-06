@@ -70,12 +70,50 @@ func (f *Framework) newContext(t *testing.T) *Context {
 		client:             f.Client,
 		kubeclient:         f.KubeClient,
 		restMapper:         f.restMapper,
-		skipCleanupOnError: f.skipCleanupOnError,
+		skipCleanupOnError: f.SkipCleanupOnError,
+	}
+}
+
+// This context is intended to be used across tests in a suite, so it doesn't
+// contain the testing instance that's included when using newContext.
+// Eventually, we will consolidate this method with newContext and only use
+// contexts for test suites instead of for individual tests.
+func (f *Framework) newSuiteContext() *Context {
+
+	// Context is used among others for namespace names where '/' is forbidden and must be 63 characters or less
+	id := "osdk-e2e-" + uuid.New()
+
+	var operatorNamespace string
+	_, ok := os.LookupEnv(TestOperatorNamespaceEnv)
+	if ok {
+		operatorNamespace = f.OperatorNamespace
+	}
+
+	watchNamespace := operatorNamespace
+	ns, ok := os.LookupEnv(TestWatchNamespaceEnv)
+	if ok {
+		watchNamespace = ns
+	}
+
+	return &Context{
+		id:                 id,
+		namespace:          operatorNamespace,
+		operatorNamespace:  operatorNamespace,
+		watchNamespace:     watchNamespace,
+		namespacedManPath:  *f.NamespacedManPath,
+		client:             f.Client,
+		kubeclient:         f.KubeClient,
+		restMapper:         f.restMapper,
+		skipCleanupOnError: f.SkipCleanupOnError,
 	}
 }
 
 func NewContext(t *testing.T) *Context {
 	return Global.newContext(t)
+}
+
+func NewSuiteContext() *Context {
+	return Global.newSuiteContext()
 }
 
 func (ctx *Context) GetID() string {

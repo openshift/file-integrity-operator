@@ -59,23 +59,23 @@ const (
 )
 
 type Framework struct {
-	Client            *frameworkClient
-	KubeConfig        *rest.Config
-	KubeClient        kubernetes.Interface
-	Scheme            *runtime.Scheme
-	NamespacedManPath *string
-	OperatorNamespace string
-	WatchNamespace    string
+	Client             *frameworkClient
+	KubeConfig         *rest.Config
+	KubeClient         kubernetes.Interface
+	Scheme             *runtime.Scheme
+	NamespacedManPath  *string
+	OperatorNamespace  string
+	WatchNamespace     string
+	SkipCleanupOnError bool
 
 	restMapper *restmapper.DeferredDiscoveryRESTMapper
 
-	projectRoot        string
-	globalManPath      string
-	localOperatorArgs  string
-	kubeconfigPath     string
-	schemeMutex        sync.Mutex
-	LocalOperator      bool
-	skipCleanupOnError bool
+	projectRoot       string
+	globalManPath     string
+	localOperatorArgs string
+	kubeconfigPath    string
+	schemeMutex       sync.Mutex
+	LocalOperator     bool
 }
 
 type frameworkOpts struct {
@@ -165,7 +165,7 @@ func newFramework(opts *frameworkOpts) (*Framework, error) {
 		localOperatorArgs:  opts.localOperatorArgs,
 		kubeconfigPath:     opts.kubeconfigPath,
 		restMapper:         restMapper,
-		skipCleanupOnError: opts.skipCleanupOnError,
+		SkipCleanupOnError: opts.skipCleanupOnError,
 	}
 	return framework, nil
 }
