@@ -1858,6 +1858,7 @@ func runOCandGetOutput(t *testing.T, arg []string) string {
 	// We're just under test.
 	// G204 (CWE-78): Subprocess launched with variable (Confidence: HIGH, Severity: MEDIUM)
 	// #nosec
+	t.Logf("command: %s\n", arg)
 	cmd := exec.Command(ocPath, arg...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
