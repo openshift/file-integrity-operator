@@ -15,7 +15,7 @@ var aidePauseContainerScript = `#!/bin/sh
 // NOTE: Needs to be in sync with `testAideConfig` in test/e2e/helpers.go, except for the heading comment.
 var DefaultAideConfig = `@@define DBDIR /hostroot/etc/kubernetes
 @@define LOGDIR /hostroot/etc/kubernetes
-database=file:@@{DBDIR}/aide.db.gz
+database_in=file:@@{DBDIR}/aide.db.gz
 database_out=file:@@{DBDIR}/aide.db.gz.new
 gzip_dbout=yes
 verbose=5
