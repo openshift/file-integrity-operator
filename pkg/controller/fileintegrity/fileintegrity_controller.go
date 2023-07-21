@@ -163,6 +163,7 @@ func (r *FileIntegrityReconciler) GetFailedNodes(fi *v1alpha1.FileIntegrity) ([]
 func (r *FileIntegrityReconciler) narrowNodeSelector(instance *v1alpha1.FileIntegrity, node *corev1.Node) (metav1.LabelSelector, error) {
 	narrowSelector := metav1.LabelSelector{}
 	if node == nil {
+		//reinit all nodes selected in the fileintegrity instance
 		narrowSelector.MatchLabels = instance.Spec.NodeSelector
 		return narrowSelector, nil
 	}
@@ -238,29 +239,27 @@ func (r *FileIntegrityReconciler) tryGettingNode(node string) (*corev1.Node, err
 	}
 	return &n, nil
 }
-func (r *FileIntegrityReconciler) updateAideConfig(conf *corev1.ConfigMap, data, node string, nodeUpdate bool) error {
+func (r *FileIntegrityReconciler) updateAideConfig(conf *corev1.ConfigMap, data, node string) error {
 	confCopy := conf.DeepCopy()
 	confCopy.Data[common.DefaultConfDataKey] = data
 
-	if nodeUpdate {
-		// Mark the configMap as updated by the user-provided config, for the configMap-controller to trigger an update.
-		// check if there is already an annotation for the node if not add it to the list
-		if confCopy.Annotations == nil {
-			confCopy.Annotations = map[string]string{}
-		}
-		if nodeListString, ok := confCopy.Annotations[common.AideConfigUpdatedAnnotationKey]; !ok {
-			confCopy.Annotations[common.AideConfigUpdatedAnnotationKey] = node
-		} else {
-			// check if the node is already in the list
-			nodeList := strings.Split(nodeListString, ",")
-			for _, n := range nodeList {
-				if n == node {
-					return nil
-				}
+	// Mark the configMap as updated by the user-provided config, for the configMap-controller to trigger an update.
+	// check if there is already an annotation for the node if not add it to the list
+	if confCopy.Annotations == nil {
+		confCopy.Annotations = map[string]string{}
+	}
+	if nodeListString, has := confCopy.Annotations[common.AideConfigUpdatedAnnotationKey]; !has || node == "" {
+		confCopy.Annotations[common.AideConfigUpdatedAnnotationKey] = node
+	} else {
+		// check if the node is already in the list
+		nodeList := strings.Split(nodeListString, ",")
+		for _, n := range nodeList {
+			if n == node {
+				return nil
 			}
-			nodeList = append(nodeList, node)
-			confCopy.Annotations[common.AideConfigUpdatedAnnotationKey] = strings.Join(nodeList, ",")
 		}
+		nodeList = append(nodeList, node)
+		confCopy.Annotations[common.AideConfigUpdatedAnnotationKey] = strings.Join(nodeList, ",")
 	}
 
 	return r.Client.Update(context.TODO(), confCopy)
@@ -274,7 +273,7 @@ func (r *FileIntegrityReconciler) retrieveAndAnnotateAideConfig(conf *corev1.Con
 		return err
 	}
 
-	return r.updateAideConfig(cachedConf, cachedConf.Data[common.DefaultConfDataKey], node, true)
+	return r.updateAideConfig(cachedConf, cachedConf.Data[common.DefaultConfDataKey], node)
 }
 
 func (r *FileIntegrityReconciler) aideConfigIsDefault(instance *v1alpha1.FileIntegrity) (bool, error) {
@@ -303,7 +302,7 @@ func (r *FileIntegrityReconciler) reconcileUserConfig(instance *v1alpha1.FileInt
 		if !hasDefaultConfig {
 			// The configuration was previously replaced. We want to restore it now.
 			reqLogger.Info("Restoring the AIDE configuration defaults.")
-			if err := r.updateAideConfig(currentConfig, DefaultAideConfig, "", false); err != nil {
+			if err := r.updateAideConfig(currentConfig, DefaultAideConfig, ""); err != nil {
 				return false, err
 			}
 			return true, nil
@@ -351,7 +350,7 @@ func (r *FileIntegrityReconciler) reconcileUserConfig(instance *v1alpha1.FileInt
 		return false, nil
 	}
 
-	if err := r.updateAideConfig(currentConfig, preparedConf, "", false); err != nil {
+	if err := r.updateAideConfig(currentConfig, preparedConf, ""); err != nil {
 		return false, err
 	}
 
@@ -450,6 +449,10 @@ func (r *FileIntegrityReconciler) FileIntegrityControllerReconcile(request recon
 	nodesToReinit, forceReinit, reinitAll := common.HasReinitAnnotation(instance)
 	if forceReinit && !reinitAll {
 		nodeToReinit = nodesToReinit[0]
+	}
+
+	if hasNewConfig {
+		nodeToReinit = ""
 	}
 
 	if hasNewConfig || forceReinit {

@@ -93,9 +93,15 @@ func (r *ReconcileConfigMap) reconcileAideConfAndHandleReinitDs(instance *corev1
 	if !ok {
 		return reconcile.Result{}, nil
 	}
+
 	nodeList := strings.Split(nodeListString, ",")
-	// the last node in the list
 	nodeName := nodeList[len(nodeList)-1]
+
+	if nodeListString == "" {
+		// all nodes have been updated
+		nodeName = ""
+		nodeList = []string{}
+	}
 
 	ownerName, err := common.GetConfigMapOwnerName(instance)
 	if err != nil {
