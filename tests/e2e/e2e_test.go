@@ -149,6 +149,7 @@ func TestFileIntegrityInitialDelay(t *testing.T) {
 			t.Fatal(err)
 		}
 	}()
+	defer logContainerOutput(t, f, namespace, testName)
 
 	// We shouldn't get an ready daemonset until 180 seconds after we create the fileintegrity object
 	// The first waitForDaemonSetTimeout will wait for only 30 seconds, so we should get a timeout

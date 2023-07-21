@@ -119,6 +119,7 @@ CONTENT_EX = sha512+ftype+p+u+g+n+acl+selinux+xattrs
 !/hostroot/etc/kubernetes/static-pod-resources
 !/hostroot/etc/kubernetes/aide.*
 !/hostroot/etc/kubernetes/manifests
+!/hostroot/etc/kubernetes/kubelet-ca.crt
 !/hostroot/etc/docker/certs.d
 !/hostroot/etc/selinux/targeted
 !/hostroot/etc/openvswitch/conf.db
