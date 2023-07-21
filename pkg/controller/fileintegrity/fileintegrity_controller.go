@@ -183,7 +183,7 @@ func (r *FileIntegrityReconciler) narrowNodeSelector(instance *v1alpha1.FileInte
 // createReinitDaemonSet creates a re-init daemonSet. The daemonSet will be a single-node reinit if node is not "" (like
 // in the node update case), otherwise, it will apply to the whole node instance node group (like in the manual re-init
 // case).
-func (r *FileIntegrityReconciler) createReinitDaemonSet(instance *v1alpha1.FileIntegrity, node, operatorImage string) error {
+func (r *FileIntegrityReconciler) createReinitDaemonSet(instance *v1alpha1.FileIntegrity, node, operatorImage string) (errorMsg error, isCreated bool) {
 	daemonSet := &appsv1.DaemonSet{}
 	dsName := common.ReinitDaemonSetNodeName(instance.Name, node)
 	dsNamespace := common.FileIntegrityNamespace
@@ -191,39 +191,41 @@ func (r *FileIntegrityReconciler) createReinitDaemonSet(instance *v1alpha1.FileI
 	getErr := r.Client.Get(context.TODO(), types.NamespacedName{Name: dsName, Namespace: dsNamespace}, daemonSet)
 	if getErr == nil {
 		// Exists, so continue.
-		return nil
+		return nil, false
 	}
 	if !kerr.IsNotFound(getErr) {
-		return getErr
+		// Some other error, so return.
+		return getErr, false
 	}
 
 	reinitNode, tryNodeErr := r.tryGettingNode(node)
 	if tryNodeErr != nil && !kerr.IsNotFound(tryNodeErr) {
-		return tryNodeErr
+		return tryNodeErr, false
 	}
 	if kerr.IsNotFound(tryNodeErr) {
 		// We wanted a node, but it was not found. It might be scaled down. Return with no error so we don't continue with
 		// creating a re-init daemonSet.
-		return nil
+		return nil, false
 	}
 
 	// The reinit daemonset may need to apply to a single node only.
 	selectorOverride, narrowErr := r.narrowNodeSelector(instance, reinitNode)
 	if narrowErr != nil {
-		return narrowErr
+		return narrowErr, false
 	}
 
 	ds := reinitAideDaemonset(common.ReinitDaemonSetNodeName(instance.Name, node), instance, selectorOverride, operatorImage)
 	if err := controllerutil.SetControllerReference(instance, ds, r.Scheme); err != nil {
-		return err
+		return err, false
 	}
 
 	createErr := r.Client.Create(context.TODO(), ds)
-	if createErr == nil {
-		r.Metrics.IncFileIntegrityReinitDaemonsetUpdate()
+	if createErr != nil {
+		return createErr, false
 	}
 
-	return createErr
+	r.Metrics.IncFileIntegrityReinitDaemonsetUpdate()
+	return nil, true
 }
 
 // If node == "", return nil, nil, otherwise try to find a node with that name. Not found needs to be handled outside
@@ -451,29 +453,32 @@ func (r *FileIntegrityReconciler) FileIntegrityControllerReconcile(request recon
 		nodeToReinit = nodesToReinit[0]
 	}
 
+	// hasNewConfig indicates that we don't need to handle the reinit annotation
+	// because the reinit is triggered by the configuration change
 	if hasNewConfig {
 		nodeToReinit = ""
 	}
 
 	if hasNewConfig || forceReinit {
-		if err := r.createReinitDaemonSet(instance, nodeToReinit, operatorImage); err != nil {
+		err, isCreated := r.createReinitDaemonSet(instance, nodeToReinit, operatorImage)
+		if err != nil {
 			return reconcile.Result{}, err
 		}
-		if forceReinit {
-			reqLogger.Info("re-init daemonSet created, triggered by demand or nodes", "nodes", nodeToReinit)
-			r.Metrics.IncFileIntegrityReinitByDemand()
-		} else {
-			reqLogger.Info("re-init daemonSet created, triggered by configuration change")
-			r.Metrics.IncFileIntegrityReinitByConfig()
+		if isCreated {
+			// we don't create reinit daemonset if it already exists or the node is not found
+			if forceReinit {
+				reqLogger.Info("re-init daemonSet created, triggered by demand or nodes", "nodes", nodeToReinit)
+				r.Metrics.IncFileIntegrityReinitByDemand()
+			} else {
+				reqLogger.Info("re-init daemonSet created, triggered by configuration change")
+				r.Metrics.IncFileIntegrityReinitByConfig()
+			}
 		}
-	}
-
-	// Remove re-init annotation
-	if forceReinit {
 		reqLogger.Info("Annotating AIDE config to be updated.")
 		if err := r.retrieveAndAnnotateAideConfig(defaultAideConf, nodeToReinit); err != nil {
 			return reconcile.Result{}, err
 		}
+
 		fiCopy := instance.DeepCopy()
 		needChange := false
 		fiCopy.Annotations, needChange = common.GetRemovedNodeReinitAnnotation(fiCopy, nodeToReinit)
