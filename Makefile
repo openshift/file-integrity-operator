@@ -18,6 +18,12 @@ else
 RUNTIME_BUILD_CMD=build
 endif
 
+ifeq ($(RUNTIME),buildah)
+RUNTIME_PRUNE_CMD=prune --all --force
+else
+RUNTIME_PRUNE_CMD=system prune --all --force
+endif
+
 ifeq ($(RUNTIME), podman)
     LOGIN_PUSH_OPTS="--tls-verify=false"
 else ifeq ($(RUNTIME), docker)
@@ -188,6 +194,10 @@ clean-kustomize: ## Reset kustomize changes in the repo.
 .PHONY: clean-controller-gen
 clean-controller-gen: ## Remove the controller-gen build
 	rm -f $(CONTROLLER_GEN)
+
+.PHONY: clean-images
+clean-images: ## Remove all containers, images, pods and networks.
+	$(RUNTIME) $(RUNTIME_PRUNE_CMD)
 
 .PHONY: simplify
 simplify: ## Run go fmt -s against code.
