@@ -2,9 +2,11 @@ package configmap
 
 import (
 	"context"
-	controllerruntime "sigs.k8s.io/controller-runtime"
 	"strconv"
+	"strings"
 	"time"
+
+	controllerruntime "sigs.k8s.io/controller-runtime"
 
 	"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
 	"github.com/openshift/file-integrity-operator/pkg/controller/metrics"
@@ -16,7 +18,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -86,9 +90,18 @@ func (r *ReconcileConfigMap) ConfigMapReconcile(request reconcile.Request) (reco
 func (r *ReconcileConfigMap) reconcileAideConfAndHandleReinitDs(instance *corev1.ConfigMap,
 	logger logr.Logger) (reconcile.Result, error) {
 	// only continue if the configmap received an update through the user-provided config
-	nodeName, ok := instance.Annotations[common.AideConfigUpdatedAnnotationKey]
+	nodeListString, ok := instance.Annotations[common.AideConfigUpdatedAnnotationKey]
+
 	if !ok {
 		return reconcile.Result{}, nil
+	}
+
+	nodeName := ""
+	nodeList := []string{}
+
+	if nodeListString != "" {
+		nodeList = strings.Split(nodeListString, ",")
+		nodeName = nodeList[len(nodeList)-1]
 	}
 
 	ownerName, err := common.GetConfigMapOwnerName(instance)
@@ -109,8 +122,34 @@ func (r *ReconcileConfigMap) reconcileAideConfAndHandleReinitDs(instance *corev1
 	// handling the re-init daemonSets: these are created by the FileIntegrity controller when the AIDE config has been
 	// updated by the user. They touch a file on the node host and then sleep. The file signals to the AIDE pod
 	// daemonSets that they need to back up and re-initialize the AIDE database.
-	reinitDS := &appsv1.DaemonSet{}
 	reinitDSName := common.ReinitDaemonSetNodeName(integrityInstance.Name, nodeName)
+	if nodeName == "" {
+		// if there is all node reinit we need to remove any single node reinit daemonSets
+		// we can get list of DaemonSets with label selector
+		dsList := &appsv1.DaemonSetList{}
+		labelSelector := labels.SelectorFromSet(map[string]string{common.IntegrityReinitOwnerLabelKey: integrityInstance.Name})
+		listOps := &client.ListOptions{Namespace: instance.Namespace, LabelSelector: labelSelector}
+		err = r.Client.List(context.Background(), dsList, listOps)
+		if err != nil {
+			logger.Error(err, "error listing re-init daemonSets")
+			return reconcile.Result{}, err
+		}
+		for _, ds := range dsList.Items {
+			if ds.Name != reinitDSName {
+				// clean up any daemonSets that are not re-reinit all daemonSets
+				if deleteErr := r.Client.Delete(context.TODO(), &ds); deleteErr != nil {
+					if kerr.IsNotFound(deleteErr) {
+						continue
+					}
+					logger.Error(deleteErr, "error deleting re-init daemonSet", "ds.Name", ds.Name)
+					return reconcile.Result{}, deleteErr
+				}
+				r.Metrics.IncFileIntegrityReinitDaemonsetDelete()
+			}
+		}
+	}
+
+	reinitDS := &appsv1.DaemonSet{}
 	err = r.Client.Get(context.TODO(), types.NamespacedName{Name: reinitDSName,
 		Namespace: common.FileIntegrityNamespace}, reinitDS)
 	if err != nil && kerr.IsNotFound(err) {
@@ -133,7 +172,14 @@ func (r *ReconcileConfigMap) reconcileAideConfAndHandleReinitDs(instance *corev1
 	r.Metrics.IncFileIntegrityReinitDaemonsetDelete()
 	// unset update annotation
 	conf := instance.DeepCopy()
-	conf.Annotations = nil
+	// remove last node from annotation
+	if len(nodeList) > 1 {
+		nodeList = nodeList[:len(nodeList)-1]
+		conf.Annotations[common.AideConfigUpdatedAnnotationKey] = strings.Join(nodeList, ",")
+	} else {
+		// if there are no more nodes or just one left, remove the annotation
+		delete(conf.Annotations, common.AideConfigUpdatedAnnotationKey)
+	}
 	if updateErr := r.Client.Update(context.TODO(), conf); updateErr != nil {
 		logger.Error(updateErr, "error clearing configMap annotations")
 		return reconcile.Result{}, updateErr

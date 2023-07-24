@@ -3,6 +3,7 @@ package node
 import (
 	"context"
 	"fmt"
+
 	controllerruntime "sigs.k8s.io/controller-runtime"
 
 	"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
@@ -98,7 +99,7 @@ func (r *NodeReconciler) NodeControllerReconcile(request reconcile.Request) (rec
 			// MCO can't update a host, might as well not hold the integrity checks
 			relevantFIs := r.getAnnotatedFileIntegrities(fis, node)
 			err := r.removeHoldoffAnnotationAndReinitFileIntegrityDatabases(reqLogger, relevantFIs, node)
-			return reconcile.Result{}, err
+			return reconcile.Result{Requeue: true}, err
 		}
 	}
 
@@ -168,7 +169,7 @@ func (r *NodeReconciler) getAnnotatedFileIntegrities(fis []*v1alpha1.FileIntegri
 func (r *NodeReconciler) removeHoldoffAnnotationAndReinitFileIntegrityDatabases(logger logr.Logger, fis []*v1alpha1.FileIntegrity,
 	n *corev1.Node) error {
 	for _, fi := range fis {
-		// Only reinit for FIs that were previously in holdoff.
+		// Skip reinit for FIs that were not previously in holdoff.
 		if !common.IsNodeInHoldoff(fi, n.Name) {
 			continue
 		}
@@ -176,14 +177,18 @@ func (r *NodeReconciler) removeHoldoffAnnotationAndReinitFileIntegrityDatabases(
 		if common.IsNodeInReinit(fi, n.Name) {
 			continue
 		}
-		newHoldOffAnnotation, needsChange := common.GetRemovedNodeHoldoffAnnotation(fi, n.Name)
-		if !needsChange {
-			continue
+		needChange := false
+		newHoldOffAnnotation, hasChanged := common.GetRemovedNodeHoldoffAnnotation(fi, n.Name)
+		if hasChanged {
+			needChange = true
 		}
 		fi.Annotations = newHoldOffAnnotation
 		// Add the reinit annotation
-		newReinitAnnotation, needsChange := common.GetAddedNodeReinitAnnotation(fi, []string{n.Name})
-		if !needsChange {
+		newReinitAnnotation, hasChanged := common.GetAddedNodeReinitAnnotation(fi, []string{n.Name})
+		if hasChanged {
+			needChange = true
+		}
+		if !needChange {
 			continue
 		}
 		ficopy := fi.DeepCopy()

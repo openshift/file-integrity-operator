@@ -163,6 +163,18 @@ func reinitLoop(ctx context.Context, rt *daemonRuntime, conf *daemonConfig, errC
 func handleAIDEInit(ctx context.Context, rt *daemonRuntime, conf *daemonConfig, errChan chan<- error, isReinit bool) error {
 	rt.SetInitializing("handleAIDEInit", true)
 	defer rt.SetInitializing("handleAIDEInit", false)
+
+	// remove the reinit trigger file as soon as we start initialization
+	// so that we can take care of any future reinit triggers
+	if err := removeAideReinitFileIfExists(conf); err != nil {
+		logAndTryReportingDaemonError(ctx, rt, conf, "Error removing the re-initialization file: %v", err)
+		// What to clean up?  Probably same as above. Final initialization state is we have a freshly
+		// copied reading db.
+		// Might need to also clear out the reading db
+		errChan <- err
+		return err
+	}
+
 	rt.LockAideFiles("handleAIDEInit")
 	defer rt.UnlockAideFiles("handleAIDEInit")
 
@@ -202,14 +214,6 @@ func handleAIDEInit(ctx context.Context, rt *daemonRuntime, conf *daemonConfig, 
 		return err
 	}
 
-	if err := removeAideReinitFileIfExists(conf); err != nil {
-		logAndTryReportingDaemonError(ctx, rt, conf, "Error removing the re-initialization file: %v", err)
-		// What to clean up?  Probably same as above. Final initialization state is we have a freshly
-		// copied reading db.
-		// Might need to also clear out the reading db
-		errChan <- err
-		return err
-	}
 	LOG("initialization finished")
 	return nil
 }

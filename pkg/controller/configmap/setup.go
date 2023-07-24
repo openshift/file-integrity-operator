@@ -18,6 +18,7 @@ package configmap
 
 import (
 	"context"
+
 	"github.com/openshift/file-integrity-operator/pkg/controller/metrics"
 	v1 "k8s.io/api/core/v1"
 
