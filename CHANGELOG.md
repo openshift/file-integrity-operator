@@ -5,6 +5,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] - 2023-07-25
+### Changes
+- Move the sequence of reinit trigger removal
+- Clean up reinit logic
+- Fix reinit process on user during fio configuration update
+- Update e2e test config
+- Add clean-images command to purge build env
+- Bump golang.org/x/mod from 0.10.0 to 0.12.0
+- Bump github.com/coreos/ignition/v2 from 2.15.0 to 2.16.2
+- Fix reinit issues
+- Pin aide version to 0.16.0
+- Bump k8s.io/client-go from 0.27.2 to 0.27.3
+- Bump k8s.io/api from 0.27.2 to 0.27.3
+- Bump github.com/prometheus/client_golang from 1.15.1 to 1.16.0
+- Fix metric test logging
+
 ## [1.3.0] - 2023-06-08
 ### Changes
 - Bump github.com/onsi/gomega from 1.27.7 to 1.27.8
