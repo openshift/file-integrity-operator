@@ -49,6 +49,7 @@ CONTENT_EX = sha512+ftype+p+u+g+n+acl+selinux+xattrs
 !/hostroot/etc/kubernetes/cni/net.d
 !/hostroot/etc/kubernetes/cni/net.d/*
 !/hostroot/etc/machine-config-daemon/currentconfig$
+!/hostroot/etc/machine-config-daemon/node-annotation.json*
 !/hostroot/etc/pki/ca-trust/extracted/java/cacerts$
 !/hostroot/etc/cvo/updatepayloads
 
