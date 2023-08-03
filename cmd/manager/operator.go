@@ -281,10 +281,11 @@ func ensureMetricsServiceAndSecret(ctx context.Context, kClient *kubernetes.Clie
 }
 
 func defaultPrometheusRule(alertName, namespace string) *monitoring.PrometheusRule {
+	duration := monitoring.Duration("1s")
 	rule := monitoring.Rule{
 		Alert: "NodeHasIntegrityFailure",
 		Expr:  intstr.FromString(`file_integrity_operator_node_failed{node=~".+"} * on(node) kube_node_info > 0`),
-		For:   "1s",
+		For:   &duration,
 		Labels: map[string]string{
 			"severity":  "warning",
 			"namespace": namespace,
