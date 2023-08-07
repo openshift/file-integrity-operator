@@ -9,6 +9,11 @@ updates:
     - "qe-approved"
     - "px-approved"
     - "docs-approved"
+  groups:
+    kubernetes:
+      patterns:
+        - "k8s.io/*"
+        - "sigs.k8s.io/*"
   open-pull-requests-limit: 10
 - package-ecosystem: docker
   directory: "/"
