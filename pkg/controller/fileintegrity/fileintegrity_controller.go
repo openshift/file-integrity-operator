@@ -705,6 +705,7 @@ func reinitAideDaemonset(reinitDaemonSetName string, fi *v1alpha1.FileIntegrity,
 	priv := true
 	runAs := int64(0)
 	mode := int32(0744)
+	hostToContainer := corev1.MountPropagationHostToContainer
 
 	return &appsv1.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{
@@ -741,8 +742,9 @@ func reinitAideDaemonset(reinitDaemonSetName string, fi *v1alpha1.FileIntegrity,
 							Command: []string{common.AideScriptPath},
 							VolumeMounts: []corev1.VolumeMount{
 								{
-									Name:      "hostroot",
-									MountPath: "/hostroot",
+									Name:             "hostroot",
+									MountPath:        "/hostroot",
+									MountPropagation: &hostToContainer,
 								},
 								{
 									Name:      common.AideReinitScriptConfigMapName,
@@ -826,6 +828,8 @@ func reinitAideDaemonset(reinitDaemonSetName string, fi *v1alpha1.FileIntegrity,
 func aideDaemonset(dsName string, fi *v1alpha1.FileIntegrity, operatorImage string) *appsv1.DaemonSet {
 	priv := true
 	runAs := int64(0)
+	hostToContainer := corev1.MountPropagationHostToContainer
+
 	return &appsv1.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      dsName,
@@ -878,8 +882,9 @@ func aideDaemonset(dsName string, fi *v1alpha1.FileIntegrity, operatorImage stri
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{
-									Name:      "hostroot",
-									MountPath: "/hostroot",
+									Name:             "hostroot",
+									MountPath:        "/hostroot",
+									MountPropagation: &hostToContainer,
 								},
 								{
 									Name:      "config",
