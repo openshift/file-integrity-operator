@@ -37,10 +37,12 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	runtimeconfig "sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	monitoring "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	monclientv1 "github.com/prometheus-operator/prometheus-operator/pkg/client/versioned/typed/monitoring/v1"
@@ -117,10 +119,16 @@ func RunOperator(cmd *cobra.Command, args []string) {
 
 	log.Info("Registering Components.")
 
+	cacheConfig := make(map[string]cache.Config)
+	cacheConfig[namespace] = cache.Config{}
+	cacheOptions := cache.Options{DefaultNamespaces: cacheConfig}
+
+	metricsOptions := server.Options{BindAddress: fmt.Sprintf("%s:%d", metricsHost, metricsPort)}
+
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Namespace:              namespace,
+		Cache:                  cacheOptions,
 		Scheme:                 scheme,
-		MetricsBindAddress:     fmt.Sprintf("%s:%d", metricsHost, metricsPort),
+		Metrics:                metricsOptions,
 		HealthProbeBindAddress: ":8081",
 		LeaderElection:         true,
 		LeaderElectionID:       leaderElectionID,
