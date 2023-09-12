@@ -52,6 +52,6 @@ CONTENT_EX = sha512+ftype+p+u+g+n+acl+selinux+xattrs
 !/hostroot/etc/machine-config-daemon/node-annotation.json*
 !/hostroot/etc/pki/ca-trust/extracted/java/cacerts$
 !/hostroot/etc/cvo/updatepayloads
-
+!/hostroot/etc/cni/multus/net.d/*
 # Catch everything else in /etc
 /hostroot/etc/    CONTENT_EX`

@@ -130,6 +130,7 @@ CONTENT_EX = sha512+ftype+p+u+g+n+acl+selinux+xattrs
 !/hostroot/etc/machine-config-daemon/currentconfig$
 !/hostroot/etc/pki/ca-trust/extracted/java/cacerts$
 !/hostroot/etc/cvo/updatepayloads
+!/hostroot/etc/cni/multus/net.d/*
 
 # Catch everything else in /etc
 /hostroot/etc/    CONTENT_EX`
@@ -563,6 +564,38 @@ func setupTest(t *testing.T) (*framework.Framework, *framework.Context, string) 
 
 	setupFileIntegrityOperatorCluster(t, testctx)
 	return framework.Global, testctx, namespace
+}
+
+func setupTestForServiceMesh(t *testing.T) (*framework.Framework, *framework.Context, string) {
+	testctx := setupTestRequirements(t)
+	namespace, err := testctx.GetOperatorNamespace()
+	if err != nil {
+		t.Fatalf("could not get namespace: %v", err)
+	}
+	testctx.AddCleanupFn(cleanUp(t, namespace))
+
+	setupFileIntegrityOperatorCluster(t, testctx)
+	setupServiceMeshOperator(t, testctx)
+	return framework.Global, testctx, namespace
+}
+
+func setupServiceMeshOperator(t *testing.T, ctx *framework.Context) {
+	cleanupOptions := framework.CleanupOptions{
+		TestContext:   ctx,
+		Timeout:       cleanupTimeout,
+		RetryInterval: cleanupRetryInterval,
+	}
+	f := framework.Global
+	err := ctx.InitializeClusterResources(&cleanupOptions)
+	if err != nil {
+		t.Fatalf("Failed to initialize cluster resources for ServiceMeshOperator: %v", err)
+		return
+	}
+	// wait for ServiceMeshOperator to be ready state
+	err = e2eutil.WaitForOperatorDeployment(t, f.KubeClient, "openshift-operators", "istio-operator", 1, retryInterval, timeout)
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 // setupFileIntegrity creates the FileIntegrity instance with the default grace period.

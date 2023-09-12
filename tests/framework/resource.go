@@ -22,6 +22,18 @@ import (
 
 const maxExecutiveEmpties = 100
 
+var serviceMeshOperatorSubscription = `apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: servicemesh
+spec:
+  channel: stable
+  installPlanApproval: Automatic
+  name: servicemeshoperator
+  source: redhat-operators 
+  sourceNamespace: openshift-marketplace 
+`
+
 // Scanner scans a yaml manifest file for manifest tokens delimited by "---".
 // See bufio.Scanner for semantics.
 type Scanner struct {
@@ -215,4 +227,8 @@ func (ctx *Context) InitializeClusterResources(cleanupOptions *CleanupOptions) e
 		return fmt.Errorf("failed to read namespaced manifest: %w", err)
 	}
 	return ctx.createFromYAML(namespacedYAML, false, cleanupOptions)
+}
+
+func (ctx *Context) InitializeServiceMeshClusterResources(cleanupOptions *CleanupOptions) error {
+	return ctx.createFromYAML([]byte(serviceMeshOperatorSubscription), true, cleanupOptions)
 }
