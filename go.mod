@@ -28,7 +28,7 @@ require (
 	k8s.io/apiextensions-apiserver v0.28.2
 	k8s.io/apimachinery v0.28.2
 	k8s.io/client-go v0.28.2
-	sigs.k8s.io/controller-runtime v0.16.2
+	sigs.k8s.io/controller-runtime v0.16.1
 	sigs.k8s.io/controller-tools v0.13.0
 	sigs.k8s.io/yaml v1.3.0
 )
@@ -101,3 +101,9 @@ require (
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.3.0 // indirect
 )
+
+// This is a workaround for a package repository that disappeared. See
+// https://github.com/kubernetes/kubectl/issues/925 for more details and
+// https://github.com/openshift/cluster-kube-controller-manager-operator/pull/736
+// for some workarounds within other OpenShift projects.
+replace vbom.ml/util => github.com/fvbommel/util v0.0.0-20180919145318-efcd4e0f9787
