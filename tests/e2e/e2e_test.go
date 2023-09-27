@@ -982,17 +982,14 @@ func TestFileIntegrityCertRotation(t *testing.T) {
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
 	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
 
-	t.Log("Rotating kube-apiserver-to-kubelet-client-ca certificate")
-	rotateKubeAPIServerToKubeletClientCA(t, f, 2*time.Second, 10*time.Minute)
-
-	t.Log("Waiting for Nodes to start updating")
-	assertNodesUpdatingStarted(t, f, 2*time.Second, 10*time.Minute)
+	t.Log("Rotating cluster certificate")
+	assertClusterCertRotation(t, f, 2*time.Second, 15*time.Minute)
 
 	// Wait for nodes to be ready
 	if err = waitForNodesToBeReady(t, f); err != nil {
 		t.Errorf("Timeout waiting for nodes")
 	}
-	t.Log("Asserting that the FileIntegrity is in a SUCCESS state after rotating kube-apiserver-to-kubelet-client-ca certificate")
+	t.Log("Asserting that the FileIntegrity is in a SUCCESS state after rotating cluster certificate")
 	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
 
 }

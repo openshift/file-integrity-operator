@@ -22,8 +22,8 @@ import (
 	"github.com/openshift/file-integrity-operator/pkg/controller/metrics"
 	"github.com/pborman/uuid"
 
+	configv1 "github.com/openshift/api/config/v1"
 	v1 "k8s.io/api/rbac/v1"
-
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -40,10 +40,12 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 
 	"github.com/openshift/file-integrity-operator/pkg/common"
 )
@@ -132,6 +134,198 @@ CONTENT_EX = sha512+ftype+p+u+g+n+acl+selinux+xattrs
 # Catch everything else in /etc
 /hostroot/etc/    CONTENT_EX`
 
+var certRotationYaml = `kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name:  kubelet-bootstrap-cred-manager
+rules:
+  - verbs:
+      - get
+      - list
+      - watch
+    apiGroups:
+      - ''
+    resources:
+      - nodes
+      - secrets
+  - verbs:
+      - get
+      - list
+      - watch
+    apiGroups:
+      - machineconfiguration.openshift.io
+    resources:
+      - machineconfigs
+      - controllerconfigs
+  - verbs:
+      - get
+      - list
+      - watch
+    apiGroups:
+      - ''
+    resources:
+      - secrets
+    resourceNames:
+      - node-bootstrapper-token      
+  - verbs:
+      - get
+      - list
+      - watch
+    apiGroups:
+      - config.openshift.io
+    resources:
+      - infrastructures
+  - verbs:
+      - use
+    apiGroups:
+      - security.openshift.io
+    resources:
+      - securitycontextconstraints
+    resourceNames:
+      - privileged
+  - verbs:
+      - create
+    apiGroups:
+      - authentication.k8s.io
+    resources:
+      - tokenreviews
+      - subjectaccessreviews
+  - verbs:
+      - create
+    apiGroups:
+      - authorization.k8s.io
+    resources:
+      - subjectaccessreviews
+---
+kind: ServiceAccount
+apiVersion: v1
+metadata:
+  name: kubelet-bootstrap-cred-manager
+  namespace: openshift-machine-config-operator
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: kubelet-bootstrap-cred-manager
+subjects:
+  - kind: ServiceAccount
+    name: kubelet-bootstrap-cred-manager
+    namespace: openshift-machine-config-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kubelet-bootstrap-cred-manager
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: kubelet-bootstrap-cred-manager
+  namespace: openshift-machine-config-operator
+  labels:
+    k8s-app: kubelet-bootrap-cred-manager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      k8s-app: kubelet-bootstrap-cred-manager
+  template:
+    metadata:
+      labels:
+        k8s-app: kubelet-bootstrap-cred-manager
+    spec:
+      containers:
+      - name: kubelet-bootstrap-cred-manager
+        image: quay.io/openshift/origin-cli:v4.0
+        command: ['/bin/bash', '-ec']
+        args:
+          - |
+            #!/bin/bash
+
+            set -eoux pipefail
+
+            while true; do
+              unset KUBECONFIG
+
+              echo "---------------------------------"
+              echo "Gather info..."
+              echo "---------------------------------"
+              # context
+              intapi=$(oc get infrastructures.config.openshift.io cluster -o "jsonpath={.status.apiServerInternalURI}")
+              context="$(oc --config=/etc/kubernetes/kubeconfig config current-context)"
+              # cluster
+              cluster="$(oc --config=/etc/kubernetes/kubeconfig config view -o "jsonpath={.contexts[?(@.name==\"$context\")].context.cluster}")"
+              server="$(oc --config=/etc/kubernetes/kubeconfig config view -o "jsonpath={.clusters[?(@.name==\"$cluster\")].cluster.server}")"
+              # token
+              ca_crt_data="$(oc get secret -n openshift-machine-config-operator node-bootstrapper-token -o "jsonpath={.data.ca\.crt}" | base64 --decode)"
+              namespace="$(oc get secret -n openshift-machine-config-operator node-bootstrapper-token  -o "jsonpath={.data.namespace}" | base64 --decode)"
+              token="$(oc get secret -n openshift-machine-config-operator node-bootstrapper-token -o "jsonpath={.data.token}" | base64 --decode)"
+
+              echo "---------------------------------"
+              echo "Generate kubeconfig"
+              echo "---------------------------------"
+
+              export KUBECONFIG="$(mktemp)"
+              kubectl config set-credentials "kubelet" --token="$token" >/dev/null
+              ca_crt="$(mktemp)"; echo "$ca_crt_data" > $ca_crt
+              kubectl config set-cluster $cluster --server="$intapi" --certificate-authority="$ca_crt" --embed-certs >/dev/null
+              kubectl config set-context kubelet --cluster="$cluster" --user="kubelet" >/dev/null
+              kubectl config use-context kubelet >/dev/null
+
+              echo "---------------------------------"
+              echo "Print kubeconfig"
+              echo "---------------------------------"
+              cat "$KUBECONFIG"
+
+              echo "---------------------------------"
+              echo "Whoami?"
+              echo "---------------------------------"
+              oc whoami
+              whoami
+
+              echo "---------------------------------"
+              echo "Moving to real kubeconfig"
+              echo "---------------------------------"
+              cp /etc/kubernetes/kubeconfig /etc/kubernetes/kubeconfig.prev
+              chown root:root ${KUBECONFIG}
+              chmod 0644 ${KUBECONFIG}
+              mv "${KUBECONFIG}" /etc/kubernetes/kubeconfig
+
+              echo "---------------------------------"
+              echo "Sleep 60 seconds..."
+              echo "---------------------------------"
+              sleep 60
+            done
+        securityContext:
+          privileged: true
+          runAsUser: 0
+        volumeMounts:
+          - mountPath: /etc/kubernetes/
+            name: kubelet-dir
+      nodeSelector:
+        node-role.kubernetes.io/master: ""
+      priorityClassName: "system-cluster-critical"
+      serviceAccount:  kubelet-bootstrap-cred-manager
+      restartPolicy: Always
+      securityContext:
+        runAsUser: 0
+      tolerations:
+      - key: "node-role.kubernetes.io/master"
+        operator: "Exists"
+        effect: "NoSchedule"
+      - key: "node.kubernetes.io/unreachable"
+        operator: "Exists"
+        effect: "NoExecute"
+        tolerationSeconds: 120
+      - key: "node.kubernetes.io/not-ready"
+        operator: "Exists"
+        effect: "NoExecute"
+        tolerationSeconds: 120
+      volumes:
+        - hostPath:
+            path: /etc/kubernetes/
+            type: Directory
+          name: kubelet-dir
+`
 var brokenAideConfig = testAideConfig + "\n" + "NORMAL = p+i+n+u+g+s+m+c+acl+selinux+xattrs+sha513+md5+XXXXXX"
 
 func newTestFileIntegrity(name, ns string, nodeSelector map[string]string, grace int, debug bool, initialDelay int) *v1alpha1.FileIntegrity {
@@ -232,6 +426,13 @@ func setupTestRequirements(t *testing.T) *framework.Context {
 	}
 
 	err = framework.AddToFrameworkScheme(v1alpha1.AddToScheme, nodeStatus)
+	if err != nil {
+		t.Fatalf("TEST SETUP: failed to add custom resource scheme to framework: %v", err)
+	}
+
+	clusterOperator := &configv1.ClusterOperatorList{}
+
+	err = framework.AddToFrameworkScheme(configv1.AddToScheme, clusterOperator)
 	if err != nil {
 		t.Fatalf("TEST SETUP: failed to add custom resource scheme to framework: %v", err)
 	}
@@ -700,15 +901,15 @@ func setupTolerationTest(t *testing.T, integrityName string) (*framework.Framewo
 		Effect: corev1.TaintEffectNoSchedule,
 	}
 
+	if err := taintNode(t, f, taintedNode, taint); err != nil {
+		t.Fatalf("Tainting node failed: %v", err)
+	}
+
 	testctx.AddCleanupFn(func() error {
 		return removeNodeTaint(t, f, taintedNode.Name, taintKey)
 	})
 	testctx.AddCleanupFn(cleanUp(t, namespace))
 	setupFileIntegrityOperatorCluster(t, testctx)
-
-	if err := taintNode(t, f, taintedNode, taint); err != nil {
-		t.Fatal("Tainting node failed")
-	}
 
 	t.Log("Creating FileIntegrity object for Toleration tests")
 	testIntegrityCheck := &v1alpha1.FileIntegrity{
@@ -1024,27 +1225,101 @@ func assertNodeOKStatusEvents(t *testing.T, f *framework.Framework, namespace st
 	}
 }
 
-func rotateKubeAPIServerToKubeletClientCA(t *testing.T, f *framework.Framework, interval, timeout time.Duration) {
-	// do the rotation
-	// oc patch secret -p='{"metadata": {"annotations": {"auth.openshift.io/certificate-not-after": null}}}' kube-apiserver-to-kubelet-signer -n openshift-kube-apiserver-operator
-	secret := &corev1.Secret{}
-	err := f.Client.Get(goctx.TODO(), types.NamespacedName{
-		Name:      "kube-apiserver-to-kubelet-signer",
-		Namespace: "openshift-kube-apiserver-operator",
-	}, secret)
+func createFromYAML(t *testing.T, f *framework.Framework, yamlFile []byte, cleanup *framework.CleanupOptions) error {
+	scanner := framework.NewYAMLScanner(bytes.NewBuffer(yamlFile))
+	for scanner.Scan() {
+		yamlSpec := scanner.Bytes()
+
+		obj := &unstructured.Unstructured{}
+		jsonSpec, err := yaml.YAMLToJSON(yamlSpec)
+		if err != nil {
+			return fmt.Errorf("could not convert yaml file to json: %w", err)
+		}
+		if err := obj.UnmarshalJSON(jsonSpec); err != nil {
+			return fmt.Errorf("failed to unmarshal object spec: %w", err)
+		}
+		err = f.Client.Create(goctx.TODO(), obj, cleanup)
+
+		if err != nil {
+			if kerr.IsAlreadyExists(err) {
+				continue
+			}
+			return fmt.Errorf("failed to create object: %w", err)
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("failed to scan manifest: %w", err)
+	}
+	return nil
+}
+
+// a official way to force cluster cert rotation
+// See details in https://github.com/crc-org/snc/pull/124
+func assertClusterCertRotation(t *testing.T, f *framework.Framework, interval, timeout time.Duration) {
+	// apply certRotationYaml
+	err := createFromYAML(t, f, []byte(certRotationYaml), nil)
 	if err != nil {
-		t.Error("Failed to get secret for kube-apiserver-to-kubelet-signer, err: ", err)
+		t.Error(err)
 		return
 	}
-	if secret.Annotations == nil {
-		secret.Annotations = map[string]string{}
-	}
-	secret.Annotations[certRotationAnnotationKey] = ""
-	err = f.Client.Update(goctx.TODO(), secret)
+	// wait for cert rotation daemonset to be ready
+	err = waitForDaemonSet(daemonSetIsReady(f.KubeClient, "kubelet-bootstrap-cred-manager", "openshift-machine-config-operator"))
 	if err != nil {
-		t.Error("Failed to update secret for kube-apiserver-to-kubelet-signer, err: ", err)
+		t.Errorf("Timed out waiting for DaemonSet kubelet-bootstrap-cred-manager")
+	}
+
+	// Delete the secrets csr-signer-signer and csr-signer from the openshift-kube-controller-manager-operator namespace
+	err = f.Client.Delete(goctx.TODO(), &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "csr-signer-signer",
+			Namespace: "openshift-kube-controller-manager-operator",
+		},
+	})
+	if err != nil {
+		t.Errorf("Error deleting secret csr-signer-signer: %v", err)
 		return
 	}
+	err = f.Client.Delete(goctx.TODO(), &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "csr-signer",
+			Namespace: "openshift-kube-controller-manager-operator",
+		},
+	})
+	if err != nil {
+		t.Errorf("Error deleting secret csr-signer: %v", err)
+		return
+	}
+	// wait for kube-apiserver cluster operator to be available
+	err = waitForClusterOperatorStatus(t, f, "kube-apiserver", configv1.OperatorAvailable, interval, timeout)
+	if err != nil {
+		t.Errorf("Timed out waiting for clusteroperator kube-apiserver to be available")
+	}
+
+}
+
+func waitForClusterOperatorStatus(t *testing.T, f *framework.Framework, operatorName string, status configv1.ClusterStatusConditionType, interval, timeout time.Duration) error {
+	var lastErr error
+	pollErr := wait.PollImmediate(interval, timeout, func() (bool, error) {
+		clusterOperator := &configv1.ClusterOperator{}
+		err := f.Client.Get(goctx.TODO(), types.NamespacedName{Name: operatorName}, clusterOperator)
+		if err != nil {
+			lastErr = err
+			return false, nil
+		}
+		// look for Available condition and check if it's true
+		for _, condition := range clusterOperator.Status.Conditions {
+			if condition.Type == status && condition.Status == configv1.ConditionTrue {
+				return true, nil
+			}
+		}
+		return false, nil
+	})
+	if pollErr != nil {
+		t.Errorf("Error waiting for clusteroperator %s to be available: (%s) (%s)", operatorName, pollErr, lastErr)
+		return pollErr
+	}
+	return nil
 }
 
 func assertNodesUpdatingStarted(t *testing.T, f *framework.Framework, interval, timeout time.Duration) {
@@ -1755,38 +2030,45 @@ func waitUntilPodsAreGone(t *testing.T, c client.Client, pods *corev1.PodList, i
 }
 
 func taintNode(t *testing.T, f *framework.Framework, node *corev1.Node, taint corev1.Taint) error {
-	taintedNode := node.DeepCopy()
-	if taintedNode.Spec.Taints == nil {
-		taintedNode.Spec.Taints = []corev1.Taint{}
-	}
-	taintedNode.Spec.Taints = append(taintedNode.Spec.Taints, taint)
-	t.Logf("Tainting node: %s", taintedNode.Name)
-
 	return retryDefault(
 		func() error {
+			// taint with retry
+			// let's fetch the latest node object first
+			fetchedNode := &corev1.Node{}
+			nodeKey := types.NamespacedName{Name: node.Name}
+			if err := f.Client.Get(goctx.TODO(), nodeKey, fetchedNode); err != nil {
+				t.Logf("Couldn't get node: %s", node.Name)
+				return err
+			}
+			taintedNode := fetchedNode.DeepCopy()
+			if taintedNode.Spec.Taints == nil {
+				taintedNode.Spec.Taints = []corev1.Taint{}
+			}
+			taintedNode.Spec.Taints = append(taintedNode.Spec.Taints, taint)
+			t.Logf("Tainting node: %s", taintedNode.Name)
 			return f.Client.Update(goctx.TODO(), taintedNode)
 		},
 	)
 }
 
 func removeNodeTaint(t *testing.T, f *framework.Framework, nodeName, taintKey string) error {
-	taintedNode := &corev1.Node{}
-	nodeKey := types.NamespacedName{Name: nodeName}
-	if err := f.Client.Get(goctx.TODO(), nodeKey, taintedNode); err != nil {
-		t.Logf("Couldn't get node: %s", nodeName)
-		return err
-	}
-	untaintedNode := taintedNode.DeepCopy()
-	untaintedNode.Spec.Taints = []corev1.Taint{}
-	for _, taint := range taintedNode.Spec.Taints {
-		if taint.Key != taintKey {
-			untaintedNode.Spec.Taints = append(untaintedNode.Spec.Taints, taint)
-		}
-	}
 
-	t.Logf("Removing taint from node: %s", nodeName)
 	return retryDefault(
 		func() error {
+			taintedNode := &corev1.Node{}
+			nodeKey := types.NamespacedName{Name: nodeName}
+			if err := f.Client.Get(goctx.TODO(), nodeKey, taintedNode); err != nil {
+				t.Logf("Couldn't get node: %s", nodeName)
+				return err
+			}
+			untaintedNode := taintedNode.DeepCopy()
+			untaintedNode.Spec.Taints = []corev1.Taint{}
+			for _, taint := range taintedNode.Spec.Taints {
+				if taint.Key != taintKey {
+					untaintedNode.Spec.Taints = append(untaintedNode.Spec.Taints, taint)
+				}
+			}
+			t.Logf("Removing taint from node: %s", nodeName)
 			return f.Client.Update(goctx.TODO(), untaintedNode)
 		},
 	)
