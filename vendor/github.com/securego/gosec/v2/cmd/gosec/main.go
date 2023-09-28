@@ -143,7 +143,10 @@ var (
 	// output suppression information for auditing purposes
 	flagTrackSuppressions = flag.Bool("track-suppressions", false, "Output suppression information, including its kind and justification")
 
-	// exlude the folders from scan
+	// flagTerse shows only the summary of scan discarding all the logs
+	flagTerse = flag.Bool("terse", false, "Shows only the results and summary")
+
+	// exclude the folders from scan
 	flagDirsExclude arrayFlags
 
 	logger *log.Logger
@@ -354,7 +357,7 @@ func main() {
 		}
 	}
 
-	if *flagQuiet {
+	if *flagQuiet || *flagTerse {
 		logger = log.New(io.Discard, "", 0)
 	} else {
 		logger = log.New(logWriter, "[gosec] ", log.LstdFlags)
