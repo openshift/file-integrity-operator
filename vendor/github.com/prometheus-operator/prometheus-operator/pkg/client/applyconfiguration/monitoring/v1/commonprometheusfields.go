@@ -83,6 +83,7 @@ type CommonPrometheusFieldsApplyConfiguration struct {
 	EnforcedLabelLimit              *uint64                                              `json:"enforcedLabelLimit,omitempty"`
 	EnforcedLabelNameLengthLimit    *uint64                                              `json:"enforcedLabelNameLengthLimit,omitempty"`
 	EnforcedLabelValueLengthLimit   *uint64                                              `json:"enforcedLabelValueLengthLimit,omitempty"`
+	EnforcedKeepDroppedTargets      *uint64                                              `json:"enforcedKeepDroppedTargets,omitempty"`
 	EnforcedBodySizeLimit           *monitoringv1.ByteSize                               `json:"enforcedBodySizeLimit,omitempty"`
 	MinReadySeconds                 *uint32                                              `json:"minReadySeconds,omitempty"`
 	HostAliases                     []HostAliasApplyConfiguration                        `json:"hostAliases,omitempty"`
@@ -91,6 +92,14 @@ type CommonPrometheusFieldsApplyConfiguration struct {
 	ExcludedFromEnforcement         []ObjectReferenceApplyConfiguration                  `json:"excludedFromEnforcement,omitempty"`
 	HostNetwork                     *bool                                                `json:"hostNetwork,omitempty"`
 	PodTargetLabels                 []string                                             `json:"podTargetLabels,omitempty"`
+	TracingConfig                   *PrometheusTracingConfigApplyConfiguration           `json:"tracingConfig,omitempty"`
+	BodySizeLimit                   *monitoringv1.ByteSize                               `json:"bodySizeLimit,omitempty"`
+	SampleLimit                     *uint64                                              `json:"sampleLimit,omitempty"`
+	TargetLimit                     *uint64                                              `json:"targetLimit,omitempty"`
+	LabelLimit                      *uint64                                              `json:"labelLimit,omitempty"`
+	LabelNameLengthLimit            *uint64                                              `json:"labelNameLengthLimit,omitempty"`
+	LabelValueLengthLimit           *uint64                                              `json:"labelValueLengthLimit,omitempty"`
+	KeepDroppedTargets              *uint64                                              `json:"keepDroppedTargets,omitempty"`
 }
 
 // CommonPrometheusFieldsApplyConfiguration constructs an declarative configuration of the CommonPrometheusFields type for use with
@@ -600,6 +609,14 @@ func (b *CommonPrometheusFieldsApplyConfiguration) WithEnforcedLabelValueLengthL
 	return b
 }
 
+// WithEnforcedKeepDroppedTargets sets the EnforcedKeepDroppedTargets field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the EnforcedKeepDroppedTargets field is set to the value of the last call.
+func (b *CommonPrometheusFieldsApplyConfiguration) WithEnforcedKeepDroppedTargets(value uint64) *CommonPrometheusFieldsApplyConfiguration {
+	b.EnforcedKeepDroppedTargets = &value
+	return b
+}
+
 // WithEnforcedBodySizeLimit sets the EnforcedBodySizeLimit field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the EnforcedBodySizeLimit field is set to the value of the last call.
@@ -678,5 +695,69 @@ func (b *CommonPrometheusFieldsApplyConfiguration) WithPodTargetLabels(values ..
 	for i := range values {
 		b.PodTargetLabels = append(b.PodTargetLabels, values[i])
 	}
+	return b
+}
+
+// WithTracingConfig sets the TracingConfig field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the TracingConfig field is set to the value of the last call.
+func (b *CommonPrometheusFieldsApplyConfiguration) WithTracingConfig(value *PrometheusTracingConfigApplyConfiguration) *CommonPrometheusFieldsApplyConfiguration {
+	b.TracingConfig = value
+	return b
+}
+
+// WithBodySizeLimit sets the BodySizeLimit field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the BodySizeLimit field is set to the value of the last call.
+func (b *CommonPrometheusFieldsApplyConfiguration) WithBodySizeLimit(value monitoringv1.ByteSize) *CommonPrometheusFieldsApplyConfiguration {
+	b.BodySizeLimit = &value
+	return b
+}
+
+// WithSampleLimit sets the SampleLimit field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the SampleLimit field is set to the value of the last call.
+func (b *CommonPrometheusFieldsApplyConfiguration) WithSampleLimit(value uint64) *CommonPrometheusFieldsApplyConfiguration {
+	b.SampleLimit = &value
+	return b
+}
+
+// WithTargetLimit sets the TargetLimit field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the TargetLimit field is set to the value of the last call.
+func (b *CommonPrometheusFieldsApplyConfiguration) WithTargetLimit(value uint64) *CommonPrometheusFieldsApplyConfiguration {
+	b.TargetLimit = &value
+	return b
+}
+
+// WithLabelLimit sets the LabelLimit field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the LabelLimit field is set to the value of the last call.
+func (b *CommonPrometheusFieldsApplyConfiguration) WithLabelLimit(value uint64) *CommonPrometheusFieldsApplyConfiguration {
+	b.LabelLimit = &value
+	return b
+}
+
+// WithLabelNameLengthLimit sets the LabelNameLengthLimit field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the LabelNameLengthLimit field is set to the value of the last call.
+func (b *CommonPrometheusFieldsApplyConfiguration) WithLabelNameLengthLimit(value uint64) *CommonPrometheusFieldsApplyConfiguration {
+	b.LabelNameLengthLimit = &value
+	return b
+}
+
+// WithLabelValueLengthLimit sets the LabelValueLengthLimit field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the LabelValueLengthLimit field is set to the value of the last call.
+func (b *CommonPrometheusFieldsApplyConfiguration) WithLabelValueLengthLimit(value uint64) *CommonPrometheusFieldsApplyConfiguration {
+	b.LabelValueLengthLimit = &value
+	return b
+}
+
+// WithKeepDroppedTargets sets the KeepDroppedTargets field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the KeepDroppedTargets field is set to the value of the last call.
+func (b *CommonPrometheusFieldsApplyConfiguration) WithKeepDroppedTargets(value uint64) *CommonPrometheusFieldsApplyConfiguration {
+	b.KeepDroppedTargets = &value
 	return b
 }
