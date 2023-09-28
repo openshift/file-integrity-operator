@@ -37,10 +37,12 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	runtimeconfig "sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	monitoring "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	monclientv1 "github.com/prometheus-operator/prometheus-operator/pkg/client/versioned/typed/monitoring/v1"
@@ -117,10 +119,11 @@ func RunOperator(cmd *cobra.Command, args []string) {
 
 	log.Info("Registering Components.")
 
+	c := cache.Options{DefaultNamespaces: map[string]cache.Config{namespace: {}}}
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Namespace:              namespace,
+		Cache:                  c,
 		Scheme:                 scheme,
-		MetricsBindAddress:     fmt.Sprintf("%s:%d", metricsHost, metricsPort),
+		Metrics:                metricsserver.Options{BindAddress: fmt.Sprintf("%s:%d", metricsHost, metricsPort)},
 		HealthProbeBindAddress: ":8081",
 		LeaderElection:         true,
 		LeaderElectionID:       leaderElectionID,
@@ -281,10 +284,11 @@ func ensureMetricsServiceAndSecret(ctx context.Context, kClient *kubernetes.Clie
 }
 
 func defaultPrometheusRule(alertName, namespace string) *monitoring.PrometheusRule {
+	duration := monitoring.Duration("1s")
 	rule := monitoring.Rule{
 		Alert: "NodeHasIntegrityFailure",
 		Expr:  intstr.FromString(`file_integrity_operator_node_failed{node=~".+"} * on(node) kube_node_info > 0`),
-		For:   "1s",
+		For:   &duration,
 		Labels: map[string]string{
 			"severity":  "warning",
 			"namespace": namespace,
