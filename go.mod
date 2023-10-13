@@ -18,12 +18,12 @@ require (
 	github.com/prometheus-operator/prometheus-operator/pkg/client v0.68.0
 	github.com/prometheus/client_golang v1.17.0
 	github.com/prometheus/client_model v0.5.0
-	github.com/securego/gosec/v2 v2.18.0
+	github.com/securego/gosec/v2 v2.18.1
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.7.0
 	github.com/stretchr/testify v1.8.4
 	golang.org/x/mod v0.13.0
-	golang.org/x/net v0.16.0
+	golang.org/x/net v0.17.0
 	k8s.io/api v0.28.2
 	k8s.io/apiextensions-apiserver v0.28.2
 	k8s.io/apimachinery v0.28.2
