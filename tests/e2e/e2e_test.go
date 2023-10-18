@@ -134,6 +134,37 @@ func TestFileIntegrityLogAndReinitDatabase(t *testing.T) {
 	}
 }
 
+func TestMetricsHTTPVersion(t *testing.T) {
+	f, testctx, namespace := setupTest(t)
+	testName := testIntegrityNamePrefix + "-metrics-http-version"
+	setupFileIntegrity(t, f, testctx, testName, namespace, nodeWorkerRoleLabelKey, defaultTestGracePeriod)
+	defer testctx.Cleanup()
+	defer func() {
+		if err := cleanNodes(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+		if err := resetBundleTestMetrics(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+	}()
+	defer logContainerOutput(t, f, namespace, testName)
+
+	t.Log("Asserting metrics endpoints use HTTP/1.1")
+	metricsEndpoints := []string{
+		fmt.Sprintf("https://metrics.%s.svc:8585/metrics-fio", namespace),
+		fmt.Sprintf("http://metrics.%s.svc:8383/metrics", namespace),
+	}
+
+	expectedHTTPVersion := "HTTP/1.1"
+	for _, endpoint := range metricsEndpoints {
+		err := AssertMetricsEndpointUsesHTTPVersion(t, endpoint, expectedHTTPVersion, namespace)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Log("Metrics endpoints use HTTP/1.1, as expected")
+}
+
 func TestFileIntegrityInitialDelay(t *testing.T) {
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-initialdelay"
