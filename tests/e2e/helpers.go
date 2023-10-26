@@ -2198,6 +2198,20 @@ func runOCandGetOutput(t *testing.T, arg []string) string {
 	return string(out)
 }
 
+func AssertMetricsEndpointUsesHTTPVersion(t *testing.T, endpoint, version, namespace string) error {
+	curlCMD := "curl -i -ks -H \"Authorization: Bearer `cat /var/run/secrets/kubernetes.io/serviceaccount/token`\" " + endpoint
+	// We're just under test.
+	// G204 (CWE-78): Subprocess launched with variable (Confidence: HIGH, Severity: MEDIUM)
+	// #nosec
+	out := runOCandGetOutput(t, []string{"run", "--rm", "-i", "--restart=Never", "--image=registry.fedoraproject.org/fedora-minimal:latest",
+		"-n", namespace, "metrics-test", "--", "bash", "-c", curlCMD})
+
+	if !strings.Contains(string(out), version) {
+		return fmt.Errorf("metric endpoint is not using %s, got %s", version, out)
+	}
+	return nil
+}
+
 func assertMetric(t *testing.T, content, metric string, expected int) error {
 	if val := parseMetric(t, content, metric); val != expected {
 		return errors.New(fmt.Sprintf("expected %v for counter %s, got %v", expected, metric, val))

@@ -189,6 +189,7 @@ func (m *Metrics) Start(ctx context.Context) error {
 
 	tlsConfig := &tls.Config{
 		MinVersion: tls.VersionTLS12,
+		NextProtos: []string{"http/1.1"},
 	}
 	tlsConfig = libgocrypto.SecureTLSConfig(tlsConfig)
 	server := &http.Server{
