@@ -310,7 +310,7 @@ all: images
 images: image bundle-image  ## Build operator and bundle images.
 
 build: generate ## Build the operator binary.
-	$(GO) build -o $(TARGET_OPERATOR) $(MAIN_PKG)
+	$(GO) build -o $(TARGET_OPERATOR) $(BUILD_FLAGS) $(MAIN_PKG)
 
 image: test-unit clean-controller-gen ## Build the operator image.
 	$(RUNTIME) $(RUNTIME_BUILD_CMD) $(RUNTIME_BUILD_OPTS) -f build/Dockerfile -t ${IMG} .
