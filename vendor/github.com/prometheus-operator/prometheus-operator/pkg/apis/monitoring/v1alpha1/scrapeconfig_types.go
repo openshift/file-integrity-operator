@@ -34,6 +34,25 @@ type Target string
 // +kubebuilder:validation:Pattern=`^[^*]*(\*[^/]*)?\.(json|yml|yaml|JSON|YML|YAML)$`
 type SDFile string
 
+// EC2Filter is the configuration for filtering EC2 instances.
+type EC2Filter struct {
+	Name   string   `json:"name"`
+	Values []string `json:"values"`
+}
+
+// K8SRole is role of the service in Kubernetes.
+// Currently the only supported role is "Node".
+// +kubebuilder:validation:Enum=Node;node
+type K8SRole string
+
+// K8SSelectorConfig is Kubernetes Selector Config
+type K8SSelectorConfig struct {
+	// +kubebuilder:validation:Required
+	Role  K8SRole `json:"role"`
+	Label string  `json:"label,omitempty"`
+	Field string  `json:"field,omitempty"`
+}
+
 // +genclient
 // +k8s:openapi-gen=true
 // +kubebuilder:resource:categories="prometheus-operator",shortName="scfg"
@@ -90,6 +109,9 @@ type ScrapeConfigSpec struct {
 	//DNSSDConfigs defines a list of DNS service discovery configurations.
 	// +optional
 	DNSSDConfigs []DNSSDConfig `json:"dnsSDConfigs,omitempty"`
+	// EC2SDConfigs defines a list of EC2 service discovery configurations.
+	// +optional
+	EC2SDConfigs []EC2SDConfig `json:"ec2SDConfigs,omitempty"`
 	// RelabelConfigs defines how to rewrite the target's labels before scraping.
 	// Prometheus Operator automatically adds relabelings for a few standard Kubernetes fields.
 	// The original scrape job's name is available via the `__tmp_prometheus_job_name` label.
@@ -216,10 +238,13 @@ type HTTPSDConfig struct {
 // +k8s:openapi-gen=true
 type KubernetesSDConfig struct {
 	// Role of the Kubernetes entities that should be discovered.
-	// Currently the only supported role is "Node".
-	// +kubebuilder:validation:Enum=Node
 	// +required
-	Role string `json:"role"`
+	Role K8SRole `json:"role"`
+	// Selector to select objects.
+	// +optional
+	// +listType=map
+	// +listMapKey=role
+	Selectors []K8SSelectorConfig `json:"selectors,omitempty"`
 }
 
 // ConsulSDConfig defines a Consul service discovery configuration
@@ -331,4 +356,37 @@ type DNSSDConfig struct {
 	// Ignored for SRV records
 	// +optional
 	Port *int `json:"port"`
+}
+
+// EC2SDConfig allow retrieving scrape targets from AWS EC2 instances.
+// The private IP address is used by default, but may be changed to the public IP address with relabeling.
+// The IAM credentials used must have the ec2:DescribeInstances permission to discover scrape targets
+// See https://prometheus.io/docs/prometheus/latest/configuration/configuration/#ec2_sd_config
+// +k8s:openapi-gen=true
+type EC2SDConfig struct {
+	// The AWS region
+	// +optional
+	Region *string `json:"region"`
+	// AccessKey is the AWS API key.
+	// +optional
+	AccessKey *corev1.SecretKeySelector `json:"accessKey,omitempty"`
+	// SecretKey is the AWS API secret.
+	// +optional
+	SecretKey *corev1.SecretKeySelector `json:"secretKey,omitempty"`
+	// AWS Role ARN, an alternative to using AWS API keys.
+	// +optional
+	RoleARN *string `json:"roleARN,omitempty"`
+	// RefreshInterval configures the refresh interval at which Prometheus will re-read the instance list.
+	// +optional
+	RefreshInterval *v1.Duration `json:"refreshInterval,omitempty"`
+	// The port to scrape metrics from. If using the public IP address, this must
+	// instead be specified in the relabeling rule.
+	// +optional
+	Port *int `json:"port"`
+	// Filters can be used optionally to filter the instance list by other criteria.
+	// Available filter criteria can be found here:
+	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstances.html
+	// Filter API documentation: https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_Filter.html
+	// +optional
+	Filters []*EC2Filter `json:"filters"`
 }
