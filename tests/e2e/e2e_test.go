@@ -165,6 +165,31 @@ func TestMetricsHTTPVersion(t *testing.T) {
 	t.Log("Metrics endpoints use HTTP/1.1, as expected")
 }
 
+func TestFileIntegrityServiceMeshOperator(t *testing.T) {
+	f, testctx, namespace := setupTestForServiceMesh(t)
+	testName := testIntegrityNamePrefix + "-servicemesh"
+	setupFileIntegrity(t, f, testctx, testName, namespace, nodeWorkerRoleLabelKey, defaultTestGracePeriod)
+	defer testctx.Cleanup()
+	defer func() {
+		if err := cleanNodes(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+		if err := resetBundleTestMetrics(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+	}()
+	defer logContainerOutput(t, f, namespace, testName)
+
+	// wait to go active.
+	err := waitForScanStatus(t, f, namespace, testName, v1alpha1.PhaseActive)
+	if err != nil {
+		t.Errorf("Timeout waiting for scan status")
+	}
+
+	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
+}
+
 func TestFileIntegrityInitialDelay(t *testing.T) {
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-initialdelay"
