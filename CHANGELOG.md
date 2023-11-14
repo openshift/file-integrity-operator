@@ -5,6 +5,47 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.3] - 2023-10-16
+### Changes
+- Release v1.3.3
+- Add Bhargavi as reviewer
+- Bump golang.org/x/net from 0.16.0 to 0.17.0
+- Bump github.com/securego/gosec/v2 from 2.17.0 to 2.18.0
+- Bump golang.org/x/net from 0.15.0 to 0.16.0
+- Bump golang.org/x/mod from 0.12.0 to 0.13.0
+- Bump github.com/prometheus/client_model
+- Bump the kubernetes group with 3 updates
+- Bump github.com/onsi/gomega from 1.27.10 to 1.28.0
+- Fix backwards incompatible changes nessary for 0.68.0
+- Bump github.com/prometheus-operator/prometheus-operator/pkg/client
+- Bump k8s.io/client-go from 0.27.3 to 0.28.2
+- Bump golang.org/x/net from 0.12.0 to 0.15.0
+- Bump github.com/prometheus/client_golang from 1.16.0 to 1.17.0
+- Bump github.com/securego/gosec/v2 from 2.16.0 to 2.17.0
+- tests: Set logger to an empty sink in tests
+- Fix TestFileIntegrityCertRotation e2e test
+- OCPBUGS-14947: Fix hostmount propagation
+- Add Yuuma to owners file
+- dependabot: Use dependabot groups to group k8s updates together
+- Add Marina to reviewers for PX approval
+- OCPBUGS-15090 remove leftover nodestatus
+- OCPBUGS-17129: Ignore MCO node annotation files
+- Bump github.com/onsi/gomega from 1.27.8 to 1.27.10
+- Move the sequence of reinit trigger removal
+- Clean up reinit logic
+- Fix reinit process on user during fio configuration update
+- Update e2e test config
+- Bump k8s.io/api from 0.27.3 to 0.27.4
+- Add clean-images command to purge build env
+- Bump golang.org/x/mod from 0.10.0 to 0.12.0
+- Bump github.com/coreos/ignition/v2 from 2.15.0 to 2.16.2
+- Fix reinit issues
+- Pin aide version to 0.16.0
+- Bump k8s.io/client-go from 0.27.2 to 0.27.3
+- Bump k8s.io/api from 0.27.2 to 0.27.3
+- Bump github.com/prometheus/client_golang from 1.15.1 to 1.16.0
+- Fix metric test logging
+
 ## [1.3.0] - 2023-06-08
 ### Changes
 - Bump github.com/onsi/gomega from 1.27.7 to 1.27.8
