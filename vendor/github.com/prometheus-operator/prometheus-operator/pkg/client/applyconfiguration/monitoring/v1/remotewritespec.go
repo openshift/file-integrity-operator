@@ -35,11 +35,13 @@ type RemoteWriteSpecApplyConfiguration struct {
 	BearerTokenFile      *string                           `json:"bearerTokenFile,omitempty"`
 	Authorization        *AuthorizationApplyConfiguration  `json:"authorization,omitempty"`
 	Sigv4                *Sigv4ApplyConfiguration          `json:"sigv4,omitempty"`
+	AzureAD              *AzureADApplyConfiguration        `json:"azureAd,omitempty"`
 	BearerToken          *string                           `json:"bearerToken,omitempty"`
 	TLSConfig            *TLSConfigApplyConfiguration      `json:"tlsConfig,omitempty"`
 	ProxyURL             *string                           `json:"proxyUrl,omitempty"`
 	QueueConfig          *QueueConfigApplyConfiguration    `json:"queueConfig,omitempty"`
 	MetadataConfig       *MetadataConfigApplyConfiguration `json:"metadataConfig,omitempty"`
+	EnableHttp2          *bool                             `json:"enableHTTP2,omitempty"`
 }
 
 // RemoteWriteSpecApplyConfiguration constructs an declarative configuration of the RemoteWriteSpec type for use with
@@ -155,6 +157,14 @@ func (b *RemoteWriteSpecApplyConfiguration) WithSigv4(value *Sigv4ApplyConfigura
 	return b
 }
 
+// WithAzureAD sets the AzureAD field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the AzureAD field is set to the value of the last call.
+func (b *RemoteWriteSpecApplyConfiguration) WithAzureAD(value *AzureADApplyConfiguration) *RemoteWriteSpecApplyConfiguration {
+	b.AzureAD = value
+	return b
+}
+
 // WithBearerToken sets the BearerToken field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the BearerToken field is set to the value of the last call.
@@ -192,5 +202,13 @@ func (b *RemoteWriteSpecApplyConfiguration) WithQueueConfig(value *QueueConfigAp
 // If called multiple times, the MetadataConfig field is set to the value of the last call.
 func (b *RemoteWriteSpecApplyConfiguration) WithMetadataConfig(value *MetadataConfigApplyConfiguration) *RemoteWriteSpecApplyConfiguration {
 	b.MetadataConfig = value
+	return b
+}
+
+// WithEnableHttp2 sets the EnableHttp2 field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the EnableHttp2 field is set to the value of the last call.
+func (b *RemoteWriteSpecApplyConfiguration) WithEnableHttp2(value bool) *RemoteWriteSpecApplyConfiguration {
+	b.EnableHttp2 = &value
 	return b
 }
