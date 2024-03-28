@@ -41,8 +41,8 @@ const (
 // +kubebuilder:resource:categories="prometheus-operator",shortName="amcfg"
 // +kubebuilder:storageversion
 
-// AlertmanagerConfig defines a namespaced AlertmanagerConfig to be aggregated
-// across multiple namespaces configuring one Alertmanager cluster.
+// AlertmanagerConfig configures the Prometheus Alertmanager,
+// specifying how alerts should be grouped, inhibited and notified to external systems.
 type AlertmanagerConfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -179,6 +179,9 @@ type Receiver struct {
 	TelegramConfigs []TelegramConfig `json:"telegramConfigs,omitempty"`
 	// List of Webex configurations.
 	WebexConfigs []WebexConfig `json:"webexConfigs,omitempty"`
+	// List of MSTeams configurations.
+	// It requires Alertmanager >= 0.26.0.
+	MSTeamsConfigs []MSTeamsConfig `json:"msteamsConfigs,omitempty"`
 }
 
 // PagerDutyConfig configures notifications via PagerDuty.
@@ -758,13 +761,25 @@ type PushoverConfig struct {
 	// The secret's key that contains the recipient user's user key.
 	// The secret needs to be in the same namespace as the AlertmanagerConfig
 	// object and accessible by the Prometheus Operator.
-	// +kubebuilder:validation:Required
+	// Either `userKey` or `userKeyFile` is required.
+	// +optional
 	UserKey *v1.SecretKeySelector `json:"userKey,omitempty"`
+	// The user key file that contains the recipient user's user key.
+	// Either `userKey` or `userKeyFile` is required.
+	// It requires Alertmanager >= v0.26.0.
+	// +optional
+	UserKeyFile *string `json:"userKeyFile,omitempty"`
 	// The secret's key that contains the registered application's API token, see https://pushover.net/apps.
 	// The secret needs to be in the same namespace as the AlertmanagerConfig
 	// object and accessible by the Prometheus Operator.
-	// +kubebuilder:validation:Required
+	// Either `token` or `tokenFile` is required.
+	// +optional
 	Token *v1.SecretKeySelector `json:"token,omitempty"`
+	// The token file that contains the registered application's API token, see https://pushover.net/apps.
+	// Either `token` or `tokenFile` is required.
+	// It requires Alertmanager >= v0.26.0.
+	// +optional
+	TokenFile *string `json:"tokenFile,omitempty"`
 	// Notification title.
 	// +optional
 	Title string `json:"title,omitempty"`
@@ -777,6 +792,9 @@ type PushoverConfig struct {
 	// A title for supplementary URL, otherwise just the URL is shown
 	// +optional
 	URLTitle string `json:"urlTitle,omitempty"`
+	// The name of a device to send the notification to
+	// +optional
+	Device *string `json:"device,omitempty"`
 	// The name of one of the sounds supported by device clients to override the user's default sound choice
 	// +optional
 	Sound string `json:"sound,omitempty"`
@@ -883,6 +901,26 @@ type TelegramConfig struct {
 	HTTPConfig *HTTPConfig `json:"httpConfig,omitempty"`
 }
 
+// MSTeamsConfig configures notifications via Microsoft Teams.
+// It requires Alertmanager >= 0.26.0.
+type MSTeamsConfig struct {
+	// Whether to notify about resolved alerts.
+	// +optional
+	SendResolved *bool `json:"sendResolved,omitempty"`
+	// MSTeams webhook URL.
+	// +kubebuilder:validation:Required
+	WebhookURL v1.SecretKeySelector `json:"webhookUrl"`
+	// Message title template.
+	// +optional
+	Title *string `json:"title,omitempty"`
+	// Message body template.
+	// +optional
+	Text *string `json:"text,omitempty"`
+	// HTTP client configuration.
+	// +optional
+	HTTPConfig *HTTPConfig `json:"httpConfig,omitempty"`
+}
+
 // InhibitRule defines an inhibition rule that allows to mute alerts when other
 // alerts are already firing.
 // See https://prometheus.io/docs/alerting/latest/configuration/#inhibit_rule
@@ -922,8 +960,8 @@ type Matcher struct {
 	// +optional
 	MatchType MatchType `json:"matchType,omitempty"`
 	// Whether to match on equality (false) or regular-expression (true).
-	// Deprecated as of AlertManager >= v0.22.0 where a user should use MatchType instead.
 	// +optional
+	// Deprecated: for AlertManager >= v0.22.0, `matchType` should be used instead.
 	Regex bool `json:"regex,omitempty"`
 }
 
