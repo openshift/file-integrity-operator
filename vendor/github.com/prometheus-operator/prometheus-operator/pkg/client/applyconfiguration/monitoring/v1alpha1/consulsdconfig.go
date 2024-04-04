@@ -25,28 +25,25 @@ import (
 // ConsulSDConfigApplyConfiguration represents an declarative configuration of the ConsulSDConfig type for use
 // with apply.
 type ConsulSDConfigApplyConfiguration struct {
-	Server               *string                                                             `json:"server,omitempty"`
-	TokenRef             *v1.SecretKeySelector                                               `json:"tokenRef,omitempty"`
-	Datacenter           *string                                                             `json:"datacenter,omitempty"`
-	Namespace            *string                                                             `json:"namespace,omitempty"`
-	Partition            *string                                                             `json:"partition,omitempty"`
-	Scheme               *string                                                             `json:"scheme,omitempty"`
-	Services             []string                                                            `json:"services,omitempty"`
-	Tags                 []string                                                            `json:"tags,omitempty"`
-	TagSeparator         *string                                                             `json:"tag_separator,omitempty"`
-	NodeMeta             map[string]string                                                   `json:"node_meta,omitempty"`
-	AllowStale           *bool                                                               `json:"allow_stale,omitempty"`
-	RefreshInterval      *monitoringv1.Duration                                              `json:"refresh_interval,omitempty"`
-	BasicAuth            *applyconfigurationmonitoringv1.BasicAuthApplyConfiguration         `json:"basicAuth,omitempty"`
-	Authorization        *applyconfigurationmonitoringv1.SafeAuthorizationApplyConfiguration `json:"authorization,omitempty"`
-	Oauth2               *applyconfigurationmonitoringv1.OAuth2ApplyConfiguration            `json:"oauth2,omitempty"`
-	ProxyUrl             *string                                                             `json:"proxy_url,omitempty"`
-	NoProxy              *string                                                             `json:"no_proxy,omitempty"`
-	ProxyFromEnvironment *bool                                                               `json:"proxy_from_environment,omitempty"`
-	ProxyConnectHeader   map[string]v1.SecretKeySelector                                     `json:"proxy_connect_header,omitempty"`
-	FollowRedirects      *bool                                                               `json:"follow_redirects,omitempty"`
-	EnableHttp2          *bool                                                               `json:"enable_http2,omitempty"`
-	TLSConfig            *applyconfigurationmonitoringv1.SafeTLSConfigApplyConfiguration     `json:"tlsConfig,omitempty"`
+	Server                                                       *string                                                             `json:"server,omitempty"`
+	TokenRef                                                     *v1.SecretKeySelector                                               `json:"tokenRef,omitempty"`
+	Datacenter                                                   *string                                                             `json:"datacenter,omitempty"`
+	Namespace                                                    *string                                                             `json:"namespace,omitempty"`
+	Partition                                                    *string                                                             `json:"partition,omitempty"`
+	Scheme                                                       *string                                                             `json:"scheme,omitempty"`
+	Services                                                     []string                                                            `json:"services,omitempty"`
+	Tags                                                         []string                                                            `json:"tags,omitempty"`
+	TagSeparator                                                 *string                                                             `json:"tagSeparator,omitempty"`
+	NodeMeta                                                     map[string]string                                                   `json:"nodeMeta,omitempty"`
+	AllowStale                                                   *bool                                                               `json:"allowStale,omitempty"`
+	RefreshInterval                                              *monitoringv1.Duration                                              `json:"refreshInterval,omitempty"`
+	BasicAuth                                                    *applyconfigurationmonitoringv1.BasicAuthApplyConfiguration         `json:"basicAuth,omitempty"`
+	Authorization                                                *applyconfigurationmonitoringv1.SafeAuthorizationApplyConfiguration `json:"authorization,omitempty"`
+	Oauth2                                                       *applyconfigurationmonitoringv1.OAuth2ApplyConfiguration            `json:"oauth2,omitempty"`
+	applyconfigurationmonitoringv1.ProxyConfigApplyConfiguration `json:",inline"`
+	FollowRedirects                                              *bool                                                           `json:"followRedirects,omitempty"`
+	EnableHttp2                                                  *bool                                                           `json:"enableHTTP2,omitempty"`
+	TLSConfig                                                    *applyconfigurationmonitoringv1.SafeTLSConfigApplyConfiguration `json:"tlsConfig,omitempty"`
 }
 
 // ConsulSDConfigApplyConfiguration constructs an declarative configuration of the ConsulSDConfig type for use with
@@ -185,11 +182,11 @@ func (b *ConsulSDConfigApplyConfiguration) WithOauth2(value *applyconfigurationm
 	return b
 }
 
-// WithProxyUrl sets the ProxyUrl field in the declarative configuration to the given value
+// WithProxyURL sets the ProxyURL field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the ProxyUrl field is set to the value of the last call.
-func (b *ConsulSDConfigApplyConfiguration) WithProxyUrl(value string) *ConsulSDConfigApplyConfiguration {
-	b.ProxyUrl = &value
+// If called multiple times, the ProxyURL field is set to the value of the last call.
+func (b *ConsulSDConfigApplyConfiguration) WithProxyURL(value string) *ConsulSDConfigApplyConfiguration {
+	b.ProxyURL = &value
 	return b
 }
 
