@@ -19,6 +19,7 @@ package v1alpha1
 import (
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	v1 "github.com/prometheus-operator/prometheus-operator/pkg/client/applyconfiguration/monitoring/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -213,6 +214,16 @@ func (b *PrometheusAgentSpecApplyConfiguration) WithScrapeTimeout(value monitori
 	return b
 }
 
+// WithScrapeProtocols adds the given value to the ScrapeProtocols field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the ScrapeProtocols field.
+func (b *PrometheusAgentSpecApplyConfiguration) WithScrapeProtocols(values ...monitoringv1.ScrapeProtocol) *PrometheusAgentSpecApplyConfiguration {
+	for i := range values {
+		b.ScrapeProtocols = append(b.ScrapeProtocols, values[i])
+	}
+	return b
+}
+
 // WithExternalLabels puts the entries into the ExternalLabels field in the declarative configuration
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
 // If called multiple times, the entries provided by each call will be put on the ExternalLabels field,
@@ -286,6 +297,14 @@ func (b *PrometheusAgentSpecApplyConfiguration) WithVolumeMounts(values ...corev
 	for i := range values {
 		b.VolumeMounts = append(b.VolumeMounts, values[i])
 	}
+	return b
+}
+
+// WithPersistentVolumeClaimRetentionPolicy sets the PersistentVolumeClaimRetentionPolicy field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the PersistentVolumeClaimRetentionPolicy field is set to the value of the last call.
+func (b *PrometheusAgentSpecApplyConfiguration) WithPersistentVolumeClaimRetentionPolicy(value appsv1.StatefulSetPersistentVolumeClaimRetentionPolicy) *PrometheusAgentSpecApplyConfiguration {
+	b.PersistentVolumeClaimRetentionPolicy = &value
 	return b
 }
 
@@ -368,9 +387,12 @@ func (b *PrometheusAgentSpecApplyConfiguration) WithTolerations(values ...corev1
 // WithTopologySpreadConstraints adds the given value to the TopologySpreadConstraints field in the declarative configuration
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
 // If called multiple times, values provided by each call will be appended to the TopologySpreadConstraints field.
-func (b *PrometheusAgentSpecApplyConfiguration) WithTopologySpreadConstraints(values ...corev1.TopologySpreadConstraint) *PrometheusAgentSpecApplyConfiguration {
+func (b *PrometheusAgentSpecApplyConfiguration) WithTopologySpreadConstraints(values ...*v1.TopologySpreadConstraintApplyConfiguration) *PrometheusAgentSpecApplyConfiguration {
 	for i := range values {
-		b.TopologySpreadConstraints = append(b.TopologySpreadConstraints, values[i])
+		if values[i] == nil {
+			panic("nil value passed to WithTopologySpreadConstraints")
+		}
+		b.TopologySpreadConstraints = append(b.TopologySpreadConstraints, *values[i])
 	}
 	return b
 }
@@ -686,5 +708,34 @@ func (b *PrometheusAgentSpecApplyConfiguration) WithLabelValueLengthLimit(value 
 // If called multiple times, the KeepDroppedTargets field is set to the value of the last call.
 func (b *PrometheusAgentSpecApplyConfiguration) WithKeepDroppedTargets(value uint64) *PrometheusAgentSpecApplyConfiguration {
 	b.KeepDroppedTargets = &value
+	return b
+}
+
+// WithReloadStrategy sets the ReloadStrategy field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the ReloadStrategy field is set to the value of the last call.
+func (b *PrometheusAgentSpecApplyConfiguration) WithReloadStrategy(value monitoringv1.ReloadStrategyType) *PrometheusAgentSpecApplyConfiguration {
+	b.ReloadStrategy = &value
+	return b
+}
+
+// WithMaximumStartupDurationSeconds sets the MaximumStartupDurationSeconds field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the MaximumStartupDurationSeconds field is set to the value of the last call.
+func (b *PrometheusAgentSpecApplyConfiguration) WithMaximumStartupDurationSeconds(value int32) *PrometheusAgentSpecApplyConfiguration {
+	b.MaximumStartupDurationSeconds = &value
+	return b
+}
+
+// WithScrapeClasses adds the given value to the ScrapeClasses field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the ScrapeClasses field.
+func (b *PrometheusAgentSpecApplyConfiguration) WithScrapeClasses(values ...*v1.ScrapeClassApplyConfiguration) *PrometheusAgentSpecApplyConfiguration {
+	for i := range values {
+		if values[i] == nil {
+			panic("nil value passed to WithScrapeClasses")
+		}
+		b.ScrapeClasses = append(b.ScrapeClasses, *values[i])
+	}
 	return b
 }
