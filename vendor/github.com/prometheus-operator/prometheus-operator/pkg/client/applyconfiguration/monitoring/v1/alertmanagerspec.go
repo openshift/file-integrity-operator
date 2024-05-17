@@ -60,6 +60,7 @@ type AlertmanagerSpecApplyConfiguration struct {
 	AdditionalPeers                     []string                                             `json:"additionalPeers,omitempty"`
 	ClusterAdvertiseAddress             *string                                              `json:"clusterAdvertiseAddress,omitempty"`
 	ClusterGossipInterval               *monitoringv1.GoDuration                             `json:"clusterGossipInterval,omitempty"`
+	ClusterLabel                        *string                                              `json:"clusterLabel,omitempty"`
 	ClusterPushpullInterval             *monitoringv1.GoDuration                             `json:"clusterPushpullInterval,omitempty"`
 	ClusterPeerTimeout                  *monitoringv1.GoDuration                             `json:"clusterPeerTimeout,omitempty"`
 	PortName                            *string                                              `json:"portName,omitempty"`
@@ -72,6 +73,7 @@ type AlertmanagerSpecApplyConfiguration struct {
 	Web                                 *AlertmanagerWebSpecApplyConfiguration               `json:"web,omitempty"`
 	AlertmanagerConfiguration           *AlertmanagerConfigurationApplyConfiguration         `json:"alertmanagerConfiguration,omitempty"`
 	AutomountServiceAccountToken        *bool                                                `json:"automountServiceAccountToken,omitempty"`
+	EnableFeatures                      []string                                             `json:"enableFeatures,omitempty"`
 }
 
 // AlertmanagerSpecApplyConfiguration constructs an declarative configuration of the AlertmanagerSpec type for use with
@@ -386,6 +388,14 @@ func (b *AlertmanagerSpecApplyConfiguration) WithClusterGossipInterval(value mon
 	return b
 }
 
+// WithClusterLabel sets the ClusterLabel field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the ClusterLabel field is set to the value of the last call.
+func (b *AlertmanagerSpecApplyConfiguration) WithClusterLabel(value string) *AlertmanagerSpecApplyConfiguration {
+	b.ClusterLabel = &value
+	return b
+}
+
 // WithClusterPushpullInterval sets the ClusterPushpullInterval field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ClusterPushpullInterval field is set to the value of the last call.
@@ -484,5 +494,15 @@ func (b *AlertmanagerSpecApplyConfiguration) WithAlertmanagerConfiguration(value
 // If called multiple times, the AutomountServiceAccountToken field is set to the value of the last call.
 func (b *AlertmanagerSpecApplyConfiguration) WithAutomountServiceAccountToken(value bool) *AlertmanagerSpecApplyConfiguration {
 	b.AutomountServiceAccountToken = &value
+	return b
+}
+
+// WithEnableFeatures adds the given value to the EnableFeatures field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the EnableFeatures field.
+func (b *AlertmanagerSpecApplyConfiguration) WithEnableFeatures(values ...string) *AlertmanagerSpecApplyConfiguration {
+	for i := range values {
+		b.EnableFeatures = append(b.EnableFeatures, values[i])
+	}
 	return b
 }
