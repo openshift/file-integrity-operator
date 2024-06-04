@@ -39,6 +39,8 @@ GIT_OPTS?=
 # We rely on a bash script for this since it's simplier than interating over a
 # list with conditionals in GNU make.
 GIT_REMOTE?=$(shell ./utils/git-remote.sh)
+PREVIOUS_VERSION?=$(shell ./utils/get-current-version.sh)
+REPLACED_VERSION="file-integrity-operator.v$(PREVIOUS_VERSION)"
 
 # Image tag to use. Set this if you want to use a specific tag for building
 # or your e2e tests.
@@ -119,6 +121,7 @@ OPERATOR_IMAGE?=$(IMAGE_TAG_BASE):$(TAG)
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
 BUNDLE_TAG_BASE?=$(IMAGE_TAG_BASE)-bundle
 BUNDLE_IMG?=$(BUNDLE_TAG_BASE):$(TAG)
+BUNDLE_CSV_FILE=bundle/manifests/file-integrity-operator.clusterserviceversion.yaml
 
 # Includes additional service accounts into the bundle CSV.
 BUNDLE_SA_OPTS ?= --extra-service-accounts file-integrity-daemon
@@ -279,7 +282,6 @@ endif
 
 .PHONY: update-skip-range
 update-skip-range: check-operator-version
-	sed -i '/replaces:/d' config/manifests/bases/file-integrity-operator.clusterserviceversion.yaml
 	sed -i "s/\(olm.skipRange: '>=.*\)<.*'/\1<$(VERSION)'/" config/manifests/bases/file-integrity-operator.clusterserviceversion.yaml
 	sed -i "s/\(\"name\": \"file-integrity-operator.v\).*\"/\1$(VERSION)\"/" catalog/preamble.json
 	sed -i "s/\(\"skipRange\": \">=.*\)<.*\"/\1<$(VERSION)\"/" catalog/preamble.json
@@ -470,6 +472,7 @@ package-version-to-tag: check-operator-version
 .PHONY: git-release
 git-release: fetch-git-tags package-version-to-tag changelog
 	git checkout -b "release-v$(TAG)"
+	sed -i "s/\(replaces: \).*/\1$(REPLACED_VERSION)/" $(BUNDLE_CSV_FILE)
 	sed -i "s/\(.*Version = \"\).*/\1$(TAG)\"/" version/version.go
 	sed -i "s/\(.*VERSION?=\).*/\1$(TAG)/" version.Makefile
 	git add version* bundle CHANGELOG.md config/manifests/bases catalog/preamble.json
@@ -481,7 +484,7 @@ fetch-git-tags:
 	git fetch -t
 
 .PHONY: prepare-release
-prepare-release: package-version-to-tag images git-release
+prepare-release: set-current-version package-version-to-tag images git-release
 
 .PHONY: push-release
 push-release: package-version-to-tag ## Do an official release (Requires permissions)
@@ -505,3 +508,7 @@ release-images: package-version-to-tag push catalog
 .PHONY: changelog
 changelog:
 	@utils/update_changelog.sh "$(TAG)"
+
+.PHONY: set-current-version
+set-current-version:
+	@echo "Using $(PREVIOUS_VERSION) as previous version"
