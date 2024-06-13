@@ -356,6 +356,109 @@ func TestFileIntegrityPruneBackup(t *testing.T) {
 	}
 }
 
+func TestFileIntegrityReinitOnFailed(t *testing.T) {
+	f, testctx, namespace := setupTest(t)
+	testName := testIntegrityNamePrefix + "-reinit-on-failed"
+	setupFileIntegrity(t, f, testctx, testName, namespace, nodeWorkerRoleLabelKey, defaultTestGracePeriod)
+	defer testctx.Cleanup()
+	defer func() {
+		if err := cleanNodes(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+		if err := resetBundleTestMetrics(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+	}()
+	defer logContainerOutput(t, f, namespace, testName)
+
+	// wait to go active.
+	err := waitForScanStatus(t, f, namespace, testName, v1alpha1.PhaseActive)
+	if err != nil {
+		t.Errorf("Timeout waiting for scan status")
+	}
+
+	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
+
+	t.Log("Asserting that we have OK node condition events")
+	assertNodeOKStatusEvents(t, f, namespace, 2*time.Second, 5*time.Minute)
+
+	nodes, err := f.KubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
+		LabelSelector: nodeWorkerRoleLabelKey,
+	})
+	if err != nil {
+		t.Error(err)
+	}
+
+	expectedMetrics := map[string]int{}
+	// Each node should have a metric set at 0 for node_failed
+	for _, node := range nodes.Items {
+		expectedMetrics[fmt.Sprintf(
+			"file_integrity_operator_node_failed{node=\"%s\"}", node.Name)] = 0
+	}
+	err = assertEachMetric(t, namespace, expectedMetrics)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// modify a file on a node
+	err = editFileOnNodes(f, namespace)
+	if err != nil {
+		t.Errorf("Timeout waiting on node file edit")
+	}
+
+	// log collection should create a configmap for each node's report after the scan runs again
+	for _, node := range nodes.Items {
+		// check the FI status for a failed condition for the node
+		result, err := waitForFailedResultForNode(t, f, namespace, testName, node.Name, time.Second, time.Minute*5)
+		if err != nil {
+			t.Errorf("Timeout waiting for a failed status condition for node '%s'", node.Name)
+		} else {
+			if result.FilesChanged != 1 {
+				t.Errorf("Expected one file to change, got %d", result.FilesChanged)
+			}
+			data, err := pollUntilConfigMapExists(t, f, result.ResultConfigMapNamespace, result.ResultConfigMapName, time.Second, time.Minute*5)
+			if err != nil {
+				t.Errorf("Timeout waiting for log configMap '%s'", result.ResultConfigMapName)
+			}
+
+			if !containsUncompressedScanFailLog(data) {
+				t.Errorf("configMap '%s' does not have a failure log. Got: %#v", result.ResultConfigMapName, data)
+			}
+		}
+	}
+
+	expectedMetrics = map[string]int{}
+	// Each node should have a metric set at 1 for node_failed
+	for _, node := range nodes.Items {
+		expectedMetrics[fmt.Sprintf(
+			"file_integrity_operator_node_failed{node=\"%s\"}", node.Name)] = 1
+	}
+	err = assertEachMetric(t, namespace, expectedMetrics)
+	if err != nil {
+		t.Error(err)
+	}
+
+	reinitFileIntegrityDatabaseOnFaildNodes(t, f, testName, namespace, time.Second, 2*time.Minute)
+
+	// We should get a reinit daemonset only on one node
+	dsName := common.ReinitDaemonSetName(testName)
+	err = waitForDaemonSetTimeout(daemonSetIsReadyWithDesiredNumber(f.KubeClient, dsName, namespace, 1), deamonsetWaitTimeout)
+	if err == nil {
+		t.Fatalf("We should expect a timed out waiting for daemonSet %s", dsName)
+	}
+
+	// wait to go active.
+	err = waitForSuccessiveScanStatus(t, f, namespace, testName, v1alpha1.PhaseActive)
+	if err != nil {
+		t.Errorf("Timeout waiting for scan status")
+	}
+
+	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after re-initializing the database")
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
+
+}
+
 func TestFileIntegrityConfigurationRevert(t *testing.T) {
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-configrevert"

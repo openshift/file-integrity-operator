@@ -219,14 +219,18 @@ func GetRemovedNodeReinitAnnotation(fi *v1alpha1.FileIntegrity, nodeName string)
 		} else {
 			// remove the node from the reinit list string and update the annotation along with comma separators
 			nodeList := strings.Split(nodeListString, ",")
-			newNodeList := []string{}
-			for _, node := range nodeList {
-				if node == nodeName {
-					continue
+			if len(nodeList) == 1 {
+				delete(ficopy.Annotations, AideDatabaseReinitAnnotationKey)
+			} else {
+				newNodeList := []string{}
+				for _, node := range nodeList {
+					if node == nodeName {
+						continue
+					}
+					newNodeList = append(newNodeList, node)
 				}
-				newNodeList = append(newNodeList, node)
+				ficopy.Annotations[AideDatabaseReinitAnnotationKey] = strings.Join(newNodeList, ",")
 			}
-			ficopy.Annotations[AideDatabaseReinitAnnotationKey] = strings.Join(newNodeList, ",")
 		}
 		return ficopy.Annotations, true
 	}

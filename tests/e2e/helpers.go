@@ -681,6 +681,25 @@ func daemonSetIsReady(c kubernetes.Interface, name, namespace string) wait.Condi
 	}
 }
 
+func daemonSetIsReadyWithDesiredNumber(c kubernetes.Interface, name, namespace string, desiredNumber int32) wait.ConditionFunc {
+	return func() (bool, error) {
+		daemonSet, err := c.AppsV1().DaemonSets(namespace).Get(goctx.TODO(), name, metav1.GetOptions{})
+		if err != nil && !kerr.IsNotFound(err) {
+			return false, err
+		}
+		if kerr.IsNotFound(err) {
+			return false, nil
+		}
+		if daemonSet.Status.DesiredNumberScheduled != desiredNumber {
+			return false, nil
+		}
+		if daemonSet.Status.DesiredNumberScheduled != daemonSet.Status.NumberAvailable {
+			return false, nil
+		}
+		return true, nil
+	}
+}
+
 func daemonSetWasScheduled(c kubernetes.Interface, name, namespace string) wait.ConditionFunc {
 	return func() (bool, error) {
 		daemonSet, err := c.AppsV1().DaemonSets(namespace).Get(goctx.TODO(), name, metav1.GetOptions{})
@@ -1053,6 +1072,31 @@ func reinitFileIntegrityDatabase(t *testing.T, f *framework.Framework, integrity
 	})
 	if pollErr != nil {
 		t.Errorf("Error adding re-init annotation to FileIntegrity: (%s) (%s)", pollErr, lastErr)
+	}
+}
+
+func reinitFileIntegrityDatabaseOnFaildNodes(t *testing.T, f *framework.Framework, integrityName, namespace string, interval, timeout time.Duration) {
+	var lastErr error
+	pollErr := wait.PollImmediate(interval, timeout, func() (bool, error) {
+		fileIntegrity := &v1alpha1.FileIntegrity{}
+		err := f.Client.Get(goctx.TODO(), types.NamespacedName{Name: integrityName, Namespace: namespace}, fileIntegrity)
+		if err != nil {
+			lastErr = err
+			return false, nil
+		}
+		fileIntegrityCopy := fileIntegrity.DeepCopy()
+		fileIntegrityCopy.Annotations = map[string]string{
+			common.AideDatabaseReinitOnFailedAnnotationKey: "",
+		}
+		err = f.Client.Update(goctx.TODO(), fileIntegrityCopy)
+		if err != nil {
+			lastErr = err
+			return false, nil
+		}
+		return true, nil
+	})
+	if pollErr != nil {
+		t.Errorf("Error adding re-init on failed node annotation to FileIntegrity: (%s) (%s)", pollErr, lastErr)
 	}
 }
 
