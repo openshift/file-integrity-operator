@@ -9,7 +9,7 @@ var testAideFile = `
 # comment
 @@define DBDIR /blah
 @@define LOGDIR /blah
-database=file:@@{DBDIR}/something
+database_in=file:@@{DBDIR}/something
 database_out=file:@@{DBDIR}/aide.db.new.gz
 # comment
 report_url=file:@@{LOGDIR}/coolaide.log
@@ -24,7 +24,7 @@ var testAidePrepOutput = `
 # comment
 @@define DBDIR /hostroot/etc/kubernetes
 @@define LOGDIR /hostroot/etc/kubernetes
-database=file:@@{DBDIR}/aide.db.gz
+database_in=file:@@{DBDIR}/aide.db.gz
 database_out=file:@@{DBDIR}/aide.db.gz.new
 # comment
 report_url=file:@@{LOGDIR}/aide.log.new

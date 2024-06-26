@@ -20,8 +20,8 @@ func prepareAideConf(in string) (string, error) {
 			conv = conv + "@@define DBDIR /hostroot/etc/kubernetes\n"
 		} else if strings.HasPrefix(line, "@@define LOGDIR") {
 			conv = conv + "@@define LOGDIR /hostroot/etc/kubernetes\n"
-		} else if strings.HasPrefix(line, "database=") {
-			conv = conv + "database=file:@@{DBDIR}/aide.db.gz\n"
+		} else if strings.HasPrefix(line, "database_in=") {
+			conv = conv + "database_in=file:@@{DBDIR}/aide.db.gz\n"
 		} else if strings.HasPrefix(line, "database_out=") {
 			conv = conv + "database_out=file:@@{DBDIR}/aide.db.gz.new\n"
 		} else if strings.HasPrefix(line, "report_url=file") {
