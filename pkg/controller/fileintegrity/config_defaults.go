@@ -15,23 +15,24 @@ var aidePauseContainerScript = `#!/bin/sh
 // NOTE: Needs to be in sync with `testAideConfig` in test/e2e/helpers.go, except for the heading comment.
 var DefaultAideConfig = `@@define DBDIR /hostroot/etc/kubernetes
 @@define LOGDIR /hostroot/etc/kubernetes
-database=file:@@{DBDIR}/aide.db.gz
+database_in=file:@@{DBDIR}/aide.db.gz
 database_out=file:@@{DBDIR}/aide.db.gz.new
 gzip_dbout=yes
-verbose=5
+log_level=warning
+report_level=changed_attributes
 report_url=file:@@{LOGDIR}/aide.log.new
 report_url=stdout
 PERMS = p+u+g+acl+selinux+xattrs
-CONTENT_EX = sha512+ftype+p+u+g+n+acl+selinux+xattrs
+CONTENTEX = sha512+ftype+p+u+g+n+acl+selinux+xattrs
 
-/hostroot/boot/        CONTENT_EX
+/hostroot/boot/        CONTENTEX
 /hostroot/root/\..* PERMS
-/hostroot/root/   CONTENT_EX
+/hostroot/root/   CONTENTEX
 !/hostroot/root/\.kube
 !/hostroot/usr/src/
 !/hostroot/usr/tmp/
 
-/hostroot/usr/    CONTENT_EX
+/hostroot/usr/    CONTENTEX
 
 # OpenShift specific excludes
 !/hostroot/opt/
@@ -57,4 +58,4 @@ CONTENT_EX = sha512+ftype+p+u+g+n+acl+selinux+xattrs
 !/hostroot/etc/kubernetes/node-feature-discovery
 
 # Catch everything else in /etc
-/hostroot/etc/    CONTENT_EX`
+/hostroot/etc/    CONTENTEX`
