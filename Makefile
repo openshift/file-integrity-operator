@@ -161,6 +161,30 @@ else
 	$(eval OPENSHIFT_USER = $(shell oc whoami))
 endif
 
+
+.PHONY: aide-library
+aide-library:
+	rm -rf aide && \
+	git clone https://github.com/aide/aide.git && \
+	cd aide && \
+	git checkout v0.18.8 && \
+	git apply --whitespace=fix ../utils/0001-Build-as-CGO-library.patch && \
+	sh ./autogen.sh && \
+	./configure \
+	--with-zlib \
+	--disable-static \
+	--with-posix-acl \
+	--with-gcrypt \
+	--with-selinux \
+	--with-xattr \
+	--with-e2fsattrs \
+	--with-audit && \
+	$(MAKE) && \
+	cd .. && \
+	cp aide/.libs/libaide* libs/aide/ && \
+	rm -rf aide
+
+
 .PHONY: check-operator-version
 check-operator-version:
 ifndef VERSION
