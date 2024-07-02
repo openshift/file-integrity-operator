@@ -241,7 +241,7 @@ func (r *FileIntegrityReconciler) tryGettingNode(node string) (*corev1.Node, err
 	}
 	return &n, nil
 }
-func (r *FileIntegrityReconciler) updateAideConfig(conf *corev1.ConfigMap, data, node string) error {
+func (r *FileIntegrityReconciler) updateAideConfig(conf *corev1.ConfigMap, data, node string, preMigrate bool) error {
 	confCopy := conf.DeepCopy()
 	confCopy.Data[common.DefaultConfDataKey] = data
 
@@ -249,6 +249,10 @@ func (r *FileIntegrityReconciler) updateAideConfig(conf *corev1.ConfigMap, data,
 	// check if there is already an annotation for the node if not add it to the list
 	if confCopy.Annotations == nil {
 		confCopy.Annotations = map[string]string{}
+	}
+
+	if preMigrate {
+		return r.Client.Update(context.TODO(), confCopy)
 	}
 	if nodeListString, has := confCopy.Annotations[common.AideConfigUpdatedAnnotationKey]; !has || node == "" {
 		confCopy.Annotations[common.AideConfigUpdatedAnnotationKey] = node
@@ -275,7 +279,7 @@ func (r *FileIntegrityReconciler) retrieveAndAnnotateAideConfig(conf *corev1.Con
 		return err
 	}
 
-	return r.updateAideConfig(cachedConf, cachedConf.Data[common.DefaultConfDataKey], node)
+	return r.updateAideConfig(cachedConf, cachedConf.Data[common.DefaultConfDataKey], node, false)
 }
 
 func (r *FileIntegrityReconciler) aideConfigIsDefault(instance *v1alpha1.FileIntegrity) (bool, error) {
@@ -304,7 +308,7 @@ func (r *FileIntegrityReconciler) reconcileUserConfig(instance *v1alpha1.FileInt
 		if !hasDefaultConfig {
 			// The configuration was previously replaced. We want to restore it now.
 			reqLogger.Info("Restoring the AIDE configuration defaults.")
-			if err := r.updateAideConfig(currentConfig, DefaultAideConfig, ""); err != nil {
+			if err := r.updateAideConfig(currentConfig, DefaultAideConfig, "", false); err != nil {
 				return false, err
 			}
 			return true, nil
@@ -347,12 +351,77 @@ func (r *FileIntegrityReconciler) reconcileUserConfig(instance *v1alpha1.FileInt
 		return false, err
 	}
 
+	if instance.Annotations != nil {
+		if _, ok := instance.Annotations[common.AideConfigMigrationCheckDisabledAnnotationKey]; ok {
+			reqLogger.Info("Aide config migration is disabled")
+		} else {
+			// Check if aide config needs to be migrated
+			err = checkAideConfig(preparedConf)
+			if err != nil {
+				_, ok := instance.Annotations[common.AideConfigMigrationIgnoreAnnotationKey]
+
+				migratedConf, ignoredLines, err := migrateConfig(preparedConf, ok)
+				if err != nil {
+					reqLogger.Error(err, "warning: error migrating user-provided config")
+					return false, err
+				}
+				// notify user about ignored lines
+				if len(ignoredLines) > 0 {
+					reqLogger.Info(fmt.Sprintf("we are ignoring the following lines from the user-provided config, as they are not supported options: %s", strings.Join(ignoredLines, ", ")))
+				}
+				if currentConfig.Data[common.PreMigrationConfDataKey] == migratedConf {
+					// The config is the same as the pre-migration one, so we don't need to update it.
+					reqLogger.Info("User-provided Pre-migration config is the same as the current one, no need to update")
+				} else {
+					if err := r.updateAideConfig(currentConfig, migratedConf, "", true); err != nil {
+						return false, err
+					}
+				}
+				// check if the migrated config is valid one more time
+				err = checkAideConfig(migratedConf)
+				if err != nil {
+					reqLogger.Info("warning: We are unable to validate the migrated config, please check the config for errors: ", err)
+
+					instanceCopy := instance.DeepCopy()
+					if instanceCopy.Annotations == nil {
+						instanceCopy.Annotations = map[string]string{}
+					}
+					if _, ok := instanceCopy.Annotations[common.AideConfigAutoMigrationFailedAnnotationKey]; !ok {
+						instanceCopy.Annotations[common.AideConfigAutoMigrationFailedAnnotationKey] = strconv.FormatBool(true)
+						if err := r.Client.Update(context.TODO(), instanceCopy); err != nil {
+							reqLogger.Error(err, "error updating FileIntegrity annotation for migration failure")
+							return false, err
+						}
+					}
+					// uncomment this line when we move to support aide 0.18
+					// return false, nil
+				} else {
+					// we should remove the annotation if the config is valid
+					instanceCopy := instance.DeepCopy()
+					if instanceCopy.Annotations == nil {
+						instanceCopy.Annotations = map[string]string{}
+					}
+					if _, ok := instanceCopy.Annotations[common.AideConfigAutoMigrationFailedAnnotationKey]; ok {
+						delete(instanceCopy.Annotations, common.AideConfigAutoMigrationFailedAnnotationKey)
+						if err := r.Client.Update(context.TODO(), instanceCopy); err != nil {
+							reqLogger.Error(err, "error updating FileIntegrity annotation for migration failure")
+							return false, err
+						}
+					}
+					// uncomment this line when we move to support aide 0.18
+					// preparedConf = migratedConf
+					reqLogger.Info("User-provided config has passed pre-migration checks")
+				}
+			}
+		}
+	}
+
 	// Config is the same - we're done
 	if preparedConf == currentConfig.Data[common.DefaultConfDataKey] {
 		return false, nil
 	}
 
-	if err := r.updateAideConfig(currentConfig, preparedConf, ""); err != nil {
+	if err := r.updateAideConfig(currentConfig, preparedConf, "", false); err != nil {
 		return false, err
 	}
 

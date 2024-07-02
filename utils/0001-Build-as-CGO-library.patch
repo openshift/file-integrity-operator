@@ -1,0 +1,98 @@
+From 4eda6488917c134dc0ff2c08893bbe40c9454eef Mon Sep 17 00:00:00 2001
+From: Vincent Shen <wenshen@redhat.com>
+Date: Tue, 2 Jul 2024 00:14:36 -0700
+Subject: [PATCH] Build as CGO library
+
+This enable us to use aide config check as a CGO library
+---
+ Makefile.am  | 12 ++++++------
+ configure.ac |  3 +++
+ src/aide.c   | 17 +++++++++++++++++
+ 3 files changed, 26 insertions(+), 6 deletions(-)
+
+diff --git a/Makefile.am b/Makefile.am
+index c23f89f..c293c46 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -21,8 +21,8 @@ AM_YFLAGS= -d
+ 
+ LEX_OUTPUT_ROOT = lex.yy
+ 
+-bin_PROGRAMS = aide
+-aide_SOURCES = src/aide.c include/aide.h \
++lib_LTLIBRARIES = libaide.la 
++libaide_la_SOURCES =  src/aide.c include/aide.h \
+ 	include/base64.h src/base64.c \
+ 	include/be.h src/be.c \
+ 	include/commandconf.h src/commandconf.c \
+@@ -58,13 +58,13 @@ aide_SOURCES = src/aide.c include/aide.h \
+ 	include/url.h src/url.c\
+ 	include/util.h src/util.c
+ if HAVE_E2FSATTRS
+-aide_SOURCES += include/e2fsattrs.h src/e2fsattrs.c
++libaide_la_SOURCES += include/e2fsattrs.h src/e2fsattrs.c
+ endif
+ if HAVE_CURL
+-aide_SOURCES += include/fopen.h src/fopen.c
++libaide_la_SOURCES += include/fopen.h src/fopen.c
+ endif
+ 
+-aide_CFLAGS = @AIDE_DEFS@ -W -Wall -g \
++libaide_la_CFLAGS = @AIDE_DEFS@ -W -Wall -g \
+ 			${AUDIT_CFLAGS} \
+ 			${CAPABILITIES_CFLAGS} \
+ 			${CURL_CFLAGS} \
+@@ -78,7 +78,7 @@ aide_CFLAGS = @AIDE_DEFS@ -W -Wall -g \
+ 			${SELINUX_CFLAGS} \
+ 			${XATTR_CFLAGS} \
+ 			${ZLIB_CFLAGS}
+-aide_LDADD = -lm \
++libaide_la_LIBADD = -lm \
+ 			${AUDIT_LIBS} \
+ 			${CAPABILITIES_LIBS} \
+ 			${CURL_LIBS} \
+diff --git a/configure.ac b/configure.ac
+index f69093b..2b8dae9 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -6,6 +6,9 @@ dnl Initialize autoconf/automake
+ AC_INIT([aide],[AIDE_VERSION])
+ AC_CANONICAL_TARGET
+ AM_INIT_AUTOMAKE([1.10 -Wall -Werror silent-rules subdir-objects serial-tests])
++AC_CHECK_PROG(AR, ar, ar)
++AM_PROG_AR
++LT_INIT
+ 
+ AC_DEFINE_UNQUOTED(AIDEVERSION, "AIDE_VERSION")
+ AH_TEMPLATE([AIDEVERSION], [package version])
+diff --git a/src/aide.c b/src/aide.c
+index f9821f4..38bb778 100644
+--- a/src/aide.c
++++ b/src/aide.c
+@@ -584,6 +584,23 @@ static void setdefaults_after_config()
+   };
+ }
+ 
++int aide_check_config(char* config_path, bool* version) {
++    int errorno = 0;
++
++    setdefaults_before_config();
++    errorno = parse_config(NULL, config_path, NULL);
++    if (errorno == RETFAIL) {
++        exit(INVALID_CONFIGURELINE_ERROR);
++    }
++
++    if (*version == true) {
++        print_version();
++    } else {
++        return 0;
++    }
++    return 0;
++}
++
+ int main(int argc,char**argv)
+ {
+   int errorno=0;
+-- 
+2.44.0
+
