@@ -1,0 +1,13 @@
+namespace: openshift-compliance
+
+bases:
+- ../crd
+- ../rbac
+- ../manager
+- ../ns
+
+patches:
+- path: manager_patch.yaml
+  target:
+    kind: Deployment
+    name: file-integrity-operator
