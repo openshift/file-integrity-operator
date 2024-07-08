@@ -68,6 +68,7 @@ type Framework struct {
 	NamespacedManPath *string
 	OperatorNamespace string
 	WatchNamespace    string
+	Platform          string
 
 	restMapper *restmapper.DeferredDiscoveryRESTMapper
 
@@ -88,6 +89,7 @@ type frameworkOpts struct {
 	localOperatorArgs  string
 	isLocalOperator    bool
 	skipCleanupOnError bool
+	platform           string
 }
 
 const (
@@ -98,6 +100,7 @@ const (
 	LocalOperatorFlag      = "localOperator"
 	LocalOperatorArgs      = "localOperatorArgs"
 	SkipCleanupOnErrorFlag = "skipCleanupOnError"
+	PlatformFlag           = "platform"
 
 	TestOperatorNamespaceEnv = "TEST_OPERATOR_NAMESPACE"
 	TestWatchNamespaceEnv    = "TEST_WATCH_NAMESPACE"
@@ -115,6 +118,7 @@ func (opts *frameworkOpts) addToFlagSet(flagset *flag.FlagSet) {
 	flagset.BoolVar(&opts.skipCleanupOnError, SkipCleanupOnErrorFlag, false,
 		"If set as true, the cleanup function responsible to remove all artifacts "+
 			"will be skipped if an error is faced.")
+	flagset.StringVar(&opts.platform, PlatformFlag, "openshift", "The type of deployment hosting the tests. The only supported option besides OpenShift is \"rosa\".")
 }
 
 func newFramework(opts *frameworkOpts) (*Framework, error) {
@@ -168,6 +172,7 @@ func newFramework(opts *frameworkOpts) (*Framework, error) {
 		kubeconfigPath:     opts.kubeconfigPath,
 		restMapper:         restMapper,
 		skipCleanupOnError: opts.skipCleanupOnError,
+		Platform:           opts.platform,
 	}
 
 	// This is required because controller-runtime expects its consumers to

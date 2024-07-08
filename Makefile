@@ -449,6 +449,10 @@ test-unit: fmt vet ## Run tests.
 e2e: e2e-set-image prep-e2e
 	@$(GO) test ./tests/e2e $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS)
 
+.PHONY: e2e-rosa
+e2e-rosa: e2e-set-image prep-e2e
+	@$(GO) test ./tests/e2e $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) --platform rosa
+
 .PHONY: prep-e2e
 prep-e2e: kustomize
 	rm -rf $(TEST_SETUP_DIR)

@@ -416,16 +416,19 @@ func deleteStatusEvents(f *framework.Framework, namespace string) error {
 func setupTestRequirements(t *testing.T) *framework.Context {
 	fileIntegrities := &v1alpha1.FileIntegrityList{}
 	nodeStatus := &v1alpha1.FileIntegrityNodeStatusList{}
+	f := framework.NewContext(t)
 
 	err := framework.AddToFrameworkScheme(v1alpha1.AddToScheme, fileIntegrities)
 	if err != nil {
 		t.Fatalf("TEST SETUP: failed to add custom resource scheme to framework: %v", err)
 	}
 
-	mcList := &mcfgv1.MachineConfigList{}
-	err = framework.AddToFrameworkScheme(mcfgapi.Install, mcList)
-	if err != nil {
-		t.Fatalf("TEST SETUP: failed to add custom resource scheme to framework: %v", err)
+	if f.GetPlatform() != "rosa" {
+		mcList := &mcfgv1.MachineConfigList{}
+		err = framework.AddToFrameworkScheme(mcfgapi.Install, mcList)
+		if err != nil {
+			t.Fatalf("TEST SETUP: failed to add custom resource scheme to framework: %v", err)
+		}
 	}
 
 	err = framework.AddToFrameworkScheme(v1alpha1.AddToScheme, nodeStatus)
@@ -439,7 +442,7 @@ func setupTestRequirements(t *testing.T) *framework.Context {
 	if err != nil {
 		t.Fatalf("TEST SETUP: failed to add custom resource scheme to framework: %v", err)
 	}
-	return framework.NewContext(t)
+	return f
 }
 
 func replaceNamespaceFromManifest(t *testing.T, nsFrom, nsTo string, namespacedManPath *string) {
