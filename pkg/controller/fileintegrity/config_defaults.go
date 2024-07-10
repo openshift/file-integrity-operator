@@ -55,6 +55,7 @@ CONTENT_EX = sha512+ftype+p+u+g+n+acl+selinux+xattrs
 !/hostroot/etc/cni/multus/certs
 !/hostroot/etc/kubernetes/compliance-operator
 !/hostroot/etc/kubernetes/node-feature-discovery
+!/hostroot/etc/mco/internal-registry-pull-secret.json$
 
 # Catch everything else in /etc
 /hostroot/etc/    CONTENT_EX`
