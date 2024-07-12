@@ -27,6 +27,7 @@ type Context struct {
 	kubeclient         kubernetes.Interface
 	restMapper         *restmapper.DeferredDiscoveryRESTMapper
 	skipCleanupOnError bool
+	platform           string
 }
 
 // todo(camilamacedo86): Remove the following line just added for we are able to deprecated TestCtx
@@ -71,6 +72,7 @@ func (f *Framework) newContext(t *testing.T) *Context {
 		kubeclient:         f.KubeClient,
 		restMapper:         f.restMapper,
 		skipCleanupOnError: f.skipCleanupOnError,
+		platform:           f.Platform,
 	}
 }
 
@@ -110,4 +112,8 @@ func (ctx *Context) Cleanup() {
 
 func (ctx *Context) AddCleanupFn(fn cleanupFn) {
 	ctx.cleanupFns = append(ctx.cleanupFns, fn)
+}
+
+func (ctx *Context) GetPlatform() string {
+	return ctx.platform
 }

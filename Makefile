@@ -320,7 +320,11 @@ bundle: check-operator-version operator-sdk manifests update-skip-range kustomiz
 	$(SDK_BIN) generate kustomize manifests --apis-dir=./pkg/apis -q
 	@echo "kustomize using deployment image $(IMG)"
 	cd config/manager && $(KUSTOMIZE) edit set image $(APP_NAME)=$(IMG)
+	if [ $(PLATFORM) = "openshift" ]; then \
+                sed -i 's%../default-bundle%../openshift-bundle%' config/manifests/kustomization.yaml; \
+        fi
 	$(KUSTOMIZE) build config/manifests | $(SDK_BIN) generate bundle -q $(BUNDLE_SA_OPTS) --overwrite --version $(VERSION) $(BUNDLE_METADATA_OPTS)
+	git restore config/manifests/kustomization.yaml
 	$(SDK_BIN) bundle validate ./bundle
 
 .PHONY: bundle-image
@@ -444,6 +448,10 @@ test-unit: fmt vet ## Run tests.
 .PHONY: e2e
 e2e: e2e-set-image prep-e2e
 	@$(GO) test ./tests/e2e $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS)
+
+.PHONY: e2e-rosa
+e2e-rosa: e2e-set-image prep-e2e
+	@$(GO) test ./tests/e2e $(E2E_GO_TEST_FLAGS) -args $(E2E_ARGS) --platform rosa
 
 .PHONY: prep-e2e
 prep-e2e: kustomize
