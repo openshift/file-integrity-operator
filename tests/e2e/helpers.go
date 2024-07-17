@@ -2173,7 +2173,8 @@ func logContainerOutput(t *testing.T, f *framework.Framework, namespace, name st
 		return
 	}
 
-	pods.Items = append(operatorPods.Items)
+	// Append operatorPods to pods
+	pods.Items = append(pods.Items, operatorPods.Items...)
 
 	for _, pod := range pods.Items {
 		for _, con := range containers {

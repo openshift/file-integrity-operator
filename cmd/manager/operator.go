@@ -194,7 +194,7 @@ func RunOperator(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	if err := createServiceMonitor(ctx, cfg, monitoringClient, namespace, metricsService); err != nil {
+	if err := createServiceMonitor(ctx, cfg, monitoringClient, kubeClient, namespace, metricsService); err != nil {
 		log.Error(err, "Error creating ServiceMonitor")
 		os.Exit(1)
 	}
@@ -293,6 +293,25 @@ func ensureMetricsServiceAndSecret(ctx context.Context, kClient *kubernetes.Clie
 	return returnService, nil
 }
 
+func getSecretNameForServiceAccount(clientset *kubernetes.Clientset, namespace string, serviceAccountName string) (string, error) {
+	// List all secrets in the specified namespace
+	secrets, err := clientset.CoreV1().Secrets(namespace).List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return "", err
+	}
+
+	// Iterate through the secrets to find the one associated with the service account
+	for _, secret := range secrets.Items {
+		if secret.Annotations != nil {
+			if saName, exists := secret.Annotations["kubernetes.io/service-account.name"]; exists && saName == serviceAccountName {
+				return secret.Name, nil
+			}
+		}
+	}
+
+	return "", errors.New("secret for service account not found")
+}
+
 func defaultPrometheusRule(alertName, namespace string) *monitoring.PrometheusRule {
 	duration := monitoring.Duration("1s")
 	rule := monitoring.Rule{
@@ -355,7 +374,7 @@ func createIntegrityFailureAlert(ctx context.Context, client monclientv1.Monitor
 
 // tryCreatingServiceMonitor attempts to create a ServiceMonitor out of service, and updates it to include the controller
 // metrics paths.
-func createServiceMonitor(ctx context.Context, cfg *rest.Config, mClient *monclientv1.MonitoringV1Client,
+func createServiceMonitor(ctx context.Context, cfg *rest.Config, mClient *monclientv1.MonitoringV1Client, kubeClient *kubernetes.Clientset,
 	namespace string, service *v1.Service) error {
 	ok, err := common.ResourceExists(discovery.NewDiscoveryClientForConfigOrDie(cfg),
 		"monitoring.coreos.com/v1", "ServiceMonitor")
@@ -366,22 +385,42 @@ func createServiceMonitor(ctx context.Context, cfg *rest.Config, mClient *moncli
 		log.Info("Install prometheus-operator in your cluster to create ServiceMonitor objects")
 		return nil
 	}
+	serviceAccountName := "file-integrity-operator"
 
+	// Get the name of the secret associated with the service account
+	secretName, err := getSecretNameForServiceAccount(kubeClient, namespace, serviceAccountName)
+	if err != nil {
+		if kerr.IsNotFound(err) {
+			fmt.Println("Secret not found - restarting, as the service may have just been created")
+		} else {
+			fmt.Println("Error retrieving secret:", err)
+		}
+	} else {
+		fmt.Println("Secret name:", secretName)
+	}
 	serviceMonitor := common.GenerateServiceMonitor(service)
-	for i, _ := range serviceMonitor.Spec.Endpoints {
+	serverNameStr := "metrics." + namespace + ".svc"
+	for i := range serviceMonitor.Spec.Endpoints {
 		if serviceMonitor.Spec.Endpoints[i].Port == metrics.ControllerMetricsServiceName {
 			serviceMonitor.Spec.Endpoints[i].Path = metrics.HandlerPath
 			serviceMonitor.Spec.Endpoints[i].Scheme = "https"
-			serviceMonitor.Spec.Endpoints[i].BearerTokenFile = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+			serviceMonitor.Spec.Endpoints[i].Authorization = &monitoring.SafeAuthorization{
+				Type: "Bearer",
+				Credentials: &v1.SecretKeySelector{
+					LocalObjectReference: v1.LocalObjectReference{
+						Name: secretName,
+					},
+					Key: "token",
+				},
+			}
 			serviceMonitor.Spec.Endpoints[i].TLSConfig = &monitoring.TLSConfig{
 				SafeTLSConfig: monitoring.SafeTLSConfig{
-					ServerName: "metrics." + namespace + ".svc",
+					ServerName: &serverNameStr,
 				},
 				CAFile: "/etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt",
 			}
 		}
 	}
-
 	_, err = mClient.ServiceMonitors(namespace).Create(ctx, serviceMonitor, metav1.CreateOptions{})
 	if err != nil && !kerr.IsAlreadyExists(err) {
 		return err
