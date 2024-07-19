@@ -18,3 +18,5 @@ resources:
 - metrics_rolebinding.yaml
 - fileintegrity_editor_role.yaml
 - fileintegrity_viewer_role.yaml
+- metrics_secret.yaml
+- metrics_serviceaccount.yaml

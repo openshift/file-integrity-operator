@@ -293,25 +293,6 @@ func ensureMetricsServiceAndSecret(ctx context.Context, kClient *kubernetes.Clie
 	return returnService, nil
 }
 
-func getSecretNameForServiceAccount(clientset *kubernetes.Clientset, namespace string, serviceAccountName string) (string, error) {
-	// List all secrets in the specified namespace
-	secrets, err := clientset.CoreV1().Secrets(namespace).List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		return "", err
-	}
-
-	// Iterate through the secrets to find the one associated with the service account
-	for _, secret := range secrets.Items {
-		if secret.Annotations != nil {
-			if saName, exists := secret.Annotations["kubernetes.io/service-account.name"]; exists && saName == serviceAccountName {
-				return secret.Name, nil
-			}
-		}
-	}
-
-	return "", errors.New("secret for service account not found")
-}
-
 func defaultPrometheusRule(alertName, namespace string) *monitoring.PrometheusRule {
 	duration := monitoring.Duration("1s")
 	rule := monitoring.Rule{
@@ -385,16 +366,9 @@ func createServiceMonitor(ctx context.Context, cfg *rest.Config, mClient *moncli
 		log.Info("Install prometheus-operator in your cluster to create ServiceMonitor objects")
 		return nil
 	}
-	serviceAccountName := "file-integrity-operator"
 
-	// Get the name of the secret associated with the service account
-	secretName, err := getSecretNameForServiceAccount(kubeClient, namespace, serviceAccountName)
-	if err != nil {
-		log.Error(err, "Error getting secret name for service account")
-		return err
-	}
+	serverName := fmt.Sprintf("metrics.%s.svc", namespace)
 	serviceMonitor := common.GenerateServiceMonitor(service)
-	serverNameStr := "metrics." + namespace + ".svc"
 	for i := range serviceMonitor.Spec.Endpoints {
 		if serviceMonitor.Spec.Endpoints[i].Port == metrics.ControllerMetricsServiceName {
 			serviceMonitor.Spec.Endpoints[i].Path = metrics.HandlerPath
@@ -403,14 +377,14 @@ func createServiceMonitor(ctx context.Context, cfg *rest.Config, mClient *moncli
 				Type: "Bearer",
 				Credentials: &v1.SecretKeySelector{
 					LocalObjectReference: v1.LocalObjectReference{
-						Name: secretName,
+						Name: "metrics-token",
 					},
 					Key: "token",
 				},
 			}
 			serviceMonitor.Spec.Endpoints[i].TLSConfig = &monitoring.TLSConfig{
 				SafeTLSConfig: monitoring.SafeTLSConfig{
-					ServerName: &serverNameStr,
+					ServerName: &serverName,
 				},
 				CAFile: "/etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt",
 			}
