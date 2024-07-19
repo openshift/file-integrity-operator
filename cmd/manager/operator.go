@@ -390,13 +390,8 @@ func createServiceMonitor(ctx context.Context, cfg *rest.Config, mClient *moncli
 	// Get the name of the secret associated with the service account
 	secretName, err := getSecretNameForServiceAccount(kubeClient, namespace, serviceAccountName)
 	if err != nil {
-		if kerr.IsNotFound(err) {
-			fmt.Println("Secret not found - restarting, as the service may have just been created")
-		} else {
-			fmt.Println("Error retrieving secret:", err)
-		}
-	} else {
-		fmt.Println("Secret name:", secretName)
+		log.Error(err, "Error getting secret name for service account")
+		return err
 	}
 	serviceMonitor := common.GenerateServiceMonitor(service)
 	serverNameStr := "metrics." + namespace + ".svc"
