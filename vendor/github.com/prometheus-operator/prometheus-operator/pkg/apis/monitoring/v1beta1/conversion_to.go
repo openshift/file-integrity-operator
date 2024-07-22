@@ -32,6 +32,7 @@ func convertRouteTo(in *Route) (*v1alpha1.Route, error) {
 
 	out := &v1alpha1.Route{
 		Receiver:            in.Receiver,
+		Continue:            in.Continue,
 		GroupBy:             in.GroupBy,
 		GroupWait:           in.GroupWait,
 		GroupInterval:       in.GroupInterval,
@@ -250,6 +251,7 @@ func convertPagerDutyConfigTo(in PagerDutyConfig) v1alpha1.PagerDutyConfig {
 		PagerDutyImageConfigs: convertPagerDutyImageConfigsTo(in.PagerDutyImageConfigs),
 		PagerDutyLinkConfigs:  convertPagerDutyLinkConfigsTo(in.PagerDutyLinkConfigs),
 		HTTPConfig:            convertHTTPConfigTo(in.HTTPConfig),
+		Source:                in.Source,
 	}
 }
 
@@ -403,11 +405,14 @@ func convertPushoverConfigTo(in PushoverConfig) v1alpha1.PushoverConfig {
 	return v1alpha1.PushoverConfig{
 		SendResolved: in.SendResolved,
 		UserKey:      convertSecretKeySelectorTo(in.UserKey),
+		UserKeyFile:  in.UserKeyFile,
 		Token:        convertSecretKeySelectorTo(in.Token),
+		TokenFile:    in.TokenFile,
 		Title:        in.Title,
 		Message:      in.Message,
 		URL:          in.URL,
 		URLTitle:     in.URLTitle,
+		Device:       in.Device,
 		Sound:        in.Sound,
 		Priority:     in.Priority,
 		Retry:        in.Retry,
@@ -443,6 +448,17 @@ func convertTelegramConfigTo(in TelegramConfig) v1alpha1.TelegramConfig {
 		DisableNotifications: in.DisableNotifications,
 		ParseMode:            in.ParseMode,
 		HTTPConfig:           convertHTTPConfigTo(in.HTTPConfig),
+	}
+}
+
+func convertMSTeamsConfigTo(in MSTeamsConfig) v1alpha1.MSTeamsConfig {
+	return v1alpha1.MSTeamsConfig{
+		SendResolved: in.SendResolved,
+		WebhookURL:   in.WebhookURL,
+		Title:        in.Title,
+		Text:         in.Text,
+		Summary:      in.Summary,
+		HTTPConfig:   convertHTTPConfigTo(in.HTTPConfig),
 	}
 }
 
@@ -538,6 +554,13 @@ func (src *AlertmanagerConfig) ConvertTo(dstRaw conversion.Hub) error {
 			out.TelegramConfigs = append(
 				out.TelegramConfigs,
 				convertTelegramConfigTo(in),
+			)
+		}
+
+		for _, in := range in.MSTeamsConfigs {
+			out.MSTeamsConfigs = append(
+				out.MSTeamsConfigs,
+				convertMSTeamsConfigTo(in),
 			)
 		}
 

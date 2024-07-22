@@ -101,6 +101,8 @@ type ObjectMeta struct {
 	// +optional
 	// +patchMergeKey=uid
 	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=uid
 	OwnerReferences []metav1.OwnerReference `json:"ownerReferences,omitempty" patchStrategy:"merge" patchMergeKey:"uid"`
 }
 
@@ -153,6 +155,8 @@ const (
 	// MachineTerminable is set on a machine to indicate whether or not the machine can be terminated, or, whether some
 	// deletion hook is blocking the termination operation.
 	MachineTerminable ConditionType = "Terminable"
+	// IPAddressClaimedCondition is set to indicate that a machine has a claimed an IP address.
+	IPAddressClaimedCondition ConditionType = "IPAddressClaimed"
 )
 
 const (
@@ -180,6 +184,11 @@ const (
 	// MachineDrainError indicates an error occurred when draining the machine.
 	// This should be used with the `Drained` condition type.
 	MachineDrainError = "DrainError"
+	// WaitingForIPAddressReason is set to indicate that a machine is
+	// currently waiting for an IP address to be provisioned.
+	WaitingForIPAddressReason string = "WaitingForIPAddress"
+	// IPAddressClaimedReason is set to indicate the machine was able to claim an IP address during provisioning.
+	IPAddressClaimedReason string = "IPAddressesClaimed"
 )
 
 // Condition defines an observation of a Machine API resource operational state.
@@ -188,6 +197,7 @@ type Condition struct {
 	// Many .condition.type values are consistent across resources like Available, but because arbitrary conditions
 	// can be useful (see .node.status.conditions), the ability to deconflict is important.
 	// +required
+	// +kubebuilder:validation:Required
 	Type ConditionType `json:"type"`
 
 	// Status of the condition, one of True, False, Unknown.
@@ -217,6 +227,3 @@ type Condition struct {
 	// +optional
 	Message string `json:"message,omitempty"`
 }
-
-// Conditions provide observations of the operational state of a Machine API resource.
-type Conditions []Condition
