@@ -68,6 +68,13 @@ func IsIntegrityLog(labels map[string]string) bool {
 	return ok
 }
 
+// IsMigrationCheckLog return whether the given map contains a
+// log from the config migration check
+func IsMigrationCheckLog(labels map[string]string) bool {
+	_, ok := labels[IntegrityMigrationLabelKey]
+	return ok
+}
+
 // IsIntegrityLogAnError returns whether the given map coming
 // from an integrity check logcollector contains an error
 func IsIntegrityLogAnError(cm *corev1.ConfigMap) bool {
@@ -303,6 +310,10 @@ func ReinitDaemonSetNodeName(name, node string) string {
 		return ReinitDaemonSetName(name)
 	}
 	return DNSLengthName(ReinitDaemonSetPrefix, "%s-%s-%s", ReinitDaemonSetPrefix, name, node)
+}
+
+func AideMigratePodName(name string) string {
+	return DNSLengthName(AideMigratePodPrefix, "%s-%s", AideMigratePodPrefix, name)
 }
 
 // RestartFileIntegrityDs restarts all pods that belong to a given DaemonSet. This can be

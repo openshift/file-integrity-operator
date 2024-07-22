@@ -18,10 +18,11 @@ package fileintegrity
 
 import (
 	"context"
+
 	"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
 	"github.com/openshift/file-integrity-operator/pkg/controller/metrics"
-
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlLog "sigs.k8s.io/controller-runtime/pkg/log"
@@ -30,6 +31,7 @@ import (
 // FileIntegrityReconciler reconciles a FileIntegrity object
 type FileIntegrityReconciler struct {
 	client.Client
+	record.EventRecorder
 	*runtime.Scheme
 	*metrics.Metrics
 }

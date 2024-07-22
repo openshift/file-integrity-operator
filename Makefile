@@ -161,6 +161,31 @@ else
 	$(eval OPENSHIFT_USER = $(shell oc whoami))
 endif
 
+
+.PHONY: aide-0.18
+aide-0.18:
+	cd build && \
+	rm -rf aide && \
+	git clone https://github.com/aide/aide.git && \
+	cd aide && \
+	git checkout v0.18.8 && \
+	sh ./autogen.sh && \
+	./configure \
+	--with-zlib \
+	--disable-static \
+	--with-posix-acl \
+	--with-gcrypt \
+	--with-selinux \
+	--with-xattr \
+	--with-e2fsattrs \
+	--with-audit && \
+	$(MAKE) && \
+	chmod +x ./aide && \
+	cd .. && \
+	cd .. && \
+	cp ./build/aide/aide ./build/bin/aide-0.18
+
+
 .PHONY: check-operator-version
 check-operator-version:
 ifndef VERSION

@@ -896,6 +896,64 @@ func TestFileIntegrityBadConfig(t *testing.T) {
 	}
 }
 
+// TestFileIntegrityConfigMigration perform e2e test on migration of the FileIntegrity configuration.
+func TestFileIntegrityConfigMigration(t *testing.T) {
+	f, testctx, namespace := setupTest(t)
+	testName := testIntegrityNamePrefix + "-migration"
+	setupFileIntegrity(t, f, testctx, testName, namespace, nodeWorkerRoleLabelKey, defaultTestGracePeriod)
+	defer testctx.Cleanup()
+	defer func() {
+		if err := cleanNodes(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+		if err := resetBundleTestMetrics(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+	}()
+	defer logContainerOutput(t, f, namespace, testName)
+
+	// Install the different migratable config
+	createTestConfigMap(t, f, testName, testConfName+"-nonreplace", namespace, testConfDataKey, testAideConfig)
+
+	// update FileIntegrity config spec to point to the configMap
+	updateFileIntegrityConfig(t, f, testName, testConfName+"-nonreplace", namespace, testConfDataKey, time.Second, 2*time.Minute)
+
+	err := waitForScanStatusWithTimeout(t, f, namespace, testName, v1alpha1.PhaseActive, retryInterval, timeout, 1)
+	if err != nil {
+		t.Errorf("Timeout waiting for scan status")
+	}
+	err = waitForAIDEConfigMigrationEvent(t, f, namespace, testName, "report_ignore_removed_attrs")
+	if err == nil {
+		t.Errorf("Expected event not found")
+	}
+	// Use non-replaceable config-map
+	updateTestConfigMap(t, f, testConfName+"-nonreplace", namespace, testConfDataKey, nonReplaceableConfig)
+
+	err = waitForAIDEConfigMigrationEvent(t, f, namespace, testName, "report_ignore_removed_attrs")
+	if err != nil {
+		t.Errorf("Expected event to be found")
+	}
+
+	// use wrong log_level
+	updateTestConfigMap(t, f, testConfName+"-nonreplace", namespace, testConfDataKey, errorLoglevelConfig)
+	err = waitForAIDEConfigMigrationEvent(t, f, namespace, testName, "wrong_error")
+	if err != nil {
+		t.Errorf("Expected event to be found")
+	}
+	err = waitForFIMigrationErrAnnotation(t, f, namespace, testName, "wrong_error")
+	if err != nil {
+		t.Errorf("Expected err annotation to be found")
+	}
+
+	// revert to the original config
+	updateTestConfigMap(t, f, testConfName+"-nonreplace", namespace, testConfDataKey, testAideConfig)
+
+	err = waitForFIMigrationErrAnnotationOK(t, f, namespace, testName)
+	if err != nil {
+		t.Errorf("Expected err annotation to be removed")
+	}
+}
+
 func TestFileIntegrityTolerations(t *testing.T) {
 	f, testctx, namespace, taintedNode := setupTolerationTest(t, testIntegrityNamePrefix+"-tolerations")
 	defer testctx.Cleanup()
