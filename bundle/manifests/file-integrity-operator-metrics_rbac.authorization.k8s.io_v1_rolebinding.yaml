@@ -11,3 +11,6 @@ subjects:
 - kind: ServiceAccount
   name: prometheus-k8s
   namespace: openshift-monitoring
+- kind: ServiceAccount
+  name: file-integrity-operator-metrics
+  namespace: openshift-file-integrity

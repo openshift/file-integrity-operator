@@ -17,6 +17,8 @@ import (
 	"testing"
 	"time"
 
+	promv1 "github.com/prometheus/prometheus/web/api/v1"
+
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 	"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
 	"github.com/openshift/file-integrity-operator/pkg/controller/metrics"
@@ -79,8 +81,9 @@ const (
 )
 
 const (
-	curlCMD       = "curl -ks -H \"Authorization: Bearer `cat /var/run/secrets/kubernetes.io/serviceaccount/token`\" "
-	metricsURLFmt = "https://metrics.%s.svc:8585/"
+	curlCMD         = "curl -ks -H \"Authorization: Bearer `cat /var/run/secrets/kubernetes.io/serviceaccount/token`\" "
+	metricsURLFmt   = "https://metrics.%s.svc:8585/"
+	PromethusTestSA = "prometheus-query-sa"
 )
 
 var mcLabelForWorkerRole = map[string]string{
@@ -461,6 +464,19 @@ func setupFileIntegrityOperatorCluster(t *testing.T, ctx *framework.Context) {
 
 // Initializes the permission resources needed for the in-test metrics scraping
 func initializeMetricsTestResources(f *framework.Framework, namespace string) error {
+	// label namespace with openshift.io/cluster-monitoring=true to allow metrics scraping
+	ns, err := f.KubeClient.CoreV1().Namespaces().Get(goctx.TODO(), namespace, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	if ns.Labels == nil {
+		ns.Labels = make(map[string]string)
+	}
+	ns.Labels["openshift.io/cluster-monitoring"] = "true"
+	_, err = f.KubeClient.CoreV1().Namespaces().Update(goctx.TODO(), ns, metav1.UpdateOptions{})
+	if err != nil {
+		return err
+	}
 	if _, err := f.KubeClient.RbacV1().ClusterRoles().Create(goctx.TODO(), &v1.ClusterRole{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: metricsTestCRBName,
@@ -2191,6 +2207,16 @@ func getOCpath(t *testing.T) string {
 	return ocPath
 }
 
+func runOCandCheckError(t *testing.T, args []string) error {
+	ocPath := getOCpath(t)
+	cmd := exec.Command(ocPath, args...)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Logf("error running oc %s: %s", args, out)
+		return err
+	}
+	return nil
+}
+
 func runOCandGetOutput(t *testing.T, arg []string) string {
 	ocPath := getOCpath(t)
 
@@ -2261,4 +2287,98 @@ func parseMetric(t *testing.T, content, metric string) int {
 		}
 	}
 	return 0
+}
+
+// createServiceAccount creates a service account
+func SetupRBACForMetricsTest(t *testing.T, operatorNamespace string) {
+	if err := runOCandCheckError(t, []string{
+		"create", "sa", PromethusTestSA, "-n", operatorNamespace}); err != nil {
+		t.Fatalf("Failed to create service account: %v", err)
+	}
+
+	if err := runOCandCheckError(t, []string{
+		"adm", "policy", "add-cluster-role-to-user", "cluster-monitoring-view", "-z", PromethusTestSA, "-n", operatorNamespace}); err != nil {
+		t.Fatalf("Failed to add cluster role to user: %v", err)
+	}
+}
+
+// CleanupRBACForMetricsTest deletes the service account
+func CleanupRBACForMetricsTest(t *testing.T, operatorNamespace string) {
+	if err := runOCandCheckError(t, []string{
+		"delete", "sa", PromethusTestSA, "-n", operatorNamespace}); err != nil {
+		t.Fatalf("Failed to delete service account: %v", err)
+	}
+}
+
+// GetPrometheusMetricTargets retrieves Prometheus metric targets
+func GetPrometheusMetricTargets(t *testing.T, operatorNamespace string) []promv1.Target {
+	const prometheusCommand = `TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token) && { curl -k -s https://prometheus-k8s.openshift-monitoring.svc.cluster.local:9091/api/v1/targets --cacert /var/run/secrets/kubernetes.io/serviceaccount/ca.crt -H "Authorization: Bearer $TOKEN"; }`
+	out := runOCandGetOutput(t, []string{
+		"run", "--rm", "-i", "--restart=Never", "--image=registry.fedoraproject.org/fedora:latest",
+		"-n", operatorNamespace, "--overrides={\"spec\": {\"serviceAccountName\": \"" + PromethusTestSA + "\"}}", "metrics-test", "--", "bash", "-c", prometheusCommand})
+
+	outTrimmed := trimOutput(out)
+	if outTrimmed == "" {
+		t.Fatalf("error getting output")
+	}
+
+	t.Logf("Metrics output:\n%s\n", outTrimmed)
+	var responseData struct {
+		Data struct {
+			ActiveTargets []promv1.Target `json:"activeTargets"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(outTrimmed), &responseData); err != nil {
+		t.Fatalf("error unmarshalling json: %v", err)
+	}
+
+	var metricsTargets []promv1.Target
+	for _, metricsTarget := range responseData.Data.ActiveTargets {
+		if metricContainsLabel(metricsTarget, "namespace", operatorNamespace) &&
+			(metricContainsLabel(metricsTarget, "endpoint", "metrics") || metricContainsLabel(metricsTarget, "endpoint", "metrics-fio")) {
+			metricsTargets = append(metricsTargets, metricsTarget)
+		}
+	}
+
+	return metricsTargets
+}
+
+// assertServiceMonitoringMetricsTarget checks if the specified metrics are up
+func AssertServiceMonitoringMetricsTarget(t *testing.T, metrics []promv1.Target, expectedTargetsCount int) {
+	if len(metrics) != expectedTargetsCount {
+		t.Fatalf("Expected %d metrics, got %d", expectedTargetsCount, len(metrics))
+	}
+
+	for _, metric := range metrics {
+		if metric.Health != "up" {
+			t.Fatalf("Metric %s is not up. LastError: %s", metric.Labels, metric.LastError)
+		} else {
+			t.Logf("Metric instance %s is up. LastScrape: %s", metric.Labels, metric.LastScrape)
+		}
+	}
+}
+
+func trimOutput(out string) string {
+	startIndex := strings.Index(out, `{"status":"`)
+	if startIndex == -1 {
+		return ""
+	}
+
+	endIndex := strings.LastIndex(out, "}")
+	if endIndex == -1 {
+		return ""
+	}
+
+	return out[startIndex : endIndex+1]
+}
+
+func metricContainsLabel(metricTarget promv1.Target, labelName string, labelValue string) bool {
+	if metricTarget.Labels != nil {
+		for _, label := range metricTarget.Labels {
+			if label.Name == labelName && label.Value == labelValue {
+				return true
+			}
+		}
+	}
+	return false
 }
