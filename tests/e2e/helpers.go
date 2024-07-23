@@ -2262,3 +2262,49 @@ func parseMetric(t *testing.T, content, metric string) int {
 	}
 	return 0
 }
+
+type Metric struct {
+	Instance   string `json:"instance"`
+	Health     string `json:"health"`
+	LastScrape string `json:"lastScrape"`
+	LastError  string `json:"lastError"`
+}
+
+// getCurlPrometheusCMD constructs the curl command to get metrics from Prometheus
+func getCurlPrometheusCMD() string {
+	return `curl -s https://prometheus-k8s.openshift-monitoring.svc.cluster.local:9091/api/v1/targets --cacert /var/run/secrets/kubernetes.io/serviceaccount/ca.crt -H "Authorization: Bearer $(cat /var/run/secrets/kubernetes.io/serviceaccount/token)"`
+}
+
+// getPrometheusMetricResults fetches the metrics from Prometheus
+func getPrometheusMetricResults(t *testing.T, namespace string) string {
+	out := runOCandGetOutput(t, []string{
+		"run", "--rm", "-i", "--restart=Never", "--image=registry.fedoraproject.org/fedora-minimal:latest",
+		"-n", namespace, "metrics-test", "--", "bash", "-c",
+		getCurlPrometheusCMD(),
+	})
+
+	t.Logf("metrics output:\n%s\n", out)
+	return out
+}
+
+// createServiceAccount creates a service account and assigns the necessary role
+func createServiceAccount(t *testing.T, namespace string) {
+	runOCandGetOutput(t, []string{"create", "sa", "prometheus-query-sa", "-n", namespace})
+	runOCandGetOutput(t, []string{"adm", "policy", "add-cluster-role-to-user", "cluster-monitoring-view", "-z", "prometheus-query-sa", "-n", namespace})
+}
+
+// deleteServiceAccount deletes the service account
+func deleteServiceAccount(t *testing.T, namespace string) {
+	runOCandGetOutput(t, []string{"delete", "sa", "prometheus-query-sa", "-n", namespace})
+}
+
+// checkMetrics checks if the specified metrics are up
+func checkMetrics(t *testing.T, metrics []Metric) {
+	for _, metric := range metrics {
+		if metric.Health != "up" {
+			t.Errorf("Metric instance %s is not up. Health: %s, LastError: %s", metric.Instance, metric.Health, metric.LastError)
+		} else {
+			t.Logf("Metric instance %s is up. LastScrape: %s", metric.Instance, metric.LastScrape)
+		}
+	}
+}

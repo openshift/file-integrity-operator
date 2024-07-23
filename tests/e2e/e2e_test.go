@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"testing"
@@ -165,6 +166,35 @@ func TestMetricsHTTPVersion(t *testing.T) {
 	t.Log("Metrics endpoints use HTTP/1.1, as expected")
 }
 
+func TestServiceMonitoringMetricsTarget(t *testing.T) {
+	namespace := "openshift-monitoring"
+
+	// Create service account
+	createServiceAccount(t, namespace)
+	defer deleteServiceAccount(t, namespace) // Ensure the service account is deleted after the test
+
+	// Get metrics
+	metricsOutput := getPrometheusMetricResults(t, namespace)
+
+	var metrics []Metric
+	err := json.Unmarshal([]byte(metricsOutput), &metrics)
+	if err != nil {
+		t.Fatalf("failed to unmarshal metrics output: %v", err)
+	}
+
+	expectedMetrics := []Metric{
+		{
+			Instance: "serviceMonitor/openshift-file-integrity/metrics/0",
+			Health:   "up",
+		},
+		{
+			Instance: "serviceMonitor/openshift-file-integrity/metrics/1",
+			Health:   "up",
+		},
+	}
+
+	checkMetrics(t, expectedMetrics)
+}
 func TestFileIntegrityInitialDelay(t *testing.T) {
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-initialdelay"
