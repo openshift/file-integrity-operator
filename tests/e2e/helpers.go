@@ -2306,3 +2306,49 @@ func parseMetric(t *testing.T, content, metric string) int {
 	}
 	return 0
 }
+
+type Metric struct {
+	Instance   string `json:"instance"`
+	Health     string `json:"health"`
+	LastScrape string `json:"lastScrape"`
+	LastError  string `json:"lastError"`
+}
+
+// getCurlPrometheusCMD constructs the curl command to get metrics from Prometheus
+func getCurlPrometheusCMD(namespace string) string {
+	return fmt.Sprintf(`TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token) && curl -k -s https://prometheus-k8s.openshift-monitoring.svc.cluster.local:9091/api/v1/targets --cacert /var/run/secrets/kubernetes.io/serviceaccount/ca.crt -H "Authorization: Bearer $TOKEN" | jq '.data.activeTargets[] | select(.scrapePool=="%s/metrics") | {instance: .labels.instance, health: .health, lastScrape: .lastScrape, lastError: .lastError}'`, namespace)
+}
+
+// getPrometheusMetricResults fetches the metrics from Prometheus
+func getPrometheusMetricResults(t *testing.T, namespace string) string {
+	out := runOCandGetOutput(t, []string{
+		"run", "--rm", "-i", "--restart=Never", "--image=registry.fedoraproject.org/fedora:latest",
+		"-n" + namespace, "--overrides={\"spec\": {\"serviceAccountName\": \"prometheus-query-sa\"}}", "metrics-test", "--", "bash", "-c",
+		fmt.Sprintf(`microdnf install -y jq curl > /dev/null 2>&1  && %s`, getCurlPrometheusCMD(namespace)),
+	})
+
+	t.Logf("metrics output:\n%s\n", out)
+	return out
+}
+
+// createServiceAccount creates a service account and assigns the necessary role
+func createServiceAccount(t *testing.T, namespace string) {
+	runOCandGetOutput(t, []string{"create", "sa", "prometheus-query-sa", "-n", namespace})
+	runOCandGetOutput(t, []string{"adm", "policy", "add-cluster-role-to-user", "cluster-monitoring-view", "-z", "prometheus-query-sa", "-n", namespace})
+}
+
+// deleteServiceAccount deletes the service account
+func deleteServiceAccount(t *testing.T, namespace string) {
+	runOCandGetOutput(t, []string{"delete", "sa", "prometheus-query-sa", "-n", namespace})
+}
+
+// checkMetrics checks if the specified metrics are up
+func checkMetrics(t *testing.T, metrics []Metric) {
+	for _, metric := range metrics {
+		if metric.Health != "up" {
+			t.Errorf("Metric instance %s is not up. Health: %s, LastError: %s", metric.Instance, metric.Health, metric.LastError)
+		} else {
+			t.Logf("Metric instance %s is up. LastScrape: %s", metric.Instance, metric.LastScrape)
+		}
+	}
+}
