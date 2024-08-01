@@ -304,7 +304,7 @@ func (r *FileIntegrityReconciler) reconcileUserConfig(instance *v1alpha1.FileInt
 		if !hasDefaultConfig {
 			// The configuration was previously replaced. We want to restore it now.
 			reqLogger.Info("Restoring the AIDE configuration defaults.")
-			if err := r.updateAideConfig(currentConfig, DefaultAideConfig, ""); err != nil {
+			if err := r.updateAideConfig(currentConfig, GetAideConfigDefault(), ""); err != nil {
 				return false, err
 			}
 			return true, nil
@@ -656,7 +656,7 @@ func defaultAIDEConfigMap(name string) *corev1.ConfigMap {
 			},
 		},
 		Data: map[string]string{
-			common.DefaultConfDataKey: DefaultAideConfig,
+			common.DefaultConfDataKey: GetAideConfigDefault(),
 		},
 	}
 }

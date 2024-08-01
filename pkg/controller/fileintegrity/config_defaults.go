@@ -1,5 +1,7 @@
 package fileintegrity
 
+import "os"
+
 const aideLogPath = "/hostroot/etc/kubernetes/aide.log"
 
 var aideReinitContainerScript = `#!/bin/sh
@@ -12,8 +14,30 @@ var aidePauseContainerScript = `#!/bin/sh
 	wait $PID || true
 `
 
-// NOTE: Needs to be in sync with `testAideConfig` in test/e2e/helpers.go, except for the heading comment.
-var DefaultAideConfig = `@@define DBDIR /hostroot/etc/kubernetes
+var DefaultAideConfigCommonStart018 = `@@define DBDIR /hostroot/etc/kubernetes
+@@define LOGDIR /hostroot/etc/kubernetes
+database_in=file:@@{DBDIR}/aide.db.gz
+database_out=file:@@{DBDIR}/aide.db.gz.new
+gzip_dbout=yes
+log_level=warning
+report_level=changed_attributes
+report_url=file:@@{LOGDIR}/aide.log.new
+report_url=stdout
+PERMS = p+u+g+acl+selinux+xattrs
+CONTENTEX = sha512+ftype+p+u+g+n+acl+selinux+xattrs
+
+/hostroot/boot/        CONTENTEX
+/hostroot/root/\..* PERMS
+/hostroot/root/   CONTENTEX
+!/hostroot/root/\.kube
+!/hostroot/usr/src/
+!/hostroot/usr/tmp/
+`
+
+var DefaultAideConfigCommonEnd018 = `# Catch everything else in /etc
+/hostroot/etc/    CONTENTEX`
+
+var DefaultAideConfigCommonStart = `@@define DBDIR /hostroot/etc/kubernetes
 @@define LOGDIR /hostroot/etc/kubernetes
 database=file:@@{DBDIR}/aide.db.gz
 database_out=file:@@{DBDIR}/aide.db.gz.new
@@ -32,8 +56,13 @@ CONTENT_EX = sha512+ftype+p+u+g+n+acl+selinux+xattrs
 !/hostroot/usr/tmp/
 
 /hostroot/usr/    CONTENT_EX
+`
 
-# OpenShift specific excludes
+var DefaultAideConfigCommonEnd = `# Catch everything else in /etc
+/hostroot/etc/    CONTENT_EX`
+
+// NOTE: Needs to be in sync with `testAideConfig` in test/e2e/helpers.go, except for the heading comment.
+var DefaultAideConfigExclude = `# OpenShift specific excludes
 !/hostroot/opt/
 !/hostroot/var
 !/hostroot/etc/NetworkManager/system-connections/
@@ -56,6 +85,11 @@ CONTENT_EX = sha512+ftype+p+u+g+n+acl+selinux+xattrs
 !/hostroot/etc/kubernetes/compliance-operator
 !/hostroot/etc/kubernetes/node-feature-discovery
 !/hostroot/etc/mco/internal-registry-pull-secret.json$
+`
 
-# Catch everything else in /etc
-/hostroot/etc/    CONTENT_EX`
+func GetAideConfigDefault() string {
+	if os.Getenv("AIDE_VERSION") == "0.18" {
+		return DefaultAideConfigCommonStart018 + DefaultAideConfigExclude + DefaultAideConfigCommonEnd018
+	}
+	return DefaultAideConfigCommonStart + DefaultAideConfigExclude + DefaultAideConfigCommonEnd
+}
