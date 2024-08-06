@@ -67,6 +67,10 @@ func aideConfigPath(c *daemonConfig) string {
 	return path.Join(c.ConfigDir, aideConfigFileName)
 }
 
+func aideMigrateConfigPath(c *daemonConfig) string {
+	return path.Join(c.ConfigDir, aideMigrateConfigFileName)
+}
+
 func logAndTryReportingDaemonError(ctx context.Context, rt *daemonRuntime, conf *daemonConfig, fmt string, err error) {
 	LOG(fmt, err)
 	if reportErr := reportDaemonError(ctx, rt, conf, fmt, err); reportErr != nil {
@@ -92,9 +96,16 @@ func createErrorEvent(ctx context.Context, rt *daemonRuntime, conf *daemonConfig
 }
 
 func reportDaemonError(ctx context.Context, rt *daemonRuntime, conf *daemonConfig, format string, err error) error {
-	if reportErr := reportError(ctx, fmt.Sprintf(format, err), conf, rt); reportErr != nil {
-		return reportErr
+	if err != nil {
+		if reportErr := reportError(ctx, fmt.Sprintf(format, err), conf, rt); reportErr != nil {
+			return reportErr
+		}
+	} else {
+		if reportErr := reportError(ctx, format, conf, rt); reportErr != nil {
+			return reportErr
+		}
 	}
+
 	return createErrorEvent(ctx, rt, conf, format, err)
 }
 
@@ -116,6 +127,23 @@ func runAideInitDBCmd(ctx context.Context, c *daemonConfig) error {
 		}
 		return nil
 	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries))
+}
+
+// runAideMigrationCheckCmdSaveOutput runs the AIDE migration check command and saves the output
+func runAideMigrationCheckCmdSaveOutput(ctx context.Context, c *daemonConfig) (string, error) {
+	configPath := aideMigrateConfigPath(c)
+
+	cmd := exec.CommandContext(ctx, "aide-0.18", "-c", configPath, "-D")
+	_, err := cmd.Output()
+	if err != nil {
+		// Check if the error is an exec.ExitError to get the stderr output
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			errString := string(exitErr.Stderr)
+			return strings.TrimSpace(strings.TrimSuffix(errString, "\n")), err
+		}
+		return "", err
+	}
+	return "", nil
 }
 
 func runAideScanCmd(ctx context.Context, c *daemonConfig) error {

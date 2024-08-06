@@ -82,6 +82,9 @@ func (r *ReconcileConfigMap) ConfigMapReconcile(request reconcile.Request) (reco
 		return r.reconcileAideConfAndHandleReinitDs(instance, reqLogger)
 	} else if common.IsIntegrityLog(instance.Labels) {
 		return r.handleIntegrityLog(instance, reqLogger)
+	} else if common.IsMigrationCheckLog(instance.Labels) {
+		return r.handleMigrationCheckLog(instance, reqLogger)
+
 	}
 
 	return reconcile.Result{}, nil
@@ -183,6 +186,67 @@ func (r *ReconcileConfigMap) reconcileAideConfAndHandleReinitDs(instance *corev1
 	if updateErr := r.Client.Update(context.TODO(), conf); updateErr != nil {
 		logger.Error(updateErr, "error clearing configMap annotations")
 		return reconcile.Result{}, updateErr
+	}
+	return reconcile.Result{}, nil
+}
+
+func (r *ReconcileConfigMap) handleMigrationCheckLog(cm *corev1.ConfigMap, logger logr.Logger) (reconcile.Result, error) {
+	owner, err := common.GetConfigMapOwnerName(cm)
+	if err != nil {
+		logger.Error(err, "Malformed ConfigMap: Could not get owner. Cannot retry.")
+		return reconcile.Result{}, nil
+	}
+
+	cachedfi := &v1alpha1.FileIntegrity{}
+	err = r.Client.Get(context.TODO(), types.NamespacedName{Name: owner, Namespace: cm.Namespace}, cachedfi)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+	fi := cachedfi.DeepCopy()
+
+	annotation := fi.Annotations
+	if annotation == nil {
+		annotation = make(map[string]string)
+	}
+
+	if common.IsIntegrityLogAnError(cm) {
+		// let's not do anything blocking here, we'll just save the information in the status of the FileIntegrity object annotation
+		// and let the operator handle it
+		annotation[common.AideConfigAutoMigrationFailedAnnotationKey] = "true"
+		if cm.Annotations[common.IntegrityLogErrorAnnotationKey] != "" {
+			annotation[common.IntegrityLogErrorAnnotationKey] = cm.Annotations[common.IntegrityLogErrorAnnotationKey]
+		}
+		// issue an migration warning event
+		createMigrationStatusEvent(r, fi, cm.Annotations[common.IntegrityLogErrorAnnotationKey])
+	} else {
+		annotation[common.AideConfigAutoMigrationFailedAnnotationKey] = "false"
+		delete(annotation, common.IntegrityLogErrorAnnotationKey)
+	}
+
+	delete(annotation, common.IntegrityMigrationUpdateAnnotationKey)
+
+	if err := r.Client.Update(context.TODO(), fi); err != nil {
+		return reconcile.Result{}, err
+	}
+
+	// remove the pod that was used to check the migration
+	pod := &corev1.Pod{}
+	podName := common.AideMigratePodName(fi.Name)
+	err = r.Client.Get(context.TODO(), types.NamespacedName{Name: podName, Namespace: cm.Namespace}, pod)
+	if err != nil {
+		if !kerr.IsNotFound(err) {
+			return reconcile.Result{}, err
+		}
+	}
+
+	if err = r.Client.Delete(context.TODO(), pod); err != nil {
+		return reconcile.Result{}, err
+	}
+
+	// No need to keep the ConfigMap, the migration scanner will try to create
+	// another one on its next run
+	if err = r.Client.Delete(context.TODO(), cm); err != nil {
+		return reconcile.Result{}, err
 	}
 	return reconcile.Result{}, nil
 }
@@ -376,6 +440,11 @@ func createNodeStatusEvent(r *ReconcileConfigMap, fi *v1alpha1.FileIntegrity, st
 		r.Recorder.Eventf(fi, corev1.EventTypeWarning, "NodeIntegrityStatus",
 			"node %s has an error! %s", status.NodeName, status.LastResult.ErrorMsg)
 	}
+}
+
+func createMigrationStatusEvent(r *ReconcileConfigMap, fi *v1alpha1.FileIntegrity, errorMsg string) {
+	r.Recorder.Eventf(fi, corev1.EventTypeWarning, "FileIntegrityAIDEConfigMigration",
+		"Migration check failed: %s", errorMsg)
 }
 
 func getConfigMapForFailureLog(cm *corev1.ConfigMap) *corev1.ConfigMap {

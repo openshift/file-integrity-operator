@@ -330,6 +330,8 @@ spec:
           name: kubelet-dir
 `
 var brokenAideConfig = testAideConfig + "\n" + "NORMAL = p+i+n+u+g+s+m+c+acl+selinux+xattrs+sha513+md5+XXXXXX"
+var nonReplaceableConfig = testAideConfig + "\n" + "report_ignore_removed_attrs = p+i+n+u+g+s+m"
+var errorLoglevelConfig = testAideConfig + "\n" + "log_level = wrong_error"
 
 func newTestFileIntegrity(name, ns string, nodeSelector map[string]string, grace int, debug bool, initialDelay int) *v1alpha1.FileIntegrity {
 	return &v1alpha1.FileIntegrity{
@@ -1191,6 +1193,44 @@ func waitForFailedResultForNode(t *testing.T, f *framework.Framework, namespace,
 	return foundResult, nil
 }
 
+func waitForAIDEConfigMigrationEvent(t *testing.T, f *framework.Framework, namespace, name, expectedMessage string) error {
+	exampleFileIntegrity := &v1alpha1.FileIntegrity{}
+	err := wait.Poll(pollInterval, pollTimeout, func() (bool, error) {
+		getErr := f.Client.Get(goctx.TODO(), types.NamespacedName{Name: name, Namespace: namespace}, exampleFileIntegrity)
+		if getErr != nil {
+			t.Log(getErr)
+			return false, nil
+		}
+
+		eventList, getEventErr := f.KubeClient.CoreV1().Events(namespace).List(goctx.TODO(), metav1.ListOptions{
+			FieldSelector: "reason=FileIntegrityAIDEConfigMigration",
+		})
+
+		if getEventErr != nil {
+			t.Log(getEventErr)
+			return false, nil
+		}
+
+		for _, item := range eventList.Items {
+			t.Logf("Event: %s", item.Message)
+			t.Logf("InvolvedObject: %s", item.InvolvedObject.Name)
+			if item.InvolvedObject.Name == exampleFileIntegrity.Name && strings.Contains(item.Message, expectedMessage) {
+				t.Logf("Found FileIntegrityAIDEConfigMigration event: %s", expectedMessage)
+				return true, nil
+			}
+		}
+		return false, nil
+
+	})
+	if err != nil {
+		t.Logf("No FileIntegrityAIDEConfigMigration event with message \"%s\" found", expectedMessage)
+		return err
+	}
+
+	return nil
+
+}
+
 func waitForFIStatusEvent(t *testing.T, f *framework.Framework, namespace, name, expectedMessage string) error {
 	exampleFileIntegrity := &v1alpha1.FileIntegrity{}
 	err := wait.Poll(pollInterval, pollTimeout, func() (bool, error) {
@@ -1224,6 +1264,66 @@ func waitForFIStatusEvent(t *testing.T, f *framework.Framework, namespace, name,
 	return nil
 }
 
+func waitForFIMigrationErrAnnotation(t *testing.T, f *framework.Framework, namespace, name, expectedMessage string) error {
+	exampleFileIntegrity := &v1alpha1.FileIntegrity{}
+	err := wait.Poll(pollInterval, pollTimeout, func() (bool, error) {
+		getErr := f.Client.Get(goctx.TODO(), types.NamespacedName{Name: name, Namespace: namespace}, exampleFileIntegrity)
+		if getErr != nil {
+			t.Log(getErr)
+			return false, nil
+		}
+		annotations := exampleFileIntegrity.Annotations
+		if annotations == nil {
+			return false, nil
+		}
+		if annotations[common.IntegrityLogErrorAnnotationKey] != "" {
+			if strings.Contains(annotations[common.IntegrityLogErrorAnnotationKey], expectedMessage) {
+				if annotations[common.AideConfigAutoMigrationFailedAnnotationKey] == "true" {
+					t.Logf("Found FileIntegrityMigrationErr annotation: %s", expectedMessage)
+					return true, nil
+				}
+			}
+		}
+		return false, nil
+	})
+	if err != nil {
+		t.Logf("No FileIntegrityMigrationErr annotation with message \"%s\" found", expectedMessage)
+		return err
+	}
+
+	return nil
+}
+
+func waitForFIMigrationErrAnnotationOK(t *testing.T, f *framework.Framework, namespace, name string) error {
+	exampleFileIntegrity := &v1alpha1.FileIntegrity{}
+	err := wait.Poll(pollInterval, pollTimeout, func() (bool, error) {
+		getErr := f.Client.Get(goctx.TODO(), types.NamespacedName{Name: name, Namespace: namespace}, exampleFileIntegrity)
+		if getErr != nil {
+			t.Log(getErr)
+			return false, nil
+		}
+		annotations := exampleFileIntegrity.Annotations
+		if annotations == nil {
+			return false, nil
+		}
+		if annotations[common.AideConfigAutoMigrationFailedAnnotationKey] == "false" {
+			if annotations[common.IntegrityLogErrorAnnotationKey] == "" {
+				t.Logf("Found FileIntegrityMigrationErr annotation: %s", "")
+				return true, nil
+			} else {
+				errMsg := fmt.Errorf("Found FileIntegrityMigrationErr annotation with message: %s", annotations[common.IntegrityLogErrorAnnotationKey])
+				return false, errMsg
+			}
+		}
+		return false, nil
+	})
+	if err != nil {
+		t.Logf(err.Error())
+		return err
+	}
+
+	return nil
+}
 func assertNodeOKStatusEvents(t *testing.T, f *framework.Framework, namespace string, interval, timeout time.Duration) {
 	var lastErr error
 	nodes, err := f.KubeClient.CoreV1().Nodes().List(goctx.TODO(), metav1.ListOptions{LabelSelector: nodeWorkerRoleLabelKey})
@@ -2173,7 +2273,6 @@ func logContainerOutput(t *testing.T, f *framework.Framework, namespace, name st
 		return
 	}
 
-	// Append operatorPods to pods
 	pods.Items = append(pods.Items, operatorPods.Items...)
 
 	for _, pod := range pods.Items {

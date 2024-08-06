@@ -47,7 +47,10 @@ const (
 	configMapMaxSize = 1048570 // 1MB for etcd limit. Over this, you get an error.
 )
 
-func getConfigMapName(prefix, nodeName string) string {
+func getConfigMapName(prefix string, nodeName string, migrationMode bool) string {
+	if migrationMode {
+		return prefix + "-migration"
+	}
 	return prefix + "-" + nodeName
 }
 
@@ -176,7 +179,7 @@ func newLogConfigMap(owner *unstructured.Unstructured, configMapName, contentkey
 	}
 }
 
-func newInformationalConfigMap(owner *unstructured.Unstructured, configMapName string, node string, annotations map[string]string) *corev1.ConfigMap {
+func newInformationalConfigMap(owner *unstructured.Unstructured, configMapName string, node string, annotations map[string]string, labels map[string]string) *corev1.ConfigMap {
 	return &corev1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
@@ -193,12 +196,23 @@ func newInformationalConfigMap(owner *unstructured.Unstructured, configMapName s
 					UID:        owner.GetUID(),
 				},
 			},
-			Labels: map[string]string{
-				common.IntegrityOwnerLabelKey:         owner.GetName(),
-				common.IntegrityLogLabelKey:           "",
-				common.IntegrityConfigMapNodeLabelKey: node,
-			},
+			Labels: labels,
 		},
+	}
+}
+
+func getLogCollectorConfigMapLabels(owner *unstructured.Unstructured, node string, migrationMode bool) map[string]string {
+	if migrationMode {
+		return map[string]string{
+			common.IntegrityOwnerLabelKey:     owner.GetName(),
+			common.IntegrityMigrationLabelKey: "",
+		}
+	} else {
+		return map[string]string{
+			common.IntegrityOwnerLabelKey:         owner.GetName(),
+			common.IntegrityLogLabelKey:           "",
+			common.IntegrityConfigMapNodeLabelKey: node,
+		}
 	}
 }
 
@@ -207,7 +221,13 @@ func reportOK(ctx context.Context, conf *daemonConfig, rt *daemonRuntime) error 
 	DBG("creating temporary configMap '%s' to report a successful scan result", conf.LogCollectorConfigMapName)
 	return backoff.Retry(func() error {
 		fi := rt.GetFileIntegrityInstance()
-		confMap := newInformationalConfigMap(fi, conf.LogCollectorConfigMapName, conf.LogCollectorNode, nil)
+		// check if we are on migration mode if so we need to create a configmap with the migration annotation
+		annotations := map[string]string{}
+		if conf.RunMigrationCheck {
+			annotations[common.AideConfigAutoMigrationFailedAnnotationKey] = "false"
+		}
+		labels := getLogCollectorConfigMapLabels(fi, conf.LogCollectorNode, conf.RunMigrationCheck)
+		confMap := newInformationalConfigMap(fi, conf.LogCollectorConfigMapName, conf.LogCollectorNode, annotations, labels)
 		_, err := rt.clientset.CoreV1().ConfigMaps(conf.Namespace).Create(ctx, confMap, metav1.CreateOptions{})
 		return err
 	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries))
@@ -218,9 +238,11 @@ func reportError(ctx context.Context, msg string, conf *daemonConfig, rt *daemon
 	return backoff.Retry(func() error {
 		fi := rt.GetFileIntegrityInstance()
 		annotations := map[string]string{
-			common.IntegrityLogErrorAnnotationKey: msg,
+			common.IntegrityLogErrorAnnotationKey:             msg,
+			common.AideConfigAutoMigrationFailedAnnotationKey: "true",
 		}
-		confMap := newInformationalConfigMap(fi, conf.LogCollectorConfigMapName, conf.LogCollectorNode, annotations)
+		labels := getLogCollectorConfigMapLabels(fi, conf.LogCollectorNode, conf.RunMigrationCheck)
+		confMap := newInformationalConfigMap(fi, conf.LogCollectorConfigMapName, conf.LogCollectorNode, annotations, labels)
 		_, err := rt.clientset.CoreV1().ConfigMaps(conf.Namespace).Create(ctx, confMap, metav1.CreateOptions{})
 		return err
 	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries))

@@ -44,12 +44,13 @@ const (
 	aideReadDBFileName  = "aide.db.gz"
 	aideReadLogFileName = "aide.log"
 	// Files output from AIDE init and scan log. We copy the files AIDE writes from here.
-	aideWritingDBFileName  = "aide.db.gz.new"
-	aideWritingLogFileName = "aide.log.new"
-	aideReinitFileName     = "aide.reinit"
-	aideConfigFileName     = "aide.conf"
-	backupTimeFormat       = "20060102T15_04_05"
-	pprofAddr              = "127.0.0.1:6060"
+	aideWritingDBFileName     = "aide.db.gz.new"
+	aideWritingLogFileName    = "aide.log.new"
+	aideReinitFileName        = "aide.reinit"
+	aideConfigFileName        = "aide.conf"
+	aideMigrateConfigFileName = common.PreMigrationConfDataKey
+	backupTimeFormat          = "20060102T15_04_05"
+	pprofAddr                 = "127.0.0.1:6060"
 )
 
 var DaemonCmd = &cobra.Command{
@@ -78,6 +79,7 @@ type daemonConfig struct {
 	FileDir                   string
 	RunDir                    string
 	ConfigDir                 string
+	RunMigrationCheck         bool
 }
 
 type daemonRuntime struct {
@@ -196,6 +198,7 @@ func defineFlags(cmd *cobra.Command) {
 	cmd.Flags().Bool("debug", false, "Print debug messages")
 	cmd.Flags().Bool("local", false, "Run the daemon locally, using KUBECONFIG. Should only be used when debugging.")
 	cmd.Flags().Bool("pprof", false, "Enable /debug/pprof endpoints. Should only be used when debugging.")
+	cmd.Flags().Bool("migration-check", false, "Run the migration check")
 }
 
 func parseDaemonConfig(cmd *cobra.Command) *daemonConfig {
@@ -207,7 +210,8 @@ func parseDaemonConfig(cmd *cobra.Command) *daemonConfig {
 	conf.RunDir = getValidStringArg(cmd, "aideruntimedir")
 	conf.ConfigDir = getValidStringArg(cmd, "aideconfigdir")
 	conf.LogCollectorNode = os.Getenv("NODE_NAME")
-	conf.LogCollectorConfigMapName = getConfigMapName(getValidStringArg(cmd, "lc-config-map-prefix"), conf.LogCollectorNode)
+	conf.RunMigrationCheck, _ = cmd.Flags().GetBool("migration-check")
+	conf.LogCollectorConfigMapName = getConfigMapName(getValidStringArg(cmd, "lc-config-map-prefix"), conf.LogCollectorNode, conf.RunMigrationCheck)
 	conf.LogCollectorTimeout, _ = cmd.Flags().GetInt64("lc-timeout")
 	conf.Interval, _ = cmd.Flags().GetInt64("interval")
 	conf.MaxBackups, _ = cmd.Flags().GetInt("maxbackups")
@@ -279,11 +283,17 @@ func daemonMainLoop(cmd *cobra.Command, args []string) {
 	// integrityInstanceLoop is not added to the waitgroup because the watcher would stall wg.Wait() indefinitely. It
 	// will just die with the process and does not have anything to clean up.
 	go integrityInstanceLoop(ctx, rt, conf, errChan)
-	wg.Add(4)
-	go reinitLoop(ctx, rt, conf, errChan, &wg)
-	go holdOffLoop(ctx, rt, conf, errChan, &wg)
-	go aideLoop(ctx, rt, conf, errChan, &wg)
-	go logCollectorMainLoop(ctx, rt, conf, errChan, &wg)
+	// check if we are running in a migration scenario and if so, only run the migration check
+	if conf.RunMigrationCheck {
+		wg.Add(1)
+		go migrationCheckLoop(ctx, rt, conf, errChan, &wg)
+	} else {
+		wg.Add(4)
+		go reinitLoop(ctx, rt, conf, errChan, &wg)
+		go holdOffLoop(ctx, rt, conf, errChan, &wg)
+		go aideLoop(ctx, rt, conf, errChan, &wg)
+		go logCollectorMainLoop(ctx, rt, conf, errChan, &wg)
+	}
 
 	var finalErr error
 	for {

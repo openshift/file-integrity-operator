@@ -44,7 +44,8 @@ func AddFileIntegrityController(mgr manager.Manager, met *metrics.Metrics) error
 
 // newReconciler returns a new reconcile.Reconciler
 func newFileIntegrityReconciler(mgr manager.Manager, met *metrics.Metrics) reconcile.Reconciler {
-	return &FileIntegrityReconciler{Client: mgr.GetClient(), Scheme: mgr.GetScheme(), Metrics: met}
+	return &FileIntegrityReconciler{Client: mgr.GetClient(), EventRecorder: mgr.GetEventRecorderFor("fileintegrity-controlle"),
+		Scheme: mgr.GetScheme(), Metrics: met}
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
@@ -241,8 +242,13 @@ func (r *FileIntegrityReconciler) tryGettingNode(node string) (*corev1.Node, err
 	}
 	return &n, nil
 }
-func (r *FileIntegrityReconciler) updateAideConfig(conf *corev1.ConfigMap, data, node string) error {
+func (r *FileIntegrityReconciler) updateAideConfig(conf *corev1.ConfigMap, data, node string, preMigrate bool) error {
 	confCopy := conf.DeepCopy()
+
+	if preMigrate {
+		confCopy.Data[common.PreMigrationConfDataKey] = data
+		return r.Client.Update(context.TODO(), confCopy)
+	}
 	confCopy.Data[common.DefaultConfDataKey] = data
 
 	// Mark the configMap as updated by the user-provided config, for the configMap-controller to trigger an update.
@@ -250,6 +256,7 @@ func (r *FileIntegrityReconciler) updateAideConfig(conf *corev1.ConfigMap, data,
 	if confCopy.Annotations == nil {
 		confCopy.Annotations = map[string]string{}
 	}
+
 	if nodeListString, has := confCopy.Annotations[common.AideConfigUpdatedAnnotationKey]; !has || node == "" {
 		confCopy.Annotations[common.AideConfigUpdatedAnnotationKey] = node
 	} else {
@@ -275,7 +282,7 @@ func (r *FileIntegrityReconciler) retrieveAndAnnotateAideConfig(conf *corev1.Con
 		return err
 	}
 
-	return r.updateAideConfig(cachedConf, cachedConf.Data[common.DefaultConfDataKey], node)
+	return r.updateAideConfig(cachedConf, cachedConf.Data[common.DefaultConfDataKey], node, false)
 }
 
 func (r *FileIntegrityReconciler) aideConfigIsDefault(instance *v1alpha1.FileIntegrity) (bool, error) {
@@ -292,6 +299,19 @@ func (r *FileIntegrityReconciler) aideConfigIsDefault(instance *v1alpha1.FileInt
 	return configMapKeyDataMatches(currentConfigMap, defaultConfigMap, common.DefaultConfDataKey), nil
 }
 
+func (r *FileIntegrityReconciler) reportMigrationError(instance *v1alpha1.FileIntegrity, err error) error {
+	r.EventRecorder.Eventf(instance, corev1.EventTypeWarning, "FileIntegrityAIDEConfigMigration", err.Error())
+	instanceCopy := instance.DeepCopy()
+	if instanceCopy.Annotations == nil {
+		instanceCopy.Annotations = map[string]string{}
+	}
+	instanceCopy.Annotations[common.AideConfigAutoMigrationFailedAnnotationKey] = "true"
+	if err := r.Client.Update(context.Background(), instanceCopy); err != nil {
+		return err
+	}
+	return nil
+}
+
 // reconcileUserConfig checks if the user provided a configuration of their own and prepares it. Returns true if a new
 // configuration was added, false if not.
 func (r *FileIntegrityReconciler) reconcileUserConfig(instance *v1alpha1.FileIntegrity,
@@ -304,7 +324,7 @@ func (r *FileIntegrityReconciler) reconcileUserConfig(instance *v1alpha1.FileInt
 		if !hasDefaultConfig {
 			// The configuration was previously replaced. We want to restore it now.
 			reqLogger.Info("Restoring the AIDE configuration defaults.")
-			if err := r.updateAideConfig(currentConfig, DefaultAideConfig, ""); err != nil {
+			if err := r.updateAideConfig(currentConfig, DefaultAideConfig, "", false); err != nil {
 				return false, err
 			}
 			return true, nil
@@ -347,12 +367,55 @@ func (r *FileIntegrityReconciler) reconcileUserConfig(instance *v1alpha1.FileInt
 		return false, err
 	}
 
+	if _, ok := instance.Annotations[common.AideConfigMigrationCheckDisabledAnnotationKey]; ok {
+		reqLogger.Info("Aide config migration is disabled")
+	} else {
+
+		_, ok := instance.Annotations[common.AideConfigMigrationIgnoreAnnotationKey]
+
+		migratedConf, ignoredLines, err := migrateConfig(preparedConf, ok)
+		if err != nil {
+			reqLogger.Error(err, "Error migrating user-provided config")
+			err = r.reportMigrationError(instance, err)
+			return false, err
+		}
+		// notify user about ignored lines
+		if len(ignoredLines) > 0 {
+			msg := fmt.Errorf("The following lines were ignored during migration: %s", strings.Join(ignoredLines, ", "))
+			reqLogger.Info(msg.Error())
+			err = r.reportMigrationError(instance, msg)
+			if err != nil {
+				return false, err
+			}
+			return false, msg
+		}
+		if currentConfig.Data[common.PreMigrationConfDataKey] == migratedConf {
+			// The config is the same as the pre-migration one, so we don't need to update it.
+			reqLogger.Info("User-provided Pre-migration config is the same as the current one, no need to update")
+		} else {
+			// update file integrity instance with the migrated update annotation
+			fiCopy := instance.DeepCopy()
+			if fiCopy.Annotations == nil {
+				fiCopy.Annotations = map[string]string{}
+			}
+
+			fiCopy.Annotations[common.IntegrityMigrationUpdateAnnotationKey] = strconv.FormatInt(time.Now().Unix(), 10)
+			if err := r.Client.Update(context.Background(), fiCopy); err != nil {
+				return false, err
+			}
+			if err := r.updateAideConfig(currentConfig, migratedConf, "", true); err != nil {
+				return false, err
+			}
+		}
+
+	}
+
 	// Config is the same - we're done
 	if preparedConf == currentConfig.Data[common.DefaultConfDataKey] {
 		return false, nil
 	}
 
-	if err := r.updateAideConfig(currentConfig, preparedConf, ""); err != nil {
+	if err := r.updateAideConfig(currentConfig, preparedConf, "", false); err != nil {
 		return false, err
 	}
 
@@ -488,6 +551,22 @@ func (r *FileIntegrityReconciler) FileIntegrityControllerReconcile(request recon
 			if err := r.Client.Update(context.TODO(), fiCopy); err != nil {
 				reqLogger.Info("Re-init annotation failed to be removed, re-queueing")
 				return reconcile.Result{}, nil
+			}
+		}
+	}
+
+	// check if we need to create migration check pod
+	if _, ok := instance.Annotations[common.IntegrityMigrationUpdateAnnotationKey]; ok {
+		// create migration check pod
+		// check if we need to launch the migration check pod
+		if _, ok := instance.Annotations[common.AideConfigMigrationCheckDisabledAnnotationKey]; !ok {
+			pod := migrateCheckPod(common.AideMigratePodName(instance.Name), instance, operatorImage)
+			if err := controllerutil.SetControllerReference(instance, pod, r.Scheme); err != nil {
+				return reconcile.Result{}, err
+			}
+			createErr := r.Client.Create(context.TODO(), pod)
+			if createErr != nil {
+				return reconcile.Result{}, createErr
 			}
 		}
 	}
@@ -822,6 +901,87 @@ func reinitAideDaemonset(reinitDaemonSetName string, fi *v1alpha1.FileIntegrity,
 				},
 			},
 		},
+	}
+}
+
+// migrateCheckPod returns a Pod that runs a one-shot container on the node to check the AIDE configuration.
+func migrateCheckPod(podName string, fi *v1alpha1.FileIntegrity, operatorImage string) *corev1.Pod {
+	return &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      podName,
+			Namespace: common.FileIntegrityNamespace,
+			Labels: map[string]string{
+				common.IntegrityOwnerLabelKey: fi.Name,
+			},
+		},
+		Spec: corev1.PodSpec{
+			NodeSelector:       fi.Spec.NodeSelector,
+			Tolerations:        fi.Spec.Tolerations,
+			ServiceAccountName: common.DaemonServiceAccountName,
+			Containers: []corev1.Container{
+				{
+					Name:  "daemon",
+					Image: common.GetComponentImage(operatorImage, common.OPERATOR),
+					Args:  podMigrateArgs(podName, fi),
+					VolumeMounts: []corev1.VolumeMount{
+						{
+							Name:      "config",
+							MountPath: "/config",
+						},
+						{
+							Name:      "tmp",
+							MountPath: "/tmp",
+						},
+					},
+					Resources: corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceMemory: resource.MustParse("40Mi"),
+							corev1.ResourceCPU:    resource.MustParse("40m"),
+						},
+						Limits: corev1.ResourceList{
+							corev1.ResourceMemory: resource.MustParse("100Mi"),
+							corev1.ResourceCPU:    resource.MustParse("100m"),
+						},
+					},
+				},
+			},
+			Volumes: []corev1.Volume{
+				{
+					// for pprof
+					Name: "tmp",
+					VolumeSource: corev1.VolumeSource{
+						EmptyDir: &corev1.EmptyDirVolumeSource{
+							Medium:    corev1.StorageMediumDefault,
+							SizeLimit: nil,
+						},
+					},
+				},
+				{
+					Name: "config",
+					VolumeSource: corev1.VolumeSource{
+						ConfigMap: &corev1.ConfigMapVolumeSource{
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: fi.Name,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func podMigrateArgs(dsName string, fi *v1alpha1.FileIntegrity) []string {
+	return []string{"daemon",
+		"--lc-file=" + aideLogPath,
+		"--lc-config-map-prefix=" + dsName,
+		"--owner=" + fi.Name,
+		"--namespace=" + fi.Namespace,
+		"--interval=" + getGracePeriod(fi),
+		"--debug=" + getDebug(fi),
+		"--maxbackups=" + getMaxBackups(fi),
+		"--aideconfigdir=/config",
+		"--migration-check=true",
 	}
 }
 

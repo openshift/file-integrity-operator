@@ -78,6 +78,43 @@ func aideLoop(ctx context.Context, rt *daemonRuntime, conf *daemonConfig, errCha
 	}
 }
 
+// The migrationCheckLoop checks if the migrated AIDE config file exists and if the new AIDE config works.
+func migrationCheckLoop(ctx context.Context, rt *daemonRuntime, conf *daemonConfig, errChan chan<- error, wg *sync.WaitGroup) {
+	defer wg.Done()
+	migrateCtx, migrateCancel := context.WithCancel(ctx)
+	defer migrateCancel()
+
+	for {
+		select {
+		case <-migrateCtx.Done():
+			DBG("Migration loop cancelled by the main routine!")
+			return
+		default:
+			output, err := runAideMigrationCheckCmdSaveOutput(migrateCtx, conf)
+			aideResult := common.GetAideExitCode(err)
+			if aideResult == 0 {
+				LOG("AIDE migration check passed. The configuration is safe to run using AIDE 0.18")
+				if err := reportOK(migrateCtx, conf, rt); err != nil {
+					// Considering this a non-fatal error right now.
+					LOG("Failed reporting migration check result: %v", err)
+				}
+				return
+			} else if aideResult == 17 {
+				// This is an AIDE config line error.
+				newErr := fmt.Sprintf("Detected configuration error during the migration check for AIDE 0.18: %s, output: %s ", common.GetAideErrorMessage(aideResult), output)
+				logAndTryReportingDaemonError(migrateCtx, rt, conf, newErr, nil)
+				errChan <- err
+				return
+			} else {
+				logAndTryReportingDaemonError(ctx, rt, conf, fmt.Sprintf("Error running migration check: %s",
+					common.GetAideErrorMessage(aideResult)), err)
+				errChan <- err
+			}
+			time.Sleep(time.Second * time.Duration(conf.Interval))
+		}
+	}
+}
+
 // The holdoff file is the signal from the node controller to pause the aide scan.
 // We do not make this pause the logCollector loop, and we might want to.
 func holdOffLoop(ctx context.Context, rt *daemonRuntime, conf *daemonConfig, errChan chan<- error, wg *sync.WaitGroup) {
