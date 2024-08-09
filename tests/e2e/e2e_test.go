@@ -999,6 +999,9 @@ func TestFileIntegrityLogCompress(t *testing.T) {
 // NOTE: This test is run last because it modifies the node and causes restarts
 func TestFileIntegrityAcceptsExpectedChange(t *testing.T) {
 	f, testctx, namespace := setupTest(t)
+	if testctx.GetPlatform() == "rosa" {
+		t.Skip("Skipping because this test relies of Machine Configs, which are not supported on ROSA HCP environments.")
+	}
 	testName := testIntegrityNamePrefix + "-nodechange"
 	setupFileIntegrity(t, f, testctx, testName, namespace, "", defaultTestGracePeriod) // empty selector key to match all nodes
 	defer testctx.Cleanup()
