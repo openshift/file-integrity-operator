@@ -30,6 +30,8 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	igntypes "github.com/coreos/ignition/v2/config/v3_2/types"
 
+	"github.com/openshift/file-integrity-operator/pkg/common"
+	fio "github.com/openshift/file-integrity-operator/pkg/controller/fileintegrity"
 	"github.com/openshift/file-integrity-operator/tests/e2eutil"
 	"github.com/openshift/file-integrity-operator/tests/framework"
 	mcfgapi "github.com/openshift/machine-config-operator/pkg/apis/machineconfiguration.openshift.io"
@@ -46,8 +48,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
-
-	"github.com/openshift/file-integrity-operator/pkg/common"
 )
 
 const (
@@ -91,51 +91,7 @@ var nodeLabelForWorkerRole = map[string]string{
 	nodeWorkerRoleLabelKey: "",
 }
 
-var testAideConfig = `@@define DBDIR /hostroot/etc/kubernetes
-# Comment added to differ from default and trigger a re-init
-@@define LOGDIR /hostroot/etc/kubernetes
-database=file:@@{DBDIR}/aide.db.gz
-database_out=file:@@{DBDIR}/aide.db.gz.new
-gzip_dbout=yes
-verbose=5
-report_url=file:@@{LOGDIR}/aide.log.new
-report_url=stdout
-PERMS = p+u+g+acl+selinux+xattrs
-CONTENT_EX = sha512+ftype+p+u+g+n+acl+selinux+xattrs
-
-/hostroot/boot/        CONTENT_EX
-/hostroot/root/\..* PERMS
-/hostroot/root/   CONTENT_EX
-!/hostroot/root/\.kube
-!/hostroot/usr/src/
-!/hostroot/usr/tmp/
-
-/hostroot/usr/    CONTENT_EX
-
-# OpenShift specific excludes
-!/hostroot/opt/
-!/hostroot/var
-!/hostroot/etc/NetworkManager/system-connections/
-!/hostroot/etc/mtab$
-!/hostroot/etc/.*~
-!/hostroot/etc/kubernetes/static-pod-resources
-!/hostroot/etc/kubernetes/aide.*
-!/hostroot/etc/kubernetes/manifests
-!/hostroot/etc/kubernetes/kubelet-ca.crt
-!/hostroot/etc/docker/certs.d
-!/hostroot/etc/selinux/targeted
-!/hostroot/etc/openvswitch/conf.db
-!/hostroot/etc/kubernetes/cni/net.d
-!/hostroot/etc/kubernetes/cni/net.d/*
-!/hostroot/etc/machine-config-daemon/currentconfig$
-!/hostroot/etc/pki/ca-trust/extracted/java/cacerts$
-!/hostroot/etc/cvo/updatepayloads
-!/hostroot/etc/cni/multus/certs
-!/hostroot/etc/kubernetes/compliance-operator
-!/hostroot/etc/kubernetes/node-feature-discovery
-
-# Catch everything else in /etc
-/hostroot/etc/    CONTENT_EX`
+var testAideConfig = fio.GetAideConfigDefault() + "\n" + "# Comment added to differ from default and trigger a re-init"
 
 var certRotationYaml = `kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1

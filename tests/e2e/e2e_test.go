@@ -672,7 +672,7 @@ func TestFileIntegrityConfigurationIgnoreMissing(t *testing.T) {
 	}
 
 	if err := pollUntilConfigMapDataMatches(t, f, namespace, testName, common.DefaultConfDataKey,
-		fileintegrity2.DefaultAideConfig, time.Second*5, time.Minute*5); err != nil {
+		fileintegrity2.GetAideConfigDefault(), time.Second*5, time.Minute*5); err != nil {
 		t.Errorf("Timeout waiting for configMap data to match")
 	}
 }
