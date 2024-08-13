@@ -18,7 +18,7 @@ RUN microdnf -y install aide golang && microdnf clean all
 
 ENV OPERATOR=/usr/local/bin/file-integrity-operator \
     USER_UID=1001 \
-    USER_NAME=file-integrity-operator
+    USER_NAME=file-integrity-operator \
     AIDE_VERSION=0.18
 
 # install operator binary
