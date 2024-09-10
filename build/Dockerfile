@@ -11,7 +11,7 @@ COPY . .
 RUN make build
 
 # Step two: containerize file-integrity-operator and AIDE together
-FROM registry.fedoraproject.org/fedora-minimal:37
+FROM registry.fedoraproject.org/fedora-minimal:42
 RUN microdnf -y install aide-0.16
 RUN microdnf -y install aide golang && microdnf clean all
 
