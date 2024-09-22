@@ -1,22 +1,21 @@
 resources:
-# All RBAC will be applied under this service account in
-# the deployment namespace. You may comment out this resource
-# if your manager will use a service account that exists at
-# runtime. Be sure to update RoleBinding and ClusterRoleBinding
-# subjects if changing service account names.
-- operator_serviceaccount.yaml
-- operator_role.yaml
-- operator_rolebinding.yaml
-- operator_clusterrole.yaml
-- operator_clusterrolebinding.yaml
-- daemon_serviceaccount.yaml
-- daemon_role.yaml
-- daemon_rolebinding.yaml
-- leader_election_role.yaml
-- leader_election_role_binding.yaml
-- metrics_clusterrole.yaml
-- metrics_rolebinding.yaml
-- fileintegrity_editor_role.yaml
-- fileintegrity_viewer_role.yaml
-- metrics_secret.yaml
-- metrics_serviceaccount.yaml
+  # All RBAC will be applied under this service account in
+  # the deployment namespace. You may comment out this resource
+  # if your manager will use a service account that exists at
+  # runtime. Be sure to update RoleBinding and ClusterRoleBinding
+  # subjects if changing service account names.
+  - operator_serviceaccount.yaml
+  - operator_role.yaml
+  - operator_rolebinding.yaml
+  - operator_clusterrole.yaml
+  - operator_clusterrolebinding.yaml
+  - daemon_serviceaccount.yaml
+  - daemon_role.yaml
+  - daemon_rolebinding.yaml
+  - leader_election_role.yaml
+  - leader_election_role_binding.yaml
+  - metrics_clusterrole.yaml
+  - metrics_rolebinding.yaml
+  - fileintegrity_editor_role.yaml
+  - fileintegrity_viewer_role.yaml
+  - metrics_serviceaccount.yaml
