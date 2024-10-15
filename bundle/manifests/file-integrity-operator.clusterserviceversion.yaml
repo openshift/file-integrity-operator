@@ -99,7 +99,7 @@ spec:
                   value: file-integrity-operator
                 - name: RELATED_IMAGE_OPERATOR
                   value: quay.io/file-integrity-operator/file-integrity-operator:latest
-                image: quay.io/file-integrity-operator/file-integrity-operator:1.3.4
+                image: quay.io/file-integrity-operator/file-integrity-operator:latest
                 imagePullPolicy: Always
                 name: file-integrity-operator
                 resources:
