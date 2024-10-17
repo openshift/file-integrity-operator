@@ -1,0 +1,51 @@
+FROM brew.registry.redhat.io/rh-osbs/openshift-golang-builder:v1.22 as builder
+
+WORKDIR /go/src/github.com/openshift/file-integrity-operator
+
+ENV GOFLAGS="-mod=vendor" BUILD_FLAGS="-tags strictfipsruntime"
+
+COPY . .
+
+RUN make build
+
+FROM registry.redhat.io/ubi9/ubi:latest
+# We need tar for the bundle build process to work since it pulls the operator
+# manifests from the operator image using `oc cp`, which will fail if `tar`
+# isn't available on the operator container image. Find a way to do this
+# without bloating the image.
+RUN export SMDEV_CONTAINER_OFF=1 && \
+    subscription-manager register --org $(cat "/activation-key/org") --activationkey $(cat "/activation-key/activationkey") && \
+    yum -y update && \
+    yum -y install aide tar && yum clean all && \
+    yum -y clean all && rm -rf /var/cache/yum  && \
+    subscription-manager unregister
+
+LABEL \
+        io.k8s.display-name="OpenShift File Integrity Operator" \
+        io.k8s.description="An operator that performs AIDE file integrity checks on OCP4 nodes." \
+        io.openshift.tags="openshift,compliance,security,integrity" \
+        com.redhat.delivery.appregistry="false" \
+        maintainer="Red Hat ISC <isc-team@redhat.com>" \
+        License="GPLv2+" \
+        name="openshift-file-integrity-operator" \
+        com.redhat.component="openshift-file-integrity-operator-container" \
+        io.openshift.maintainer.product="OpenShift Container Platform" \
+        io.openshift.maintainer.component="File Integrity Operator" \
+        version=1.3.5
+#        io.openshift.build.commit.id=98271bc2812881010146f47e4587dcd449b846bd \
+#        io.openshift.build.source-location=https://github.com/openshift/file-integrity-operator.git \
+#        io.openshift.build.commit.url=https://github.com/openshift/file-integrity-operator.git/commit/98271bc2812881010146f47e4587dcd449b846bd \
+
+ENV OPERATOR=/usr/local/bin/file-integrity-operator \
+    USER_UID=1001 \
+    USER_NAME=file-integrity-operator
+
+# install operator binary
+COPY --from=builder /go/src/github.com/openshift/file-integrity-operator/build/bin/manager ${OPERATOR}
+COPY --from=builder /go/src/github.com/openshift/file-integrity-operator/build/bin /usr/local/bin
+COPY --from=builder /go/src/github.com/openshift/file-integrity-operator/bundle /bundle
+RUN  /usr/local/bin/user_setup
+
+ENTRYPOINT ["/usr/local/bin/entrypoint"]
+
+USER ${USER_UID}
