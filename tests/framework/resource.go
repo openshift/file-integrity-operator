@@ -113,6 +113,7 @@ func (ctx *Context) getNamespace(ns string) (string, error) {
 			Labels: map[string]string{
 				"pod-security.kubernetes.io/enforce":             "privileged",
 				"security.openshift.io/scc.podSecurityLabelSync": "false",
+				"openshift.io/cluster-monitoring":                "true",
 			},
 		},
 	}
