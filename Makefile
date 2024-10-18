@@ -327,6 +327,10 @@ bundle: check-operator-version operator-sdk manifests update-skip-range kustomiz
 	git restore config/manifests/kustomization.yaml
 	$(SDK_BIN) bundle validate ./bundle
 
+.PHONY: verify-bundle
+verify-bundle: bundle ## Verify the bundle doesn't alter the state of the tree
+	hack/tree-status
+
 .PHONY: bundle-image
 bundle-image: bundle ## Build the bundle image.
 	$(RUNTIME) $(RUNTIME_BUILD_CMD) -f bundle.Dockerfile -t $(BUNDLE_IMG) .
