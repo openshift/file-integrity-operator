@@ -290,6 +290,46 @@ spec:
 `
 var brokenAideConfig = testAideConfig + "\n" + "NORMAL = p+i+n+u+g+s+m+c+acl+selinux+xattrs+sha513+md5+XXXXXX"
 
+func restartOperatorPodWaitForMetrics(t *testing.T, f *framework.Framework, namespace string) error {
+	podList, err := f.KubeClient.CoreV1().Pods(namespace).List(goctx.TODO(), metav1.ListOptions{
+		LabelSelector: "name=file-integrity-operator",
+	})
+	if err != nil {
+		return err
+	}
+	if len(podList.Items) == 0 {
+		return errors.New("no operator pod found")
+	}
+	pod := podList.Items[0]
+	t.Logf("Killing operator pod %s", pod.Name)
+	err = f.KubeClient.CoreV1().Pods(namespace).Delete(goctx.TODO(), pod.Name, metav1.DeleteOptions{})
+	if err != nil {
+		return err
+	}
+
+	// wait for the pod to be recreated
+	err = wait.Poll(pollInterval, pollTimeout, func() (bool, error) {
+		podList, err := f.KubeClient.CoreV1().Pods(namespace).List(goctx.TODO(), metav1.ListOptions{
+			LabelSelector: "name=file-integrity-operator",
+		})
+		if err != nil {
+			return false, err
+		}
+		if len(podList.Items) == 0 {
+			return false, nil
+		}
+		// check if metrics are available after the pod is recreated
+		metricOut := getMetricResults(t, namespace)
+		if !strings.Contains(metricOut, "file_integrity_operator_node") {
+			t.Logf("Metrics not yet available after operator pod restart")
+			return false, nil
+		}
+		return true, nil
+	})
+
+	return err
+}
+
 func newTestFileIntegrity(name, ns string, nodeSelector map[string]string, grace int, debug bool, initialDelay int) *v1alpha1.FileIntegrity {
 	return &v1alpha1.FileIntegrity{
 		ObjectMeta: metav1.ObjectMeta{

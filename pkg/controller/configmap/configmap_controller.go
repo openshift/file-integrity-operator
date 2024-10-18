@@ -2,6 +2,8 @@ package configmap
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -335,8 +337,17 @@ func (r *ReconcileConfigMap) createOrUpdateNodeStatus(node string, instance *v1a
 		return updateErr
 	}
 
+	// Get the FileIntegrityNodeStatus value for the node
+	metricValue, found, err := r.Metrics.GetFileIntegrityNodeStatus(node)
+
+	if err != nil {
+		if !errors.Is(err, metrics.ErrNoMetrics) {
+			return fmt.Errorf("error getting FileIntegrityNodeStatus metric: %w", err)
+		}
+	}
+
 	// Create an event if there was a transition or an updated Failure
-	if conditionIsNewFailureOrTransition(nodeStatus, statusCopy) {
+	if conditionIsNewFailureOrTransition(metricValue, found, nodeStatus, statusCopy) {
 		updateNodeStatusMetrics(r, statusCopy)
 		createNodeStatusEvent(r, instance, statusCopy)
 	}
@@ -350,7 +361,12 @@ func isLatestScanResult(result v1alpha1.FileIntegrityScanResult, nodeStatus *v1a
 
 // conditionIsNewFailureOrTransition return true if cur has an updated failure count over prev (if both were failed conditions),
 // or if cur's condition is different than prev.
-func conditionIsNewFailureOrTransition(prev, cur *v1alpha1.FileIntegrityNodeStatus) bool {
+func conditionIsNewFailureOrTransition(metricValue float64, found bool, prev, cur *v1alpha1.FileIntegrityNodeStatus) bool {
+	// we check if the metric value is not found because the pod might previously crashed and lost the metric or if they were
+	// not matching the current state
+	if !found || (cur.LastResult.Condition == v1alpha1.NodeConditionFailed && metricValue == 0) || (cur.LastResult.Condition == v1alpha1.NodeConditionSucceeded && metricValue == 1) {
+		return true
+	}
 	if cur.LastResult.Condition == v1alpha1.NodeConditionFailed && prev.LastResult.Condition == v1alpha1.NodeConditionFailed {
 		return cur.LastResult.FilesRemoved != prev.LastResult.FilesRemoved ||
 			cur.LastResult.FilesAdded != prev.LastResult.FilesAdded ||

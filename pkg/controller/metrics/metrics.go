@@ -10,6 +10,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	dto "github.com/prometheus/client_model/go"
 
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -59,6 +60,10 @@ const (
 	HandlerPath                        = "/metrics-fio"
 	ControllerMetricsServiceName       = "metrics-fio"
 	ControllerMetricsPort        int32 = 8585
+)
+
+var (
+	ErrNoMetrics = errors.New("metric value is nil")
 )
 
 // Metrics is the main structure of this package.
@@ -301,6 +306,33 @@ func (m *Metrics) IncFileIntegrityNodeStatus(condition, node string) {
 		metricLabelNodeCondition: condition,
 		metricLabelNode:          node,
 	}).Inc()
+}
+
+// GetFileIntegrityNodeStatus retrieves the current value of the FileIntegrity counter for a specific node.
+// Returns the current value of the counter, a boolean indicating if the counter was found, and an error if the metric
+// was not found.
+func (m *Metrics) GetFileIntegrityNodeStatus(node string) (float64, bool, error) {
+	ctr := m.metricFileIntegrityNodeStatusGauge.WithLabelValues(node)
+	if ctr == nil {
+		return 0, false, fmt.Errorf("failed to get metric for node: %s", node)
+	}
+	c := make(chan prometheus.Metric, 1)
+	ctr.Collect(c)
+	// Ensure the channel is not empty before reading
+	select {
+	case metric := <-c:
+		dto := dto.Metric{}
+		if err := metric.Write(&dto); err != nil {
+			return 0, false, fmt.Errorf("failed to write metric: %w", err)
+		}
+		if dto.Gauge == nil || dto.Gauge.Value == nil {
+			return 0, false, ErrNoMetrics
+		}
+		return *dto.Gauge.Value, true, nil
+	default:
+		return 0, false, fmt.Errorf("no metric collected for node: %s", node)
+	}
+
 }
 
 // IncFileIntegrityNodeStatusError increments the FileIntegrity counter for FileIntegrityNodeStatus errors, per errMsg.
