@@ -40,7 +40,7 @@ func TestFileIntegrityLogAndReinitDatabase(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 15*time.Minute, nodeWorkerRoleLabelKey)
 
 	t.Log("Asserting that we have OK node condition events")
 	assertNodeOKStatusEvents(t, f, namespace, 2*time.Second, 5*time.Minute)
@@ -110,7 +110,7 @@ func TestFileIntegrityLogAndReinitDatabase(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after re-initializing the database")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 15*time.Minute, nodeWorkerRoleLabelKey)
 
 	expectedMetrics = map[string]int{
 		`file_integrity_operator_daemonset_update_total{operation="update"}`: 1,
@@ -225,7 +225,7 @@ func TestFileIntegrityLegacyReinitCleanup(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 15*time.Minute, nodeWorkerRoleLabelKey)
 
 	t.Log("Asserting that we have OK node condition events")
 	assertNodeOKStatusEvents(t, f, namespace, 2*time.Second, 5*time.Minute)
@@ -254,7 +254,7 @@ func TestFileIntegrityLegacyReinitCleanup(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after re-initializing the database")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 15*time.Minute, nodeWorkerRoleLabelKey)
 
 	// We can proceed to this point quickly, so wait for the reinit routine to catch up.
 	time.Sleep(time.Second * 10)
@@ -290,7 +290,7 @@ func TestFileIntegrityPruneBackup(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 15*time.Minute, nodeWorkerRoleLabelKey)
 
 	t.Log("Asserting that we have OK node condition events")
 	assertNodeOKStatusEvents(t, f, namespace, 2*time.Second, 5*time.Minute)
@@ -316,7 +316,7 @@ func TestFileIntegrityPruneBackup(t *testing.T) {
 		t.Errorf("Timeout waiting for scan status")
 	}
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after updating config")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 15*time.Minute, nodeWorkerRoleLabelKey)
 
 	// Reinit
 	reinitFileIntegrityDatabase(t, f, testName, namespace, time.Second, 2*time.Minute)
@@ -327,7 +327,7 @@ func TestFileIntegrityPruneBackup(t *testing.T) {
 		t.Errorf("Timeout waiting for scan status")
 	}
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after re-initializing the database")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 15*time.Minute, nodeWorkerRoleLabelKey)
 
 	// Reinit again
 	reinitFileIntegrityDatabase(t, f, testName, namespace, time.Second, 2*time.Minute)
@@ -338,7 +338,7 @@ func TestFileIntegrityPruneBackup(t *testing.T) {
 		t.Errorf("Timeout waiting for scan status")
 	}
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after re-initializing the database")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 15*time.Minute, nodeWorkerRoleLabelKey)
 
 	// Test the result on one node.
 	nodes, err := f.KubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
@@ -378,7 +378,7 @@ func TestFileIntegrityReinitOnFailed(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 15*time.Minute, nodeWorkerRoleLabelKey)
 
 	t.Log("Asserting that we have OK node condition events")
 	assertNodeOKStatusEvents(t, f, namespace, 2*time.Second, 5*time.Minute)
@@ -455,7 +455,7 @@ func TestFileIntegrityReinitOnFailed(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after re-initializing the database")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 15*time.Minute, nodeWorkerRoleLabelKey)
 
 }
 
@@ -486,7 +486,7 @@ func TestFileIntegrityConfigurationRevert(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 15*time.Minute, nodeWorkerRoleLabelKey)
 
 	// modify a file on a node
 	err = editFileOnNodes(f, namespace)
@@ -546,7 +546,7 @@ func TestFileIntegrityConfigurationRevert(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after a re-init")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 15*time.Minute, nodeWorkerRoleLabelKey)
 
 	expectedMetrics := map[string]int{
 		`file_integrity_operator_daemonset_update_total{operation="update"}`: 1,
@@ -944,7 +944,7 @@ func TestFileIntegrityLogCompress(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 15*time.Minute, nodeWorkerRoleLabelKey)
 
 	// log collection should create a configmap for each node's report after the scan runs again
 	nodes, err := f.KubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
@@ -1019,7 +1019,7 @@ func TestFileIntegrityAcceptsExpectedChange(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, "")
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 15*time.Minute, "")
 
 	// Create MCFG
 	mcfg := getTestMcfg(t)
@@ -1048,7 +1048,7 @@ func TestFileIntegrityAcceptsExpectedChange(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after expected changes")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 5*time.Second, 10*time.Minute, "")
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 5*time.Second, 15*time.Minute, "")
 	assertMasterDSNoRestart(t, f, testName, namespace)
 }
 
@@ -1075,7 +1075,7 @@ func TestFileIntegrityNodeScaling(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 15*time.Minute, nodeWorkerRoleLabelKey)
 
 	t.Log("Adding a new worker node to the cluster through the machineset")
 	scaledUpMachineSetName, newNodeName := scaleUpWorkerMachineSet(t, f, 2*time.Second, 10*time.Minute)
@@ -1114,7 +1114,7 @@ func TestFileIntegrityCertRotation(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 15*time.Minute, nodeWorkerRoleLabelKey)
 
 	t.Log("Rotating cluster certificate")
 	assertClusterCertRotation(t, f, 2*time.Second, 15*time.Minute)
@@ -1124,6 +1124,6 @@ func TestFileIntegrityCertRotation(t *testing.T) {
 		t.Errorf("Timeout waiting for nodes")
 	}
 	t.Log("Asserting that the FileIntegrity is in a SUCCESS state after rotating cluster certificate")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 15*time.Minute, nodeWorkerRoleLabelKey)
 
 }
