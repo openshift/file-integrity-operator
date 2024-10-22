@@ -107,6 +107,9 @@ func (ctx *Context) getNamespace(ns string) (string, error) {
 	}
 	// create namespace
 	ns = ctx.GetID()
+	if ns[:9] != "osdk-e2e-" {
+		ns = "osdk-e2e-" + ns
+	}
 	namespaceObj := &core.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: ns,
