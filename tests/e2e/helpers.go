@@ -14,6 +14,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -57,6 +58,7 @@ const (
 	timeout                        = time.Minute * 30
 	cleanupRetryInterval           = time.Second * 1
 	cleanupTimeout                 = time.Minute * 5
+	machineOperationRetryInterval  = time.Second * 10
 	testIntegrityNamePrefix        = "e2e-test"
 	testConfName                   = "test-conf"
 	testConfDataKey                = "conf"
@@ -70,13 +72,64 @@ const (
 	defaultTestInitialDelay        = 0
 	testInitialDelay               = 180
 	deamonsetWaitTimeout           = 30 * time.Second
-	legacyReinitOnHost             = "/hostroot/etc/kubernetes/aide.reinit"
-	metricsTestCRBName             = "fio-metrics-client"
-	metricsTestSAName              = "default"
-	metricsTestTokenName           = "metrics-token"
-	machineSetNamespace            = "openshift-machine-api"
-	compressionFileCmd             = "for i in `seq 1 10000`; do mktemp \"/hostroot/etc/addedbytest$i.XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\"; done || true"
+	machineOperationTimeout        = time.Minute * 25
+
+	legacyReinitOnHost   = "/hostroot/etc/kubernetes/aide.reinit"
+	metricsTestCRBName   = "fio-metrics-client"
+	metricsTestSAName    = "default"
+	metricsTestTokenName = "metrics-token"
+	maxRetries           = 15
+	machineSetNamespace  = "openshift-machine-api"
+	compressionFileCmd   = "for i in `seq 1 10000`; do mktemp \"/hostroot/etc/addedbytest$i.XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\"; done || true"
 )
+
+var (
+	// Global pool tracker
+	poolTracker = &sync.Map{}
+
+	// List of available pools
+	availablePools = []string{}
+
+	// Mutex to handle pool allocation concurrency
+	poolMutex = &sync.Mutex{}
+)
+
+// AllocatePool allocates a free pool for a test. If no pool is available, it waits until one is freed.
+func AllocatePool(t *testing.T) string {
+	poolMutex.Lock()
+	defer poolMutex.Unlock()
+
+	for _, pool := range availablePools {
+		// Check if the pool is already in use
+		_, inUse := poolTracker.Load(pool)
+		if !inUse {
+			// Mark the pool as in use
+			poolTracker.Store(pool, true)
+			t.Logf("Allocated pool %s to test", pool)
+			return "node-role.kubernetes.io/" + pool
+		}
+	}
+
+	// If no pool is available, the test will block here until one is freed
+	t.Log("No available pools, waiting for a pool to free up...")
+	for {
+		for _, pool := range availablePools {
+			_, inUse := poolTracker.Load(pool)
+			if !inUse {
+				poolTracker.Store(pool, true)
+				t.Logf("Allocated pool %s after waiting", pool)
+				return pool
+			}
+		}
+		time.Sleep(100 * time.Millisecond) // Wait and retry until a pool is free
+	}
+}
+
+// ReleasePool frees up a pool after the test completes
+func ReleasePool(t *testing.T, pool string) {
+	poolTracker.Delete(pool)
+	t.Logf("Released pool %s", pool)
+}
 
 const (
 	curlCMD       = "curl -ks -H \"Authorization: Bearer `cat /var/run/secrets/kubernetes.io/serviceaccount/token`\" "
@@ -302,6 +355,156 @@ func newTestFileIntegrity(name, ns string, nodeSelector map[string]string, grace
 			Debug: debug,
 		},
 	}
+}
+func scaleUpWorkerMachineSetUtil(t *testing.T, f *framework.Framework, testContext *framework.Context, interval, timeout time.Duration) {
+	// List MachineSets
+	machineSets := &machinev1.MachineSetList{}
+	err := f.Client.List(context.TODO(), machineSets, &client.ListOptions{Namespace: machineSetNamespace})
+	if err != nil {
+		t.Error(err)
+	}
+	if len(machineSets.Items) == 0 {
+		t.Error("No machinesets found")
+	}
+
+	// Select a MachineSet to scale
+	machineSetName := ""
+	for _, ms := range machineSets.Items {
+		if ms.Spec.Replicas != nil && *ms.Spec.Replicas > 0 {
+			t.Logf("Found machineset %s with %d replicas", ms.Name, *ms.Spec.Replicas)
+			machineSetName = ms.Name
+			break
+		}
+	}
+
+	// Scale up by 9 replicas
+	machineSet := &machinev1.MachineSet{}
+	err = f.Client.Get(context.TODO(), types.NamespacedName{Name: machineSetName, Namespace: machineSetNamespace}, machineSet)
+	if err != nil {
+		t.Error(err)
+	}
+	replicas := *machineSet.Spec.Replicas + 9
+	machineSet.Spec.Replicas = &replicas
+	err = f.Client.Update(context.TODO(), machineSet)
+	if err != nil {
+		t.Error(err)
+	}
+	t.Logf("Scaling up machineset %s by 9 replicas", machineSetName)
+
+	// Wait for scaling to complete
+	err = wait.Poll(interval, timeout, func() (bool, error) {
+		err = f.Client.Get(context.TODO(), types.NamespacedName{Name: machineSetName, Namespace: machineSetNamespace}, machineSet)
+		if err != nil {
+			t.Error(err)
+		}
+		if machineSet.Status.Replicas == machineSet.Status.ReadyReplicas {
+			t.Logf("Machineset %s scaled up", machineSetName)
+			return true, nil
+		}
+		t.Logf("Waiting for machineset %s to scale up, current ready replicas: %d of %d", machineSetName, machineSet.Status.ReadyReplicas, machineSet.Status.Replicas)
+		return false, nil
+	})
+	if err != nil {
+		t.Error(err)
+	}
+
+	pools := []string{"e2e-pool-a", "e2e-pool-b", "e2e-pool-c"}
+
+	for i, pool := range pools {
+		if i == 0 {
+			err = createMachineConfigPool(f, pool, 3, testContext)
+		}
+		if err != nil {
+			t.Error(err)
+		}
+		t.Logf("Created pool %s", pool)
+	}
+
+}
+
+func createMachineConfigPool(f *framework.Framework, poolName string, nodeCount int, testContext *framework.Context) error {
+	// Get worker pool and select nodes
+	workerPool := "worker"
+	workerMCP := &mcfgv1.MachineConfigPool{}
+	err := f.Client.Get(context.TODO(), types.NamespacedName{Name: workerPool}, workerMCP)
+	if err != nil {
+		return fmt.Errorf("failed to get worker MachineConfigPool: %w", err)
+	}
+	nodeList, err := getNodesForPool(f, workerMCP)
+	if err != nil {
+		return err
+	}
+
+	// Create a new MachineConfigPool for the given poolName and assign nodes
+	selectedNodes := nodeList.Items[:nodeCount]
+	nodeLabels := map[string]string{fmt.Sprintf("node-role.kubernetes.io/%s", poolName): ""}
+	for _, node := range selectedNodes {
+		nodeCopy := node.DeepCopy()
+		for label := range nodeLabels {
+			nodeCopy.Labels[label] = ""
+		}
+		err = f.Client.Update(context.TODO(), nodeCopy)
+		if err != nil {
+			return fmt.Errorf("failed to label node %s for pool %s: %w", node.Name, poolName, err)
+		}
+	}
+	poolLabels := make(map[string]string)
+	poolLabels["pools.operator.machineconfiguration.openshift.io/"+poolName] = ""
+	// Create new MachineConfigPool
+	newPool := &mcfgv1.MachineConfigPool{
+		ObjectMeta: metav1.ObjectMeta{Name: poolName, Labels: poolLabels},
+		Spec: mcfgv1.MachineConfigPoolSpec{
+			NodeSelector: &metav1.LabelSelector{
+				MatchLabels: nodeLabels,
+			},
+			MachineConfigSelector: &metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      mcfgv1.MachineConfigRoleLabelKey,
+						Operator: metav1.LabelSelectorOpIn,
+						Values:   []string{workerPool, poolName},
+					},
+				},
+			},
+		},
+	}
+	cleanupOptions := &framework.CleanupOptions{
+		TestContext:   testContext,
+		Timeout:       cleanupTimeout,
+		RetryInterval: cleanupRetryInterval,
+	}
+	err = f.Client.Create(context.TODO(), newPool, cleanupOptions)
+	if err != nil {
+		return fmt.Errorf("failed to create MachineConfigPool %s: %w", poolName, err)
+	}
+	availablePools = append(availablePools, poolName)
+
+	return nil
+}
+
+func getNodesForPool(f *framework.Framework, pool *mcfgv1.MachineConfigPool) (*corev1.NodeList, error) {
+	// Create a label selector based on the node labels in the MachineConfigPool
+	labelSelector := labels.SelectorFromSet(pool.Spec.NodeSelector.MatchLabels)
+	listOptions := &client.ListOptions{
+		LabelSelector: labelSelector,
+	}
+
+	// Create an empty NodeList object to store the results
+	nodeList := &corev1.NodeList{}
+
+	// List all the nodes that match the pool's node selector
+	err := f.Client.List(context.TODO(), nodeList, listOptions)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list nodes for pool %s: %w", pool.Name, err)
+	}
+
+	// Check if there are any nodes found
+	if len(nodeList.Items) == 0 {
+		return nil, fmt.Errorf("no nodes found for pool %s", pool.Name)
+	}
+
+	// Return the list of nodes found
+	return nodeList, nil
 }
 
 func cleanUp(t *testing.T, namespace string) func() error {
@@ -594,8 +797,16 @@ func setupFileIntegrity(t *testing.T, f *framework.Framework, testCtx *framework
 }
 
 // setupFileIntegrityWithInitialDelay creates the FileIntegrity instance with the default grace period and an initial delay.
-func setupFileIntegrityWithInitialDelay(t *testing.T, f *framework.Framework, testCtx *framework.Context, integrityName, namespace string) {
-	testIntegrityCheck := newTestFileIntegrity(integrityName, namespace, nodeLabelForWorkerRole, defaultTestGracePeriod, true, testInitialDelay)
+func setupFileIntegrityWithInitialDelay(t *testing.T, f *framework.Framework, nodeSelectorKey string, testCtx *framework.Context, integrityName, namespace string) {
+
+	var nodeSelector map[string]string
+	if nodeSelectorKey != "" {
+		nodeSelector = map[string]string{
+			nodeSelectorKey: "",
+		}
+	}
+
+	testIntegrityCheck := newTestFileIntegrity(integrityName, namespace, nodeSelector, defaultTestGracePeriod, true, testInitialDelay)
 
 	cleanupOptions := framework.CleanupOptions{
 		TestContext:   testCtx,
@@ -860,7 +1071,7 @@ func getNumberOfNodesFromSelector(c kubernetes.Interface, nodeSelectorKey string
 }
 
 // TODO: break this up into setupTest/setupFileIntegrity steps like below.
-func setupTolerationTest(t *testing.T, integrityName string) (*framework.Framework, *framework.Context, string, string) {
+func setupTolerationTest(t *testing.T, integrityName string, pool string) (*framework.Framework, *framework.Context, string, string) {
 	taintedNodeName := ""
 	testctx := setupTestRequirements(t)
 	namespace, err := testctx.GetOperatorNamespace()
@@ -868,7 +1079,7 @@ func setupTolerationTest(t *testing.T, integrityName string) (*framework.Framewo
 		t.Errorf("could not get namespace: %v", err)
 	}
 	f := framework.Global
-	workerNodes, err := getNodesWithSelector(f, map[string]string{"node-role.kubernetes.io/worker": ""})
+	workerNodes, err := getNodesWithSelector(f, map[string]string{"node-role.kubernetes.io/" + pool: ""})
 	if err != nil {
 		t.Errorf("could not list nodes: %v", err)
 	}

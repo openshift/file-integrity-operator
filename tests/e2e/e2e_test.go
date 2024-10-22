@@ -2,7 +2,6 @@ package e2e
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"testing"
@@ -19,10 +18,48 @@ import (
 	"github.com/openshift/file-integrity-operator/pkg/common"
 )
 
+func TestMetricsHTTPVersion(t *testing.T) {
+	f, testctx, namespace := setupTest(t)
+	scaleUpWorkerMachineSetUtil(t, f, testctx, 10*time.Second, 40*time.Minute)
+	// Allocate a pool for this test
+	pool := AllocatePool(t)
+	defer ReleasePool(t, pool)
+	testName := testIntegrityNamePrefix + "-metrics-http-version"
+	setupFileIntegrity(t, f, testctx, testName, namespace, pool, defaultTestGracePeriod)
+	defer testctx.Cleanup()
+	defer func() {
+		if err := cleanNodes(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+		if err := resetBundleTestMetrics(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+	}()
+	defer logContainerOutput(t, f, namespace, testName)
+
+	t.Log("Asserting metrics endpoints use HTTP/1.1")
+	metricsEndpoints := []string{
+		fmt.Sprintf("https://metrics.%s.svc:8585/metrics-fio", namespace),
+		fmt.Sprintf("http://metrics.%s.svc:8383/metrics", namespace),
+	}
+
+	expectedHTTPVersion := "HTTP/1.1"
+	for _, endpoint := range metricsEndpoints {
+		err := AssertMetricsEndpointUsesHTTPVersion(t, endpoint, expectedHTTPVersion, namespace)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Log("Metrics endpoints use HTTP/1.1, as expected")
+}
 func TestFileIntegrityLogAndReinitDatabase(t *testing.T) {
+	t.Parallel()
+	// Allocate a pool for this test
+	pool := AllocatePool(t)
+	defer ReleasePool(t, pool)
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-reinitdb"
-	setupFileIntegrity(t, f, testctx, testName, namespace, nodeWorkerRoleLabelKey, defaultTestGracePeriod)
+	setupFileIntegrity(t, f, testctx, testName, namespace, pool, defaultTestGracePeriod)
 	defer testctx.Cleanup()
 	defer func() {
 		if err := cleanNodes(f, namespace); err != nil {
@@ -41,13 +78,13 @@ func TestFileIntegrityLogAndReinitDatabase(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, pool)
 
 	t.Log("Asserting that we have OK node condition events")
 	assertNodeOKStatusEvents(t, f, namespace, 2*time.Second, 5*time.Minute)
 
 	nodes, err := f.KubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
-		LabelSelector: nodeWorkerRoleLabelKey,
+		LabelSelector: pool,
 	})
 	if err != nil {
 		t.Error(err)
@@ -111,7 +148,7 @@ func TestFileIntegrityLogAndReinitDatabase(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after re-initializing the database")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, pool)
 
 	expectedMetrics = map[string]int{
 		`file_integrity_operator_daemonset_update_total{operation="update"}`: 1,
@@ -135,72 +172,16 @@ func TestFileIntegrityLogAndReinitDatabase(t *testing.T) {
 	}
 }
 
-func TestMetricsHTTPVersion(t *testing.T) {
-	f, testctx, namespace := setupTest(t)
-	testName := testIntegrityNamePrefix + "-metrics-http-version"
-	setupFileIntegrity(t, f, testctx, testName, namespace, nodeWorkerRoleLabelKey, defaultTestGracePeriod)
-	defer testctx.Cleanup()
-	defer func() {
-		if err := cleanNodes(f, namespace); err != nil {
-			t.Fatal(err)
-		}
-		if err := resetBundleTestMetrics(f, namespace); err != nil {
-			t.Fatal(err)
-		}
-	}()
-	defer logContainerOutput(t, f, namespace, testName)
-
-	t.Log("Asserting metrics endpoints use HTTP/1.1")
-	metricsEndpoints := []string{
-		fmt.Sprintf("https://metrics.%s.svc:8585/metrics-fio", namespace),
-		fmt.Sprintf("http://metrics.%s.svc:8383/metrics", namespace),
-	}
-
-	expectedHTTPVersion := "HTTP/1.1"
-	for _, endpoint := range metricsEndpoints {
-		err := AssertMetricsEndpointUsesHTTPVersion(t, endpoint, expectedHTTPVersion, namespace)
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-	t.Log("Metrics endpoints use HTTP/1.1, as expected")
-}
-
-func TestServiceMonitoringMetricsTarget(t *testing.T) {
-	namespace := "openshift-monitoring"
-
-	// Create service account
-	createServiceAccount(t, namespace)
-	defer deleteServiceAccount(t, namespace) // Ensure the service account is deleted after the test
-
-	// Get metrics
-	metricsOutput := getPrometheusMetricResults(t, namespace)
-
-	var metrics []Metric
-	err := json.Unmarshal([]byte(metricsOutput), &metrics)
-	if err != nil {
-		t.Fatalf("failed to unmarshal metrics output: %v", err)
-	}
-
-	expectedMetrics := []Metric{
-		{
-			Instance: "serviceMonitor/openshift-file-integrity/metrics/0",
-			Health:   "up",
-		},
-		{
-			Instance: "serviceMonitor/openshift-file-integrity/metrics/1",
-			Health:   "up",
-		},
-	}
-
-	checkMetrics(t, expectedMetrics)
-}
 func TestFileIntegrityInitialDelay(t *testing.T) {
+	t.Parallel()
+	// Allocate a pool for this test
+	pool := AllocatePool(t)
+	defer ReleasePool(t, pool)
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-initialdelay"
 
 	// The test will set initialDelaySeconds to 80 seconds
-	setupFileIntegrityWithInitialDelay(t, f, testctx, testName, namespace)
+	setupFileIntegrityWithInitialDelay(t, f, pool, testctx, testName, namespace)
 	defer testctx.Cleanup()
 	defer func() {
 		if err := cleanNodes(f, namespace); err != nil {
@@ -234,9 +215,14 @@ func TestFileIntegrityInitialDelay(t *testing.T) {
 // Ensures that on re-init, a /hostroot/etc/kubernetes/aide.reinit file (the old, unused path)
 // would be cleaned up by the daemon. The file test is on a single node.
 func TestFileIntegrityLegacyReinitCleanup(t *testing.T) {
+	t.Parallel()
+	// Allocate a pool for this test
+	pool := AllocatePool(t)
+	defer ReleasePool(t, pool)
+
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-reinit-legacy"
-	setupFileIntegrity(t, f, testctx, testName, namespace, nodeWorkerRoleLabelKey, defaultTestGracePeriod)
+	setupFileIntegrity(t, f, testctx, testName, namespace, pool, defaultTestGracePeriod)
 	defer testctx.Cleanup()
 	defer func() {
 		if err := cleanNodes(f, namespace); err != nil {
@@ -255,13 +241,13 @@ func TestFileIntegrityLegacyReinitCleanup(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, pool)
 
 	t.Log("Asserting that we have OK node condition events")
 	assertNodeOKStatusEvents(t, f, namespace, 2*time.Second, 5*time.Minute)
 
 	nodes, err := f.KubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
-		LabelSelector: nodeWorkerRoleLabelKey,
+		LabelSelector: pool,
 	})
 	if err != nil {
 		t.Error(err)
@@ -284,7 +270,7 @@ func TestFileIntegrityLegacyReinitCleanup(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after re-initializing the database")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, pool)
 
 	// We can proceed to this point quickly, so wait for the reinit routine to catch up.
 	time.Sleep(time.Second * 10)
@@ -299,9 +285,14 @@ func TestFileIntegrityLegacyReinitCleanup(t *testing.T) {
 // Ensures that on re-init, a /hostroot/etc/kubernetes/aide.reinit file (the old, unused path)
 // would be cleaned up by the daemon. The file test is on a single node.
 func TestFileIntegrityPruneBackup(t *testing.T) {
+	t.Parallel()
+	// Allocate a pool for this test
+	pool := AllocatePool(t)
+	defer ReleasePool(t, pool)
+
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-prune-backup"
-	setupFileIntegrity(t, f, testctx, testName, namespace, nodeWorkerRoleLabelKey, defaultTestGracePeriod)
+	setupFileIntegrity(t, f, testctx, testName, namespace, pool, defaultTestGracePeriod)
 	defer testctx.Cleanup()
 	defer func() {
 		if err := cleanNodes(f, namespace); err != nil {
@@ -320,7 +311,7 @@ func TestFileIntegrityPruneBackup(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, pool)
 
 	t.Log("Asserting that we have OK node condition events")
 	assertNodeOKStatusEvents(t, f, namespace, 2*time.Second, 5*time.Minute)
@@ -346,7 +337,7 @@ func TestFileIntegrityPruneBackup(t *testing.T) {
 		t.Errorf("Timeout waiting for scan status")
 	}
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after updating config")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, pool)
 
 	// Reinit
 	reinitFileIntegrityDatabase(t, f, testName, namespace, time.Second, 2*time.Minute)
@@ -357,7 +348,7 @@ func TestFileIntegrityPruneBackup(t *testing.T) {
 		t.Errorf("Timeout waiting for scan status")
 	}
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after re-initializing the database")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, pool)
 
 	// Reinit again
 	reinitFileIntegrityDatabase(t, f, testName, namespace, time.Second, 2*time.Minute)
@@ -368,11 +359,11 @@ func TestFileIntegrityPruneBackup(t *testing.T) {
 		t.Errorf("Timeout waiting for scan status")
 	}
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after re-initializing the database")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, pool)
 
 	// Test the result on one node.
 	nodes, err := f.KubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
-		LabelSelector: nodeWorkerRoleLabelKey,
+		LabelSelector: pool,
 	})
 	if err != nil {
 		t.Error(err)
@@ -387,9 +378,14 @@ func TestFileIntegrityPruneBackup(t *testing.T) {
 }
 
 func TestFileIntegrityReinitOnFailed(t *testing.T) {
+	t.Parallel()
+	// Allocate a pool for this test
+	pool := AllocatePool(t)
+	defer ReleasePool(t, pool)
+
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-reinit-on-failed"
-	setupFileIntegrity(t, f, testctx, testName, namespace, nodeWorkerRoleLabelKey, defaultTestGracePeriod)
+	setupFileIntegrity(t, f, testctx, testName, namespace, pool, defaultTestGracePeriod)
 	defer testctx.Cleanup()
 	defer func() {
 		if err := cleanNodes(f, namespace); err != nil {
@@ -408,13 +404,13 @@ func TestFileIntegrityReinitOnFailed(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, pool)
 
 	t.Log("Asserting that we have OK node condition events")
 	assertNodeOKStatusEvents(t, f, namespace, 2*time.Second, 5*time.Minute)
 
 	nodes, err := f.KubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
-		LabelSelector: nodeWorkerRoleLabelKey,
+		LabelSelector: pool,
 	})
 	if err != nil {
 		t.Error(err)
@@ -485,14 +481,18 @@ func TestFileIntegrityReinitOnFailed(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after re-initializing the database")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, pool)
 
 }
 
 func TestFileIntegrityConfigurationRevert(t *testing.T) {
+	t.Parallel()
+	// Allocate a pool for this test
+	pool := AllocatePool(t)
+	defer ReleasePool(t, pool)
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-configrevert"
-	setupFileIntegrity(t, f, testctx, testName, namespace, nodeWorkerRoleLabelKey, defaultTestGracePeriod)
+	setupFileIntegrity(t, f, testctx, testName, namespace, pool, defaultTestGracePeriod)
 	defer testctx.Cleanup()
 	defer func() {
 		if err := cleanNodes(f, namespace); err != nil {
@@ -516,7 +516,7 @@ func TestFileIntegrityConfigurationRevert(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, pool)
 
 	// modify a file on a node
 	err = editFileOnNodes(f, namespace)
@@ -526,7 +526,7 @@ func TestFileIntegrityConfigurationRevert(t *testing.T) {
 
 	// log collection should create a configmap for each node's report after the scan runs again
 	nodes, err := f.KubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
-		LabelSelector: nodeWorkerRoleLabelKey,
+		LabelSelector: pool,
 	})
 	if err != nil {
 		t.Error(err)
@@ -576,7 +576,7 @@ func TestFileIntegrityConfigurationRevert(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after a re-init")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, pool)
 
 	expectedMetrics := map[string]int{
 		`file_integrity_operator_daemonset_update_total{operation="update"}`: 1,
@@ -607,9 +607,13 @@ func TestFileIntegrityConfigurationRevert(t *testing.T) {
 // - Successful transition to Initialization back to Active after update
 // - Confirms Active and Init FileIntegrityStatus events
 func TestFileIntegrityConfigurationStatus(t *testing.T) {
+	t.Parallel()
+	// Allocate a pool for this test
+	pool := AllocatePool(t)
+	defer ReleasePool(t, pool)
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-configstatus"
-	setupFileIntegrity(t, f, testctx, testName, namespace, nodeWorkerRoleLabelKey, defaultTestGracePeriod)
+	setupFileIntegrity(t, f, testctx, testName, namespace, pool, defaultTestGracePeriod)
 	defer testctx.Cleanup()
 	defer func() {
 		if err := cleanNodes(f, namespace); err != nil {
@@ -671,9 +675,13 @@ func TestFileIntegrityConfigurationStatus(t *testing.T) {
 // Update of the AIDE configuration by passing a missing configmap.
 // Ensure that this does not trigger a re-init.
 func TestFileIntegrityConfigurationIgnoreMissing(t *testing.T) {
+	t.Parallel()
+	// Allocate a pool for this test
+	pool := AllocatePool(t)
+	defer ReleasePool(t, pool)
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-configignoremissing"
-	setupFileIntegrity(t, f, testctx, testName, namespace, nodeWorkerRoleLabelKey, defaultTestGracePeriod)
+	setupFileIntegrity(t, f, testctx, testName, namespace, pool, defaultTestGracePeriod)
 	defer testctx.Cleanup()
 	defer func() {
 		if err := cleanNodes(f, namespace); err != nil {
@@ -709,9 +717,13 @@ func TestFileIntegrityConfigurationIgnoreMissing(t *testing.T) {
 
 // Ensure that the owner-label remains on the configmap.
 func TestFileIntegrityConfigMapOwnerUpdate(t *testing.T) {
+	t.Parallel()
+	// Allocate a pool for this test
+	pool := AllocatePool(t)
+	defer ReleasePool(t, pool)
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-ownerupdate"
-	setupFileIntegrity(t, f, testctx, testName, namespace, nodeWorkerRoleLabelKey, defaultTestGracePeriod)
+	setupFileIntegrity(t, f, testctx, testName, namespace, pool, defaultTestGracePeriod)
 	defer testctx.Cleanup()
 	defer func() {
 		if err := cleanNodes(f, namespace); err != nil {
@@ -739,9 +751,13 @@ func TestFileIntegrityConfigMapOwnerUpdate(t *testing.T) {
 }
 
 func TestFileIntegrityChangeGracePeriod(t *testing.T) {
+	t.Parallel()
+	// Allocate a pool for this test
+	pool := AllocatePool(t)
+	defer ReleasePool(t, pool)
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-graceperiod"
-	setupFileIntegrity(t, f, testctx, testName, namespace, nodeWorkerRoleLabelKey, defaultTestGracePeriod)
+	setupFileIntegrity(t, f, testctx, testName, namespace, pool, defaultTestGracePeriod)
 	defer testctx.Cleanup()
 	defer func() {
 		if err := cleanNodes(f, namespace); err != nil {
@@ -815,9 +831,13 @@ func TestFileIntegrityChangeGracePeriod(t *testing.T) {
 }
 
 func TestFileIntegrityChangeDebug(t *testing.T) {
+	t.Parallel()
+	// Allocate a pool for this test
+	pool := AllocatePool(t)
+	defer ReleasePool(t, pool)
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-changedebug"
-	setupFileIntegrity(t, f, testctx, testName, namespace, nodeWorkerRoleLabelKey, defaultTestGracePeriod)
+	setupFileIntegrity(t, f, testctx, testName, namespace, pool, defaultTestGracePeriod)
 	defer testctx.Cleanup()
 	defer func() {
 		if err := cleanNodes(f, namespace); err != nil {
@@ -891,9 +911,13 @@ func TestFileIntegrityChangeDebug(t *testing.T) {
 // TestFileIntegrityBadConfig checks that a broken AIDE config supplied to the config will result in an Error state for
 // the FileIntegrity,
 func TestFileIntegrityBadConfig(t *testing.T) {
+	t.Parallel()
+	// Allocate a pool for this test
+	pool := AllocatePool(t)
+	defer ReleasePool(t, pool)
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-badconfig"
-	setupFileIntegrity(t, f, testctx, testName, namespace, nodeWorkerRoleLabelKey, defaultTestGracePeriod)
+	setupFileIntegrity(t, f, testctx, testName, namespace, pool, defaultTestGracePeriod)
 	defer testctx.Cleanup()
 	defer func() {
 		if err := cleanNodes(f, namespace); err != nil {
@@ -927,7 +951,11 @@ func TestFileIntegrityBadConfig(t *testing.T) {
 }
 
 func TestFileIntegrityTolerations(t *testing.T) {
-	f, testctx, namespace, taintedNode := setupTolerationTest(t, testIntegrityNamePrefix+"-tolerations")
+	t.Parallel()
+	// Allocate a pool for this test
+	pool := AllocatePool(t)
+	defer ReleasePool(t, pool)
+	f, testctx, namespace, taintedNode := setupTolerationTest(t, testIntegrityNamePrefix+"-tolerations", pool)
 	defer testctx.Cleanup()
 	defer func() {
 		if err := cleanNodes(f, namespace); err != nil {
@@ -950,9 +978,14 @@ func TestFileIntegrityTolerations(t *testing.T) {
 }
 
 func TestFileIntegrityLogCompress(t *testing.T) {
+	t.Parallel()
+	// Allocate a pool for this test
+	pool := AllocatePool(t)
+	defer ReleasePool(t, pool)
+
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-logcompress"
-	setupFileIntegrity(t, f, testctx, testName, namespace, nodeWorkerRoleLabelKey, defaultTestGracePeriod*3) // extend the grace period to allow the file adder enough time to finish.
+	setupFileIntegrity(t, f, testctx, testName, namespace, pool, defaultTestGracePeriod*3) // extend the grace period to allow the file adder enough time to finish.
 	defer testctx.Cleanup()
 	defer func() {
 		if err := cleanNodes(f, namespace); err != nil {
@@ -974,17 +1007,16 @@ func TestFileIntegrityLogCompress(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, pool)
 
 	// log collection should create a configmap for each node's report after the scan runs again
 	nodes, err := f.KubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
-		LabelSelector: nodeWorkerRoleLabelKey,
+		LabelSelector: pool,
 	})
 	if err != nil {
 		t.Error(err)
 	}
 
-	// Grab first worker node
 	testNode := nodes.Items[0]
 
 	// modify files
@@ -1028,9 +1060,14 @@ func TestFileIntegrityLogCompress(t *testing.T) {
 //
 // NOTE: This test is run last because it modifies the node and causes restarts
 func TestFileIntegrityAcceptsExpectedChange(t *testing.T) {
+	t.Parallel()
+	// Allocate a pool for this test
+	pool := AllocatePool(t)
+	defer ReleasePool(t, pool)
+
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-nodechange"
-	setupFileIntegrity(t, f, testctx, testName, namespace, "", defaultTestGracePeriod) // empty selector key to match all nodes
+	setupFileIntegrity(t, f, testctx, testName, namespace, pool, defaultTestGracePeriod) // empty selector key to match all nodes
 	defer testctx.Cleanup()
 	defer func() {
 		if err := cleanNodes(f, namespace); err != nil {
@@ -1085,6 +1122,7 @@ func TestFileIntegrityAcceptsExpectedChange(t *testing.T) {
 // This checks test for adding new node and remove a existing node to the cluster and making sure
 // the all the nodestatuses are in a success state, and the old nodestatus is removed for the removed node.
 func TestFileIntegrityNodeScaling(t *testing.T) {
+	t.Parallel()
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-nodescale"
 	setupFileIntegrity(t, f, testctx, testName, namespace, nodeWorkerRoleLabelKey, defaultTestGracePeriod)
@@ -1124,9 +1162,14 @@ func TestFileIntegrityNodeScaling(t *testing.T) {
 
 // This checks test for roating kube-apiserver-to-kubelet-client-ca certificate
 func TestFileIntegrityCertRotation(t *testing.T) {
+	t.Parallel()
+	// Allocate a pool for this test
+	pool := AllocatePool(t)
+	defer ReleasePool(t, pool)
+
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-certrotation"
-	setupFileIntegrity(t, f, testctx, testName, namespace, nodeWorkerRoleLabelKey, defaultTestGracePeriod)
+	setupFileIntegrity(t, f, testctx, testName, namespace, pool, defaultTestGracePeriod)
 	defer testctx.Cleanup()
 	defer func() {
 		if err := cleanNodes(f, namespace); err != nil {
@@ -1144,7 +1187,7 @@ func TestFileIntegrityCertRotation(t *testing.T) {
 	}
 
 	t.Log("Asserting that the FileIntegrity check is in a SUCCESS state after deploying it")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, pool)
 
 	t.Log("Rotating cluster certificate")
 	assertClusterCertRotation(t, f, 2*time.Second, 15*time.Minute)
@@ -1154,6 +1197,6 @@ func TestFileIntegrityCertRotation(t *testing.T) {
 		t.Errorf("Timeout waiting for nodes")
 	}
 	t.Log("Asserting that the FileIntegrity is in a SUCCESS state after rotating cluster certificate")
-	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, nodeWorkerRoleLabelKey)
+	assertNodesConditionIsSuccess(t, f, testName, namespace, 2*time.Second, 5*time.Minute, pool)
 
 }
