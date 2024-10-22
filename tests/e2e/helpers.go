@@ -68,7 +68,7 @@ const (
 	certRotationAnnotationKey      = "auth.openshift.io/certificate-not-after"
 	defaultTestGracePeriod         = 20
 	defaultTestInitialDelay        = 0
-	testInitialDelay               = 180
+	testInitialDelay               = 30
 	deamonsetWaitTimeout           = 30 * time.Second
 	legacyReinitOnHost             = "/hostroot/etc/kubernetes/aide.reinit"
 	metricsTestCRBName             = "fio-metrics-client"
