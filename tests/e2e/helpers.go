@@ -1548,6 +1548,11 @@ func assertNodesConditionIsSuccess(t *testing.T, f *framework.Framework, integri
 		for nodeName, status := range latestStatuses {
 			if status.Condition != v1alpha1.NodeConditionSucceeded {
 				lastErr = fmt.Errorf("status.nodeStatus for node %s NOT SUCCESS: But instead %s", nodeName, status.Condition)
+				cm, getErr := f.KubeClient.CoreV1().ConfigMaps(namespace).Get(goctx.TODO(), fmt.Sprintf("aide-%s-%s-failed", integrityName, nodeName), metav1.GetOptions{})
+				if getErr != nil {
+					lastErr = fmt.Errorf("could not find node status configmap for %s", nodeName)
+				}
+				t.Logf("Node Status:\n%s", cm.Data["integritylog"])
 				return false, nil
 
 			}
