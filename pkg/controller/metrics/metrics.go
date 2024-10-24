@@ -10,6 +10,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	dto "github.com/prometheus/client_model/go"
 
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -301,6 +302,22 @@ func (m *Metrics) IncFileIntegrityNodeStatus(condition, node string) {
 		metricLabelNodeCondition: condition,
 		metricLabelNode:          node,
 	}).Inc()
+}
+
+// GetFileIntegrityNodeStatus retrieves the current value of the FileIntegrity counter for a specific node.
+// Returns the current value of the counter, a boolean indicating if the counter was found, and an error if the metric
+// was not found.
+func (m *Metrics) GetFileIntegrityNodeStatus(node string) (float64, bool, error) {
+	ctr := m.metricFileIntegrityNodeStatusGauge.WithLabelValues(node)
+	c := make(chan prometheus.Metric, 1)
+	ctr.Collect(c)
+	dto := dto.Metric{}
+	err := (<-c).Write(&dto)
+	if err != nil {
+		return 0, false, err
+	}
+	return *dto.Gauge.Value, true, nil
+
 }
 
 // IncFileIntegrityNodeStatusError increments the FileIntegrity counter for FileIntegrityNodeStatus errors, per errMsg.
