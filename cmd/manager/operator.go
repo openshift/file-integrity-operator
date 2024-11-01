@@ -70,6 +70,11 @@ var (
 	log    = logf.Log.WithName("cmd")
 )
 
+const (
+	operatorMetricsSA         = "file-integrity-operator-metrics"
+	operatorMetricsSecretName = "file-integrity-operator-metrics-token"
+)
+
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
@@ -290,6 +295,28 @@ func ensureMetricsServiceAndSecret(ctx context.Context, kClient *kubernetes.Clie
 		}
 	}
 
+	// Check if the metrics service account token secret exists. If not, create it and trigger a restart.
+	_, err = kClient.CoreV1().Secrets(ns).Get(ctx, operatorMetricsSecretName, metav1.GetOptions{})
+	if err != nil {
+		if kerr.IsNotFound(err) {
+			secret := &v1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      operatorMetricsSecretName,
+					Namespace: ns,
+					Annotations: map[string]string{
+						"kubernetes.io/service-account.name": operatorMetricsSA,
+					},
+				},
+				Type: v1.SecretTypeServiceAccountToken,
+			}
+			if _, createErr := kClient.CoreV1().Secrets(ns).Create(context.TODO(), secret, metav1.CreateOptions{}); createErr != nil && !kerr.IsAlreadyExists(createErr) {
+				return nil, createErr
+			}
+			return nil, errors.New("operator metrics token not found; restarting as the service may have just been created")
+		}
+		return nil, err
+	}
+
 	return returnService, nil
 }
 
@@ -377,7 +404,7 @@ func createServiceMonitor(ctx context.Context, cfg *rest.Config, mClient *moncli
 				Type: "Bearer",
 				Credentials: &v1.SecretKeySelector{
 					LocalObjectReference: v1.LocalObjectReference{
-						Name: "metrics-token",
+						Name: operatorMetricsSecretName,
 					},
 					Key: "token",
 				},

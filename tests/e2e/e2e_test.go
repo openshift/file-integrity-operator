@@ -165,6 +165,25 @@ func TestMetricsHTTPVersion(t *testing.T) {
 	t.Log("Metrics endpoints use HTTP/1.1, as expected")
 }
 
+func TestServiceMonitoringMetricsTarget(t *testing.T) {
+	f, testctx, namespace := setupTest(t)
+	testName := testIntegrityNamePrefix + "-metrics-target-service-monitoring"
+	setupFileIntegrity(t, f, testctx, testName, namespace, nodeWorkerRoleLabelKey, defaultTestGracePeriod)
+	// Wait for a while to ensure the metrics are available
+	// This is needed because the metrics are scraped every 30 seconds
+	time.Sleep(180 * time.Second)
+	defer testctx.Cleanup()
+	// Create service account
+	SetupRBACForMetricsTest(t, namespace)
+	defer CleanupRBACForMetricsTest(t, namespace)
+
+	metricsTargets := GetPrometheusMetricTargets(t, namespace)
+
+	expectedMetricsCount := 2
+
+	AssertServiceMonitoringMetricsTarget(t, metricsTargets, expectedMetricsCount)
+
+}
 func TestFileIntegrityInitialDelay(t *testing.T) {
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-initialdelay"
