@@ -25,6 +25,8 @@ spec:
     value: quay.io/redhat-user-workloads/ocp-isc-tenant/file-integrity-operator-bundle:{{revision}}
   - name: dockerfile
     value: bundle.openshfit.Dockerfile
+  - name: hermetic
+    value: "true"
   pipelineSpec:
     description: |
       This pipeline is ideal for building container images from a Containerfile while maintaining trust after pipeline customization.
