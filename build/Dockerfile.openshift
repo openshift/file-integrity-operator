@@ -14,11 +14,9 @@ FROM registry.redhat.io/ubi9/ubi:latest
 # isn't available on the operator container image. Find a way to do this
 # without bloating the image.
 RUN export SMDEV_CONTAINER_OFF=1 && \
-    subscription-manager register --org $(cat "/activation-key/org") --activationkey $(cat "/activation-key/activationkey") && \
     yum -y update && \
     yum -y install aide tar && yum clean all && \
-    yum -y clean all && rm -rf /var/cache/yum  && \
-    subscription-manager unregister
+    yum -y clean all && rm -rf /var/cache/yum
 
 LABEL \
         io.k8s.display-name="OpenShift File Integrity Operator" \
