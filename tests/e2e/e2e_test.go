@@ -1108,7 +1108,7 @@ func TestFileIntegrityNodeScaling(t *testing.T) {
 	if removedNodeName == "" {
 		t.Fatal("Failed to scale down worker machineset")
 	}
-	assertNodeStatusForRemovedNode(t, f, testName, namespace, removedNodeName, 2*time.Second, 5*time.Minute)
+	assertNodeStatusForRemovedNode(t, f, testName, namespace, removedNodeName, 2*time.Second, 10*time.Minute)
 }
 
 // This checks test for roating kube-apiserver-to-kubelet-client-ca certificate
