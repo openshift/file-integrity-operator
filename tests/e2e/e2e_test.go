@@ -568,6 +568,7 @@ func TestFileIntegrityMetricsResetPersistence(t *testing.T) {
 	}
 	t.Log("Operator pod restarted")
 
+	time.Sleep(5 * time.Second)
 	// check again the metrics, they should still be there
 	err = assertEachMetric(t, namespace, expectedMetrics)
 	if err != nil {

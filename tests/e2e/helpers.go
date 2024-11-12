@@ -319,7 +319,7 @@ func restartOperatorPodWaitForMetrics(t *testing.T, f *framework.Framework, name
 			return false, nil
 		}
 		// check if metrics are available after the pod is recreated
-		metricOut := getMetricResults(t, namespace)
+		metricOut := getMetricResultsSupressWarning(t, namespace)
 		if !strings.Contains(metricOut, "file_integrity_operator_node") {
 			t.Logf("Metrics not yet available after operator pod restart")
 			return false, nil
@@ -2233,6 +2233,28 @@ func getMetricResults(t *testing.T, namespace string) string {
 
 	t.Logf("metrics output:\n%s\n", out)
 	return out
+}
+
+func getMetricResultsSupressWarning(t *testing.T, namespace string) string {
+	out := runOCandGetOutputSupressWarning(t, []string{
+		"run", "--rm", "-i", "--restart=Never", "--image=registry.fedoraproject.org/fedora-minimal:latest",
+		"-n" + namespace, "metrics-test", "--", "bash", "-c",
+		getCurlFIOCMD(namespace),
+	})
+
+	t.Logf("metrics output:\n%s\n", out)
+	return out
+}
+
+func runOCandGetOutputSupressWarning(t *testing.T, arg []string) string {
+	ocPath := getOCpath(t)
+
+	cmd := exec.Command(ocPath, arg...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Logf("error getting output %s", err)
+	}
+	return string(out)
 }
 
 func getCurlFIOCMD(namespace string) string {
