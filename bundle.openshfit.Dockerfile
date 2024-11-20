@@ -5,18 +5,20 @@ RUN pip3 install --upgrade pip && pip3 install ruamel.yaml==0.17.9
 # Use a new stage to enable caching of the package installations for local development
 FROM builder-runner as builder
 
+ARG FIO_VERSION="1.3.5-dev"
+
 COPY ./bundle-hack .
 COPY ./bundle/icons ./icons
 COPY ./bundle/manifests ./manifests
 COPY ./bundle/metadata ./metadata
 
-RUN ./update_csv.py ./manifests 1.3.4
+RUN ./update_csv.py ./manifests ${FIO_VERSION}
 RUN ./update_bundle_annotations.sh
 
 FROM scratch
 
 LABEL name=openshift-file-integrity-operator-bundle
-LABEL version=1.3.4
+LABEL version=${FIO_VERSION}
 LABEL summary='OpenShift File Integrity Operator'
 LABEL maintainer='Infrastructure Security and Compliance Team <isc-team@redhat.com>'
 
