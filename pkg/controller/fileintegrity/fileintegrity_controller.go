@@ -869,8 +869,7 @@ func aideDaemonset(dsName string, fi *v1alpha1.FileIntegrity, operatorImage stri
 								fi`,
 							},
 							SecurityContext: &corev1.SecurityContext{
-								Privileged: &priv,
-								RunAsUser:  &runAs,
+								RunAsUser: &runAs,
 							},
 							Resources: corev1.ResourceRequirements{
 								Requests: corev1.ResourceList{
