@@ -1,0 +1,34 @@
+---
+lockfileVersion: 1
+lockfileVendor: redhat
+arches:
+- arch: x86_64
+  packages:
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/a/aide-0.16-100.el9.x86_64.rpm
+    repoid: rhel-9-for-x86_64-appstream-rpms
+    size: 157795
+    checksum: sha256:d7b533db488a63ebbd78c24c4c2a4e4cb1083c555e86891a17e2aa7693e5ae53
+    name: aide
+    evr: 0.16-100.el9
+    sourcerpm: aide-0.16-100.el9.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/e/e2fsprogs-libs-1.46.5-5.el9.x86_64.rpm
+    repoid: rhel-9-for-x86_64-baseos-rpms
+    size: 230322
+    checksum: sha256:ecdc4f4a2bf98dbdce05d4b90de0bc7341bb7bab184db4ebebc47e0495051889
+    name: e2fsprogs-libs
+    evr: 1.46.5-5.el9
+    sourcerpm: e2fsprogs-1.46.5-5.el9.src.rpm
+  source:
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/source/SRPMS/Packages/a/aide-0.16-100.el9.src.rpm
+    repoid: rhel-9-for-x86_64-appstream-source-rpms
+    size: 430607
+    checksum: sha256:f32f7cfc07990d2dd29a19a847eb20c119108dbded8014103f3acfb4bbcb78fa
+    name: aide
+    evr: 0.16-100.el9
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/source/SRPMS/Packages/e/e2fsprogs-1.46.5-5.el9.src.rpm
+    repoid: rhel-9-for-x86_64-baseos-source-rpms
+    size: 7417195
+    checksum: sha256:d54bf1aa0e66a1e45dceaa7add783b00fc6f958cafa74fe3c7a2986c35f7af4d
+    name: e2fsprogs
+    evr: 1.46.5-5.el9
+  module_metadata: []
