@@ -112,7 +112,7 @@ def replace_images(m: dict) -> None:
     # variable as a JSON string. This means we don't have to query brew
     # directly for data about builds.
 
-    FIO_IMAGE_PULLSPEC = "quay.io/redhat-user-workloads/ocp-isc-tenant/file-integrity-operator@sha256:148940c5046c11914540b7c9ad872f5b7c1219d2c75d2eeb6d721c9578b9f43a"
+    FIO_IMAGE_PULLSPEC = "quay.io/redhat-user-workloads/ocp-isc-tenant/file-integrity-operator@sha256:62453d29e485534b315a9124c657ac323015503292c720127ab9e227e3dc14d8"
 
 
     # This is incredibly specific to how the File Integrity Operator CSV is
