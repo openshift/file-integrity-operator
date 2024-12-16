@@ -856,6 +856,40 @@ func aideDaemonset(dsName string, fi *v1alpha1.FileIntegrity, operatorImage stri
 					NodeSelector:       fi.Spec.NodeSelector,
 					Tolerations:        fi.Spec.Tolerations,
 					ServiceAccountName: common.DaemonServiceAccountName,
+					InitContainers: []corev1.Container{
+						{
+							Name:  "check-folder",
+							Image: common.GetComponentImage(operatorImage, common.OPERATOR),
+							Command: []string{
+								"sh",
+								"-c",
+								`if [ ! -d "/host/etc/kubernetes/static-pod-resources" ]; then
+									echo "Directory /etc/kubernetes/static-pod-resources does not exist, exiting.";
+									exit 1;
+								fi`,
+							},
+							SecurityContext: &corev1.SecurityContext{
+								RunAsUser: &runAs,
+							},
+							Resources: corev1.ResourceRequirements{
+								Requests: corev1.ResourceList{
+									corev1.ResourceMemory: resource.MustParse("10Mi"),
+									corev1.ResourceCPU:    resource.MustParse("10m"),
+								},
+								Limits: corev1.ResourceList{
+									corev1.ResourceMemory: resource.MustParse("50Mi"),
+									corev1.ResourceCPU:    resource.MustParse("50m"),
+								},
+							},
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:             "hostroot",
+									MountPath:        "/host",
+									MountPropagation: &hostToContainer,
+								},
+							},
+						},
+					},
 					Containers: []corev1.Container{
 						{
 							SecurityContext: &corev1.SecurityContext{
