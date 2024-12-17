@@ -1,0 +1,101 @@
+---
+lockfileVersion: 1
+lockfileVendor: redhat
+arches:
+- arch: x86_64
+  packages:
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/l/libxcrypt-compat-4.4.18-3.el9.x86_64.rpm
+    repoid: rhel-9-for-x86_64-appstream-rpms
+    size: 93189
+    checksum: sha256:2bd6c288e1970a001d3a1ae69166c0d926d9c87ce892edcb2110f4e142c12a7a
+    name: libxcrypt-compat
+    evr: 4.4.18-3.el9
+    sourcerpm: libxcrypt-4.4.18-3.el9.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/p/python-unversioned-command-3.9.21-1.el9_5.noarch.rpm
+    repoid: rhel-9-for-x86_64-appstream-rpms
+    size: 10813
+    checksum: sha256:9409fab1b252ea2717b593cdc96227ead9fdf7040c4d5391f33352e3d193842e
+    name: python-unversioned-command
+    evr: 3.9.21-1.el9_5
+    sourcerpm: python3.9-3.9.21-1.el9_5.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/p/python3-pip-21.3.1-1.el9.noarch.rpm
+    repoid: rhel-9-for-x86_64-appstream-rpms
+    size: 2133958
+    checksum: sha256:2ff41d5bbfb5bf09378a499b56d9854e9389e3a8648897426d144f4b385f8730
+    name: python3-pip
+    evr: 21.3.1-1.el9
+    sourcerpm: python-pip-21.3.1-1.el9.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/e/expat-2.5.0-3.el9_5.1.x86_64.rpm
+    repoid: rhel-9-for-x86_64-baseos-rpms
+    size: 121783
+    checksum: sha256:e9b4eb1c8a2ca7787a8ffea53b2a86533a1eb6aea72f05919c2748cd63dad32a
+    name: expat
+    evr: 2.5.0-3.el9_5.1
+    sourcerpm: expat-2.5.0-3.el9_5.1.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/p/python3-3.9.21-1.el9_5.x86_64.rpm
+    repoid: rhel-9-for-x86_64-baseos-rpms
+    size: 30760
+    checksum: sha256:2afbe12057e84e1fe11e82140624c6c71a2688b495499336ca50753a40974b14
+    name: python3
+    evr: 3.9.21-1.el9_5
+    sourcerpm: python3.9-3.9.21-1.el9_5.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/p/python3-libs-3.9.21-1.el9_5.x86_64.rpm
+    repoid: rhel-9-for-x86_64-baseos-rpms
+    size: 8490001
+    checksum: sha256:bd3351b048dc50776a010bc38c7666ac1c335169c6d0b55c65cee47150520780
+    name: python3-libs
+    evr: 3.9.21-1.el9_5
+    sourcerpm: python3.9-3.9.21-1.el9_5.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/p/python3-pip-wheel-21.3.1-1.el9.noarch.rpm
+    repoid: rhel-9-for-x86_64-baseos-rpms
+    size: 1193706
+    checksum: sha256:75c46aab03898c66ce16be556432b71aed7efcedce02b9263339c14f57b4fdc0
+    name: python3-pip-wheel
+    evr: 21.3.1-1.el9
+    sourcerpm: python-pip-21.3.1-1.el9.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/p/python3-setuptools-53.0.0-13.el9.noarch.rpm
+    repoid: rhel-9-for-x86_64-baseos-rpms
+    size: 969726
+    checksum: sha256:345f2e3dfa04ccdb65b4c4c9df1900f298acc3bd78dddff66f338fb7e62ccb85
+    name: python3-setuptools
+    evr: 53.0.0-13.el9
+    sourcerpm: python-setuptools-53.0.0-13.el9.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/p/python3-setuptools-wheel-53.0.0-13.el9.noarch.rpm
+    repoid: rhel-9-for-x86_64-baseos-rpms
+    size: 480100
+    checksum: sha256:daf18aa58dd3571cf4258a5a4f67410a1d30ab8c62cd64b2ea99eda5a7f618cf
+    name: python3-setuptools-wheel
+    evr: 53.0.0-13.el9
+    sourcerpm: python-setuptools-53.0.0-13.el9.src.rpm
+  source:
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/source/SRPMS/Packages/e/expat-2.5.0-3.el9_5.1.src.rpm
+    repoid: rhel-9-for-x86_64-baseos-source-rpms
+    size: 8358505
+    checksum: sha256:8b3c398f73e7cfb93de1c34252c19ebd0efe4232e9b921bd01f11442b5dec8d5
+    name: expat
+    evr: 2.5.0-3.el9_5.1
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/source/SRPMS/Packages/l/libxcrypt-4.4.18-3.el9.src.rpm
+    repoid: rhel-9-for-x86_64-baseos-source-rpms
+    size: 543970
+    checksum: sha256:d18f72eb41ecd0370e2e47f1dc5774be54e9ff3b4dd333578017666c7c488f40
+    name: libxcrypt
+    evr: 4.4.18-3.el9
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/source/SRPMS/Packages/p/python-pip-21.3.1-1.el9.src.rpm
+    repoid: rhel-9-for-x86_64-baseos-source-rpms
+    size: 8984717
+    checksum: sha256:cb9e0cca3bd8dc24798cf1fb333d574774ce8288598331d44994d768f33648d3
+    name: python-pip
+    evr: 21.3.1-1.el9
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/source/SRPMS/Packages/p/python-setuptools-53.0.0-13.el9.src.rpm
+    repoid: rhel-9-for-x86_64-baseos-source-rpms
+    size: 2081089
+    checksum: sha256:45c590d9b7665158618dcb0727fcadf0b72879920db69986fc2035550892a511
+    name: python-setuptools
+    evr: 53.0.0-13.el9
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/source/SRPMS/Packages/p/python3.9-3.9.21-1.el9_5.src.rpm
+    repoid: rhel-9-for-x86_64-baseos-source-rpms
+    size: 20273210
+    checksum: sha256:ef60fdf847c03312ab61602eb4c4aeac5f04bcc07b7a94178e71d4f5916b8345
+    name: python3.9
+    evr: 3.9.21-1.el9_5
+  module_metadata: []
