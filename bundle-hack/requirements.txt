@@ -1,0 +1,5 @@
+flit_core==3.10.1
+ruamel.yaml==0.17.9
+ruamel.yaml.clib==0.2.12
+setuptools==75.6.0
+wheel==0.45.1
