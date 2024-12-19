@@ -1,6 +1,7 @@
 FROM registry.access.redhat.com/ubi9/ubi-minimal:latest as builder-runner
-RUN microdnf install -y python3 python3-pip
-RUN pip3 install --upgrade pip && pip3 install ruamel.yaml==0.17.9
+RUN microdnf install -y gcc python3 python3-pip
+RUN pip3 install --upgrade pip && pip3 install wheel
+RUN pip3 install ruamel.yaml==0.17.9
 
 # Use a new stage to enable caching of the package installations for local development
 FROM builder-runner as builder
