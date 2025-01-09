@@ -1,19 +1,11 @@
-FROM registry.access.redhat.com/ubi9/ubi-minimal:latest as builder-runner
-RUN microdnf install -y gcc python3 python3-pip
-RUN pip3 install --upgrade pip && pip3 install wheel
-RUN pip3 install ruamel.yaml==0.17.9
+FROM brew.registry.redhat.io/rh-osbs/openshift-golang-builder:v1.22 as builder
 
-# Use a new stage to enable caching of the package installations for local development
-FROM builder-runner as builder
+COPY . .
+WORKDIR bundle-hack
 
 ARG FIO_VERSION="1.3.5-dev"
 
-COPY ./bundle-hack .
-COPY ./bundle/icons ./icons
-COPY ./bundle/manifests ./manifests
-COPY ./bundle/metadata ./metadata
-
-RUN ./update_csv.py ./manifests ${FIO_VERSION}
+RUN go run ./update_csv.go ../bundle/manifests ${FIO_VERSION}
 RUN ./update_bundle_annotations.sh
 
 FROM scratch
@@ -44,6 +36,6 @@ LABEL operators.operatorframework.io.bundle.package.v1=file-integrity-operator
 LABEL License=GPLv2+
 
 # Copy files to locations specified by labels.
-COPY --from=builder /manifests /manifests/
-COPY --from=builder /metadata /metadata/
+COPY --from=builder bundle/manifests /manifests/
+COPY --from=builder bundle/metadata /metadata/
 COPY bundle/tests/scorecard /tests/scorecard
