@@ -125,22 +125,41 @@ func HasReinitAnnotation(fi *v1alpha1.FileIntegrity) (nodes []string, annotation
 // changed.
 func GetAddedNodeHoldoffAnnotation(fi *v1alpha1.FileIntegrity, nodeName string) (map[string]string, bool) {
 	ficopy := fi.DeepCopy()
-	if fi.Annotations == nil {
+	if ficopy.Annotations == nil {
 		ficopy.Annotations = make(map[string]string)
 	}
 
-	if nodeList, has := fi.Annotations[IntegrityHoldoffAnnotationKey]; has {
-		if nodeList == "" {
-			// no need to add the node if all nodes are in holdoff
-			return ficopy.Annotations, false
-		}
-		if strings.Contains(nodeList, nodeName) {
-			return ficopy.Annotations, false
-		}
-		ficopy.Annotations[IntegrityHoldoffAnnotationKey] = nodeList + "," + nodeName
-	} else {
+	nodeList, has := fi.Annotations[IntegrityHoldoffAnnotationKey]
+	if !has {
+		// If the annotation key doesn't exist, simply create it with this nodeName
 		ficopy.Annotations[IntegrityHoldoffAnnotationKey] = nodeName
+		return ficopy.Annotations, true
 	}
+
+	AddedNode := strings.TrimSpace(nodeName)
+
+	// If nodeList is an empty string, the current logic indicates
+	if nodeList == "" {
+		// "no need to add the node if all nodes are in holdoff".
+		return ficopy.Annotations, false
+	}
+
+	// Split existing nodeList into slice
+	nodes := strings.Split(nodeList, ",")
+
+	// Check if nodeName is already in the list
+	for _, n := range nodes {
+		if strings.EqualFold(strings.TrimSpace(n), AddedNode) {
+			// Node is already in holdoff, so no changes
+			return ficopy.Annotations, false
+		}
+	}
+
+	// Not found, append it
+	nodes = append(nodes, AddedNode)
+	// Update the annotation with the new list
+	ficopy.Annotations[IntegrityHoldoffAnnotationKey] = strings.Join(nodes, ",")
+
 	return ficopy.Annotations, true
 }
 
@@ -151,22 +170,39 @@ func GetRemovedNodeHoldoffAnnotation(fi *v1alpha1.FileIntegrity, nodeName string
 	if !IsNodeInHoldoff(fi, nodeName) {
 		return nil, false
 	}
+
 	ficopy := fi.DeepCopy()
-	if fi.Annotations == nil {
+	if ficopy.Annotations == nil {
 		ficopy.Annotations = make(map[string]string)
 	}
-	if nodeList, has := fi.Annotations[IntegrityHoldoffAnnotationKey]; has {
-		if nodeList == nodeName {
-			// remove the annotation if all nodes are in holdoff or if the node is the only one in holdoff
-			delete(ficopy.Annotations, IntegrityHoldoffAnnotationKey)
-		} else {
-			// remove the node from the holdoff list string and update the annotation along with comma separators
-			nodeList = strings.Replace(nodeList, ","+nodeName, "", -1)
-			ficopy.Annotations[IntegrityHoldoffAnnotationKey] = nodeList
-		}
-		return ficopy.Annotations, true
+
+	nodeList, has := ficopy.Annotations[IntegrityHoldoffAnnotationKey]
+	if !has {
+		return nil, false
 	}
-	return nil, false
+	removedNode := strings.TrimSpace(nodeName)
+
+	// Split the node list on commas
+	nodes := strings.Split(nodeList, ",")
+	var newNodes []string
+
+	// Filter out the nodeName
+	for _, n := range nodes {
+		existingNode := strings.TrimSpace(n)
+		if !strings.EqualFold(existingNode, removedNode) {
+			newNodes = append(newNodes, existingNode)
+		}
+	}
+
+	// If there are no nodes left in holdoff, remove the annotation entirely
+	if len(newNodes) == 0 {
+		delete(ficopy.Annotations, IntegrityHoldoffAnnotationKey)
+	} else {
+		// Otherwise, join the remaining nodes and update the annotation
+		ficopy.Annotations[IntegrityHoldoffAnnotationKey] = strings.Join(newNodes, ",")
+	}
+
+	return ficopy.Annotations, true
 }
 
 // GetAddedNodeReinitAnnotation returns the annotation value for the added node
