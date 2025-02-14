@@ -1,0 +1,94 @@
+---
+lockfileVersion: 1
+lockfileVendor: redhat
+arches:
+- arch: ppc64le
+  packages:
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/appstream/os/Packages/a/aide-0.16-102.el9.ppc64le.rpm
+    repoid: rhel-9-for-ppc64le-appstream-rpms
+    size: 161600
+    checksum: sha256:9f6e418798ec46a5c04b72cef31d0545dc2c6533ee7129cec544c52292021abc
+    name: aide
+    evr: 0.16-102.el9
+    sourcerpm: aide-0.16-102.el9.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/os/Packages/e/e2fsprogs-libs-1.46.5-5.el9.ppc64le.rpm
+    repoid: rhel-9-for-ppc64le-baseos-rpms
+    size: 259223
+    checksum: sha256:4f76b7914a1b9f80e8e1db1bc36f362c0509a2eae2a12f2264031829c04cb7e9
+    name: e2fsprogs-libs
+    evr: 1.46.5-5.el9
+    sourcerpm: e2fsprogs-1.46.5-5.el9.src.rpm
+  source:
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/appstream/source/SRPMS/Packages/a/aide-0.16-102.el9.src.rpm
+    repoid: rhel-9-for-ppc64le-appstream-source-rpms
+    size: 430843
+    checksum: sha256:fa1bdce91b5df02fba936136561f2c5e6e67793dd431d38372ef6977e438dd8d
+    name: aide
+    evr: 0.16-102.el9
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/source/SRPMS/Packages/e/e2fsprogs-1.46.5-5.el9.src.rpm
+    repoid: rhel-9-for-ppc64le-baseos-source-rpms
+    size: 7417195
+    checksum: sha256:d54bf1aa0e66a1e45dceaa7add783b00fc6f958cafa74fe3c7a2986c35f7af4d
+    name: e2fsprogs
+    evr: 1.46.5-5.el9
+  module_metadata: []
+- arch: s390x
+  packages:
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/appstream/os/Packages/a/aide-0.16-102.el9.s390x.rpm
+    repoid: rhel-9-for-s390x-appstream-rpms
+    size: 155242
+    checksum: sha256:e6e09f699359a8f6e6816855e1ca12386df37d0f54d88fbbae94fff8afd2336d
+    name: aide
+    evr: 0.16-102.el9
+    sourcerpm: aide-0.16-102.el9.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/os/Packages/e/e2fsprogs-libs-1.46.5-5.el9.s390x.rpm
+    repoid: rhel-9-for-s390x-baseos-rpms
+    size: 230941
+    checksum: sha256:b625652f8f199146d2c5802914496fadfde9c03ffbd56737c698eb2a80e24350
+    name: e2fsprogs-libs
+    evr: 1.46.5-5.el9
+    sourcerpm: e2fsprogs-1.46.5-5.el9.src.rpm
+  source:
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/appstream/source/SRPMS/Packages/a/aide-0.16-102.el9.src.rpm
+    repoid: rhel-9-for-s390x-appstream-source-rpms
+    size: 430843
+    checksum: sha256:fa1bdce91b5df02fba936136561f2c5e6e67793dd431d38372ef6977e438dd8d
+    name: aide
+    evr: 0.16-102.el9
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/source/SRPMS/Packages/e/e2fsprogs-1.46.5-5.el9.src.rpm
+    repoid: rhel-9-for-s390x-baseos-source-rpms
+    size: 7417195
+    checksum: sha256:d54bf1aa0e66a1e45dceaa7add783b00fc6f958cafa74fe3c7a2986c35f7af4d
+    name: e2fsprogs
+    evr: 1.46.5-5.el9
+  module_metadata: []
+- arch: x86_64
+  packages:
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/a/aide-0.16-102.el9.x86_64.rpm
+    repoid: rhel-9-for-x86_64-appstream-rpms
+    size: 156687
+    checksum: sha256:f8784103795126a80fd82cbdbbb77c629b5749b8de9258dd75eeb0f3f9b2418d
+    name: aide
+    evr: 0.16-102.el9
+    sourcerpm: aide-0.16-102.el9.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/e/e2fsprogs-libs-1.46.5-5.el9.x86_64.rpm
+    repoid: rhel-9-for-x86_64-baseos-rpms
+    size: 230322
+    checksum: sha256:ecdc4f4a2bf98dbdce05d4b90de0bc7341bb7bab184db4ebebc47e0495051889
+    name: e2fsprogs-libs
+    evr: 1.46.5-5.el9
+    sourcerpm: e2fsprogs-1.46.5-5.el9.src.rpm
+  source:
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/source/SRPMS/Packages/a/aide-0.16-102.el9.src.rpm
+    repoid: rhel-9-for-x86_64-appstream-source-rpms
+    size: 430843
+    checksum: sha256:fa1bdce91b5df02fba936136561f2c5e6e67793dd431d38372ef6977e438dd8d
+    name: aide
+    evr: 0.16-102.el9
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/source/SRPMS/Packages/e/e2fsprogs-1.46.5-5.el9.src.rpm
+    repoid: rhel-9-for-x86_64-baseos-source-rpms
+    size: 7417195
+    checksum: sha256:d54bf1aa0e66a1e45dceaa7add783b00fc6f958cafa74fe3c7a2986c35f7af4d
+    name: e2fsprogs
+    evr: 1.46.5-5.el9
+  module_metadata: []
