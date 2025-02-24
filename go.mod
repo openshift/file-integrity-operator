@@ -24,7 +24,7 @@ require (
 	github.com/securego/gosec/v2 v2.20.1-0.20240525090044-5f0084eb01a9
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.8.1
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	golang.org/x/mod v0.21.0
 	golang.org/x/net v0.28.0
 	k8s.io/api v0.30.3
