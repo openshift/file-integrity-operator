@@ -25,6 +25,8 @@ import (
 	"strings"
 
 	"github.com/securego/gosec/v2"
+	"github.com/securego/gosec/v2/analyzers"
+	"github.com/securego/gosec/v2/autofix"
 	"github.com/securego/gosec/v2/cmd/vflag"
 	"github.com/securego/gosec/v2/issue"
 	"github.com/securego/gosec/v2/report"
@@ -58,6 +60,8 @@ USAGE:
 	$ gosec -exclude=G101 $GOPATH/src/github.com/example/project/...
 
 `
+	// Environment variable for AI API key.
+	aiApiKeyEnv = "GOSEC_AI_API_KEY" // #nosec G101
 )
 
 type arrayFlags []string
@@ -83,6 +87,9 @@ var (
 
 	// #nosec alternative tag
 	flagAlternativeNoSec = flag.String("nosec-tag", "", "Set an alternative string for #nosec. Some examples: #dontanalyze, #falsepositive")
+
+	// flagEnableAudit enables audit mode
+	flagEnableAudit = flag.Bool("enable-audit", false, "Enable audit mode")
 
 	// output file
 	flagOutput = flag.String("out", "", "Set output file for results")
@@ -146,6 +153,15 @@ var (
 	// flagTerse shows only the summary of scan discarding all the logs
 	flagTerse = flag.Bool("terse", false, "Shows only the results and summary")
 
+	// AI platform provider to generate solutions to issues
+	flagAiApiProvider = flag.String("ai-api-provider", "", "AI API provider to generate auto fixes to issues.\nValid options are: gemini")
+
+	// key to implementing AI provider services
+	flagAiApiKey = flag.String("ai-api-key", "", "Key to access the AI API")
+
+	// endpoint to the AI provider
+	flagAiEndpoint = flag.String("ai-endpoint", "", "Endpoint AI API.\nThis is optional, the default API endpoint will be used when not provided.")
+
 	// exclude the folders from scan
 	flagDirsExclude arrayFlags
 
@@ -162,14 +178,23 @@ func usage() {
 
 	// sorted rule list for ease of reading
 	rl := rules.Generate(*flagTrackSuppressions)
-	keys := make([]string, 0, len(rl.Rules))
+	al := analyzers.Generate(*flagTrackSuppressions)
+	keys := make([]string, 0, len(rl.Rules)+len(al.Analyzers))
 	for key := range rl.Rules {
+		keys = append(keys, key)
+	}
+	for key := range al.Analyzers {
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
 	for _, k := range keys {
-		v := rl.Rules[k]
-		fmt.Fprintf(os.Stderr, "\t%s: %s\n", k, v.Description)
+		var description string
+		if rule, ok := rl.Rules[k]; ok {
+			description = rule.Description
+		} else if analyzer, ok := al.Analyzers[k]; ok {
+			description = analyzer.Description
+		}
+		fmt.Fprintf(os.Stderr, "\t%s: %s\n", k, description)
 	}
 	fmt.Fprint(os.Stderr, "\n")
 }
@@ -196,11 +221,14 @@ func loadConfig(configFile string) (gosec.Config, error) {
 	if *flagAlternativeNoSec != "" {
 		config.SetGlobal(gosec.NoSecAlternative, *flagAlternativeNoSec)
 	}
-	// set global option IncludeRules ,when flag set or global option IncludeRules  is nil
+	if *flagEnableAudit {
+		config.SetGlobal(gosec.Audit, "true")
+	}
+	// set global option IncludeRules, when flag set or global option IncludeRules  is nil
 	if v, _ := config.GetGlobal(gosec.IncludeRules); *flagRulesInclude != "" || v == "" {
 		config.SetGlobal(gosec.IncludeRules, *flagRulesInclude)
 	}
-	// set global option ExcludeRules ,when flag set or global option IncludeRules  is nil
+	// set global option ExcludeRules, when flag set or global option ExcludeRules  is nil
 	if v, _ := config.GetGlobal(gosec.ExcludeRules); flagRulesExclude.String() != "" || v == "" {
 		config.SetGlobal(gosec.ExcludeRules, flagRulesExclude.String())
 	}
@@ -225,6 +253,26 @@ func loadRules(include, exclude string) rules.RuleList {
 		logger.Println("Excluding rules: default")
 	}
 	return rules.Generate(*flagTrackSuppressions, filters...)
+}
+
+func loadAnalyzers(include, exclude string) *analyzers.AnalyzerList {
+	var filters []analyzers.AnalyzerFilter
+	if include != "" {
+		logger.Printf("Including analyzers: %s", include)
+		including := strings.Split(include, ",")
+		filters = append(filters, analyzers.NewAnalyzerFilter(false, including...))
+	} else {
+		logger.Println("Including analyzers: default")
+	}
+
+	if exclude != "" {
+		logger.Printf("Excluding analyzers: %s", exclude)
+		excluding := strings.Split(exclude, ",")
+		filters = append(filters, analyzers.NewAnalyzerFilter(true, excluding...))
+	} else {
+		logger.Println("Excluding analyzers: default")
+	}
+	return analyzers.Generate(*flagTrackSuppressions, filters...)
 }
 
 func getRootPaths(paths []string) []string {
@@ -390,13 +438,17 @@ func main() {
 	}
 
 	ruleList := loadRules(includeRules, excludeRules)
-	if len(ruleList.Rules) == 0 {
-		logger.Fatal("No rules are configured")
+
+	analyzerList := loadAnalyzers(includeRules, excludeRules)
+
+	if len(ruleList.Rules) == 0 && len(analyzerList.Analyzers) == 0 {
+		logger.Fatal("No rules/analyzers are configured")
 	}
 
 	// Create the analyzer
 	analyzer := gosec.NewAnalyzer(config, *flagScanTests, *flagExcludeGenerated, *flagTrackSuppressions, *flagConcurrency, logger)
 	analyzer.LoadRules(ruleList.RulesInfo())
+	analyzer.LoadAnalyzers(analyzerList.AnalyzersInfo())
 
 	excludedDirs := gosec.ExcludedDirsRegExp(flagDirsExclude)
 	var packages []string
@@ -450,6 +502,18 @@ func main() {
 	rootPaths := getRootPaths(flag.Args())
 
 	reportInfo := gosec.NewReportInfo(issues, metrics, errors).WithVersion(Version)
+
+	// Call AI request to solve the issues
+	aiApiKey := os.Getenv(aiApiKeyEnv)
+	if aiApiKeyEnv == "" {
+		aiApiKey = *flagAiApiKey
+	}
+	if *flagAiApiProvider != "" && aiApiKey != "" {
+		err := autofix.GenerateSolution(*flagAiApiProvider, aiApiKey, *flagAiEndpoint, issues)
+		if err != nil {
+			logger.Print(err)
+		}
+	}
 
 	if *flagOutput == "" || *flagStdOut {
 		fileFormat := getPrintedFormat(*flagFormat, *flagVerbose)
