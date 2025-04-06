@@ -20,7 +20,7 @@ require (
 	github.com/prometheus-operator/prometheus-operator/pkg/client v0.76.2
 	github.com/prometheus/client_golang v1.19.1
 	github.com/prometheus/client_model v0.6.1
-	github.com/prometheus/prometheus v0.54.1
+	github.com/prometheus/prometheus v0.302.1
 	github.com/securego/gosec/v2 v2.20.1-0.20240525090044-5f0084eb01a9
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.8.1
