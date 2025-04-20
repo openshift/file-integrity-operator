@@ -12,7 +12,7 @@ require (
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.34.1
 	github.com/openshift/api v0.0.0-20240527133614-ba11c1587003
-	github.com/openshift/library-go v0.0.0-20240715191351-e0aa70d55678
+	github.com/openshift/library-go ac3ba9eb16a2
 	github.com/openshift/machine-config-operator v0.0.1-0.20230815171034-c2bb862bc08a
 	github.com/pborman/uuid v1.2.1
 	github.com/pkg/errors v0.9.1
