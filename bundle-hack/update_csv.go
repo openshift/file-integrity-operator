@@ -139,7 +139,19 @@ func recoverFromReplaceImages() {
 func replaceImages(csv map[string]interface{}) {
 	defer recoverFromReplaceImages()
 
-	FIO_IMAGE_PULLSPEC := "quay.io/redhat-user-workloads/ocp-isc-tenant/file-integrity-operator@sha256:148940c5046c11914540b7c9ad872f5b7c1219d2c75d2eeb6d721c9578b9f43a"
+	// Konflux will automatically update the image sha based on the most
+	// recent builds. We want to peel off the SHA and append it to the Red
+	// Hat registry so that the bundle image will work when it's available
+	// there.
+	konfluxPullSpec := "quay.io/redhat-user-workloads/ocp-isc-tenant/file-integrity-operator@sha256:148940c5046c11914540b7c9ad872f5b7c1219d2c75d2eeb6d721c9578b9f43a"
+	delimiter := "@"
+	parts := strings.Split(konfluxPullSpec, delimiter)
+	if len(parts) > 2 {
+		log.Fatalf("Error: Failed to safely determine image SHA from Konflux pull spec: %s", konfluxPullSpec)
+	}
+	imageSha := parts[1]
+	registry := "registry.redhat.io/compliance/openshift-file-integrity-rhel8-operator"
+	redHatPullSpec := registry + delimiter + imageSha
 
 	env, ok := csv["spec"].(map[string]interface{})["install"].(map[string]interface{})["spec"].(map[string]interface{})["deployments"].([]interface{})[0].(map[string]interface{})["spec"].(map[string]interface{})["template"].(map[string]interface{})["spec"].(map[string]interface{})["containers"].([]interface{})[0].(map[string]interface{})["env"].([]interface{})
 	if !ok {
@@ -149,10 +161,14 @@ func replaceImages(csv map[string]interface{}) {
 	for _, item := range env {
 		variable := item.(map[string]interface{})
 		if variable["name"] == "RELATED_IMAGE_OPERATOR" {
-			variable["value"] = FIO_IMAGE_PULLSPEC
+			variable["value"] = redHatPullSpec
 		}
 	}
-	fmt.Println("Updated the operator image to use downstream builds")
+
+	containersMap := csv["spec"].(map[string]interface{})["install"].(map[string]interface{})["spec"].(map[string]interface{})["deployments"].([]interface{})[0].(map[string]interface{})["spec"].(map[string]interface{})["template"].(map[string]interface{})["spec"].(map[string]interface{})["containers"].([]interface{})[0].(map[string]interface{})
+	containersMap["image"] = redHatPullSpec
+
+	fmt.Println("Updated the deployment manifest to use downstream builds")
 }
 
 func removeRelated(csv map[string]interface{}) {
