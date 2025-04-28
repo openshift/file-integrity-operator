@@ -3,15 +3,16 @@ FROM brew.registry.redhat.io/rh-osbs/openshift-golang-builder:v1.22 as builder
 COPY . .
 WORKDIR bundle-hack
 
-ARG FIO_VERSION="1.3.5-dev"
+ARG FIO_OLD_VERSION="1.3.5"
+ARG FIO_NEW_VERSION="1.3.6"
 
-RUN go run ./update_csv.go ../bundle/manifests ${FIO_VERSION}
+RUN go run ./update_csv.go ../bundle/manifests ${FIO_OLD_VERSION} ${FIO_NEW_VERSION}
 RUN ./update_bundle_annotations.sh
 
 FROM scratch
 
 LABEL name=openshift-file-integrity-operator-bundle
-LABEL version=${FIO_VERSION}
+LABEL version=${FIO_NEW_VERSION}
 LABEL summary='OpenShift File Integrity Operator'
 LABEL maintainer='Infrastructure Security and Compliance Team <isc-team@redhat.com>'
 
