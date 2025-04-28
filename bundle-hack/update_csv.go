@@ -85,25 +85,24 @@ func addRequiredAnnotations(csv map[string]interface{}){
 	fmt.Println("Added required annotations")
 }
 
-func replaceVersion(version string, csv map[string]interface{}) {
+func replaceVersion(oldVersion, newVersion string, csv map[string]interface{}) {
 	spec, ok := csv["spec"].(map[string]interface{})
 	metadata, ok := csv["metadata"].(map[string]interface{})
 	if !ok {
 		log.Fatal("Error: 'spec' does not exist in the CSV content")
 	}
 
-	manifestVersion := spec["version"].(string)
-	fmt.Println(fmt.Sprintf("Updating version references from %s to %s", manifestVersion, version))
+	fmt.Println(fmt.Sprintf("Updating version references from %s to %s", oldVersion, newVersion))
 
-	spec["version"] = version
-	spec["replaces"] = "file-integrity-operator.v" + manifestVersion
+	spec["version"] = newVersion
+	spec["replaces"] = "file-integrity-operator.v" + oldVersion
 
-	metadata["name"] = strings.Replace(metadata["name"].(string), manifestVersion, version, 1)
+	metadata["name"] = strings.Replace(metadata["name"].(string), oldVersion, newVersion, 1)
 
 	annotations := metadata["annotations"].(map[string]interface{})
-	annotations["olm.skipRange"] = strings.Replace(annotations["olm.skipRange"].(string), manifestVersion, version, 1)
+	annotations["olm.skipRange"] = strings.Replace(annotations["olm.skipRange"].(string), oldVersion, newVersion, 1)
 
-	fmt.Println(fmt.Sprintf("Updated version references from %s to %s", manifestVersion, version))
+	fmt.Println(fmt.Sprintf("Updated version references from %s to %s", oldVersion, newVersion))
 }
 
 func replaceIcon(csv map[string]interface{}) {
@@ -170,7 +169,8 @@ func main() {
 	var csv map[string]interface{}
 
 	manifestsDir := os.Args[1]
-	version := os.Args[2]
+	oldVersion := os.Args[2]
+	newVersion := os.Args[3]
 
 	csvFilename := getInputCSVFilePath(manifestsDir)
 	fmt.Println(fmt.Sprintf("Found manifest in %s", csvFilename))
@@ -178,12 +178,12 @@ func main() {
 	readCSV(csvFilename, &csv)
 
 	addRequiredAnnotations(csv)
-	replaceVersion(version, csv)
+	replaceVersion(oldVersion, newVersion, csv)
 	replaceIcon(csv)
 	replaceImages(csv)
 	removeRelated(csv)
 
-	outputCSVFilename := getOutputCSVFilePath(manifestsDir, version)
+	outputCSVFilename := getOutputCSVFilePath(manifestsDir, newVersion)
 	replaceCSV(csvFilename, outputCSVFilename, csv)
-	fmt.Println(fmt.Sprintf("Replaced CSV manifest for %s", version))
+	fmt.Println(fmt.Sprintf("Replaced CSV manifest for %s", newVersion))
 }
