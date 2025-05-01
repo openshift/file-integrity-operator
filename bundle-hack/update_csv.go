@@ -143,7 +143,7 @@ func replaceImages(csv map[string]interface{}) {
 	// recent builds. We want to peel off the SHA and append it to the Red
 	// Hat registry so that the bundle image will work when it's available
 	// there.
-	konfluxPullSpec := "quay.io/redhat-user-workloads/ocp-isc-tenant/file-integrity-operator@sha256:148940c5046c11914540b7c9ad872f5b7c1219d2c75d2eeb6d721c9578b9f43a"
+	konfluxPullSpec := "quay.io/redhat-user-workloads/ocp-isc-tenant/file-integrity-operator@sha256:3695c9ea20bd252b107fb04a191af8a68ff341883076a1b153ef1a9eb6ecad93"
 	delimiter := "@"
 	parts := strings.Split(konfluxPullSpec, delimiter)
 	if len(parts) > 2 {
