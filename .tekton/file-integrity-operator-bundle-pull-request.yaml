@@ -472,7 +472,8 @@ spec:
       optional: true
     - name: netrc
       optional: true
-  taskRunTemplate: {}
+  taskRunTemplate:
+    serviceAccountName: build-pipeline-file-integrity-operator-bundle
   workspaces:
   - name: git-auth
     secret:
