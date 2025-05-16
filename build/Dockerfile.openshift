@@ -8,15 +8,14 @@ COPY . .
 
 RUN make build
 
-FROM registry.redhat.io/ubi9/ubi:latest
+FROM registry.redhat.io/ubi9/ubi-minimal:latest
 # We need tar for the bundle build process to work since it pulls the operator
 # manifests from the operator image using `oc cp`, which will fail if `tar`
 # isn't available on the operator container image. Find a way to do this
 # without bloating the image.
 RUN export SMDEV_CONTAINER_OFF=1 && \
-    yum -y update && \
-    yum -y install aide tar && yum clean all && \
-    yum -y clean all && rm -rf /var/cache/yum
+    microdnf -y install aide tar && microdnf clean all && \
+    microdnf -y clean all && rm -rf /var/cache/microdnf
 
 LABEL \
         io.k8s.display-name="OpenShift File Integrity Operator" \
