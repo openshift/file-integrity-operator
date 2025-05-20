@@ -104,17 +104,27 @@ func runAideInitDBCmd(ctx context.Context, c *daemonConfig) error {
 	return backoff.Retry(func() error {
 		// CWE-78 - configPath is only made of user input during standalone debugging
 		// #nosec
-		err := exec.CommandContext(ctx, "aide", "-c", configPath, "-i").Run()
-		// IO error happened, could be an issue with another AIDE pod
-		// not being deleted on time
-		if common.GetAideExitCode(err) == common.AIDE_IO_ERROR {
+		cmd := exec.CommandContext(ctx, "aide", "-c", configPath, "-i")
+
+		// Pre-load the MD5 guard for this *one* exec.
+		// Append to, don’t overwrite, any existing LD_PRELOAD.
+		env := os.Environ()
+		env = append(env, "LD_PRELOAD="+common.MD5_GUARD_LIB)
+		cmd.Env = env
+
+		err := cmd.Run()
+		exit := common.GetAideExitCode(err)
+
+		switch exit {
+		case common.AIDE_IO_ERROR:
+			// Another AIDE instance still writing → back-off & retry.
 			return err
+		default:
+			if err != nil {
+				return backoff.Permanent(err)
+			}
+			return nil
 		}
-		if err != nil {
-			// Don't retry on any other error
-			return backoff.Permanent(err)
-		}
-		return nil
 	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries))
 }
 

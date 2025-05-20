@@ -11,6 +11,24 @@ RUNTIME?=podman
 # Required for podman < 3.4.7 and buildah to use microdnf in fedora 35
 RUNTIME_BUILD_OPTS=--security-opt seccomp=unconfined
 BUILD_DIR := build
+GUARD_DIR     := $(BUILD_DIR)/guard
+GUARD_SRC     := $(GUARD_DIR)/libaide_md5_guard.c
+GUARD_LIB     := $(GUARD_DIR)/libaide_md5_guard.so
+# Detect if libgcrypt-devel is installed
+# This is for avoid errors in go-build test, as we don't need to build md5 guard
+HAS_LIBCRYPT_DEV := $(shell rpm -q libgcrypt-devel >/dev/null 2>&1 && echo yes)
+
+#----------------------------------------------------------------------#
+#  Build the LD_PRELOAD guard (hard-fails if AIDE tries to enable MD5) #
+#----------------------------------------------------------------------#
+.PHONY: guard
+guard:
+ifeq ($(HAS_LIBCRYPT_DEV),yes)
+	@echo "  • libgcrypt-devel found, building MD5 guard"
+	$(CC) -shared -fPIC -O2 -Wall $(GUARD_SRC) -ldl -pthread -o $(GUARD_LIB)
+else
+	@echo "  • libgcrypt-devel not installed, skipping MD5 guard"
+endif
 
 ifeq ($(RUNTIME),buildah)
 RUNTIME_BUILD_CMD=bud
@@ -172,7 +190,7 @@ clean: clean-modcache clean-cache clean-output clean-test clean-kustomize ## Run
 
 .PHONY: clean-output
 clean-output: ## Remove the operator bin.
-	rm -f $(TARGET_OPERATOR)
+	rm -f $(TARGET_OPERATOR) $(GUARD_LIB)
 
 .PHONY: clean-cache
 clean-cache: ## Run go clean -cache -testcache.
@@ -309,7 +327,7 @@ all: images
 .PHONY: images
 images: image bundle-image  ## Build operator and bundle images.
 
-build: generate ## Build the operator binary.
+build: generate guard ## Build the operator binary.
 	$(GO) build -o $(TARGET_OPERATOR) $(BUILD_FLAGS) $(MAIN_PKG)
 
 image: test-unit clean-controller-gen ## Build the operator image.
