@@ -33,6 +33,10 @@ const AIDE_RETFAIL = 255
 
 const AIDE_IO_ERROR = 18
 
+const MD5_GUARD_ERROR = 64
+
+const MD5_GUARD_LIB = "/opt/libaide_md5_guard.so"
+
 var componentDefaults = []struct {
 	defaultImage string
 	envVar       string
@@ -443,19 +447,21 @@ func fipsModeEnabled() (bool, error) {
 
 func GetAideExitCode(runCmdError error) int {
 	ecode := getExitCode(runCmdError, aideErrSentinel)
-	if ecode == AIDE_RETFAIL {
-		// This error varies in meaning depending on the FIPS mode, so we'll check for it here, and convert to the FIPS error.
-		fipsEnabled, err := fipsModeEnabled()
-		if err != nil {
-			// We couldn't rely on figuring out the FIPS status, so return a "possible FIPS error" status.
-			ecode = aideErrPossibleFips
+
+	switch ecode {
+	case MD5_GUARD_ERROR: // hard-fail from LD_PRELOAD guard
+		if enabled, _ := fipsModeEnabled(); enabled {
+			return aideErrFips
 		}
-		if fipsEnabled {
-			// We know this is a FIPS error.
-			ecode = aideErrFips
+		return aideErrPossibleFips
+	case AIDE_RETFAIL:
+		if enabled, _ := fipsModeEnabled(); enabled {
+			return aideErrFips
 		}
+		return aideErrPossibleFips
+	default:
+		return ecode
 	}
-	return ecode
 }
 
 const aideErrBase = 14
