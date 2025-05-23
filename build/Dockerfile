@@ -1,5 +1,5 @@
 # Step one: build file-integrity-operator
-FROM golang:1.22 as builder
+FROM golang:1.24 as builder
 USER root
 
 RUN dnf -y install libgcrypt-devel && dnf clean all && \
