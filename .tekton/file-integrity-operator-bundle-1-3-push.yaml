@@ -7,14 +7,14 @@ metadata:
     build.appstudio.redhat.com/target_branch: '{{target_branch}}'
     pipelinesascode.tekton.dev/max-keep-runs: "3"
     pipelinesascode.tekton.dev/on-cel-expression: event == "push" && target_branch
-      == "release-1.3" && ( "bundle-hack/update_csv.go".pathChanged() || ".tekton/file-integrity-operator-bundle-push.yaml".pathChanged()
+      == "master" && ( "bundle-hack/update_csv.go".pathChanged() || ".tekton/file-integrity-operator-bundle-push.yaml".pathChanged()
       || "bundle.openshift.Dockerfile".pathChanged())
   creationTimestamp: null
   labels:
-    appstudio.openshift.io/application: file-integrity-operator-1-3
-    appstudio.openshift.io/component: file-integrity-operator-bundle-1-3
+    appstudio.openshift.io/application: file-integrity-operator-master
+    appstudio.openshift.io/component: file-integrity-operator-bundle-master
     pipelines.appstudio.openshift.io/type: build
-  name: file-integrity-operator-bundle-1-3-on-push
+  name: file-integrity-operator-bundle-master-on-push
   namespace: ocp-isc-tenant
 spec:
   params:
