@@ -165,6 +165,52 @@ spec:
       workspaces:
       - name: basic-auth
         workspace: git-auth
+    - name: wait-for-tag
+      params:
+      - name: tag-url
+        value: >-
+          https://quay.io/api/v1/repository/redhat-user-workloads/ocp-isc-tenant/file-integrity-operator/tag/?specificTag=on-pr-{{revision}}
+      - name: max-attempts
+        value: "40"
+      - name: sleep-seconds
+        value: "60"
+      taskSpec:
+        params:
+        - name: tag-url
+          type: string
+        - name: max-attempts
+          type: string
+        - name: sleep-seconds
+          type: string
+        results:
+        - name: tag_json
+          description: JSON returned by Quay for the requested tag
+        steps:
+        - name: poll
+          image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+          script: |
+            #!/usr/bin/env bash
+            set -euo pipefail
+            url="$(params.tag-url)"
+            max="$(params.max-attempts)"
+            sleep_s="$(params.sleep-seconds)"
+            attempt=0
+            while (( attempt < max )); do
+              echo "[$(date)] Attempt $((attempt+1))/$max: checking ${url}"
+              resp="$(curl -sL "$url" || true)"
+              if echo "$resp" | jq -e '.tags? // empty' >/dev/null 2>&1; then
+                echo "Tag found!"
+                echo "$resp" | tee "$(results.tag_json.path)"
+                exit 0
+              fi
+              echo "Tag not yet present; sleeping ${sleep_s}s…"
+              sleep "$sleep_s"
+              attempt=$(( attempt + 1 ))
+            done
+            echo "ERROR: tag not found after ${max} attempts" >&2
+            exit 1
+      runAfter:
+      - clone-repository
     - name: prefetch-dependencies
       params:
       - name: input
@@ -176,7 +222,7 @@ spec:
       - name: ociArtifactExpiresAfter
         value: $(params.image-expires-after)
       runAfter:
-      - clone-repository
+      - wait-for-tag
       taskRef:
         params:
         - name: name
@@ -207,6 +253,8 @@ spec:
         value: $(params.image-expires-after)
       - name: COMMIT_SHA
         value: $(tasks.clone-repository.results.commit)
+      - name: TAG_JSON
+        value: $(tasks.wait-for-tag.results.tag_json)
       - name: BUILD_ARGS
         value:
         - $(params.build-args[*])
