@@ -539,6 +539,9 @@ spec:
         value: $(tasks.build-image-index.results.IMAGE_URL)
       - name: IMAGE_DIGEST
         value: $(tasks.build-image-index.results.IMAGE_DIGEST)
+      - name: ADDITIONAL_TAGS
+        value:
+          - '{{ target_branch }}'
       runAfter:
       - build-image-index
       taskRef:
