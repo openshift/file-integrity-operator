@@ -913,6 +913,10 @@ func aideDaemonset(dsName string, fi *v1alpha1.FileIntegrity, operatorImage stri
 									Name:  "GODEBUG",
 									Value: "madvdontneed=1",
 								},
+								{
+									Name:  "LD_PRELOAD",
+									Value: common.MD5_GUARD_LIB,
+								},
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{
