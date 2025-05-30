@@ -64,12 +64,15 @@ static int in_fips_mode(void)
     return (c == '1');
 }
 
-/*
- * Hook for gcry_md_open:
- * - If not in FIPS mode, pass everything through.
- * - If in FIPS and algo=MD5, block.
- * - Otherwise (SHA256, SHA512, etc.), allow.
- */
+static int strict_mode(void)
+{
+    /* Any non-empty value triggers strict termination.  We use secure_getenv
+     * so unprivileged callers can’t influence set-uid binaries.               */
+    return secure_getenv("AIDE_GUARD_STRICT") != NULL;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  gcry_md_open shim                                                         */
 gcry_error_t gcry_md_open(gcry_md_hd_t *hd, int algo, unsigned int flags)
 {
     pthread_once(&once, resolve_symbols);
@@ -92,20 +95,16 @@ gcry_error_t gcry_md_open(gcry_md_hd_t *hd, int algo, unsigned int flags)
         return real_md_open(hd, 0, flags);
     }
 
-    /* If a single-hash context of MD5 is requested, block. */
     if (algo == GCRY_MD_MD5) {
-        const char *name = "MD5";
-        if (secure_getenv("AIDE_GUARD_SOFT")) {
-            logln("[md-guard] Attempt to open %s in FIPS — soft block",
-                  name);
-            return GPG_ERR_NOT_SUPPORTED;
+        if (strict_mode())
+        {
+            logln("[md-guard] MD5 requested in FIPS - Strict mode – terminating");
+            _exit(64);
         }
-        logln("[md-guard] Attempt to open %s in FIPS — terminating",
-              name);
-        _exit(64);
+        logln("[md-guard] MD5 requested in FIPS – soft-blocking");
+        /* Soft block: MD5 will not be enabled */
+        return GPG_ERR_NOT_SUPPORTED;
     }
-
-    /* Otherwise (SHA256, SHA512, etc.), allow in FIPS. */
     return real_md_open(hd, algo, flags);
 }
 
@@ -129,20 +128,14 @@ gcry_error_t gcry_md_enable(gcry_md_hd_t hd, int algo)
     if (!in_fips_mode()) {
         return real_md_enable(hd, algo);
     }
-
-    /* In FIPS => block MD5 */
     if (algo == GCRY_MD_MD5) {
-        const char *name = "MD5";
-        if (secure_getenv("AIDE_GUARD_SOFT")) {
-            logln("[md-guard] Attempt to enable %s in FIPS — soft block",
-                  name);
-            return GPG_ERR_NOT_SUPPORTED;
+        if (strict_mode())
+        {
+            logln("[md-guard] MD5 enable detected in FIPS - Strict mode – terminating");
+            _exit(64);
         }
-        logln("[md-guard] Attempt to enable %s in FIPS — terminating",
-              name);
-        _exit(64);
+        logln("[md-guard] MD5 enable blocked in FIPS – soft-blocking");
+        return GPG_ERR_NOT_SUPPORTED;
     }
-
-    /* All other algos OK in FIPS */
     return real_md_enable(hd, algo);
 }
