@@ -228,14 +228,7 @@ func getDigestFromQuay(tag string) string {
 }
 
 // replaceImages updates the operator and related images in the CSV.
-func replaceImages(csv map[string]interface{}) {
-	defer recoverFromReplaceImages()
-
-	gitCommitSha := getLatestGitCommitSha()
-	fmt.Printf("Using latest git commit SHA: %s\n", gitCommitSha)
-
-	imageSha := getDigestFromQuay(gitCommitSha)
-	fmt.Printf("Found manifest digest: %s\n", imageSha)
+func replaceImages(csv map[string]interface{}, imageSha string) {
 
 	registry := "registry.redhat.io/compliance/openshift-file-integrity-rhel8-operator"
 	redHatPullSpec := registry + "@" + imageSha
@@ -314,21 +307,34 @@ func removeRelated(csv map[string]interface{}) {
 }
 
 func main() {
-	var csv map[string]interface{}
+	if len(os.Args) < 4 {
+		log.Fatalf("Usage: %s <manifestsDir> <oldVersion> <newVersion> [on-pr]", os.Args[0])
+	}
 
-	manifestsDir := os.Args[1]
-	oldVersion := os.Args[2]
-	newVersion := os.Args[3]
+	manifestsDir, oldVersion, newVersion := os.Args[1], os.Args[2], os.Args[3]
+	onPR := len(os.Args) > 4 && os.Args[4] == "on-pr"
+
+	var imageSha string
+	if onPR {
+		defer recoverFromReplaceImages()
+		sha := getLatestGitCommitSha()
+		fmt.Printf("Using latest git commit SHA: %s\n", sha)
+		imageSha = getDigestFromQuay("on-pr-" + sha)
+	} else {
+		imageSha = "sha256:69670664d82a5cacc2f3d0c0c0066fcdcf93de74b4ddf176f7458df274d69a42"
+		fmt.Printf("Using default downstream digest: %s\n", imageSha)
+	}
 
 	csvFilename := getInputCSVFilePath(manifestsDir)
-	fmt.Printf("Found manifest in %s\n", csvFilename)
+	fmt.Printf("Found manifest %s\n", csvFilename)
 
+	var csv map[string]interface{}
 	readCSV(csvFilename, &csv)
 
 	addRequiredAnnotations(csv)
 	replaceVersion(oldVersion, newVersion, csv)
 	replaceIcon(csv)
-	replaceImages(csv)
+	replaceImages(csv, imageSha)
 	removeRelated(csv)
 
 	outputCSVFilename := getOutputCSVFilePath(manifestsDir, newVersion)

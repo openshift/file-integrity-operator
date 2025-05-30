@@ -5,8 +5,10 @@ WORKDIR bundle-hack
 
 ARG FIO_OLD_VERSION="1.3.5"
 ARG FIO_NEW_VERSION="1.3.6"
+ARG BUILD_MODE=""
+ENV BUILD_MODE=${BUILD_MODE}
 
-RUN go run ./update_csv.go ../bundle/manifests ${FIO_OLD_VERSION} ${FIO_NEW_VERSION}
+RUN go run ./update_csv.go ../bundle/manifests ${FIO_OLD_VERSION} ${FIO_NEW_VERSION} ${BUILD_MODE}
 RUN ./update_bundle_annotations.sh
 
 FROM scratch

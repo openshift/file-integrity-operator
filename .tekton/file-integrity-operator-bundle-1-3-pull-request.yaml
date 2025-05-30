@@ -28,6 +28,9 @@ spec:
     value: 5d
   - name: dockerfile
     value: bundle.openshift.Dockerfile
+  - name: build-args
+    value:
+    - 'BUILD_MODE=on-pr'
   - name: hermetic
     value: "false"
   - name: prefetch-input
