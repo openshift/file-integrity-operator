@@ -106,12 +106,6 @@ func runAideInitDBCmd(ctx context.Context, c *daemonConfig) error {
 		// #nosec
 		cmd := exec.CommandContext(ctx, "aide", "-c", configPath, "-i")
 
-		// Pre-load the MD5 guard for this *one* exec.
-		// Append to, don’t overwrite, any existing LD_PRELOAD.
-		env := os.Environ()
-		env = append(env, "LD_PRELOAD="+common.MD5_GUARD_LIB)
-		cmd.Env = env
-
 		err := cmd.Run()
 		exit := common.GetAideExitCode(err)
 
