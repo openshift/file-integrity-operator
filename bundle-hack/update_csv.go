@@ -1,13 +1,14 @@
 package main
 
 import (
- "encoding/base64"
- "fmt"
- "gopkg.in/yaml.v3"
- "log"
- "os"
- "path/filepath"
- "strings"
+	"encoding/base64"
+	"fmt"
+	"log"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 func readCSV(csvFilename string, csv *map[string]interface{}) {
@@ -51,7 +52,7 @@ func getInputCSVFilePath(dir string) string {
 
 	for _, filename := range filenames {
 		if strings.HasSuffix(filename.Name(), "clusterserviceversion.yaml") {
-			return filepath.Join(dir,filename.Name())
+			return filepath.Join(dir, filename.Name())
 		}
 	}
 
@@ -63,15 +64,15 @@ func getOutputCSVFilePath(dir string, version string) string {
 	return filepath.Join(dir, fmt.Sprintf("file-integrity-operator.v%s.clusterserviceversion.yaml", version))
 }
 
-func addRequiredAnnotations(csv map[string]interface{}){
+func addRequiredAnnotations(csv map[string]interface{}) {
 	requiredAnnotations := map[string]string{
-		"features.operators.openshift.io/disconnected": "true",
-		"features.operators.openshift.io/fips-compliant": "true",
-		"features.operators.openshift.io/proxy-aware": "false",
-		"features.operators.openshift.io/tls-profiles": "false",
-		"features.operators.openshift.io/token-auth-aws": "false",
+		"features.operators.openshift.io/disconnected":     "true",
+		"features.operators.openshift.io/fips-compliant":   "true",
+		"features.operators.openshift.io/proxy-aware":      "false",
+		"features.operators.openshift.io/tls-profiles":     "false",
+		"features.operators.openshift.io/token-auth-aws":   "false",
 		"features.operators.openshift.io/token-auth-azure": "false",
-		"features.operators.openshift.io/token-auth-gcp": "false",
+		"features.operators.openshift.io/token-auth-gcp":   "false",
 	}
 
 	annotations, ok := csv["metadata"].(map[string]interface{})["annotations"].(map[string]interface{})
@@ -114,7 +115,7 @@ func replaceIcon(csv map[string]interface{}) {
 	spec := s.(map[string]interface{})
 
 	iconPath := "../bundle/icons/icon.png"
-	iconData,err := os.ReadFile(iconPath)
+	iconData, err := os.ReadFile(iconPath)
 	if err != nil {
 		log.Fatal(fmt.Sprintf("Error: Failed to read icon file '%s'", iconPath))
 	}
@@ -143,7 +144,7 @@ func replaceImages(csv map[string]interface{}) {
 	// recent builds. We want to peel off the SHA and append it to the Red
 	// Hat registry so that the bundle image will work when it's available
 	// there.
-	konfluxPullSpec := "quay.io/redhat-user-workloads/ocp-isc-tenant/file-integrity-operator@sha256:3339f13d70d474edd069399f75df96a97a5b1444bb995cedaed200507a224b18"
+	konfluxPullSpec := "quay.io/redhat-user-workloads/ocp-isc-tenant/file-integrity-operator@sha256:0ee89aa6bfb7479ceea4ac5e078b7c448d9f0d128cab0373be64b46867bbab9f"
 	delimiter := "@"
 	parts := strings.Split(konfluxPullSpec, delimiter)
 	if len(parts) > 2 {
