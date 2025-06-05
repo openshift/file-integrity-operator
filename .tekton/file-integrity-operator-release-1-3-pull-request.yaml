@@ -4,17 +4,17 @@ metadata:
   annotations:
     build.appstudio.openshift.io/repo: https://github.com/openshift/file-integrity-operator?rev={{revision}}
     build.appstudio.redhat.com/commit_sha: '{{revision}}'
+    build.appstudio.redhat.com/pull_request_number: '{{pull_request_number}}'
     build.appstudio.redhat.com/target_branch: '{{target_branch}}'
-    build.appstudio.openshift.io/build-nudge-files: "bundle-hack/update_csv.go"
     pipelinesascode.tekton.dev/max-keep-runs: "3"
-    pipelinesascode.tekton.dev/on-cel-expression: event == "push" && target_branch
+    pipelinesascode.tekton.dev/on-cel-expression: event == "pull_request" && target_branch
       == "release-1.3"
   creationTimestamp: null
   labels:
-    appstudio.openshift.io/application: file-integrity-operator-1-3
-    appstudio.openshift.io/component: file-integrity-operator-1-3
+    appstudio.openshift.io/application: file-integrity-operator-release-1-3
+    appstudio.openshift.io/component: file-integrity-operator-release-1-3
     pipelines.appstudio.openshift.io/type: build
-  name: file-integrity-operator-1-3-on-push
+  name: file-integrity-operator-release-1-3-on-pull-request
   namespace: ocp-isc-tenant
 spec:
   params:
@@ -23,7 +23,9 @@ spec:
   - name: revision
     value: '{{revision}}'
   - name: output-image
-    value: quay.io/redhat-user-workloads/ocp-isc-tenant/file-integrity-operator:{{revision}}
+    value: quay.io/redhat-user-workloads/ocp-isc-tenant/file-integrity-operator:on-pr-{{revision}}
+  - name: image-expires-after
+    value: 5d
   - name: dockerfile
     value: build/Dockerfile.openshift
   - name: hermetic
@@ -424,9 +426,6 @@ spec:
       params:
       - name: IMAGE
         value: $(tasks.build-image-index.results.IMAGE_URL)
-      - name: ADDITIONAL_TAGS
-        value:
-          - '{{ target_branch }}'
       runAfter:
       - build-image-index
       taskRef:
@@ -488,7 +487,8 @@ spec:
       optional: true
     - name: netrc
       optional: true
-  taskRunTemplate: {}
+  taskRunTemplate:
+    serviceAccountName: build-pipeline-file-integrity-operator-release-1-3
   workspaces:
   - name: git-auth
     secret:
