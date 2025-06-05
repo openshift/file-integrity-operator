@@ -28,6 +28,8 @@ spec:
     value: build/Dockerfile.openshift
   - name: hermetic
     value: "true"
+  - name: build-source-image
+    value: "true"
   - name: prefetch-input
     value: '[{"type": "rpm", "path": "konflux"}, {"type": "gomod", "path": "."}]'
   pipelineSpec:

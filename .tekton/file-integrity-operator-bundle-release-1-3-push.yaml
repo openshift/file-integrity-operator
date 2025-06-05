@@ -28,6 +28,8 @@ spec:
     value: bundle.openshift.Dockerfile
   - name: hermetic
     value: "true"
+  - name: build-source-image
+    value: "true"
   - name: prefetch-input
     value: '[{"type": "gomod", "path": "."}]'
   pipelineSpec:
