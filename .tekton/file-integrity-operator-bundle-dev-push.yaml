@@ -11,10 +11,10 @@ metadata:
       || "bundle.openshift.Dockerfile".pathChanged())
   creationTimestamp: null
   labels:
-    appstudio.openshift.io/application: file-integrity-operator-master
-    appstudio.openshift.io/component: file-integrity-operator-bundle-master
+    appstudio.openshift.io/application: file-integrity-operator-dev
+    appstudio.openshift.io/component: file-integrity-operator-bundle-dev
     pipelines.appstudio.openshift.io/type: build
-  name: file-integrity-operator-bundle-master-on-push
+  name: file-integrity-operator-bundle-dev-on-push
   namespace: ocp-isc-tenant
 spec:
   params:
@@ -23,7 +23,7 @@ spec:
   - name: revision
     value: '{{revision}}'
   - name: output-image
-    value: quay.io/redhat-user-workloads/ocp-isc-tenant/file-integrity-operator-bundle:{{revision}}
+    value: quay.io/redhat-user-workloads/ocp-isc-tenant/file-integrity-operator-bundle-dev:{{revision}}
   - name: dockerfile
     value: bundle.openshift.Dockerfile
   - name: hermetic
@@ -473,7 +473,8 @@ spec:
       optional: true
     - name: netrc
       optional: true
-  taskRunTemplate: {}
+  taskRunTemplate:
+    serviceAccountName: build-pipeline-file-integrity-operator-bundle-dev
   workspaces:
   - name: git-auth
     secret:
