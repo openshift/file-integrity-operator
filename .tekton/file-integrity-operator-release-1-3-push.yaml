@@ -23,7 +23,7 @@ spec:
   - name: revision
     value: '{{revision}}'
   - name: output-image
-    value: quay.io/redhat-user-workloads/ocp-isc-tenant/file-integrity-operator:{{revision}}
+    value: quay.io/redhat-user-workloads/ocp-isc-tenant/file-integrity-operator-release:{{revision}}
   - name: dockerfile
     value: build/Dockerfile.openshift
   - name: hermetic
