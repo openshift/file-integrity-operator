@@ -66,6 +66,9 @@ func getOutputCSVFilePath(dir string, version string) string {
 
 func addRequiredAnnotations(csv map[string]interface{}) {
 	requiredAnnotations := map[string]string{
+		"features.operators.openshift.io/cnf":              "false",
+		"features.operators.openshift.io/cni":              "false",
+		"features.operators.openshift.io/csi":              "false",
 		"features.operators.openshift.io/disconnected":     "true",
 		"features.operators.openshift.io/fips-compliant":   "true",
 		"features.operators.openshift.io/proxy-aware":      "false",
