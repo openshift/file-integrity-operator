@@ -11,10 +11,10 @@ metadata:
       == "master"
   creationTimestamp: null
   labels:
-    appstudio.openshift.io/application: file-integrity-operator-master
-    appstudio.openshift.io/component: file-integrity-operator-master
+    appstudio.openshift.io/application: file-integrity-operator-dev
+    appstudio.openshift.io/component: file-integrity-operator-dev
     pipelines.appstudio.openshift.io/type: build
-  name: file-integrity-operator-master-on-push
+  name: file-integrity-operator-dev-on-push
   namespace: ocp-isc-tenant
 spec:
   params:
@@ -23,7 +23,7 @@ spec:
   - name: revision
     value: '{{revision}}'
   - name: output-image
-    value: quay.io/redhat-user-workloads/ocp-isc-tenant/file-integrity-operator:{{revision}}
+    value: quay.io/redhat-user-workloads/ocp-isc-tenant/file-integrity-operator-dev:{{revision}}
   - name: dockerfile
     value: build/Dockerfile.openshift
   - name: hermetic
@@ -488,7 +488,8 @@ spec:
       optional: true
     - name: netrc
       optional: true
-  taskRunTemplate: {}
+  taskRunTemplate:
+    serviceAccountName: build-pipeline-file-integrity-operator-dev
   workspaces:
   - name: git-auth
     secret:
