@@ -18,7 +18,11 @@ LABEL maintainer='Infrastructure Security and Compliance Team <isc-team@redhat.c
 
 LABEL io.k8s.display-name='File Integrity Operator'
 LABEL io.k8s.description='File Integrity Operator'
-
+LABEL description='File Integrity Operator'
+LABEL vendor="Red Hat, Inc."
+LABEL release=${FIO_NEW_VERSION}
+LABEL url="https://github.com/openshift/file-integrity-operator"
+LABEL distribution-scope=public
 LABEL com.redhat.component=openshift-file-integrity-operator-bundle-container
 LABEL com.redhat.delivery.appregistry=false
 LABEL com.redhat.delivery.operator.bundle=true
