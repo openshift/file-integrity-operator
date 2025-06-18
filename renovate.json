@@ -1,0 +1,6 @@
+{
+  "labels": ["ok-to-test","px-approved","docs-approved","qe-approved"],
+  "schedule": [
+      "every weekend"
+  ]
+}
