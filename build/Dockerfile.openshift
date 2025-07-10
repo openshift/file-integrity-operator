@@ -28,6 +28,8 @@ LABEL \
         io.k8s.description="An operator that performs AIDE file integrity checks on OCP4 nodes." \
         io.openshift.tags="openshift,compliance,security,integrity" \
         com.redhat.delivery.appregistry="false" \
+        description="An operator that performs AIDE file integrity checks on OCP4 nodes." \
+        summary="File Integrity Operator" \
         maintainer="Red Hat ISC <isc-team@redhat.com>" \
         License="GPLv2+" \
         name="openshift-file-integrity-operator" \
