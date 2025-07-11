@@ -172,17 +172,25 @@ func replaceImages(csv map[string]interface{}) {
 	containersMap := csv["spec"].(map[string]interface{})["install"].(map[string]interface{})["spec"].(map[string]interface{})["deployments"].([]interface{})[0].(map[string]interface{})["spec"].(map[string]interface{})["template"].(map[string]interface{})["spec"].(map[string]interface{})["containers"].([]interface{})[0].(map[string]interface{})
 	containersMap["image"] = redHatPullSpec
 
+	updateRelatedImages(csv, redHatPullSpec)
 	fmt.Println("Updated the deployment manifest to use downstream builds")
 }
 
-func removeRelated(csv map[string]interface{}) {
+func updateRelatedImages(csv map[string]interface{}, redHatPullSpec string) {
 	spec, ok := csv["spec"].(map[string]interface{})
 	if !ok {
 		log.Fatal("Error: 'spec' does not exist in the CSV content")
 	}
 
 	delete(spec, "relatedImages")
-	fmt.Println("Removed the operator from operator manifest")
+	// add relatedImages
+	relatedImages := make([]map[string]interface{}, 1)
+	relatedImages[0] = map[string]interface{}{
+		"image": redHatPullSpec,
+		"name":  "operator",
+	}
+	spec["relatedImages"] = relatedImages
+	fmt.Println("Updated the relatedImages section")
 }
 
 func main() {
@@ -201,7 +209,6 @@ func main() {
 	replaceVersion(oldVersion, newVersion, csv)
 	replaceIcon(csv)
 	replaceImages(csv)
-	removeRelated(csv)
 
 	outputCSVFilename := getOutputCSVFilePath(manifestsDir, newVersion)
 	replaceCSV(csvFilename, outputCSVFilename, csv)
