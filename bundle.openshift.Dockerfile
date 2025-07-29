@@ -1,15 +1,22 @@
+ARG FIO_OLD_VERSION="1.3.5"
+ARG FIO_NEW_VERSION="1.3.6"
+
 FROM brew.registry.redhat.io/rh-osbs/openshift-golang-builder:v1.22 as builder
+
 
 COPY . .
 WORKDIR bundle-hack
 
-ARG FIO_OLD_VERSION="1.3.5"
-ARG FIO_NEW_VERSION="1.3.6"
+# Bring the version variables into scope
+ARG FIO_OLD_VERSION
+ARG FIO_NEW_VERSION
 
 RUN go run ./update_csv.go ../bundle/manifests ${FIO_OLD_VERSION} ${FIO_NEW_VERSION}
 RUN ./update_bundle_annotations.sh
 
 FROM scratch
+
+ARG FIO_NEW_VERSION
 
 LABEL name=openshift-file-integrity-operator-bundle
 LABEL version=${FIO_NEW_VERSION}
