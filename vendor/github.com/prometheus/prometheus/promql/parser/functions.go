@@ -162,6 +162,12 @@ var Functions = map[string]*Function{
 		ArgTypes:   []ValueType{ValueTypeVector},
 		ReturnType: ValueTypeVector,
 	},
+	"first_over_time": {
+		Name:         "first_over_time",
+		ArgTypes:     []ValueType{ValueTypeMatrix},
+		ReturnType:   ValueTypeVector,
+		Experimental: true,
+	},
 	"floor": {
 		Name:       "floor",
 		ArgTypes:   []ValueType{ValueTypeVector},
@@ -202,10 +208,11 @@ var Functions = map[string]*Function{
 		ArgTypes:   []ValueType{ValueTypeScalar, ValueTypeVector},
 		ReturnType: ValueTypeVector,
 	},
-	"holt_winters": {
-		Name:       "holt_winters",
-		ArgTypes:   []ValueType{ValueTypeMatrix, ValueTypeScalar, ValueTypeScalar},
-		ReturnType: ValueTypeVector,
+	"double_exponential_smoothing": {
+		Name:         "double_exponential_smoothing",
+		ArgTypes:     []ValueType{ValueTypeMatrix, ValueTypeScalar, ValueTypeScalar},
+		ReturnType:   ValueTypeVector,
+		Experimental: true,
 	},
 	"hour": {
 		Name:       "hour",
@@ -222,6 +229,13 @@ var Functions = map[string]*Function{
 		Name:       "increase",
 		ArgTypes:   []ValueType{ValueTypeMatrix},
 		ReturnType: ValueTypeVector,
+	},
+	"info": {
+		Name:         "info",
+		ArgTypes:     []ValueType{ValueTypeVector, ValueTypeVector},
+		ReturnType:   ValueTypeVector,
+		Experimental: true,
+		Variadic:     1,
 	},
 	"irate": {
 		Name:       "irate",
@@ -274,6 +288,30 @@ var Functions = map[string]*Function{
 		Name:       "min_over_time",
 		ArgTypes:   []ValueType{ValueTypeMatrix},
 		ReturnType: ValueTypeVector,
+	},
+	"ts_of_first_over_time": {
+		Name:         "ts_of_first_over_time",
+		ArgTypes:     []ValueType{ValueTypeMatrix},
+		ReturnType:   ValueTypeVector,
+		Experimental: true,
+	},
+	"ts_of_max_over_time": {
+		Name:         "ts_of_max_over_time",
+		ArgTypes:     []ValueType{ValueTypeMatrix},
+		ReturnType:   ValueTypeVector,
+		Experimental: true,
+	},
+	"ts_of_min_over_time": {
+		Name:         "ts_of_min_over_time",
+		ArgTypes:     []ValueType{ValueTypeMatrix},
+		ReturnType:   ValueTypeVector,
+		Experimental: true,
+	},
+	"ts_of_last_over_time": {
+		Name:         "ts_of_last_over_time",
+		ArgTypes:     []ValueType{ValueTypeMatrix},
+		ReturnType:   ValueTypeVector,
+		Experimental: true,
 	},
 	"minute": {
 		Name:       "minute",
