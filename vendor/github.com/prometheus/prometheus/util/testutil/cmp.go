@@ -23,14 +23,15 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 )
 
-// Replacement for require.Equal using go-cmp adapted for Prometheus data structures, instead of DeepEqual.
-func RequireEqual(t testing.TB, expected, actual interface{}, msgAndArgs ...interface{}) {
+// RequireEqual is a replacement for require.Equal using go-cmp adapted for
+// Prometheus data structures, instead of DeepEqual.
+func RequireEqual(t testing.TB, expected, actual any, msgAndArgs ...any) {
 	t.Helper()
 	RequireEqualWithOptions(t, expected, actual, nil, msgAndArgs...)
 }
 
-// As RequireEqual but allows extra cmp.Options.
-func RequireEqualWithOptions(t testing.TB, expected, actual interface{}, extra []cmp.Option, msgAndArgs ...interface{}) {
+// RequireEqualWithOptions works like RequireEqual but allows extra cmp.Options.
+func RequireEqualWithOptions(t testing.TB, expected, actual any, extra []cmp.Option, msgAndArgs ...any) {
 	t.Helper()
 	options := append([]cmp.Option{cmp.Comparer(labels.Equal)}, extra...)
 	if cmp.Equal(expected, actual, options...) {
