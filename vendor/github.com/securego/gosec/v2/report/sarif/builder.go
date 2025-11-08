@@ -79,14 +79,26 @@ func NewTool(driver *ToolComponent) *Tool {
 }
 
 // NewResult instantiate a Result
-func NewResult(ruleID string, ruleIndex int, level Level, message string, suppressions []*Suppression) *Result {
-	return &Result{
+func NewResult(ruleID string, ruleIndex int, level Level, message string, suppressions []*Suppression, autofix string) *Result {
+	result := &Result{
 		RuleID:       ruleID,
 		RuleIndex:    ruleIndex,
 		Level:        level,
 		Message:      NewMessage(message),
 		Suppressions: suppressions,
 	}
+	if len(autofix) > 0 {
+		result.Fixes = []*Fix{
+			{
+				Description: &Message{
+					// Note: Text SHALL be supplied when Markdown is used: https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/sarif-v2.1.0-errata01-os-complete.html#_Toc141790720
+					Text:     autofix, // TODO: ensure this is plain text
+					Markdown: autofix,
+				},
+			},
+		}
+	}
+	return result
 }
 
 // NewMessage instantiate a Message
