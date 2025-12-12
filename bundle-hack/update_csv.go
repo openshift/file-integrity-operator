@@ -136,19 +136,28 @@ func recoverFromReplaceImages() {
 	}
 }
 
-func replaceImages(csv map[string]interface{}, konfluxPullSpec string) {
+func replaceImages(csv map[string]interface{}, operatorImage string, translateToRedHat bool) {
 	defer recoverFromReplaceImages()
 
-	// We want to peel off the SHA and append it to the Red Hat registry
-	// so that the bundle image will work when it's available there.
-	delimiter := "@"
-	parts := strings.Split(konfluxPullSpec, delimiter)
-	if len(parts) > 2 {
-		log.Fatalf("Error: Failed to safely determine image SHA from Konflux pull spec: %s", konfluxPullSpec)
+	var pullSpec string
+
+	if translateToRedHat {
+		// We want to peel off the SHA and append it to the Red Hat registry
+		// so that the bundle image will work when it's available there.
+		delimiter := "@"
+		parts := strings.Split(operatorImage, delimiter)
+		if len(parts) > 2 {
+			log.Fatalf("Error: Failed to safely determine image SHA from Konflux pull spec: %s", operatorImage)
+		}
+		imageSha := parts[1]
+		registry := "registry.redhat.io/compliance/openshift-file-integrity-rhel8-operator"
+		pullSpec = registry + delimiter + imageSha
+		fmt.Println(fmt.Sprintf("Translated operator image to Red Hat registry: %s", pullSpec))
+	} else {
+		// Use the provided operator image directly without translation
+		pullSpec = operatorImage
+		fmt.Println(fmt.Sprintf("Using operator image as-is: %s", pullSpec))
 	}
-	imageSha := parts[1]
-	registry := "registry.redhat.io/compliance/openshift-file-integrity-rhel8-operator"
-	redHatPullSpec := registry + delimiter + imageSha
 
 	env, ok := csv["spec"].(map[string]interface{})["install"].(map[string]interface{})["spec"].(map[string]interface{})["deployments"].([]interface{})[0].(map[string]interface{})["spec"].(map[string]interface{})["template"].(map[string]interface{})["spec"].(map[string]interface{})["containers"].([]interface{})[0].(map[string]interface{})["env"].([]interface{})
 	if !ok {
@@ -158,14 +167,14 @@ func replaceImages(csv map[string]interface{}, konfluxPullSpec string) {
 	for _, item := range env {
 		variable := item.(map[string]interface{})
 		if variable["name"] == "RELATED_IMAGE_OPERATOR" {
-			variable["value"] = redHatPullSpec
+			variable["value"] = pullSpec
 		}
 	}
 
 	containersMap := csv["spec"].(map[string]interface{})["install"].(map[string]interface{})["spec"].(map[string]interface{})["deployments"].([]interface{})[0].(map[string]interface{})["spec"].(map[string]interface{})["template"].(map[string]interface{})["spec"].(map[string]interface{})["containers"].([]interface{})[0].(map[string]interface{})
-	containersMap["image"] = redHatPullSpec
+	containersMap["image"] = pullSpec
 
-	fmt.Println("Updated the deployment manifest to use downstream builds")
+	fmt.Println("Updated the deployment manifest with operator image")
 }
 
 func removeRelated(csv map[string]interface{}) {
@@ -182,21 +191,31 @@ func main() {
 	var csv map[string]interface{}
 
 	if len(os.Args) < 4 {
-		log.Fatal("Usage: update_csv <manifestsDir> <oldVersion> <newVersion> [operatorImageURL]")
+		log.Fatal("Usage: update_csv <manifestsDir> <oldVersion> <newVersion> [operatorImageURL] [translateToRedHat]")
 	}
 
 	manifestsDir := os.Args[1]
 	oldVersion := os.Args[2]
 	newVersion := os.Args[3]
 
-	// Konflux will automatically update the image sha based on the most recent builds.
+	// Default values
 	operatorImageURL := "quay.io/redhat-user-workloads/ocp-isc-tenant/file-integrity-operator-dev@sha256:57d8cf654bfa556d9c488edad96e78f0db3e1c99d57790dcc0f195a7ec0569a8"
-	if len(os.Args) >= 5 {
+	translateToRedHat := true
+
+	// Override with provided operator image if given
+	if len(os.Args) >= 5 && os.Args[4] != "" {
 		operatorImageURL = os.Args[4]
 		fmt.Println(fmt.Sprintf("Using provided operator image: %s", operatorImageURL))
+		// When operator image is provided, default to not translating
+		translateToRedHat = false
 	} else {
-		// Use hardcoded default if no operator image URL is provided
 		fmt.Println(fmt.Sprintf("Using default operator image: %s", operatorImageURL))
+	}
+
+	// Override translation flag if provided
+	if len(os.Args) >= 6 {
+		translateToRedHat = os.Args[5] == "true"
+		fmt.Println(fmt.Sprintf("Translation to Red Hat registry: %v", translateToRedHat))
 	}
 
 	csvFilename := getInputCSVFilePath(manifestsDir)
@@ -207,7 +226,7 @@ func main() {
 	addRequiredAnnotations(csv)
 	replaceVersion(oldVersion, newVersion, csv)
 	replaceIcon(csv)
-	replaceImages(csv, operatorImageURL)
+	replaceImages(csv, operatorImageURL, translateToRedHat)
 	removeRelated(csv)
 
 	outputCSVFilename := getOutputCSVFilePath(manifestsDir, newVersion)
