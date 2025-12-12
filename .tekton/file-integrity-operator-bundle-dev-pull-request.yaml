@@ -135,6 +135,25 @@ spec:
       name: CHAINS-GIT_COMMIT
       value: $(tasks.clone-repository.results.commit)
     tasks:
+    - name: wait-for-operator-image
+      params:
+      - name: OPERATOR_IMAGE
+        value: quay.io/redhat-user-workloads/ocp-isc-tenant/file-integrity-operator-dev:on-pr-$(params.revision)
+      - name: ARCHITECTURES
+        value: "linux/amd64,linux/ppc64le,linux/s390x"
+      - name: MAX_WAIT_TIME
+        value: "30m"
+      - name: CHECK_INTERVAL
+        value: "30s"
+      taskRef:
+        resolver: git
+        params:
+        - name: url
+          value: $(params.git-url)
+        - name: revision
+          value: $(params.revision)
+        - name: pathInRepo
+          value: ".tekton/tasks/wait-for-operator-image-task.yaml"
     - name: init
       params:
       - name: image-url
@@ -145,6 +164,8 @@ spec:
         value: $(params.skip-checks)
       - name: enable-cache-proxy
         value: $(params.enable-cache-proxy)
+      runAfter:
+      - wait-for-operator-image
       taskRef:
         params:
         - name: name
@@ -230,6 +251,7 @@ spec:
       - name: BUILD_ARGS
         value:
         - $(params.build-args[*])
+        - OPERATOR_IMAGE=$(tasks.wait-for-operator-image.results.OPERATOR_IMAGE_WITH_DIGEST)
       - name: BUILD_ARGS_FILE
         value: $(params.build-args-file)
       - name: PRIVILEGED_NESTED
@@ -246,6 +268,7 @@ spec:
         value: $(tasks.init.results.no-proxy)
       runAfter:
       - prefetch-dependencies
+      - wait-for-operator-image
       taskRef:
         params:
         - name: name
@@ -458,6 +481,7 @@ spec:
       - name: BUILD_ARGS
         value:
         - $(params.build-args[*])
+        - OPERATOR_IMAGE=$(tasks.wait-for-operator-image.results.OPERATOR_IMAGE_WITH_DIGEST)
       - name: BUILD_ARGS_FILE
         value: $(params.build-args-file)
       - name: SOURCE_ARTIFACT
