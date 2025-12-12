@@ -1,5 +1,6 @@
 ARG FIO_OLD_VERSION="1.3.5"
 ARG FIO_NEW_VERSION="1.3.6"
+ARG OPERATOR_IMAGE=""
 
 FROM brew.registry.redhat.io/rh-osbs/openshift-golang-builder:v1.22 as builder
 
@@ -10,8 +11,9 @@ WORKDIR bundle-hack
 # Bring the version variables into scope
 ARG FIO_OLD_VERSION
 ARG FIO_NEW_VERSION
+ARG OPERATOR_IMAGE
 
-RUN go run ./update_csv.go ../bundle/manifests ${FIO_OLD_VERSION} ${FIO_NEW_VERSION}
+RUN go run ./update_csv.go ../bundle/manifests ${FIO_OLD_VERSION} ${FIO_NEW_VERSION} "${OPERATOR_IMAGE}"
 RUN ./update_bundle_annotations.sh
 
 FROM scratch

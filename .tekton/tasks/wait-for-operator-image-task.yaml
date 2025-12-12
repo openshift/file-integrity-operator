@@ -1,0 +1,127 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: wait-for-operator-image
+spec:
+  description: |
+    Waits for an operator image to be available in the registry with all required architectures.
+    Returns the full image reference with digest (registry/repo/image@sha256:digest).
+  params:
+  - name: OPERATOR_IMAGE
+    description: The operator image to wait for (with tag, e.g., quay.io/.../image:tag)
+    type: string
+  - name: ARCHITECTURES
+    description: Comma-separated list of architectures to wait for (e.g., "linux/amd64,linux/ppc64le,linux/s390x")
+    type: string
+    default: "linux/amd64,linux/ppc64le,linux/s390x"
+  - name: MAX_WAIT_TIME
+    description: Maximum time to wait (e.g., 30m, 1h)
+    type: string
+    default: "30m"
+  - name: CHECK_INTERVAL
+    description: Interval between checks (e.g., 30s, 1m)
+    type: string
+    default: "30s"
+  results:
+  - name: OPERATOR_IMAGE_WITH_DIGEST
+    description: Full operator image reference with digest (registry/repo/image@sha256:digest)
+  steps:
+  - name: wait
+    image: quay.io/openshift/origin-cli:latest
+    script: |
+      #!/bin/bash
+      set -e
+      
+      OPERATOR_IMAGE=$(params.OPERATOR_IMAGE)
+      ARCHITECTURES_PARAM=$(params.ARCHITECTURES)
+      MAX_WAIT_TIME=$(params.MAX_WAIT_TIME)
+      CHECK_INTERVAL=$(params.CHECK_INTERVAL)
+      
+      echo "Waiting for operator image to be available: ${OPERATOR_IMAGE}"
+      echo "Required architectures: ${ARCHITECTURES_PARAM}"
+      echo "Max wait time: ${MAX_WAIT_TIME}, Check interval: ${CHECK_INTERVAL}"
+      
+      # Convert comma-separated architectures to array
+      IFS=',' read -ra ARCHITECTURES <<< "$ARCHITECTURES_PARAM"
+      
+      # Convert MAX_WAIT_TIME to seconds
+      MAX_SECONDS=$(echo "$MAX_WAIT_TIME" | awk '{
+        if ($0 ~ /[0-9]+s/) { print int($0) }
+        else if ($0 ~ /[0-9]+m/) { print int($0) * 60 }
+        else if ($0 ~ /[0-9]+h/) { print int($0) * 3600 }
+        else { print int($0) }
+      }')
+      
+      # Convert CHECK_INTERVAL to seconds
+      INTERVAL_SECONDS=$(echo "$CHECK_INTERVAL" | awk '{
+        if ($0 ~ /[0-9]+s/) { print int($0) }
+        else if ($0 ~ /[0-9]+m/) { print int($0) * 60 }
+        else if ($0 ~ /[0-9]+h/) { print int($0) * 3600 }
+        else { print int($0) }
+      }')
+      
+      START_TIME=$(date +%s)
+      ELAPSED=0
+      
+      while [ $ELAPSED -lt $MAX_SECONDS ]; do
+        # Check if all required architectures are available
+        ALL_ARCH_AVAILABLE=true
+        MISSING_ARCHS=()
+        
+        for ARCH in "${ARCHITECTURES[@]}"; do
+          if ! oc image info "$OPERATOR_IMAGE" --filter-by-os="$ARCH" &>/dev/null; then
+            ALL_ARCH_AVAILABLE=false
+            MISSING_ARCHS+=("$ARCH")
+          fi
+        done
+        
+        if [ "$ALL_ARCH_AVAILABLE" = true ]; then
+          echo "✓ Operator image is now available with all architectures: ${OPERATOR_IMAGE}"
+          echo "Available architectures:"
+          for ARCH in "${ARCHITECTURES[@]}"; do
+            echo "  - ${ARCH}"
+          done
+          
+          # Get the manifest list digest (this is what we need for the bundle)
+          # The manifest list digest is shown when we query without --filter-by-os
+          MANIFEST_DIGEST=$(oc image info "$OPERATOR_IMAGE" 2>&1 | grep -i "manifest list:" | awk '{print $3}' || echo "")
+          if [ -z "$MANIFEST_DIGEST" ]; then
+            # Try alternative method - get digest from image info
+            MANIFEST_DIGEST=$(oc image info "$OPERATOR_IMAGE" --filter-by-os=linux/amd64 2>&1 | grep -i "manifest list:" | awk '{print $3}' || echo "")
+          fi
+          
+          if [ -z "$MANIFEST_DIGEST" ] || [[ ! "$MANIFEST_DIGEST" =~ ^sha256: ]]; then
+            echo "Error: Could not get manifest list digest from image: ${OPERATOR_IMAGE}"
+            exit 1
+          fi
+          
+          # Extract the base image name (remove tag and any existing digest)
+          # OPERATOR_IMAGE format: registry/repo/image:tag
+          # We want: registry/repo/image@sha256:digest
+          BASE_IMAGE="${OPERATOR_IMAGE%%:*}"  # Remove everything after first :
+          if [ "$BASE_IMAGE" = "$OPERATOR_IMAGE" ]; then
+            # No tag found, try removing @digest if present
+            BASE_IMAGE="${OPERATOR_IMAGE%%@*}"
+          fi
+          
+          OPERATOR_IMAGE_WITH_DIGEST="${BASE_IMAGE}@${MANIFEST_DIGEST}"
+          echo "Manifest list digest: ${MANIFEST_DIGEST}"
+          echo "Operator image with digest: ${OPERATOR_IMAGE_WITH_DIGEST}"
+          echo "${OPERATOR_IMAGE_WITH_DIGEST}" > $(results.OPERATOR_IMAGE_WITH_DIGEST.path)
+          
+          exit 0
+        else
+          echo "Waiting for image architectures... (elapsed: ${ELAPSED}s / ${MAX_SECONDS}s)"
+          echo "Missing architectures: ${MISSING_ARCHS[*]}"
+        fi
+        sleep $INTERVAL_SECONDS
+        
+        CURRENT_TIME=$(date +%s)
+        ELAPSED=$((CURRENT_TIME - START_TIME))
+      done
+      
+      echo "✗ Timeout: Operator image not available after ${MAX_WAIT_TIME}"
+      echo "Image: ${OPERATOR_IMAGE}"
+      echo "This may indicate the operator pipeline failed or is still running."
+      exit 1
+
