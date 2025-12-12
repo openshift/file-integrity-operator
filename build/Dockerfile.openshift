@@ -39,9 +39,7 @@ LABEL \
 #        io.openshift.build.source-location=https://github.com/openshift/file-integrity-operator.git \
 #        io.openshift.build.commit.url=https://github.com/openshift/file-integrity-operator.git/commit/98271bc2812881010146f47e4587dcd449b846bd \
 
-ENV OPERATOR=/usr/local/bin/file-integrity-operator \
-    USER_UID=1001 \
-    USER_NAME=file-integrity-operator
+ENV OPERATOR=/usr/local/bin/file-integrity-operator
 
 # install operator binary
 COPY --from=builder /go/src/github.com/openshift/file-integrity-operator/build/bin/manager ${OPERATOR}
@@ -49,8 +47,7 @@ COPY --from=builder /go/src/github.com/openshift/file-integrity-operator/LICENSE
 COPY --from=builder /go/src/github.com/openshift/file-integrity-operator/build/bin /usr/local/bin
 COPY --from=builder /go/src/github.com/openshift/file-integrity-operator/bundle /bundle
 COPY --from=builder /go/src/github.com/openshift/file-integrity-operator/build/guard/libaide_md5_guard.so /opt/libaide_md5_guard.so
-RUN  /usr/local/bin/user_setup
 
 ENTRYPOINT ["/usr/local/bin/entrypoint"]
 
-USER ${USER_UID}
+USER 1001

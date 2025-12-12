@@ -17,15 +17,12 @@ RUN aide -v | grep -q '0.18' || (echo "Aide version is not 0.18 but $(aide -v)" 
 RUN microdnf -y install aide golang && microdnf clean all
 
 ENV OPERATOR=/usr/local/bin/file-integrity-operator \
-    USER_UID=1001 \
-    USER_NAME=file-integrity-operator \
     AIDE_VERSION=0.18
 
 # install operator binary
 COPY --from=builder /go/src/github.com/openshift/file-integrity-operator/build/bin/manager ${OPERATOR}
 COPY build/bin /usr/local/bin
-RUN  /usr/local/bin/user_setup
 
 ENTRYPOINT ["/usr/local/bin/entrypoint"]
 
-USER ${USER_UID}
+USER 1001
