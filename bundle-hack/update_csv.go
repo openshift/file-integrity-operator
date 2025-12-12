@@ -1,13 +1,13 @@
 package main
 
 import (
- "encoding/base64"
- "fmt"
- "gopkg.in/yaml.v3"
- "log"
- "os"
- "path/filepath"
- "strings"
+	"encoding/base64"
+	"fmt"
+	"gopkg.in/yaml.v3"
+	"log"
+	"os"
+	"path/filepath"
+	"strings"
 )
 
 func readCSV(csvFilename string, csv *map[string]interface{}) {
@@ -51,7 +51,7 @@ func getInputCSVFilePath(dir string) string {
 
 	for _, filename := range filenames {
 		if strings.HasSuffix(filename.Name(), "clusterserviceversion.yaml") {
-			return filepath.Join(dir,filename.Name())
+			return filepath.Join(dir, filename.Name())
 		}
 	}
 
@@ -63,15 +63,15 @@ func getOutputCSVFilePath(dir string, version string) string {
 	return filepath.Join(dir, fmt.Sprintf("file-integrity-operator.v%s.clusterserviceversion.yaml", version))
 }
 
-func addRequiredAnnotations(csv map[string]interface{}){
+func addRequiredAnnotations(csv map[string]interface{}) {
 	requiredAnnotations := map[string]string{
-		"features.operators.openshift.io/disconnected": "true",
-		"features.operators.openshift.io/fips-compliant": "true",
-		"features.operators.openshift.io/proxy-aware": "false",
-		"features.operators.openshift.io/tls-profiles": "false",
-		"features.operators.openshift.io/token-auth-aws": "false",
+		"features.operators.openshift.io/disconnected":     "true",
+		"features.operators.openshift.io/fips-compliant":   "true",
+		"features.operators.openshift.io/proxy-aware":      "false",
+		"features.operators.openshift.io/tls-profiles":     "false",
+		"features.operators.openshift.io/token-auth-aws":   "false",
 		"features.operators.openshift.io/token-auth-azure": "false",
-		"features.operators.openshift.io/token-auth-gcp": "false",
+		"features.operators.openshift.io/token-auth-gcp":   "false",
 	}
 
 	annotations, ok := csv["metadata"].(map[string]interface{})["annotations"].(map[string]interface{})
@@ -114,7 +114,7 @@ func replaceIcon(csv map[string]interface{}) {
 	spec := s.(map[string]interface{})
 
 	iconPath := "../bundle/icons/icon.png"
-	iconData,err := os.ReadFile(iconPath)
+	iconData, err := os.ReadFile(iconPath)
 	if err != nil {
 		log.Fatal(fmt.Sprintf("Error: Failed to read icon file '%s'", iconPath))
 	}
@@ -136,14 +136,11 @@ func recoverFromReplaceImages() {
 	}
 }
 
-func replaceImages(csv map[string]interface{}) {
+func replaceImages(csv map[string]interface{}, konfluxPullSpec string) {
 	defer recoverFromReplaceImages()
 
-	// Konflux will automatically update the image sha based on the most
-	// recent builds. We want to peel off the SHA and append it to the Red
-	// Hat registry so that the bundle image will work when it's available
-	// there.
-	konfluxPullSpec := "quay.io/redhat-user-workloads/ocp-isc-tenant/file-integrity-operator-dev@sha256:57d8cf654bfa556d9c488edad96e78f0db3e1c99d57790dcc0f195a7ec0569a8"
+	// We want to peel off the SHA and append it to the Red Hat registry
+	// so that the bundle image will work when it's available there.
 	delimiter := "@"
 	parts := strings.Split(konfluxPullSpec, delimiter)
 	if len(parts) > 2 {
@@ -184,9 +181,23 @@ func removeRelated(csv map[string]interface{}) {
 func main() {
 	var csv map[string]interface{}
 
+	if len(os.Args) < 4 {
+		log.Fatal("Usage: update_csv <manifestsDir> <oldVersion> <newVersion> [operatorImageURL]")
+	}
+
 	manifestsDir := os.Args[1]
 	oldVersion := os.Args[2]
 	newVersion := os.Args[3]
+
+	// Konflux will automatically update the image sha based on the most recent builds.
+	operatorImageURL := "quay.io/redhat-user-workloads/ocp-isc-tenant/file-integrity-operator-dev@sha256:57d8cf654bfa556d9c488edad96e78f0db3e1c99d57790dcc0f195a7ec0569a8"
+	if len(os.Args) >= 5 {
+		operatorImageURL = os.Args[4]
+		fmt.Println(fmt.Sprintf("Using provided operator image: %s", operatorImageURL))
+	} else {
+		// Use hardcoded default if no operator image URL is provided
+		fmt.Println(fmt.Sprintf("Using default operator image: %s", operatorImageURL))
+	}
 
 	csvFilename := getInputCSVFilePath(manifestsDir)
 	fmt.Println(fmt.Sprintf("Found manifest in %s", csvFilename))
@@ -196,7 +207,7 @@ func main() {
 	addRequiredAnnotations(csv)
 	replaceVersion(oldVersion, newVersion, csv)
 	replaceIcon(csv)
-	replaceImages(csv)
+	replaceImages(csv, operatorImageURL)
 	removeRelated(csv)
 
 	outputCSVFilename := getOutputCSVFilePath(manifestsDir, newVersion)

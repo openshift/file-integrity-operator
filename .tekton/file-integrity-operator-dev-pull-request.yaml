@@ -328,6 +328,82 @@ spec:
         operator: in
         values:
         - "true"
+    - name: build-bundle-container
+      params:
+      - name: IMAGE
+        value: quay.io/redhat-user-workloads/ocp-isc-tenant/file-integrity-operator-bundle-dev:on-pr-{{revision}}
+      - name: DOCKERFILE
+        value: bundle.openshift.Dockerfile
+      - name: CONTEXT
+        value: .
+      - name: HERMETIC
+        value: "true"
+      - name: PREFETCH_INPUT
+        value: '[{"type": "gomod", "path": "."}]'
+      - name: IMAGE_EXPIRES_AFTER
+        value: $(params.image-expires-after)
+      - name: COMMIT_SHA
+        value: $(tasks.clone-repository.results.commit)
+      - name: BUILD_ARGS
+        value:
+        - OPERATOR_IMAGE=$(tasks.build-image-index.results.IMAGE_URL)@$(tasks.build-image-index.results.IMAGE_DIGEST)
+      - name: BUILD_ARGS_FILE
+        value: ""
+      - name: PRIVILEGED_NESTED
+        value: "false"
+      - name: SOURCE_ARTIFACT
+        value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
+      - name: CACHI2_ARTIFACT
+        value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
+      - name: BUILDAH_FORMAT
+        value: docker
+      runAfter:
+      - build-image-index
+      taskRef:
+        params:
+        - name: name
+          value: buildah-oci-ta
+        - name: bundle
+          value: quay.io/konflux-ci/tekton-catalog/task-buildah-oci-ta:0.6@sha256:27d5644c496e889680422ee4383d4653d7a52972e42de2d9f9fd63cdcf94d998
+        - name: kind
+          value: task
+        resolver: bundles
+      when:
+      - input: $(tasks.init.results.build)
+        operator: in
+        values:
+        - "true"
+    - name: build-bundle-image-index
+      params:
+      - name: IMAGE
+        value: quay.io/redhat-user-workloads/ocp-isc-tenant/file-integrity-operator-bundle-dev:on-pr-{{revision}}
+      - name: COMMIT_SHA
+        value: $(tasks.clone-repository.results.commit)
+      - name: IMAGE_EXPIRES_AFTER
+        value: $(params.image-expires-after)
+      - name: ALWAYS_BUILD_INDEX
+        value: "false"
+      - name: IMAGES
+        value:
+        - $(tasks.build-bundle-container.results.IMAGE_URL)@$(tasks.build-bundle-container.results.IMAGE_DIGEST)
+      - name: BUILDAH_FORMAT
+        value: docker
+      runAfter:
+      - build-bundle-container
+      taskRef:
+        params:
+        - name: name
+          value: build-image-index
+        - name: bundle
+          value: quay.io/konflux-ci/tekton-catalog/task-build-image-index:0.1@sha256:3411aeecdf045f8e61532abb88c28b7479cb8372420ac713f1f6756aa8fa843a
+        - name: kind
+          value: task
+        resolver: bundles
+      when:
+      - input: $(tasks.init.results.build)
+        operator: in
+        values:
+        - "true"
     - name: deprecated-base-image-check
       params:
       - name: IMAGE_URL
