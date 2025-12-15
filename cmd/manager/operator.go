@@ -25,6 +25,7 @@ import (
 	"reflect"
 	rt "runtime"
 
+	"github.com/cenkalti/backoff/v4"
 	"github.com/spf13/cobra"
 
 	v1 "k8s.io/api/core/v1"
@@ -73,6 +74,7 @@ var (
 const (
 	operatorMetricsSA         = "file-integrity-operator-metrics"
 	operatorMetricsSecretName = "file-integrity-operator-metrics-token"
+	maxSecretRetries          = 10
 )
 
 func init() {
@@ -286,38 +288,57 @@ func ensureMetricsServiceAndSecret(ctx context.Context, kClient *kubernetes.Clie
 		returnService = createdService
 	}
 
-	// Ensure the serving-cert secret for metrics is available, we have to exit and restart if not
-	if _, err := kClient.CoreV1().Secrets(ns).Get(ctx, "file-integrity-operator-serving-cert", metav1.GetOptions{}); err != nil {
-		if kerr.IsNotFound(err) {
-			return nil, errors.New("file-integrity-operator-serving-cert not found - restarting, as the service may have just been created")
-		} else {
-			return nil, err
-		}
-	}
-
-	// Check if the metrics service account token secret exists. If not, create it and trigger a restart.
-	_, err = kClient.CoreV1().Secrets(ns).Get(ctx, operatorMetricsSecretName, metav1.GetOptions{})
-	if err != nil {
-		if kerr.IsNotFound(err) {
-			secret := &v1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      operatorMetricsSecretName,
-					Namespace: ns,
-					Annotations: map[string]string{
-						"kubernetes.io/service-account.name": operatorMetricsSA,
-					},
-				},
-				Type: v1.SecretTypeServiceAccountToken,
-			}
-			if _, createErr := kClient.CoreV1().Secrets(ns).Create(context.TODO(), secret, metav1.CreateOptions{}); createErr != nil && !kerr.IsAlreadyExists(createErr) {
-				return nil, createErr
-			}
-			return nil, errors.New("operator metrics token not found; restarting as the service may have just been created")
-		}
+	// Ensure the metrics secrets are available with retry logic to handle delays in secret sync
+	if err := ensureMetricsSecretsWithRetry(ctx, kClient, ns); err != nil {
 		return nil, err
 	}
 
 	return returnService, nil
+}
+
+// ensureMetricsSecretsWithRetry attempts to verify metrics secrets exist with retry logic
+// to handle delays in secret sync from service-ca and token controllers.
+func ensureMetricsSecretsWithRetry(ctx context.Context, kClient *kubernetes.Clientset, ns string) error {
+	err := backoff.Retry(func() error {
+		// Check for serving-cert secret (created by service-ca controller)
+		if _, err := kClient.CoreV1().Secrets(ns).Get(ctx, "file-integrity-operator-serving-cert", metav1.GetOptions{}); err != nil {
+			if kerr.IsNotFound(err) {
+				log.Info("Waiting for file-integrity-operator-serving-cert to be created by service-ca controller, retrying...")
+				return err
+			}
+			return backoff.Permanent(err)
+		}
+
+		// Check for metrics service account token secret
+		if _, err := kClient.CoreV1().Secrets(ns).Get(ctx, operatorMetricsSecretName, metav1.GetOptions{}); err != nil {
+			if kerr.IsNotFound(err) {
+				// Create the token secret if it doesn't exist
+				secret := &v1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      operatorMetricsSecretName,
+						Namespace: ns,
+						Annotations: map[string]string{
+							"kubernetes.io/service-account.name": operatorMetricsSA,
+						},
+					},
+					Type: v1.SecretTypeServiceAccountToken,
+				}
+				if _, createErr := kClient.CoreV1().Secrets(ns).Create(ctx, secret, metav1.CreateOptions{}); createErr != nil && !kerr.IsAlreadyExists(createErr) {
+					return backoff.Permanent(createErr)
+				}
+				log.Info("Created operator metrics token secret, waiting for it to be populated, retrying...")
+				return errors.New("waiting for metrics token secret to be populated")
+			}
+			return backoff.Permanent(err)
+		}
+
+		return nil
+	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxSecretRetries))
+
+	if err != nil {
+		return fmt.Errorf("failed to ensure metrics secrets after %d retries: %v", maxSecretRetries, err)
+	}
+	return nil
 }
 
 func defaultPrometheusRule(alertName, namespace string) *monitoring.PrometheusRule {
