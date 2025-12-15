@@ -26,8 +26,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/cenkalti/backoff/v4"
 	"github.com/openshift/file-integrity-operator/pkg/common"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/spf13/cobra"
@@ -50,6 +52,7 @@ const (
 	aideConfigFileName     = "aide.conf"
 	backupTimeFormat       = "20060102T15_04_05"
 	pprofAddr              = "127.0.0.1:6060"
+	maxConfigRetries       = 10
 )
 
 var DaemonCmd = &cobra.Command{
@@ -218,17 +221,40 @@ func parseDaemonConfig(cmd *cobra.Command) *daemonConfig {
 	return &conf
 }
 
+// buildConfigWithRetry attempts to build a Kubernetes config with retry logic
+// to handle delays in secret sync to nodes. Returns error instead of calling FATAL
+// to allow for testing.
+func buildConfigWithRetry(kubeconfig string) (*rest.Config, error) {
+	var config *rest.Config
+	var err error
+	err = backoff.Retry(func() error {
+		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
+		if err != nil {
+			LOG("Failed to build config from flags, retrying: %v", err)
+			return err
+		}
+		return nil
+	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxConfigRetries))
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to build config after %d retries: %v", maxConfigRetries, err)
+	}
+	return config, nil
+}
+
 func newDaemonRuntime(conf *daemonConfig) *daemonRuntime {
 	kc := ""
 	if conf.Local {
 		kc = os.Getenv("KUBECONFIG")
 		DBG("Using KUBECONFIG=%s", kc)
 	}
-	// Falls back to InClusterConfig if not running locally
-	config, err := clientcmd.BuildConfigFromFlags("", kc)
+
+	// Retry BuildConfigFromFlags to handle delays in secret sync to nodes
+	config, err := buildConfigWithRetry(kc)
 	if err != nil {
 		FATAL("%v", err)
 	}
+
 	clientSet, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		FATAL("%v", err)
