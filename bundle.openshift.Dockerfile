@@ -1,5 +1,5 @@
-ARG FIO_OLD_VERSION="1.3.6"
-ARG FIO_NEW_VERSION="1.3.7"
+ARG FIO_OLD_VERSION="1.3.7"
+ARG FIO_NEW_VERSION="1.3.8"
 
 FROM brew.registry.redhat.io/rh-osbs/openshift-golang-builder:v1.22 as builder
 

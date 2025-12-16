@@ -37,7 +37,7 @@ LABEL \
         com.redhat.component="openshift-file-integrity-operator-container" \
         io.openshift.maintainer.product="OpenShift Container Platform" \
         io.openshift.maintainer.component="File Integrity Operator" \
-        version=1.3.7
+        version=1.3.8
 #        io.openshift.build.commit.id=98271bc2812881010146f47e4587dcd449b846bd \
 #        io.openshift.build.source-location=https://github.com/openshift/file-integrity-operator.git \
 #        io.openshift.build.commit.url=https://github.com/openshift/file-integrity-operator.git/commit/98271bc2812881010146f47e4587dcd449b846bd \
