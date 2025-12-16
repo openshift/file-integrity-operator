@@ -1,0 +1,16 @@
+contentOrigin:
+  repofiles:
+     - redhat.repo
+
+packages:
+  - tar
+  - aide
+
+arches:
+  - aarch64
+  - x86_64
+  - s390x
+  - ppc64le
+
+context:
+    containerfile: ./Dockerfile.openshift
