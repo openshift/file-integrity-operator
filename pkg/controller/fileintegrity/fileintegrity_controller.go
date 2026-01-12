@@ -23,6 +23,7 @@ import (
 	"github.com/openshift/file-integrity-operator/pkg/common"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	schedulingv1 "k8s.io/api/scheduling/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -44,7 +45,12 @@ func AddFileIntegrityController(mgr manager.Manager, met *metrics.Metrics) error
 
 // newReconciler returns a new reconcile.Reconciler
 func newFileIntegrityReconciler(mgr manager.Manager, met *metrics.Metrics) reconcile.Reconciler {
-	return &FileIntegrityReconciler{Client: mgr.GetClient(), Scheme: mgr.GetScheme(), Metrics: met}
+	return &FileIntegrityReconciler{
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Metrics:  met,
+		Recorder: mgr.GetEventRecorderFor("fileintegrityctrl"),
+	}
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
@@ -359,6 +365,29 @@ func (r *FileIntegrityReconciler) reconcileUserConfig(instance *v1alpha1.FileInt
 	return true, nil
 }
 
+// validatePriorityClass checks if the specified PriorityClass exists and is valid.
+// Returns true if valid (or empty), false otherwise. Following the pattern of compliance-operator,
+// if PriorityClass is invalid or not found, it will be ignored.
+func (r *FileIntegrityReconciler) validatePriorityClass(ctx context.Context, pcName string, logger logr.Logger) bool {
+	if pcName == "" {
+		return true // Empty is valid (uses default)
+	}
+
+	pc := &schedulingv1.PriorityClass{}
+	err := r.Client.Get(ctx, types.NamespacedName{Name: pcName}, pc)
+	if err != nil {
+		if kerr.IsNotFound(err) {
+			logger.Info("PriorityClass not found, ignoring", "priorityClassName", pcName)
+			return false
+		}
+		logger.Error(err, "Error checking PriorityClass, ignoring", "priorityClassName", pcName)
+		return false
+	}
+
+	logger.Info("PriorityClass validated successfully", "priorityClassName", pcName, "value", pc.Value)
+	return true
+}
+
 // gets the image of the first container in the operator deployment spec. We expect this to be the deployment named
 // file-integrity-operator in the openshift-file-integrity namespace.
 func (r *FileIntegrityReconciler) getOperatorDeploymentImage() (string, error) {
@@ -393,6 +422,29 @@ func (r *FileIntegrityReconciler) FileIntegrityControllerReconcile(request recon
 		}
 		// Error reading the object - requeue the request.
 		return reconcile.Result{}, err
+	}
+
+	// Validate PriorityClass if specified. If invalid or not found, it will be ignored.
+	if instance.Spec.PriorityClassName != "" {
+		if !r.validatePriorityClass(context.TODO(), instance.Spec.PriorityClassName, reqLogger) {
+			reqLogger.Info("Invalid or non-existent PriorityClass specified, will be ignored",
+				"priorityClassName", instance.Spec.PriorityClassName)
+			// Generate Warning event for the user
+			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "PriorityClass",
+				"Error while getting priority class '%s', PriorityClass not found or invalid",
+				instance.Spec.PriorityClassName)
+			// Clear the PriorityClassName to avoid DaemonSet pod creation failures
+			instanceCopy := instance.DeepCopy()
+			instanceCopy.Spec.PriorityClassName = ""
+			if err := r.Client.Update(context.TODO(), instanceCopy); err != nil {
+				reqLogger.Error(err, "Error clearing invalid PriorityClassName")
+				// Continue anyway, the daemonset will fail to create pods but won't block reconciliation
+			} else {
+				reqLogger.Info("Cleared invalid PriorityClassName from FileIntegrity spec")
+				// Requeue to reconcile with the updated spec
+				return reconcile.Result{Requeue: true}, nil
+			}
+		}
 	}
 
 	// Get the operator image to later set as the daemonSet image. They need to always match before we deprecate RELATED_IMAGE_OPERATOR.
@@ -538,9 +590,10 @@ func (r *FileIntegrityReconciler) FileIntegrityControllerReconcile(request recon
 		imgNeedsUpdate := updateDSImage(dsCopy, operatorImage, reqLogger)
 		nsNeedsUpdate := updateDSNodeSelector(dsCopy, instance, reqLogger)
 		tolsNeedsUpdate := updateDSTolerations(dsCopy, instance, reqLogger)
+		pcNeedsUpdate := updateDSPriorityClassName(dsCopy, instance, reqLogger)
 		volsNeedUpdate := updateDSContainerVolumes(dsCopy, instance, operatorImage, reqLogger)
 
-		if argsNeedUpdate || imgNeedsUpdate || nsNeedsUpdate || tolsNeedsUpdate || volsNeedUpdate || scriptsUpdated {
+		if argsNeedUpdate || imgNeedsUpdate || nsNeedsUpdate || tolsNeedsUpdate || pcNeedsUpdate || volsNeedUpdate || scriptsUpdated {
 			if err := r.Client.Update(context.TODO(), dsCopy); err != nil {
 				return reconcile.Result{}, err
 			}
@@ -598,6 +651,17 @@ func updateDSTolerations(currentDS *appsv1.DaemonSet, fi *v1alpha1.FileIntegrity
 	if needsUpdate {
 		logger.Info("FileIntegrity needed tolerations update")
 		*tRef = expectedTolerations
+	}
+	return needsUpdate
+}
+
+func updateDSPriorityClassName(currentDS *appsv1.DaemonSet, fi *v1alpha1.FileIntegrity, logger logr.Logger) bool {
+	pcRef := &currentDS.Spec.Template.Spec.PriorityClassName
+	expectedPC := fi.Spec.PriorityClassName
+	needsUpdate := *pcRef != expectedPC
+	if needsUpdate {
+		logger.Info("FileIntegrity needed priorityClassName update")
+		*pcRef = expectedPC
 	}
 	return needsUpdate
 }
@@ -730,6 +794,7 @@ func reinitAideDaemonset(reinitDaemonSetName string, fi *v1alpha1.FileIntegrity,
 				Spec: corev1.PodSpec{
 					NodeSelector:       selector.MatchLabels,
 					Tolerations:        fi.Spec.Tolerations,
+					PriorityClassName:  fi.Spec.PriorityClassName,
 					ServiceAccountName: common.OperatorServiceAccountName,
 					InitContainers: []corev1.Container{
 						{
@@ -855,6 +920,7 @@ func aideDaemonset(dsName string, fi *v1alpha1.FileIntegrity, operatorImage stri
 				Spec: corev1.PodSpec{
 					NodeSelector:       fi.Spec.NodeSelector,
 					Tolerations:        fi.Spec.Tolerations,
+					PriorityClassName:  fi.Spec.PriorityClassName,
 					ServiceAccountName: common.DaemonServiceAccountName,
 					InitContainers: []corev1.Container{
 						{

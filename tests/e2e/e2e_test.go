@@ -1037,6 +1037,72 @@ func TestFileIntegrityTolerations(t *testing.T) {
 	assertSingleNodeConditionIsSuccess(t, f, testIntegrityNamePrefix+"-tolerations", taintedNode, namespace, 2*time.Second, 5*time.Minute)
 }
 
+func TestFileIntegrityPriorityClassName(t *testing.T) {
+	f, testctx, namespace := setupPriorityClassTest(t, testIntegrityNamePrefix+"-priorityclass")
+	defer testctx.Cleanup()
+	defer func() {
+		if err := cleanNodes(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+		if err := resetBundleTestMetrics(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+	}()
+	defer logContainerOutput(t, f, namespace, testIntegrityNamePrefix+"-priorityclass")
+
+	// wait to go active.
+	err := waitForScanStatus(t, f, namespace, testIntegrityNamePrefix+"-priorityclass", v1alpha1.PhaseActive)
+	if err != nil {
+		t.Errorf("Timeout waiting for scan status")
+	}
+
+	t.Log("Verifying that the DaemonSet pods have the correct priorityClassName")
+	dsName := common.DaemonSetName(testIntegrityNamePrefix + "-priorityclass")
+	if err := verifyDaemonSetPriorityClassName(t, f, namespace, dsName, "system-node-critical"); err != nil {
+		t.Errorf("Failed to verify priorityClassName: %v", err)
+	}
+}
+
+func TestFileIntegrityInvalidPriorityClassName(t *testing.T) {
+	f, testctx, namespace := setupInvalidPriorityClassTest(t, testIntegrityNamePrefix+"-invalidpc")
+	defer testctx.Cleanup()
+	defer func() {
+		if err := cleanNodes(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+		if err := resetBundleTestMetrics(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+	}()
+	defer logContainerOutput(t, f, namespace, testIntegrityNamePrefix+"-invalidpc")
+
+	// wait to go active even with invalid priority class (it should be cleared)
+	err := waitForScanStatus(t, f, namespace, testIntegrityNamePrefix+"-invalidpc", v1alpha1.PhaseActive)
+	if err != nil {
+		t.Errorf("Timeout waiting for scan status")
+	}
+
+	t.Log("Verifying that the invalid PriorityClassName was cleared")
+	fileIntegrity := &v1alpha1.FileIntegrity{}
+	err = f.Client.Get(context.TODO(), types.NamespacedName{Name: testIntegrityNamePrefix + "-invalidpc", Namespace: namespace}, fileIntegrity)
+	if err != nil {
+		t.Errorf("Failed to get FileIntegrity: %v", err)
+	}
+	if fileIntegrity.Spec.PriorityClassName != "" {
+		t.Errorf("Expected priorityClassName to be cleared, but got: %s", fileIntegrity.Spec.PriorityClassName)
+	}
+
+	t.Log("Verifying that the DaemonSet was created without priorityClassName")
+	dsName := common.DaemonSetName(testIntegrityNamePrefix + "-invalidpc")
+	ds, err := f.KubeClient.AppsV1().DaemonSets(namespace).Get(context.TODO(), dsName, metav1.GetOptions{})
+	if err != nil {
+		t.Errorf("Failed to get DaemonSet: %v", err)
+	}
+	if ds.Spec.Template.Spec.PriorityClassName != "" {
+		t.Errorf("Expected DaemonSet priorityClassName to be empty, but got: %s", ds.Spec.Template.Spec.PriorityClassName)
+	}
+}
+
 func TestFileIntegrityLogCompress(t *testing.T) {
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-logcompress"

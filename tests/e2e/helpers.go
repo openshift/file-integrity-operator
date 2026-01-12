@@ -1008,6 +1008,113 @@ func setupTolerationTest(t *testing.T, integrityName string) (*framework.Framewo
 	return f, testctx, namespace, taintedNodeName
 }
 
+func verifyDaemonSetPriorityClassName(t *testing.T, f *framework.Framework, namespace, dsName, expectedPriorityClass string) error {
+	ds, err := f.KubeClient.AppsV1().DaemonSets(namespace).Get(goctx.TODO(), dsName, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+
+	actualPriorityClass := ds.Spec.Template.Spec.PriorityClassName
+	if actualPriorityClass != expectedPriorityClass {
+		return errors.Errorf("Expected priorityClassName %s but got %s", expectedPriorityClass, actualPriorityClass)
+	}
+
+	t.Logf("DaemonSet %s has correct priorityClassName: %s", dsName, actualPriorityClass)
+	return nil
+}
+
+func setupPriorityClassTest(t *testing.T, integrityName string) (*framework.Framework, *framework.Context, string) {
+	testctx := setupTestRequirements(t)
+	namespace, err := testctx.GetOperatorNamespace()
+	if err != nil {
+		t.Errorf("could not get namespace: %v", err)
+	}
+	f := framework.Global
+
+	testctx.AddCleanupFn(cleanUp(t, namespace))
+	setupFileIntegrityOperatorCluster(t, testctx)
+
+	t.Log("Creating FileIntegrity object for PriorityClassName tests")
+	testIntegrityCheck := &v1alpha1.FileIntegrity{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      integrityName,
+			Namespace: namespace,
+		},
+		Spec: v1alpha1.FileIntegritySpec{
+			NodeSelector: map[string]string{
+				"node-role.kubernetes.io/worker": "",
+			},
+			Config: v1alpha1.FileIntegrityConfig{
+				GracePeriod: defaultTestGracePeriod,
+			},
+			PriorityClassName: "system-node-critical",
+		},
+	}
+	cleanupOptions := framework.CleanupOptions{
+		TestContext:   testctx,
+		Timeout:       cleanupTimeout,
+		RetryInterval: cleanupRetryInterval,
+	}
+	err = f.Client.Create(goctx.TODO(), testIntegrityCheck, &cleanupOptions)
+	if err != nil {
+		t.Errorf("could not create fileintegrity object: %v", err)
+	}
+
+	dsName := common.DaemonSetName(testIntegrityCheck.Name)
+	err = waitForDaemonSet(daemonSetIsReady(f.KubeClient, dsName, namespace))
+	if err != nil {
+		t.Errorf("Timed out waiting for DaemonSet %s", dsName)
+	}
+
+	return f, testctx, namespace
+}
+
+func setupInvalidPriorityClassTest(t *testing.T, integrityName string) (*framework.Framework, *framework.Context, string) {
+	testctx := setupTestRequirements(t)
+	namespace, err := testctx.GetOperatorNamespace()
+	if err != nil {
+		t.Errorf("could not get namespace: %v", err)
+	}
+	f := framework.Global
+
+	testctx.AddCleanupFn(cleanUp(t, namespace))
+	setupFileIntegrityOperatorCluster(t, testctx)
+
+	t.Log("Creating FileIntegrity object with invalid PriorityClassName")
+	testIntegrityCheck := &v1alpha1.FileIntegrity{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      integrityName,
+			Namespace: namespace,
+		},
+		Spec: v1alpha1.FileIntegritySpec{
+			NodeSelector: map[string]string{
+				"node-role.kubernetes.io/worker": "",
+			},
+			Config: v1alpha1.FileIntegrityConfig{
+				GracePeriod: defaultTestGracePeriod,
+			},
+			PriorityClassName: "non-existent-priority-class",
+		},
+	}
+	cleanupOptions := framework.CleanupOptions{
+		TestContext:   testctx,
+		Timeout:       cleanupTimeout,
+		RetryInterval: cleanupRetryInterval,
+	}
+	err = f.Client.Create(goctx.TODO(), testIntegrityCheck, &cleanupOptions)
+	if err != nil {
+		t.Errorf("could not create fileintegrity object: %v", err)
+	}
+
+	dsName := common.DaemonSetName(testIntegrityCheck.Name)
+	err = waitForDaemonSet(daemonSetIsReady(f.KubeClient, dsName, namespace))
+	if err != nil {
+		t.Errorf("Timed out waiting for DaemonSet %s", dsName)
+	}
+
+	return f, testctx, namespace
+}
+
 func updateFileIntegrityConfig(t *testing.T, f *framework.Framework, integrityName, configMapName, namespace, key string, interval, timeout time.Duration) {
 	var lastErr error
 	pollErr := wait.PollImmediate(interval, timeout, func() (bool, error) {
