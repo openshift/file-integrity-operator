@@ -8,7 +8,7 @@ metadata:
     build.appstudio.redhat.com/target_branch: '{{target_branch}}'
     pipelinesascode.tekton.dev/cancel-in-progress: "false"
     pipelinesascode.tekton.dev/max-keep-runs: "3"
-    pipelinesascode.tekton.dev/on-cel-expression: event == "push" && target_branch == "master"
+    pipelinesascode.tekton.dev/on-cel-expression: event == "push" && target_branch == "master" && !files.all.all(x, x.matches('^bundle/') || x.matches('^bundle-hack/') || x.matches('^bundle\\.openshift\\.Dockerfile') || x.matches('^\\.tekton/file-integrity-operator-bundle-dev-.*\\.yaml'))
   creationTimestamp:
   labels:
     appstudio.openshift.io/application: file-integrity-operator-dev
