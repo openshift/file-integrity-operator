@@ -909,7 +909,8 @@ func aideDaemonset(dsName string, fi *v1alpha1.FileIntegrity, operatorImage stri
 									},
 								},
 								{
-									// Needed for friendlier memory reporting as long as we are on golang < 1.16
+									// MADV_DONTNEED is already the default on Go >= 1.16. Kept for
+									// documentation; harmless no-op on current toolchain (Go 1.22).
 									Name:  "GODEBUG",
 									Value: "madvdontneed=1",
 								},
