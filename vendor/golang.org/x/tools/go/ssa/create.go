@@ -193,11 +193,7 @@ func membersFromDecl(pkg *Package, decl ast.Decl, goversion string) {
 //
 // The real work of building SSA form for each function is not done
 // until a subsequent call to Package.Build.
-//
-// CreatePackage should not be called after building any package in
-// the program.
 func (prog *Program) CreatePackage(pkg *types.Package, files []*ast.File, info *types.Info, importable bool) *Package {
-	// TODO(adonovan): assert that no package has yet been built.
 	if pkg == nil {
 		panic("nil pkg") // otherwise pkg.Scope below returns types.Universe!
 	}
@@ -315,4 +311,15 @@ func (prog *Program) AllPackages() []*Package {
 // view of its dependencies.
 func (prog *Program) ImportedPackage(path string) *Package {
 	return prog.imported[path]
+}
+
+// SetNoReturn sets the predicate used when building the ssa.Program
+// prog that reports whether a given function cannot return.
+// This may be used to prune spurious control flow edges
+// after (e.g.) log.Fatal, improving the precision of analyses.
+//
+// A typical implementation is the [ctrlflow.CFGs.NoReturn] method from
+// [golang.org/x/tools/go/analysis/passes/ctrlflow].
+func (prog *Program) SetNoReturn(noReturn func(*types.Func) bool) {
+	prog.noReturn = noReturn
 }
