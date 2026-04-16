@@ -1,4 +1,4 @@
-// Copyright 2015 The Prometheus Authors
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -13,7 +13,7 @@
 
 package discovery
 
-// Create a dummy metrics struct, because this SD doesn't have any metrics.
+// NoopDiscovererMetrics creates a dummy metrics struct, because this SD doesn't have any metrics.
 type NoopDiscovererMetrics struct{}
 
 var _ DiscovererMetrics = (*NoopDiscovererMetrics)(nil)

@@ -16,26 +16,28 @@
 
 package v1alpha1
 
-// ReceiverApplyConfiguration represents an declarative configuration of the Receiver type for use
+// ReceiverApplyConfiguration represents a declarative configuration of the Receiver type for use
 // with apply.
 type ReceiverApplyConfiguration struct {
-	Name             *string                             `json:"name,omitempty"`
-	OpsGenieConfigs  []OpsGenieConfigApplyConfiguration  `json:"opsgenieConfigs,omitempty"`
-	PagerDutyConfigs []PagerDutyConfigApplyConfiguration `json:"pagerdutyConfigs,omitempty"`
-	DiscordConfigs   []DiscordConfigApplyConfiguration   `json:"discordConfigs,omitempty"`
-	SlackConfigs     []SlackConfigApplyConfiguration     `json:"slackConfigs,omitempty"`
-	WebhookConfigs   []WebhookConfigApplyConfiguration   `json:"webhookConfigs,omitempty"`
-	WeChatConfigs    []WeChatConfigApplyConfiguration    `json:"wechatConfigs,omitempty"`
-	EmailConfigs     []EmailConfigApplyConfiguration     `json:"emailConfigs,omitempty"`
-	VictorOpsConfigs []VictorOpsConfigApplyConfiguration `json:"victoropsConfigs,omitempty"`
-	PushoverConfigs  []PushoverConfigApplyConfiguration  `json:"pushoverConfigs,omitempty"`
-	SNSConfigs       []SNSConfigApplyConfiguration       `json:"snsConfigs,omitempty"`
-	TelegramConfigs  []TelegramConfigApplyConfiguration  `json:"telegramConfigs,omitempty"`
-	WebexConfigs     []WebexConfigApplyConfiguration     `json:"webexConfigs,omitempty"`
-	MSTeamsConfigs   []MSTeamsConfigApplyConfiguration   `json:"msteamsConfigs,omitempty"`
+	Name              *string                              `json:"name,omitempty"`
+	OpsGenieConfigs   []OpsGenieConfigApplyConfiguration   `json:"opsgenieConfigs,omitempty"`
+	PagerDutyConfigs  []PagerDutyConfigApplyConfiguration  `json:"pagerdutyConfigs,omitempty"`
+	DiscordConfigs    []DiscordConfigApplyConfiguration    `json:"discordConfigs,omitempty"`
+	SlackConfigs      []SlackConfigApplyConfiguration      `json:"slackConfigs,omitempty"`
+	WebhookConfigs    []WebhookConfigApplyConfiguration    `json:"webhookConfigs,omitempty"`
+	WeChatConfigs     []WeChatConfigApplyConfiguration     `json:"wechatConfigs,omitempty"`
+	EmailConfigs      []EmailConfigApplyConfiguration      `json:"emailConfigs,omitempty"`
+	VictorOpsConfigs  []VictorOpsConfigApplyConfiguration  `json:"victoropsConfigs,omitempty"`
+	PushoverConfigs   []PushoverConfigApplyConfiguration   `json:"pushoverConfigs,omitempty"`
+	SNSConfigs        []SNSConfigApplyConfiguration        `json:"snsConfigs,omitempty"`
+	TelegramConfigs   []TelegramConfigApplyConfiguration   `json:"telegramConfigs,omitempty"`
+	WebexConfigs      []WebexConfigApplyConfiguration      `json:"webexConfigs,omitempty"`
+	MSTeamsConfigs    []MSTeamsConfigApplyConfiguration    `json:"msteamsConfigs,omitempty"`
+	MSTeamsV2Configs  []MSTeamsV2ConfigApplyConfiguration  `json:"msteamsv2Configs,omitempty"`
+	RocketChatConfigs []RocketChatConfigApplyConfiguration `json:"rocketchatConfigs,omitempty"`
 }
 
-// ReceiverApplyConfiguration constructs an declarative configuration of the Receiver type for use with
+// ReceiverApplyConfiguration constructs a declarative configuration of the Receiver type for use with
 // apply.
 func Receiver() *ReceiverApplyConfiguration {
 	return &ReceiverApplyConfiguration{}
@@ -214,6 +216,32 @@ func (b *ReceiverApplyConfiguration) WithMSTeamsConfigs(values ...*MSTeamsConfig
 			panic("nil value passed to WithMSTeamsConfigs")
 		}
 		b.MSTeamsConfigs = append(b.MSTeamsConfigs, *values[i])
+	}
+	return b
+}
+
+// WithMSTeamsV2Configs adds the given value to the MSTeamsV2Configs field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the MSTeamsV2Configs field.
+func (b *ReceiverApplyConfiguration) WithMSTeamsV2Configs(values ...*MSTeamsV2ConfigApplyConfiguration) *ReceiverApplyConfiguration {
+	for i := range values {
+		if values[i] == nil {
+			panic("nil value passed to WithMSTeamsV2Configs")
+		}
+		b.MSTeamsV2Configs = append(b.MSTeamsV2Configs, *values[i])
+	}
+	return b
+}
+
+// WithRocketChatConfigs adds the given value to the RocketChatConfigs field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the RocketChatConfigs field.
+func (b *ReceiverApplyConfiguration) WithRocketChatConfigs(values ...*RocketChatConfigApplyConfiguration) *ReceiverApplyConfiguration {
+	for i := range values {
+		if values[i] == nil {
+			panic("nil value passed to WithRocketChatConfigs")
+		}
+		b.RocketChatConfigs = append(b.RocketChatConfigs, *values[i])
 	}
 	return b
 }

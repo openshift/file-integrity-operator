@@ -18,18 +18,19 @@ package v1alpha1
 
 import (
 	v1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	monitoringv1alpha1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1alpha1"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/client/applyconfiguration/monitoring/v1"
 	corev1 "k8s.io/api/core/v1"
 )
 
-// NomadSDConfigApplyConfiguration represents an declarative configuration of the NomadSDConfig type for use
+// NomadSDConfigApplyConfiguration represents a declarative configuration of the NomadSDConfig type for use
 // with apply.
 type NomadSDConfigApplyConfiguration struct {
 	AllowStale                                 *bool                                             `json:"allowStale,omitempty"`
 	Namespace                                  *string                                           `json:"namespace,omitempty"`
 	RefreshInterval                            *v1.Duration                                      `json:"refreshInterval,omitempty"`
 	Region                                     *string                                           `json:"region,omitempty"`
-	Server                                     *string                                           `json:"server,omitempty"`
+	Server                                     *monitoringv1alpha1.URL                           `json:"server,omitempty"`
 	TagSeparator                               *string                                           `json:"tagSeparator,omitempty"`
 	BasicAuth                                  *monitoringv1.BasicAuthApplyConfiguration         `json:"basicAuth,omitempty"`
 	Authorization                              *monitoringv1.SafeAuthorizationApplyConfiguration `json:"authorization,omitempty"`
@@ -40,7 +41,7 @@ type NomadSDConfigApplyConfiguration struct {
 	EnableHTTP2                                *bool `json:"enableHTTP2,omitempty"`
 }
 
-// NomadSDConfigApplyConfiguration constructs an declarative configuration of the NomadSDConfig type for use with
+// NomadSDConfigApplyConfiguration constructs a declarative configuration of the NomadSDConfig type for use with
 // apply.
 func NomadSDConfig() *NomadSDConfigApplyConfiguration {
 	return &NomadSDConfigApplyConfiguration{}
@@ -81,7 +82,7 @@ func (b *NomadSDConfigApplyConfiguration) WithRegion(value string) *NomadSDConfi
 // WithServer sets the Server field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Server field is set to the value of the last call.
-func (b *NomadSDConfigApplyConfiguration) WithServer(value string) *NomadSDConfigApplyConfiguration {
+func (b *NomadSDConfigApplyConfiguration) WithServer(value monitoringv1alpha1.URL) *NomadSDConfigApplyConfiguration {
 	b.Server = &value
 	return b
 }
@@ -130,7 +131,7 @@ func (b *NomadSDConfigApplyConfiguration) WithTLSConfig(value *monitoringv1.Safe
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ProxyURL field is set to the value of the last call.
 func (b *NomadSDConfigApplyConfiguration) WithProxyURL(value string) *NomadSDConfigApplyConfiguration {
-	b.ProxyURL = &value
+	b.ProxyConfigApplyConfiguration.ProxyURL = &value
 	return b
 }
 
@@ -138,7 +139,7 @@ func (b *NomadSDConfigApplyConfiguration) WithProxyURL(value string) *NomadSDCon
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the NoProxy field is set to the value of the last call.
 func (b *NomadSDConfigApplyConfiguration) WithNoProxy(value string) *NomadSDConfigApplyConfiguration {
-	b.NoProxy = &value
+	b.ProxyConfigApplyConfiguration.NoProxy = &value
 	return b
 }
 
@@ -146,7 +147,7 @@ func (b *NomadSDConfigApplyConfiguration) WithNoProxy(value string) *NomadSDConf
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ProxyFromEnvironment field is set to the value of the last call.
 func (b *NomadSDConfigApplyConfiguration) WithProxyFromEnvironment(value bool) *NomadSDConfigApplyConfiguration {
-	b.ProxyFromEnvironment = &value
+	b.ProxyConfigApplyConfiguration.ProxyFromEnvironment = &value
 	return b
 }
 
@@ -155,11 +156,11 @@ func (b *NomadSDConfigApplyConfiguration) WithProxyFromEnvironment(value bool) *
 // If called multiple times, the entries provided by each call will be put on the ProxyConnectHeader field,
 // overwriting an existing map entries in ProxyConnectHeader field with the same key.
 func (b *NomadSDConfigApplyConfiguration) WithProxyConnectHeader(entries map[string][]corev1.SecretKeySelector) *NomadSDConfigApplyConfiguration {
-	if b.ProxyConnectHeader == nil && len(entries) > 0 {
-		b.ProxyConnectHeader = make(map[string][]corev1.SecretKeySelector, len(entries))
+	if b.ProxyConfigApplyConfiguration.ProxyConnectHeader == nil && len(entries) > 0 {
+		b.ProxyConfigApplyConfiguration.ProxyConnectHeader = make(map[string][]corev1.SecretKeySelector, len(entries))
 	}
 	for k, v := range entries {
-		b.ProxyConnectHeader[k] = v
+		b.ProxyConfigApplyConfiguration.ProxyConnectHeader[k] = v
 	}
 	return b
 }

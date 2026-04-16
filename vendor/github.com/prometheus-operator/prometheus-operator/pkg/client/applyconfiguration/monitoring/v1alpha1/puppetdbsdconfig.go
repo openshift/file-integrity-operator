@@ -18,14 +18,15 @@ package v1alpha1
 
 import (
 	v1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	monitoringv1alpha1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1alpha1"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/client/applyconfiguration/monitoring/v1"
 	corev1 "k8s.io/api/core/v1"
 )
 
-// PuppetDBSDConfigApplyConfiguration represents an declarative configuration of the PuppetDBSDConfig type for use
+// PuppetDBSDConfigApplyConfiguration represents a declarative configuration of the PuppetDBSDConfig type for use
 // with apply.
 type PuppetDBSDConfigApplyConfiguration struct {
-	URL                                        *string                                           `json:"url,omitempty"`
+	URL                                        *monitoringv1alpha1.URL                           `json:"url,omitempty"`
 	Query                                      *string                                           `json:"query,omitempty"`
 	IncludeParameters                          *bool                                             `json:"includeParameters,omitempty"`
 	RefreshInterval                            *v1.Duration                                      `json:"refreshInterval,omitempty"`
@@ -39,7 +40,7 @@ type PuppetDBSDConfigApplyConfiguration struct {
 	EnableHTTP2                                *bool                                         `json:"enableHTTP2,omitempty"`
 }
 
-// PuppetDBSDConfigApplyConfiguration constructs an declarative configuration of the PuppetDBSDConfig type for use with
+// PuppetDBSDConfigApplyConfiguration constructs a declarative configuration of the PuppetDBSDConfig type for use with
 // apply.
 func PuppetDBSDConfig() *PuppetDBSDConfigApplyConfiguration {
 	return &PuppetDBSDConfigApplyConfiguration{}
@@ -48,7 +49,7 @@ func PuppetDBSDConfig() *PuppetDBSDConfigApplyConfiguration {
 // WithURL sets the URL field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the URL field is set to the value of the last call.
-func (b *PuppetDBSDConfigApplyConfiguration) WithURL(value string) *PuppetDBSDConfigApplyConfiguration {
+func (b *PuppetDBSDConfigApplyConfiguration) WithURL(value monitoringv1alpha1.URL) *PuppetDBSDConfigApplyConfiguration {
 	b.URL = &value
 	return b
 }
@@ -113,7 +114,7 @@ func (b *PuppetDBSDConfigApplyConfiguration) WithOAuth2(value *monitoringv1.OAut
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ProxyURL field is set to the value of the last call.
 func (b *PuppetDBSDConfigApplyConfiguration) WithProxyURL(value string) *PuppetDBSDConfigApplyConfiguration {
-	b.ProxyURL = &value
+	b.ProxyConfigApplyConfiguration.ProxyURL = &value
 	return b
 }
 
@@ -121,7 +122,7 @@ func (b *PuppetDBSDConfigApplyConfiguration) WithProxyURL(value string) *PuppetD
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the NoProxy field is set to the value of the last call.
 func (b *PuppetDBSDConfigApplyConfiguration) WithNoProxy(value string) *PuppetDBSDConfigApplyConfiguration {
-	b.NoProxy = &value
+	b.ProxyConfigApplyConfiguration.NoProxy = &value
 	return b
 }
 
@@ -129,7 +130,7 @@ func (b *PuppetDBSDConfigApplyConfiguration) WithNoProxy(value string) *PuppetDB
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ProxyFromEnvironment field is set to the value of the last call.
 func (b *PuppetDBSDConfigApplyConfiguration) WithProxyFromEnvironment(value bool) *PuppetDBSDConfigApplyConfiguration {
-	b.ProxyFromEnvironment = &value
+	b.ProxyConfigApplyConfiguration.ProxyFromEnvironment = &value
 	return b
 }
 
@@ -138,11 +139,11 @@ func (b *PuppetDBSDConfigApplyConfiguration) WithProxyFromEnvironment(value bool
 // If called multiple times, the entries provided by each call will be put on the ProxyConnectHeader field,
 // overwriting an existing map entries in ProxyConnectHeader field with the same key.
 func (b *PuppetDBSDConfigApplyConfiguration) WithProxyConnectHeader(entries map[string][]corev1.SecretKeySelector) *PuppetDBSDConfigApplyConfiguration {
-	if b.ProxyConnectHeader == nil && len(entries) > 0 {
-		b.ProxyConnectHeader = make(map[string][]corev1.SecretKeySelector, len(entries))
+	if b.ProxyConfigApplyConfiguration.ProxyConnectHeader == nil && len(entries) > 0 {
+		b.ProxyConfigApplyConfiguration.ProxyConnectHeader = make(map[string][]corev1.SecretKeySelector, len(entries))
 	}
 	for k, v := range entries {
-		b.ProxyConnectHeader[k] = v
+		b.ProxyConfigApplyConfiguration.ProxyConnectHeader[k] = v
 	}
 	return b
 }

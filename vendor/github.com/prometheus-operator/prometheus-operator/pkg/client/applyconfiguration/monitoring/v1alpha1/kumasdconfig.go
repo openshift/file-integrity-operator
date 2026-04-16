@@ -18,17 +18,18 @@ package v1alpha1
 
 import (
 	v1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	monitoringv1alpha1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1alpha1"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/client/applyconfiguration/monitoring/v1"
 	corev1 "k8s.io/api/core/v1"
 )
 
-// KumaSDConfigApplyConfiguration represents an declarative configuration of the KumaSDConfig type for use
+// KumaSDConfigApplyConfiguration represents a declarative configuration of the KumaSDConfig type for use
 // with apply.
 type KumaSDConfigApplyConfiguration struct {
-	Server                                     *string      `json:"server,omitempty"`
-	ClientID                                   *string      `json:"clientID,omitempty"`
-	RefreshInterval                            *v1.Duration `json:"refreshInterval,omitempty"`
-	FetchTimeout                               *v1.Duration `json:"fetchTimeout,omitempty"`
+	Server                                     *monitoringv1alpha1.URL `json:"server,omitempty"`
+	ClientID                                   *string                 `json:"clientID,omitempty"`
+	RefreshInterval                            *v1.Duration            `json:"refreshInterval,omitempty"`
+	FetchTimeout                               *v1.Duration            `json:"fetchTimeout,omitempty"`
 	monitoringv1.ProxyConfigApplyConfiguration `json:",inline"`
 	TLSConfig                                  *monitoringv1.SafeTLSConfigApplyConfiguration     `json:"tlsConfig,omitempty"`
 	BasicAuth                                  *monitoringv1.BasicAuthApplyConfiguration         `json:"basicAuth,omitempty"`
@@ -38,7 +39,7 @@ type KumaSDConfigApplyConfiguration struct {
 	EnableHTTP2                                *bool                                             `json:"enableHTTP2,omitempty"`
 }
 
-// KumaSDConfigApplyConfiguration constructs an declarative configuration of the KumaSDConfig type for use with
+// KumaSDConfigApplyConfiguration constructs a declarative configuration of the KumaSDConfig type for use with
 // apply.
 func KumaSDConfig() *KumaSDConfigApplyConfiguration {
 	return &KumaSDConfigApplyConfiguration{}
@@ -47,7 +48,7 @@ func KumaSDConfig() *KumaSDConfigApplyConfiguration {
 // WithServer sets the Server field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Server field is set to the value of the last call.
-func (b *KumaSDConfigApplyConfiguration) WithServer(value string) *KumaSDConfigApplyConfiguration {
+func (b *KumaSDConfigApplyConfiguration) WithServer(value monitoringv1alpha1.URL) *KumaSDConfigApplyConfiguration {
 	b.Server = &value
 	return b
 }
@@ -80,7 +81,7 @@ func (b *KumaSDConfigApplyConfiguration) WithFetchTimeout(value v1.Duration) *Ku
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ProxyURL field is set to the value of the last call.
 func (b *KumaSDConfigApplyConfiguration) WithProxyURL(value string) *KumaSDConfigApplyConfiguration {
-	b.ProxyURL = &value
+	b.ProxyConfigApplyConfiguration.ProxyURL = &value
 	return b
 }
 
@@ -88,7 +89,7 @@ func (b *KumaSDConfigApplyConfiguration) WithProxyURL(value string) *KumaSDConfi
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the NoProxy field is set to the value of the last call.
 func (b *KumaSDConfigApplyConfiguration) WithNoProxy(value string) *KumaSDConfigApplyConfiguration {
-	b.NoProxy = &value
+	b.ProxyConfigApplyConfiguration.NoProxy = &value
 	return b
 }
 
@@ -96,7 +97,7 @@ func (b *KumaSDConfigApplyConfiguration) WithNoProxy(value string) *KumaSDConfig
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ProxyFromEnvironment field is set to the value of the last call.
 func (b *KumaSDConfigApplyConfiguration) WithProxyFromEnvironment(value bool) *KumaSDConfigApplyConfiguration {
-	b.ProxyFromEnvironment = &value
+	b.ProxyConfigApplyConfiguration.ProxyFromEnvironment = &value
 	return b
 }
 
@@ -105,11 +106,11 @@ func (b *KumaSDConfigApplyConfiguration) WithProxyFromEnvironment(value bool) *K
 // If called multiple times, the entries provided by each call will be put on the ProxyConnectHeader field,
 // overwriting an existing map entries in ProxyConnectHeader field with the same key.
 func (b *KumaSDConfigApplyConfiguration) WithProxyConnectHeader(entries map[string][]corev1.SecretKeySelector) *KumaSDConfigApplyConfiguration {
-	if b.ProxyConnectHeader == nil && len(entries) > 0 {
-		b.ProxyConnectHeader = make(map[string][]corev1.SecretKeySelector, len(entries))
+	if b.ProxyConfigApplyConfiguration.ProxyConnectHeader == nil && len(entries) > 0 {
+		b.ProxyConfigApplyConfiguration.ProxyConnectHeader = make(map[string][]corev1.SecretKeySelector, len(entries))
 	}
 	for k, v := range entries {
-		b.ProxyConnectHeader[k] = v
+		b.ProxyConfigApplyConfiguration.ProxyConnectHeader[k] = v
 	}
 	return b
 }

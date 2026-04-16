@@ -7,6 +7,7 @@
 *.so
 *.swp
 /gosec
+/gosec-debug
 
 # Folders
 _obj
@@ -25,6 +26,7 @@ _cgo_gotypes.go
 _cgo_export.*
 
 _testmain.go
+coverage.out
 
 *.exe
 *.test
@@ -37,3 +39,4 @@ _testmain.go
 
 # SBOMs generated during CI
 /bom.json
+1

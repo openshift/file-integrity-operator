@@ -1,3 +1,8 @@
+// SPDX-FileCopyrightText: Copyright 2015-2025 go-swagger maintainers
+// SPDX-License-Identifier: Apache-2.0
+
+//go:build !validatedebug
+
 package validate
 
 import (
@@ -6,26 +11,7 @@ import (
 	"github.com/go-openapi/spec"
 )
 
-var (
-	// memory pools for all validator objects.
-	//
-	// Each pool can be borrowed from and redeemed to.
-	poolOfSchemaValidators      schemaValidatorsPool
-	poolOfObjectValidators      objectValidatorsPool
-	poolOfSliceValidators       sliceValidatorsPool
-	poolOfItemsValidators       itemsValidatorsPool
-	poolOfBasicCommonValidators basicCommonValidatorsPool
-	poolOfHeaderValidators      headerValidatorsPool
-	poolOfParamValidators       paramValidatorsPool
-	poolOfBasicSliceValidators  basicSliceValidatorsPool
-	poolOfNumberValidators      numberValidatorsPool
-	poolOfStringValidators      stringValidatorsPool
-	poolOfSchemaPropsValidators schemaPropsValidatorsPool
-	poolOfFormatValidators      formatValidatorsPool
-	poolOfTypeValidators        typeValidatorsPool
-	poolOfSchemas               schemasPool
-	poolOfResults               resultsPool
-)
+var pools allPools
 
 func init() {
 	resetPools()
@@ -35,158 +21,168 @@ func resetPools() {
 	// NOTE: for testing purpose, we might want to reset pools after calling Validate twice.
 	// The pool is corrupted in that case: calling Put twice inserts a duplicate in the pool
 	// and further calls to Get are mishandled.
-	poolOfSchemaValidators = schemaValidatorsPool{
-		Pool: &sync.Pool{
-			New: func() any {
-				s := &SchemaValidator{}
 
-				return s
+	pools = allPools{
+		poolOfSchemaValidators: schemaValidatorsPool{
+			Pool: &sync.Pool{
+				New: func() any {
+					s := &SchemaValidator{}
+
+					return s
+				},
 			},
 		},
-	}
+		poolOfObjectValidators: objectValidatorsPool{
+			Pool: &sync.Pool{
+				New: func() any {
+					s := &objectValidator{}
 
-	poolOfObjectValidators = objectValidatorsPool{
-		Pool: &sync.Pool{
-			New: func() any {
-				s := &objectValidator{}
-
-				return s
+					return s
+				},
 			},
 		},
-	}
+		poolOfSliceValidators: sliceValidatorsPool{
+			Pool: &sync.Pool{
+				New: func() any {
+					s := &schemaSliceValidator{}
 
-	poolOfSliceValidators = sliceValidatorsPool{
-		Pool: &sync.Pool{
-			New: func() any {
-				s := &schemaSliceValidator{}
-
-				return s
+					return s
+				},
 			},
 		},
-	}
+		poolOfItemsValidators: itemsValidatorsPool{
+			Pool: &sync.Pool{
+				New: func() any {
+					s := &itemsValidator{}
 
-	poolOfItemsValidators = itemsValidatorsPool{
-		Pool: &sync.Pool{
-			New: func() any {
-				s := &itemsValidator{}
-
-				return s
+					return s
+				},
 			},
 		},
-	}
+		poolOfBasicCommonValidators: basicCommonValidatorsPool{
+			Pool: &sync.Pool{
+				New: func() any {
+					s := &basicCommonValidator{}
 
-	poolOfBasicCommonValidators = basicCommonValidatorsPool{
-		Pool: &sync.Pool{
-			New: func() any {
-				s := &basicCommonValidator{}
-
-				return s
+					return s
+				},
 			},
 		},
-	}
+		poolOfHeaderValidators: headerValidatorsPool{
+			Pool: &sync.Pool{
+				New: func() any {
+					s := &HeaderValidator{}
 
-	poolOfHeaderValidators = headerValidatorsPool{
-		Pool: &sync.Pool{
-			New: func() any {
-				s := &HeaderValidator{}
-
-				return s
+					return s
+				},
 			},
 		},
-	}
+		poolOfParamValidators: paramValidatorsPool{
+			Pool: &sync.Pool{
+				New: func() any {
+					s := &ParamValidator{}
 
-	poolOfParamValidators = paramValidatorsPool{
-		Pool: &sync.Pool{
-			New: func() any {
-				s := &ParamValidator{}
-
-				return s
+					return s
+				},
 			},
 		},
-	}
+		poolOfBasicSliceValidators: basicSliceValidatorsPool{
+			Pool: &sync.Pool{
+				New: func() any {
+					s := &basicSliceValidator{}
 
-	poolOfBasicSliceValidators = basicSliceValidatorsPool{
-		Pool: &sync.Pool{
-			New: func() any {
-				s := &basicSliceValidator{}
-
-				return s
+					return s
+				},
 			},
 		},
-	}
+		poolOfNumberValidators: numberValidatorsPool{
+			Pool: &sync.Pool{
+				New: func() any {
+					s := &numberValidator{}
 
-	poolOfNumberValidators = numberValidatorsPool{
-		Pool: &sync.Pool{
-			New: func() any {
-				s := &numberValidator{}
-
-				return s
+					return s
+				},
 			},
 		},
-	}
+		poolOfStringValidators: stringValidatorsPool{
+			Pool: &sync.Pool{
+				New: func() any {
+					s := &stringValidator{}
 
-	poolOfStringValidators = stringValidatorsPool{
-		Pool: &sync.Pool{
-			New: func() any {
-				s := &stringValidator{}
-
-				return s
+					return s
+				},
 			},
 		},
-	}
+		poolOfSchemaPropsValidators: schemaPropsValidatorsPool{
+			Pool: &sync.Pool{
+				New: func() any {
+					s := &schemaPropsValidator{}
 
-	poolOfSchemaPropsValidators = schemaPropsValidatorsPool{
-		Pool: &sync.Pool{
-			New: func() any {
-				s := &schemaPropsValidator{}
-
-				return s
+					return s
+				},
 			},
 		},
-	}
+		poolOfFormatValidators: formatValidatorsPool{
+			Pool: &sync.Pool{
+				New: func() any {
+					s := &formatValidator{}
 
-	poolOfFormatValidators = formatValidatorsPool{
-		Pool: &sync.Pool{
-			New: func() any {
-				s := &formatValidator{}
-
-				return s
+					return s
+				},
 			},
 		},
-	}
+		poolOfTypeValidators: typeValidatorsPool{
+			Pool: &sync.Pool{
+				New: func() any {
+					s := &typeValidator{}
 
-	poolOfTypeValidators = typeValidatorsPool{
-		Pool: &sync.Pool{
-			New: func() any {
-				s := &typeValidator{}
-
-				return s
+					return s
+				},
 			},
 		},
-	}
+		poolOfSchemas: schemasPool{
+			Pool: &sync.Pool{
+				New: func() any {
+					s := &spec.Schema{}
 
-	poolOfSchemas = schemasPool{
-		Pool: &sync.Pool{
-			New: func() any {
-				s := &spec.Schema{}
-
-				return s
+					return s
+				},
 			},
 		},
-	}
+		poolOfResults: resultsPool{
+			Pool: &sync.Pool{
+				New: func() any {
+					s := &Result{}
 
-	poolOfResults = resultsPool{
-		Pool: &sync.Pool{
-			New: func() any {
-				s := &Result{}
-
-				return s
+					return s
+				},
 			},
 		},
 	}
 }
 
 type (
+	allPools struct {
+		// memory pools for all validator objects.
+		//
+		// Each pool can be borrowed from and redeemed to.
+		poolOfSchemaValidators      schemaValidatorsPool
+		poolOfObjectValidators      objectValidatorsPool
+		poolOfSliceValidators       sliceValidatorsPool
+		poolOfItemsValidators       itemsValidatorsPool
+		poolOfBasicCommonValidators basicCommonValidatorsPool
+		poolOfHeaderValidators      headerValidatorsPool
+		poolOfParamValidators       paramValidatorsPool
+		poolOfBasicSliceValidators  basicSliceValidatorsPool
+		poolOfNumberValidators      numberValidatorsPool
+		poolOfStringValidators      stringValidatorsPool
+		poolOfSchemaPropsValidators schemaPropsValidatorsPool
+		poolOfFormatValidators      formatValidatorsPool
+		poolOfTypeValidators        typeValidatorsPool
+		poolOfSchemas               schemasPool
+		poolOfResults               resultsPool
+	}
+
 	schemaValidatorsPool struct {
 		*sync.Pool
 	}
@@ -249,7 +245,7 @@ type (
 )
 
 func (p schemaValidatorsPool) BorrowValidator() *SchemaValidator {
-	return p.Get().(*SchemaValidator)
+	return p.Get().(*SchemaValidator) //nolint:forcetypeassert // pool New always returns this type
 }
 
 func (p schemaValidatorsPool) RedeemValidator(s *SchemaValidator) {
@@ -258,7 +254,7 @@ func (p schemaValidatorsPool) RedeemValidator(s *SchemaValidator) {
 }
 
 func (p objectValidatorsPool) BorrowValidator() *objectValidator {
-	return p.Get().(*objectValidator)
+	return p.Get().(*objectValidator) //nolint:forcetypeassert // pool New always returns this type
 }
 
 func (p objectValidatorsPool) RedeemValidator(s *objectValidator) {
@@ -266,7 +262,7 @@ func (p objectValidatorsPool) RedeemValidator(s *objectValidator) {
 }
 
 func (p sliceValidatorsPool) BorrowValidator() *schemaSliceValidator {
-	return p.Get().(*schemaSliceValidator)
+	return p.Get().(*schemaSliceValidator) //nolint:forcetypeassert // pool New always returns this type
 }
 
 func (p sliceValidatorsPool) RedeemValidator(s *schemaSliceValidator) {
@@ -274,7 +270,7 @@ func (p sliceValidatorsPool) RedeemValidator(s *schemaSliceValidator) {
 }
 
 func (p itemsValidatorsPool) BorrowValidator() *itemsValidator {
-	return p.Get().(*itemsValidator)
+	return p.Get().(*itemsValidator) //nolint:forcetypeassert // pool New always returns this type
 }
 
 func (p itemsValidatorsPool) RedeemValidator(s *itemsValidator) {
@@ -282,7 +278,7 @@ func (p itemsValidatorsPool) RedeemValidator(s *itemsValidator) {
 }
 
 func (p basicCommonValidatorsPool) BorrowValidator() *basicCommonValidator {
-	return p.Get().(*basicCommonValidator)
+	return p.Get().(*basicCommonValidator) //nolint:forcetypeassert // pool New always returns this type
 }
 
 func (p basicCommonValidatorsPool) RedeemValidator(s *basicCommonValidator) {
@@ -290,7 +286,7 @@ func (p basicCommonValidatorsPool) RedeemValidator(s *basicCommonValidator) {
 }
 
 func (p headerValidatorsPool) BorrowValidator() *HeaderValidator {
-	return p.Get().(*HeaderValidator)
+	return p.Get().(*HeaderValidator) //nolint:forcetypeassert // pool New always returns this type
 }
 
 func (p headerValidatorsPool) RedeemValidator(s *HeaderValidator) {
@@ -298,7 +294,7 @@ func (p headerValidatorsPool) RedeemValidator(s *HeaderValidator) {
 }
 
 func (p paramValidatorsPool) BorrowValidator() *ParamValidator {
-	return p.Get().(*ParamValidator)
+	return p.Get().(*ParamValidator) //nolint:forcetypeassert // pool New always returns this type
 }
 
 func (p paramValidatorsPool) RedeemValidator(s *ParamValidator) {
@@ -306,7 +302,7 @@ func (p paramValidatorsPool) RedeemValidator(s *ParamValidator) {
 }
 
 func (p basicSliceValidatorsPool) BorrowValidator() *basicSliceValidator {
-	return p.Get().(*basicSliceValidator)
+	return p.Get().(*basicSliceValidator) //nolint:forcetypeassert // pool New always returns this type
 }
 
 func (p basicSliceValidatorsPool) RedeemValidator(s *basicSliceValidator) {
@@ -314,7 +310,7 @@ func (p basicSliceValidatorsPool) RedeemValidator(s *basicSliceValidator) {
 }
 
 func (p numberValidatorsPool) BorrowValidator() *numberValidator {
-	return p.Get().(*numberValidator)
+	return p.Get().(*numberValidator) //nolint:forcetypeassert // pool New always returns this type
 }
 
 func (p numberValidatorsPool) RedeemValidator(s *numberValidator) {
@@ -322,7 +318,7 @@ func (p numberValidatorsPool) RedeemValidator(s *numberValidator) {
 }
 
 func (p stringValidatorsPool) BorrowValidator() *stringValidator {
-	return p.Get().(*stringValidator)
+	return p.Get().(*stringValidator) //nolint:forcetypeassert // pool New always returns this type
 }
 
 func (p stringValidatorsPool) RedeemValidator(s *stringValidator) {
@@ -330,7 +326,7 @@ func (p stringValidatorsPool) RedeemValidator(s *stringValidator) {
 }
 
 func (p schemaPropsValidatorsPool) BorrowValidator() *schemaPropsValidator {
-	return p.Get().(*schemaPropsValidator)
+	return p.Get().(*schemaPropsValidator) //nolint:forcetypeassert // pool New always returns this type
 }
 
 func (p schemaPropsValidatorsPool) RedeemValidator(s *schemaPropsValidator) {
@@ -338,7 +334,7 @@ func (p schemaPropsValidatorsPool) RedeemValidator(s *schemaPropsValidator) {
 }
 
 func (p formatValidatorsPool) BorrowValidator() *formatValidator {
-	return p.Get().(*formatValidator)
+	return p.Get().(*formatValidator) //nolint:forcetypeassert // pool New always returns this type
 }
 
 func (p formatValidatorsPool) RedeemValidator(s *formatValidator) {
@@ -346,7 +342,7 @@ func (p formatValidatorsPool) RedeemValidator(s *formatValidator) {
 }
 
 func (p typeValidatorsPool) BorrowValidator() *typeValidator {
-	return p.Get().(*typeValidator)
+	return p.Get().(*typeValidator) //nolint:forcetypeassert // pool New always returns this type
 }
 
 func (p typeValidatorsPool) RedeemValidator(s *typeValidator) {
@@ -354,7 +350,7 @@ func (p typeValidatorsPool) RedeemValidator(s *typeValidator) {
 }
 
 func (p schemasPool) BorrowSchema() *spec.Schema {
-	return p.Get().(*spec.Schema)
+	return p.Get().(*spec.Schema) //nolint:forcetypeassert // pool New always returns this type
 }
 
 func (p schemasPool) RedeemSchema(s *spec.Schema) {
@@ -362,7 +358,7 @@ func (p schemasPool) RedeemSchema(s *spec.Schema) {
 }
 
 func (p resultsPool) BorrowResult() *Result {
-	return p.Get().(*Result).cleared()
+	return p.Get().(*Result).cleared() //nolint:forcetypeassert // pool New always returns *Result
 }
 
 func (p resultsPool) RedeemResult(s *Result) {

@@ -399,7 +399,8 @@ func createServiceMonitor(ctx context.Context, cfg *rest.Config, mClient *moncli
 	for i := range serviceMonitor.Spec.Endpoints {
 		if serviceMonitor.Spec.Endpoints[i].Port == metrics.ControllerMetricsServiceName {
 			serviceMonitor.Spec.Endpoints[i].Path = metrics.HandlerPath
-			serviceMonitor.Spec.Endpoints[i].Scheme = "https"
+			scheme := monitoring.SchemeHTTPS
+			serviceMonitor.Spec.Endpoints[i].Scheme = &scheme
 			serviceMonitor.Spec.Endpoints[i].Authorization = &monitoring.SafeAuthorization{
 				Type: "Bearer",
 				Credentials: &v1.SecretKeySelector{
@@ -413,7 +414,9 @@ func createServiceMonitor(ctx context.Context, cfg *rest.Config, mClient *moncli
 				SafeTLSConfig: monitoring.SafeTLSConfig{
 					ServerName: &serverName,
 				},
-				CAFile: "/etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt",
+				TLSFilesConfig: monitoring.TLSFilesConfig{
+					CAFile: "/etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt",
+				},
 			}
 		}
 	}
