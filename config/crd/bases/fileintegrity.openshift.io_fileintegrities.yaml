@@ -78,6 +78,12 @@ spec:
                 additionalProperties:
                   type: string
                 type: object
+              priorityClassName:
+                description: |-
+                  Specifies the PriorityClass to use for the pods created by the operator.
+                  This is an optional field. If PriorityClass is invalid or not found,
+                  it will be ignored and cleared from the spec.
+                type: string
               tolerations:
                 default:
                 - effect: NoSchedule

@@ -30,7 +30,7 @@ $ make deploy
 or build a catalog and deploy from OLM:
 ```
 $ make catalog && make catalog-deploy
-``` 
+```
 
 ### FileIntegrity API:
 
@@ -49,6 +49,7 @@ spec:
   - key: "myNode"
     operator: "Exists"
     effect: "NoSchedule"
+  priorityClassName: "system-cluster-critical"
   config:
     name: "myconfig"
     namespace: "openshift-file-integrity"
@@ -62,10 +63,11 @@ status:
 In the `spec`:
 * **nodeSelector**: Selector for nodes to schedule the scan instances on.
 * **tolerations**: Specify tolerations to schedule on nodes with custom taints. When not specified, a default toleration allowing running on master and infra nodes is applied.
+* **priorityClassName**: (Optional) Specifies the `PriorityClass` for the pods created by the operator. If the PriorityClass is invalid or not found, it will be ignored and cleared from the spec.
 * **config**: Point to a ConfigMap containing an AIDE configuration to use instead of the CoreOS optimized default. See "Applying an AIDE config" below.
 * **config.gracePeriod**: The number of seconds to pause in between AIDE integrity checks. Frequent AIDE checks on a node may be resource intensive, so it can be useful to specify a longer interval. Defaults to 900 (15 mins).
 * **config.maxBackups**: The maximum number of AIDE database and log backups (leftover from the re-init process) to keep on a node. Older backups beyond this number are automatically pruned by the daemon. Defaults to 5.
-* **config.initialDelay**: An optional field. The number of seconds to wait before starting the first AIDE integrity check. Defaults to 0. 
+* **config.initialDelay**: An optional field. The number of seconds to wait before starting the first AIDE integrity check. Defaults to 0.
 
 In the `status`:
 * **phase**: The running status of the `FileIntegrity` instance. Can be `Initializing`, `Pending`, or `Active`. `Initializing` is displayed if the FileIntegrity is currently initializing or re-initializing the AIDE database, `Pending` if the FileIntegrity deployment is still being created, and `Active` if the scans are active and ongoing. For node scan results, see the `FileIntegrityNodeStatus` objects explained below.

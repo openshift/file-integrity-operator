@@ -22,6 +22,7 @@ import (
 	"github.com/openshift/file-integrity-operator/pkg/controller/metrics"
 
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlLog "sigs.k8s.io/controller-runtime/pkg/log"
@@ -32,6 +33,7 @@ type FileIntegrityReconciler struct {
 	client.Client
 	*runtime.Scheme
 	*metrics.Metrics
+	Recorder record.EventRecorder
 }
 
 // These are perms for all controllers.
@@ -48,6 +50,7 @@ type FileIntegrityReconciler struct {
 //+kubebuilder:rbac:groups=fileintegrity.openshift.io,resources=fileintegrities/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=fileintegrity.openshift.io,resources=fileintegrities/finalizers,verbs=update
 //+kubebuilder:rbac:groups=coordination.k8s.io,resources=leases,verbs=get;list;watch;create;update
+//+kubebuilder:rbac:groups=scheduling.k8s.io,resources=priorityclasses,verbs=get;list;watch
 //+kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to

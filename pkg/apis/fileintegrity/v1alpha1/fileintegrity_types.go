@@ -49,6 +49,10 @@ type FileIntegritySpec struct {
 	// Specifies tolerations for custom taints. Defaults to allowing scheduling on master and infra nodes.
 	// +kubebuilder:default={{key: "node-role.kubernetes.io/master", operator: "Exists", effect: "NoSchedule"},{key: "node-role.kubernetes.io/infra", operator: "Exists", effect: "NoSchedule"}}
 	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
+	// Specifies the PriorityClass to use for the pods created by the operator.
+	// This is an optional field. If PriorityClass is invalid or not found,
+	// it will be ignored and cleared from the spec.
+	PriorityClassName string `json:"priorityClassName,omitempty"`
 }
 
 // FileIntegrityConfig defines the name, namespace, and data key for an AIDE config to use for integrity checking.
