@@ -1,6 +1,27 @@
 {
-  "labels": ["ok-to-test","px-approved","docs-approved","qe-approved"],
+  "extends": [
+    "config:recommended"
+  ],
+  "labels": [
+    "ok-to-test",
+    "px-approved",
+    "docs-approved",
+    "qe-approved"
+  ],
   "schedule": [
-      "every weekend"
-  ]
+    "every weekend"
+  ],
+  "gomod": {
+    "packageRules": [
+      {
+        "matchManagers": [
+          "gomod"
+        ],
+        "matchBaseBranches": [
+          "/^release-.*/"
+        ],
+        "enabled": false
+      }
+    ]
+  }
 }
