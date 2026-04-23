@@ -72,6 +72,12 @@ func aideLoop(ctx context.Context, rt *daemonRuntime, conf *daemonConfig, errCha
 				// All done. Send the result.
 				rt.SendResult(aideResult)
 				rt.UnlockAideFiles("aideLoop")
+
+				// AIDE reads the entire host filesystem, and the resulting page
+				// cache is charged to this container's cgroup. Reclaim it so
+				// reported memory drops back to the daemon's actual working set.
+				reclaimCgroupPageCache()
+				releaseMemoryAfterScan()
 			}
 			time.Sleep(time.Second * time.Duration(conf.Interval))
 		}
@@ -215,6 +221,8 @@ func handleAIDEInit(ctx context.Context, rt *daemonRuntime, conf *daemonConfig, 
 	}
 
 	LOG("initialization finished")
+	reclaimCgroupPageCache()
+	releaseMemoryAfterScan()
 	return nil
 }
 

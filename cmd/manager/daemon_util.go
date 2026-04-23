@@ -16,6 +16,7 @@ limitations under the License.
 package manager
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"io"
@@ -25,8 +26,11 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"runtime"
+	"runtime/debug"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	backoff "github.com/cenkalti/backoff/v4"
@@ -37,6 +41,70 @@ import (
 
 	"github.com/openshift/file-integrity-operator/pkg/common"
 )
+
+// reclaimCgroupPageCache asks the kernel to reclaim file-backed (page cache)
+// memory charged to this container's cgroup. AIDE scans the entire host
+// filesystem, and the resulting page cache pages are charged to the container's
+// cgroup, causing reported memory to grow toward the limit over scan cycles.
+//
+// We use raw syscalls instead of os.OpenFile because Go's runtime registers
+// opened fds with its epoll-based poller. The cgroup v2 memory.reclaim file
+// supports poll (via cgroup_file_poll), so Go treats it as a pollable fd and
+// waits for write-readiness before issuing the write. That readiness event
+// never arrives, hanging the goroutine permanently.
+func reclaimCgroupPageCache() {
+	cgroupPath, err := getOwnCgroupPath()
+	if err != nil {
+		LOG("could not determine own cgroup path (page cache not reclaimed): %v", err)
+		return
+	}
+
+	reclaimFile := path.Join(cgroupPath, "memory.reclaim")
+	fd, err := syscall.Open(reclaimFile, syscall.O_WRONLY, 0)
+	if err != nil {
+		LOG("memory.reclaim not available at %s (page cache not reclaimed): %v", reclaimFile, err)
+		return
+	}
+
+	_, err = syscall.Write(fd, []byte("500M"))
+	closeErr := syscall.Close(fd)
+	if err != nil && err != syscall.EAGAIN {
+		LOG("memory.reclaim write returned (non-fatal): %v", err)
+	}
+	if closeErr != nil {
+		LOG("memory.reclaim close error: %v", closeErr)
+	}
+	LOG("reclaimed cgroup page cache after AIDE scan")
+}
+
+// getOwnCgroupPath reads /proc/self/cgroup (cgroup v2 unified format) and
+// returns the sysfs path for this process's cgroup.
+func getOwnCgroupPath() (string, error) {
+	f, err := os.Open("/proc/self/cgroup")
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
+		// cgroup v2: "0::<path>"
+		parts := strings.SplitN(line, ":", 3)
+		if len(parts) == 3 && parts[0] == "0" {
+			return "/sys/fs/cgroup" + parts[2], nil
+		}
+	}
+	return "", fmt.Errorf("no cgroup v2 entry found in /proc/self/cgroup")
+}
+
+// releaseMemoryAfterScan forces the Go GC to run and returns freed memory to
+// the OS. Combined with reclaimCgroupPageCache, this minimizes the container's
+// memory footprint between scan cycles.
+func releaseMemoryAfterScan() {
+	runtime.GC()
+	debug.FreeOSMemory()
+}
 
 func aideReadDBPath(c *daemonConfig) string {
 	return path.Join(c.FileDir, aideReadDBFileName)
@@ -345,6 +413,9 @@ func getNonEmptyFile(filename string) *os.File {
 		return file
 	}
 
+	if err := file.Close(); err != nil {
+		LOG("warning: error closing empty/unreadable file %s: %v", cleanFileName, err)
+	}
 	return nil
 }
 

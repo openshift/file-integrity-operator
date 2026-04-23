@@ -30,10 +30,17 @@ import (
 	"github.com/spf13/cobra"
 
 	corev1 "k8s.io/api/core/v1"
+	kerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/openshift/file-integrity-operator/pkg/common"
+)
+
+var (
+	reFilesAdded   = regexp.MustCompile(`\s+Added entries:\s+(?P<num_added>\d+)`)
+	reFilesChanged = regexp.MustCompile(`\s+Changed entries:\s+(?P<num_changed>\d+)`)
+	reFilesRemoved = regexp.MustCompile(`\s+Removed entries:\s+(?P<num_removed>\d+)`)
 )
 
 const (
@@ -59,8 +66,7 @@ func getValidStringArg(cmd *cobra.Command, name string) string {
 	return val
 }
 
-func matchFileChangeRegex(contents string, regex string) string {
-	re := regexp.MustCompile(regex)
+func matchFileChangeRegex(contents string, re *regexp.Regexp) string {
 	match := re.FindStringSubmatch(contents)
 	if len(match) < 2 {
 		return "0"
@@ -70,9 +76,9 @@ func matchFileChangeRegex(contents string, regex string) string {
 }
 
 func annotateFileChangeSummary(contents string, annotations map[string]string) {
-	annotations[common.IntegrityLogFilesAddedAnnotation] = matchFileChangeRegex(contents, `\s+Added entries:\s+(?P<num_added>\d+)`)
-	annotations[common.IntegrityLogFilesChangedAnnotation] = matchFileChangeRegex(contents, `\s+Changed entries:\s+(?P<num_changed>\d+)`)
-	annotations[common.IntegrityLogFilesRemovedAnnotation] = matchFileChangeRegex(contents, `\s+Removed entries:\s+(?P<num_removed>\d+)`)
+	annotations[common.IntegrityLogFilesAddedAnnotation] = matchFileChangeRegex(contents, reFilesAdded)
+	annotations[common.IntegrityLogFilesChangedAnnotation] = matchFileChangeRegex(contents, reFilesChanged)
+	annotations[common.IntegrityLogFilesRemovedAnnotation] = matchFileChangeRegex(contents, reFilesRemoved)
 	DBG("added %s changed %s removed %s",
 		annotations[common.IntegrityLogFilesAddedAnnotation],
 		annotations[common.IntegrityLogFilesChangedAnnotation],
@@ -209,6 +215,12 @@ func reportOK(ctx context.Context, conf *daemonConfig, rt *daemonRuntime) error 
 		fi := rt.GetFileIntegrityInstance()
 		confMap := newInformationalConfigMap(fi, conf.LogCollectorConfigMapName, conf.LogCollectorNode, nil)
 		_, err := rt.clientset.CoreV1().ConfigMaps(conf.Namespace).Create(ctx, confMap, metav1.CreateOptions{})
+		if kerr.IsAlreadyExists(err) {
+			if delErr := rt.clientset.CoreV1().ConfigMaps(conf.Namespace).Delete(ctx, confMap.Name, metav1.DeleteOptions{}); delErr != nil {
+				return delErr
+			}
+			_, err = rt.clientset.CoreV1().ConfigMaps(conf.Namespace).Create(ctx, confMap, metav1.CreateOptions{})
+		}
 		return err
 	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries))
 }
@@ -222,6 +234,12 @@ func reportError(ctx context.Context, msg string, conf *daemonConfig, rt *daemon
 		}
 		confMap := newInformationalConfigMap(fi, conf.LogCollectorConfigMapName, conf.LogCollectorNode, annotations)
 		_, err := rt.clientset.CoreV1().ConfigMaps(conf.Namespace).Create(ctx, confMap, metav1.CreateOptions{})
+		if kerr.IsAlreadyExists(err) {
+			if delErr := rt.clientset.CoreV1().ConfigMaps(conf.Namespace).Delete(ctx, confMap.Name, metav1.DeleteOptions{}); delErr != nil {
+				return delErr
+			}
+			_, err = rt.clientset.CoreV1().ConfigMaps(conf.Namespace).Create(ctx, confMap, metav1.CreateOptions{})
+		}
 		return err
 	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries))
 }
@@ -232,6 +250,12 @@ func uploadLog(ctx context.Context, contents, compressedContents []byte, conf *d
 		fi := rt.GetFileIntegrityInstance()
 		confMap := newLogConfigMap(fi, conf.LogCollectorConfigMapName, common.IntegrityLogContentKey, conf.LogCollectorNode, contents, compressedContents)
 		_, err := rt.clientset.CoreV1().ConfigMaps(conf.Namespace).Create(ctx, confMap, metav1.CreateOptions{})
+		if kerr.IsAlreadyExists(err) {
+			if delErr := rt.clientset.CoreV1().ConfigMaps(conf.Namespace).Delete(ctx, confMap.Name, metav1.DeleteOptions{}); delErr != nil {
+				return delErr
+			}
+			_, err = rt.clientset.CoreV1().ConfigMaps(conf.Namespace).Create(ctx, confMap, metav1.CreateOptions{})
+		}
 		return err
 	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxRetries))
 }
