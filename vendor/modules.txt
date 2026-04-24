@@ -86,7 +86,7 @@ github.com/AzureAD/microsoft-authentication-library-for-go/apps/public
 # github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b
 ## explicit; go 1.15
 github.com/alecthomas/units
-# github.com/anthropics/anthropic-sdk-go v1.36.0
+# github.com/anthropics/anthropic-sdk-go v1.37.0
 ## explicit; go 1.23.0
 github.com/anthropics/anthropic-sdk-go
 github.com/anthropics/anthropic-sdk-go/internal
@@ -605,7 +605,7 @@ github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumul
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor/internal/metrics
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor/internal/putil/pslice
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor/internal/telemetry
-# github.com/openai/openai-go/v3 v3.31.0
+# github.com/openai/openai-go/v3 v3.32.0
 ## explicit; go 1.22
 github.com/openai/openai-go/v3
 github.com/openai/openai-go/v3/auth
@@ -837,7 +837,7 @@ github.com/puzpuzpuz/xsync/v4
 ## explicit; go 1.21
 github.com/santhosh-tekuri/jsonschema/v6
 github.com/santhosh-tekuri/jsonschema/v6/kind
-# github.com/securego/gosec/v2 v2.25.0
+# github.com/securego/gosec/v2 v2.25.1-0.20260423132557-24ee992e9515
 ## explicit; go 1.25.0
 github.com/securego/gosec/v2
 github.com/securego/gosec/v2/analyzers
