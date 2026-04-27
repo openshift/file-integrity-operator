@@ -17,10 +17,11 @@
 package v1alpha1
 
 import (
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	v1 "k8s.io/api/core/v1"
 )
 
-// SlackConfigApplyConfiguration represents an declarative configuration of the SlackConfig type for use
+// SlackConfigApplyConfiguration represents a declarative configuration of the SlackConfig type for use
 // with apply.
 type SlackConfigApplyConfiguration struct {
 	SendResolved *bool                           `json:"sendResolved,omitempty"`
@@ -45,9 +46,11 @@ type SlackConfigApplyConfiguration struct {
 	MrkdwnIn     []string                        `json:"mrkdwnIn,omitempty"`
 	Actions      []SlackActionApplyConfiguration `json:"actions,omitempty"`
 	HTTPConfig   *HTTPConfigApplyConfiguration   `json:"httpConfig,omitempty"`
+	Timeout      *monitoringv1.Duration          `json:"timeout,omitempty"`
+	MessageText  *string                         `json:"messageText,omitempty"`
 }
 
-// SlackConfigApplyConfiguration constructs an declarative configuration of the SlackConfig type for use with
+// SlackConfigApplyConfiguration constructs a declarative configuration of the SlackConfig type for use with
 // apply.
 func SlackConfig() *SlackConfigApplyConfiguration {
 	return &SlackConfigApplyConfiguration{}
@@ -238,5 +241,21 @@ func (b *SlackConfigApplyConfiguration) WithActions(values ...*SlackActionApplyC
 // If called multiple times, the HTTPConfig field is set to the value of the last call.
 func (b *SlackConfigApplyConfiguration) WithHTTPConfig(value *HTTPConfigApplyConfiguration) *SlackConfigApplyConfiguration {
 	b.HTTPConfig = value
+	return b
+}
+
+// WithTimeout sets the Timeout field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Timeout field is set to the value of the last call.
+func (b *SlackConfigApplyConfiguration) WithTimeout(value monitoringv1.Duration) *SlackConfigApplyConfiguration {
+	b.Timeout = &value
+	return b
+}
+
+// WithMessageText sets the MessageText field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the MessageText field is set to the value of the last call.
+func (b *SlackConfigApplyConfiguration) WithMessageText(value string) *SlackConfigApplyConfiguration {
+	b.MessageText = &value
 	return b
 }

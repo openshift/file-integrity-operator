@@ -1,4 +1,4 @@
-// Copyright 2020 The Prometheus Authors
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -19,8 +19,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// A utility to be used by implementations of discovery.Discoverer
-// which need to manage the lifetime of their metrics.
+// MetricRegisterer is used by implementations of discovery.Discoverer that need
+// to manage the lifetime of their metrics.
 type MetricRegisterer interface {
 	RegisterMetrics() error
 	UnregisterMetrics()
@@ -34,7 +34,7 @@ type metricRegistererImpl struct {
 
 var _ MetricRegisterer = &metricRegistererImpl{}
 
-// Creates an instance of a MetricRegisterer.
+// NewMetricRegisterer creates an instance of a MetricRegisterer.
 // Typically called inside the implementation of the NewDiscoverer() method.
 func NewMetricRegisterer(reg prometheus.Registerer, metrics []prometheus.Collector) MetricRegisterer {
 	return &metricRegistererImpl{

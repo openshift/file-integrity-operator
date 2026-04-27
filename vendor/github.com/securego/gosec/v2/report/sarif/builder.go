@@ -79,14 +79,41 @@ func NewTool(driver *ToolComponent) *Tool {
 }
 
 // NewResult instantiate a Result
-func NewResult(ruleID string, ruleIndex int, level Level, message string, suppressions []*Suppression) *Result {
-	return &Result{
+func NewResult(ruleID string, ruleIndex int, level Level, message string, suppressions []*Suppression, autofix string) *Result {
+	result := &Result{
 		RuleID:       ruleID,
 		RuleIndex:    ruleIndex,
 		Level:        level,
 		Message:      NewMessage(message),
 		Suppressions: suppressions,
 	}
+
+	// Only create Fix when autofix content exists
+	// Fixes with nil/null ArtifactChanges violate SARIF 2.1.0 schema
+	if autofix != "" {
+		result.Fixes = []*Fix{
+			{
+				Description: &Message{
+					Text:     autofix,
+					Markdown: autofix,
+				},
+				// ArtifactChanges MUST be a non-empty array per SARIF 2.1.0 schema
+				ArtifactChanges: []*ArtifactChange{
+					{
+						ArtifactLocation: &ArtifactLocation{
+							Description: NewMessage("File requiring changes"),
+						},
+						Replacements: []*Replacement{
+							{
+								DeletedRegion: NewRegion(1, 1, 1, 1, ""),
+							},
+						},
+					},
+				},
+			},
+		}
+	}
+	return result
 }
 
 // NewMessage instantiate a Message

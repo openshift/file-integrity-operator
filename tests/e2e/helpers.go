@@ -2542,12 +2542,5 @@ func trimOutput(out string) string {
 }
 
 func metricContainsLabel(metricTarget promv1.Target, labelName string, labelValue string) bool {
-	if metricTarget.Labels != nil {
-		for _, label := range metricTarget.Labels {
-			if label.Name == labelName && label.Value == labelValue {
-				return true
-			}
-		}
-	}
-	return false
+	return metricTarget.Labels.Get(labelName) == labelValue
 }
