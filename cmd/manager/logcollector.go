@@ -19,7 +19,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"sync"
 	"time"
 )
@@ -98,7 +98,7 @@ func handleFailedResult(ctx context.Context, rt *daemonRuntime, conf *daemonConf
 	// Always read in the contents, when compressed we still need the uncompressed version to figure out
 	// the changed details when updating the configMap later on.
 	r := bufio.NewReader(file)
-	contents, err := ioutil.ReadAll(r)
+	contents, err := io.ReadAll(r)
 	if err != nil {
 		logAndTryReportingDaemonError(ctx, rt, conf, "error reading AIDE log: %v", err)
 		if closeErr := file.Close(); closeErr != nil {

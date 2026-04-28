@@ -22,7 +22,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"regexp"
 	"time"
 
@@ -121,7 +120,7 @@ func encodetoBase64(src []byte) string {
 			pw.Close()
 		}
 	}()
-	out, _ := ioutil.ReadAll(pr)
+	out, _ := io.ReadAll(pr)
 	return string(out)
 }
 
