@@ -5,7 +5,6 @@ import (
 	goctx "context"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -246,7 +245,7 @@ func (f *Framework) runM(m *testing.M) (int, error) {
 	}
 
 	// create crd
-	globalYAML, err := ioutil.ReadFile(f.globalManPath)
+	globalYAML, err := os.ReadFile(f.globalManPath)
 	if err != nil {
 		return 0, fmt.Errorf("failed to read global resource manifest: %w", err)
 	}

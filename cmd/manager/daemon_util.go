@@ -20,8 +20,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/fs"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
@@ -351,19 +349,28 @@ func backupFile(file string) error {
 // Prune the oldest backup files (above max number) created by backupFile()
 func pruneBackupFiles(dirPath, fileName string, max int) error {
 	// find the related backup files
-	files, err := ioutil.ReadDir(dirPath)
+	files, err := os.ReadDir(dirPath)
 	if err != nil {
 		return err
 	}
 
-	backups := []fs.FileInfo{}
-	for i, _ := range files {
-		f := files[i]
+	type backupEntry struct {
+		name    string
+		modTime int64
+	}
+
+	var backups []backupEntry
+	for _, f := range files {
 		if f.IsDir() {
 			continue
 		}
 		if strings.HasPrefix(f.Name(), fmt.Sprintf("%s.backup-", fileName)) {
-			backups = append(backups, files[i])
+			info, err := f.Info()
+			if err != nil {
+				LOG("error reading backup file info: %s", err)
+				continue
+			}
+			backups = append(backups, backupEntry{name: f.Name(), modTime: info.ModTime().Unix()})
 		}
 	}
 
@@ -374,19 +381,19 @@ func pruneBackupFiles(dirPath, fileName string, max int) error {
 
 	// Sort backups oldest first
 	sort.Slice(backups, func(i, j int) bool {
-		return backups[i].ModTime().Unix() < backups[j].ModTime().Unix()
+		return backups[i].modTime < backups[j].modTime
 	})
 
 	// Delete the older entries
 	last := len(backups) - max
-	for i, _ := range backups {
+	for i := range backups {
 		if i < last {
-			removeErr := os.Remove(path.Join(dirPath, backups[i].Name()))
+			removeErr := os.Remove(path.Join(dirPath, backups[i].name))
 			if removeErr != nil {
 				LOG("error removing backup files: %s", removeErr)
 				continue
 			}
-			DBG("pruned backup files - removed %s", path.Join(dirPath, backups[i].Name()))
+			DBG("pruned backup files - removed %s", path.Join(dirPath, backups[i].name))
 		}
 	}
 

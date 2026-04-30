@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
@@ -450,7 +449,7 @@ func replaceNamespaceFromManifest(t *testing.T, nsFrom, nsTo string, namespacedM
 	}
 	manPath := *namespacedManPath
 	// #nosec
-	read, err := ioutil.ReadFile(manPath)
+	read, err := os.ReadFile(manPath)
 	if err != nil {
 		t.Fatalf("Error reading namespaced manifest file: %s", err)
 	}
@@ -458,7 +457,7 @@ func replaceNamespaceFromManifest(t *testing.T, nsFrom, nsTo string, namespacedM
 	newContents := strings.Replace(string(read), nsFrom, nsTo, -1)
 
 	// #nosec
-	err = ioutil.WriteFile(manPath, []byte(newContents), 644)
+	err = os.WriteFile(manPath, []byte(newContents), 0644)
 	if err != nil {
 		t.Fatalf("Error writing namespaced manifest file: %s", err)
 	}

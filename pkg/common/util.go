@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"os/exec"
 	"strconv"
@@ -415,7 +415,7 @@ func fipsModeEnabled() (bool, error) {
 		return false, err
 	}
 
-	d, err := ioutil.ReadAll(f)
+	d, err := io.ReadAll(f)
 	if err != nil {
 		if closeErr := f.Close(); closeErr != nil {
 			return false, closeErr

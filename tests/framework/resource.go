@@ -6,7 +6,6 @@ import (
 	goctx "context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"time"
 
@@ -211,7 +210,7 @@ func (ctx *Context) createFromYAML(yamlFile []byte, skipIfExists bool, cleanupOp
 
 func (ctx *Context) InitializeClusterResources(cleanupOptions *CleanupOptions) error {
 	// create namespaced resources
-	namespacedYAML, err := ioutil.ReadFile(ctx.namespacedManPath)
+	namespacedYAML, err := os.ReadFile(ctx.namespacedManPath)
 	if err != nil {
 		return fmt.Errorf("failed to read namespaced manifest: %w", err)
 	}
