@@ -647,7 +647,7 @@ github.com/openshift/machine-config-operator/pkg/daemon/constants
 github.com/pb33f/jsonpath/pkg/jsonpath
 github.com/pb33f/jsonpath/pkg/jsonpath/config
 github.com/pb33f/jsonpath/pkg/jsonpath/token
-# github.com/pb33f/libopenapi v0.36.1
+# github.com/pb33f/libopenapi v0.36.3
 ## explicit; go 1.25.0
 github.com/pb33f/libopenapi
 github.com/pb33f/libopenapi/datamodel
