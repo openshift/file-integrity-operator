@@ -69,14 +69,13 @@ func (v *paramValidator) ValidateQueryParamsWithPathItem(request *http.Request, 
 				Key:    qKey,
 				Values: qVal,
 			})
-		} else if strings.IndexRune(qKey, '[') > 0 && strings.IndexRune(qKey, ']') > 0 {
+		} else if stripped, propertyPath, ok := helpers.ParseDeepObjectKey(qKey); ok {
 			// check if the param is encoded as a property / deepObject
-			stripped := qKey[:strings.IndexRune(qKey, '[')]
-			value := qKey[strings.IndexRune(qKey, '[')+1 : strings.IndexRune(qKey, ']')]
 			queryParams[stripped] = append(queryParams[stripped], &helpers.QueryParam{
-				Key:      stripped,
-				Values:   qVal,
-				Property: value,
+				Key:          stripped,
+				Values:       qVal,
+				Property:     propertyPath[0],
+				PropertyPath: propertyPath,
 			})
 		} else {
 			queryParams[qKey] = append(queryParams[qKey], &helpers.QueryParam{
@@ -121,13 +120,8 @@ doneLooking:
 						}
 					}
 
-					// Render schema once for ReferenceSchema field in errors
-					var renderedSchema string
-					if sch != nil {
-						rendered, _ := sch.RenderInline()
-						schemaBytes, _ := json.Marshal(rendered)
-						renderedSchema = string(schemaBytes)
-					}
+					// Get rendered schema for ReferenceSchema field in errors (uses cache if available)
+					renderedSchema := GetRenderedSchema(sch, v.options)
 
 					pType := sch.Type
 
@@ -263,12 +257,8 @@ doneLooking:
 							break
 						}
 					}
-					var renderedSchema string
-					if sch != nil {
-						rendered, _ := sch.RenderInline()
-						schemaBytes, _ := json.Marshal(rendered)
-						renderedSchema = string(schemaBytes)
-					}
+					// Get rendered schema for ReferenceSchema field in errors (uses cache if available)
+					renderedSchema := GetRenderedSchema(sch, v.options)
 					validationErrors = append(validationErrors, errors.QueryParameterMissing(params[p], pathValue, operation, renderedSchema))
 				}
 			}
