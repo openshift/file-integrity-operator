@@ -7,13 +7,13 @@ metadata:
     build.appstudio.redhat.com/target_branch: '{{target_branch}}'
     pipelinesascode.tekton.dev/cancel-in-progress: "false"
     pipelinesascode.tekton.dev/max-keep-runs: "3"
-    pipelinesascode.tekton.dev/on-cel-expression: event == "push" && target_branch == "master" && files.all.all(x, x.matches('^bundle/') || x.matches('^bundle-hack/') || x.matches('^bundle\\.openshift\\.Dockerfile') || x.matches('^\\.tekton/file-integrity-operator-bundle-dev-.*\\.yaml'))
+    pipelinesascode.tekton.dev/on-cel-expression: event == "push" && target_branch == "release-1.4" && files.all.all(x, x.matches('^bundle/') || x.matches('^bundle-hack/') || x.matches('^bundle\\.openshift\\.Dockerfile') || x.matches('^\\.tekton/file-integrity-operator-bundle-release-1-4-.*\\.yaml'))
   creationTimestamp:
   labels:
-    appstudio.openshift.io/application: file-integrity-operator-dev
-    appstudio.openshift.io/component: file-integrity-operator-bundle-dev
+    appstudio.openshift.io/application: file-integrity-operator-release-1-4
+    appstudio.openshift.io/component: file-integrity-operator-bundle-release-1-4
     pipelines.appstudio.openshift.io/type: build
-  name: file-integrity-operator-bundle-dev-on-push
+  name: file-integrity-operator-bundle-release-1-4-on-push
   namespace: ocp-isc-tenant
 spec:
   params:
@@ -22,7 +22,7 @@ spec:
   - name: revision
     value: '{{revision}}'
   - name: output-image
-    value: quay.io/redhat-user-workloads/ocp-isc-tenant/file-integrity-operator-bundle-dev:{{revision}}
+    value: quay.io/redhat-user-workloads/ocp-isc-tenant/file-integrity-operator-bundle-release:{{revision}}
   - name: dockerfile
     value: bundle.openshift.Dockerfile
   - name: hermetic
@@ -583,7 +583,7 @@ spec:
     - name: netrc
       optional: true
   taskRunTemplate:
-    serviceAccountName: build-pipeline-file-integrity-operator-bundle-dev
+    serviceAccountName: build-pipeline-file-integrity-operator-bundle-release-1-4
   workspaces:
   - name: git-auth
     secret:
