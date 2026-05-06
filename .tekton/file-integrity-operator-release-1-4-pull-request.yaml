@@ -2,19 +2,19 @@ apiVersion: tekton.dev/v1
 kind: PipelineRun
 metadata:
   annotations:
-    build.appstudio.openshift.io/build-nudge-files: "bundle-hack/update_csv.go"
     build.appstudio.openshift.io/repo: https://github.com/openshift/file-integrity-operator?rev={{revision}}
     build.appstudio.redhat.com/commit_sha: '{{revision}}'
+    build.appstudio.redhat.com/pull_request_number: '{{pull_request_number}}'
     build.appstudio.redhat.com/target_branch: '{{target_branch}}'
-    pipelinesascode.tekton.dev/cancel-in-progress: "false"
+    pipelinesascode.tekton.dev/cancel-in-progress: "true"
     pipelinesascode.tekton.dev/max-keep-runs: "3"
-    pipelinesascode.tekton.dev/on-cel-expression: event == "push" && target_branch == "master" && !files.all.all(x, x.matches('^bundle/') || x.matches('^bundle-hack/') || x.matches('^bundle\\.openshift\\.Dockerfile') || x.matches('^\\.tekton/file-integrity-operator-bundle-dev-.*\\.yaml'))
+    pipelinesascode.tekton.dev/on-cel-expression: event == "pull_request" && target_branch == "release-1.4" && !files.all.all(x, x.matches('^bundle/') || x.matches('^bundle-hack/') || x.matches('^bundle\\.openshift\\.Dockerfile') || x.matches('^\\.tekton/file-integrity-operator-bundle-release-.*\\.yaml'))
   creationTimestamp:
   labels:
-    appstudio.openshift.io/application: file-integrity-operator-dev
-    appstudio.openshift.io/component: file-integrity-operator-dev
+    appstudio.openshift.io/application: file-integrity-operator-release-1-4
+    appstudio.openshift.io/component: file-integrity-operator-release-1-4
     pipelines.appstudio.openshift.io/type: build
-  name: file-integrity-operator-dev-on-push
+  name: file-integrity-operator-release-1-4-on-pull-request
   namespace: ocp-isc-tenant
 spec:
   params:
@@ -23,7 +23,9 @@ spec:
   - name: revision
     value: '{{revision}}'
   - name: output-image
-    value: quay.io/redhat-user-workloads/ocp-isc-tenant/file-integrity-operator-dev:{{revision}}
+    value: quay.io/redhat-user-workloads/ocp-isc-tenant/file-integrity-operator-release:on-pr-{{revision}}
+  - name: image-expires-after
+    value: 5d
   - name: build-platforms
     value:
     - linux/x86_64
@@ -298,6 +300,68 @@ spec:
         operator: in
         values:
         - "true"
+    - name: build-bundle-container
+      params:
+      - name: IMAGE
+        value: quay.io/redhat-user-workloads/ocp-isc-tenant/file-integrity-operator-bundle-release:on-pr-{{revision}}
+      - name: DOCKERFILE
+        value: bundle.openshift.Dockerfile
+      - name: CONTEXT
+        value: .
+      - name: HERMETIC
+        value: "true"
+      - name: PREFETCH_INPUT
+        value: '[{"type": "gomod", "path": "."}]'
+      - name: IMAGE_EXPIRES_AFTER
+        value: $(params.image-expires-after)
+      - name: COMMIT_SHA
+        value: $(tasks.clone-repository.results.commit)
+      - name: BUILD_ARGS
+        value:
+        - OPERATOR_IMAGE=$(tasks.build-image-index.results.IMAGE_URL)@$(tasks.build-image-index.results.IMAGE_DIGEST)
+      - name: BUILD_ARGS_FILE
+        value: ""
+      - name: PRIVILEGED_NESTED
+        value: "false"
+      - name: SOURCE_ARTIFACT
+        value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
+      - name: CACHI2_ARTIFACT
+        value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
+      - name: BUILDAH_FORMAT
+        value: docker
+      runAfter:
+      - build-image-index
+      taskRef:
+        params:
+        - name: name
+          value: buildah-oci-ta
+        - name: bundle
+          value: quay.io/konflux-ci/tekton-catalog/task-buildah-oci-ta:0.9@sha256:681d9f65a7f50cb260ee576ccab551e11d63c549f1e1ef3d201da3c112855bd6
+        - name: kind
+          value: task
+        resolver: bundles
+    - name: build-bundle-image-index
+      params:
+      - name: IMAGE
+        value: quay.io/redhat-user-workloads/ocp-isc-tenant/file-integrity-operator-bundle-release:on-pr-{{revision}}
+      - name: ALWAYS_BUILD_INDEX
+        value: "false"
+      - name: IMAGES
+        value:
+        - $(tasks.build-bundle-container.results.IMAGE_URL)@$(tasks.build-bundle-container.results.IMAGE_DIGEST)
+      - name: BUILDAH_FORMAT
+        value: docker
+      runAfter:
+      - build-bundle-container
+      taskRef:
+        params:
+        - name: name
+          value: build-image-index
+        - name: bundle
+          value: quay.io/konflux-ci/tekton-catalog/task-build-image-index:0.3@sha256:550afde50349e22ec11191ea0db9a49395ab46fef4e8317d820b6e946677ebeb
+        - name: kind
+          value: task
+        resolver: bundles
     - name: deprecated-base-image-check
       params:
       - name: IMAGE_URL
@@ -551,9 +615,6 @@ spec:
         value: $(tasks.build-image-index.results.IMAGE_URL)
       - name: IMAGE_DIGEST
         value: $(tasks.build-image-index.results.IMAGE_DIGEST)
-      - name: ADDITIONAL_TAGS
-        value:
-        - '{{ target_branch }}'
       runAfter:
       - build-image-index
       taskRef:
@@ -616,7 +677,7 @@ spec:
     - name: netrc
       optional: true
   taskRunTemplate:
-    serviceAccountName: build-pipeline-file-integrity-operator-dev
+    serviceAccountName: build-pipeline-file-integrity-operator-release-1-4
   workspaces:
   - name: git-auth
     secret:
