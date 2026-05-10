@@ -196,7 +196,7 @@ require (
 	golang.org/x/text v0.36.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	golang.org/x/tools v0.44.0 // indirect
-	gomodules.xyz/jsonpatch/v2 v2.5.0 // indirect
+	gomodules.xyz/jsonpatch/v3 v3.0.1 // indirect
 	google.golang.org/api v0.276.0 // indirect
 	google.golang.org/genai v1.54.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260414002931-afd174a4e478 // indirect
