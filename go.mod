@@ -3,7 +3,7 @@ module github.com/openshift/file-integrity-operator
 go 1.25.8
 
 require (
-	github.com/cenkalti/backoff/v4 v4.3.0
+	github.com/cenkalti/backoff/v5 v5.0.3
 	github.com/coreos/ignition/v2 v2.26.0
 	github.com/go-logr/logr v1.4.3
 	github.com/mitchellh/go-homedir v1.1.0
