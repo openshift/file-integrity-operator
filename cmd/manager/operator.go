@@ -394,12 +394,42 @@ func createServiceMonitor(ctx context.Context, cfg *rest.Config, mClient *moncli
 		return nil
 	}
 
-	serverName := fmt.Sprintf("metrics.%s.svc", namespace)
 	serviceMonitor := common.GenerateServiceMonitor(service)
+	configureMetricsEndpoints(serviceMonitor, namespace)
+	_, err = mClient.ServiceMonitors(namespace).Create(ctx, serviceMonitor, metav1.CreateOptions{})
+	if err != nil && !kerr.IsAlreadyExists(err) {
+		return err
+	}
+	if kerr.IsAlreadyExists(err) {
+		currentServiceMonitor, getErr := mClient.ServiceMonitors(namespace).Get(ctx, serviceMonitor.Name,
+			metav1.GetOptions{})
+		if getErr != nil {
+			return getErr
+		}
+		serviceMonitorCopy := currentServiceMonitor.DeepCopy()
+		serviceMonitorCopy.Spec = serviceMonitor.Spec
+		if _, updateErr := mClient.ServiceMonitors(namespace).Update(ctx, serviceMonitorCopy,
+			metav1.UpdateOptions{}); updateErr != nil {
+			return updateErr
+		}
+	}
+	return nil
+}
+
+func configureMetricsEndpoints(serviceMonitor *monitoring.ServiceMonitor, namespace string) {
+	serverName := fmt.Sprintf("metrics.%s.svc", namespace)
 	for i := range serviceMonitor.Spec.Endpoints {
 		if serviceMonitor.Spec.Endpoints[i].Port == metrics.ControllerMetricsServiceName {
 			serviceMonitor.Spec.Endpoints[i].Path = metrics.HandlerPath
-			scheme := monitoring.SchemeHTTPS
+			// Use lowercase "https" instead of
+			// monitoring.SchemeHTTPS ("HTTPS") because
+			// prometheus-operator 0.87.0 relaxed the validation of
+			// this field. Even though we can use HTTPS, we need to
+			// support running on versions of OpenShift with
+			// prometheus-operator that strictly requires "https".
+			// When 0.87.0 is the oldest supported version we can
+			// consider reverting back to using SchemeHTTPS.
+			scheme := monitoring.Scheme("https")
 			serviceMonitor.Spec.Endpoints[i].Scheme = &scheme
 			serviceMonitor.Spec.Endpoints[i].Authorization = &monitoring.SafeAuthorization{
 				Type: "Bearer",
@@ -420,22 +450,4 @@ func createServiceMonitor(ctx context.Context, cfg *rest.Config, mClient *moncli
 			}
 		}
 	}
-	_, err = mClient.ServiceMonitors(namespace).Create(ctx, serviceMonitor, metav1.CreateOptions{})
-	if err != nil && !kerr.IsAlreadyExists(err) {
-		return err
-	}
-	if kerr.IsAlreadyExists(err) {
-		currentServiceMonitor, getErr := mClient.ServiceMonitors(namespace).Get(ctx, serviceMonitor.Name,
-			metav1.GetOptions{})
-		if getErr != nil {
-			return getErr
-		}
-		serviceMonitorCopy := currentServiceMonitor.DeepCopy()
-		serviceMonitorCopy.Spec = serviceMonitor.Spec
-		if _, updateErr := mClient.ServiceMonitors(namespace).Update(ctx, serviceMonitorCopy,
-			metav1.UpdateOptions{}); updateErr != nil {
-			return updateErr
-		}
-	}
-	return nil
 }
