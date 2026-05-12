@@ -2,14 +2,43 @@ package manager
 
 import (
 	"context"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/prometheus-operator/prometheus-operator/pkg/client/versioned"
 	"github.com/prometheus-operator/prometheus-operator/pkg/client/versioned/fake"
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/openshift/file-integrity-operator/pkg/common"
+	"github.com/openshift/file-integrity-operator/pkg/controller/metrics"
 )
 
 var _ = Describe("Operator startup tests", func() {
+	Context("ServiceMonitor", func() {
+		It("Uses lowercase https scheme for compatibility with older CRDs", func() {
+			service := &corev1.Service{
+				ObjectMeta: v1.ObjectMeta{
+					Name:      "test-metrics-service",
+					Namespace: "test-ns",
+				},
+				Spec: corev1.ServiceSpec{
+					Ports: []corev1.ServicePort{
+						{Name: metrics.ControllerMetricsServiceName},
+					},
+				},
+			}
+			serviceMonitor := common.GenerateServiceMonitor(service)
+			configureMetricsEndpoints(serviceMonitor, "test-ns")
+			for _, ep := range serviceMonitor.Spec.Endpoints {
+				if ep.Port == metrics.ControllerMetricsServiceName {
+					Expect(ep.Scheme).ToNot(BeNil())
+					Expect(string(*ep.Scheme)).To(Equal("https"))
+				}
+			}
+		})
+	})
+
 	Context("PrometheusRule", func() {
 		When("Creating the PrometheusRule", func() {
 			var ctx context.Context
