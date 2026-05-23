@@ -5,7 +5,6 @@ package openai
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/url"
 	"slices"
@@ -42,13 +41,14 @@ func NewVectorStoreFileBatchService(opts ...option.RequestOption) (r VectorStore
 
 // Create a vector store file batch.
 func (r *VectorStoreFileBatchService) New(ctx context.Context, vectorStoreID string, body VectorStoreFileBatchNewParams, opts ...option.RequestOption) (res *VectorStoreFileBatch, err error) {
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	opts = append([]option.RequestOption{option.WithHeader("OpenAI-Beta", "assistants=v2")}, opts...)
 	if vectorStoreID == "" {
 		err = errors.New("missing required vector_store_id parameter")
 		return nil, err
 	}
-	path := fmt.Sprintf("vector_stores/%s/file_batches", vectorStoreID)
+	path := requestconfig.FormatPath("vector_stores/%s/file_batches", vectorStoreID)
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodPost, path, body, &res, opts...)
 	return res, err
 }
@@ -114,7 +114,8 @@ func (r *VectorStoreFileBatchService) UploadAndPoll(ctx context.Context, vectorS
 
 // Retrieves a vector store file batch.
 func (r *VectorStoreFileBatchService) Get(ctx context.Context, vectorStoreID string, batchID string, opts ...option.RequestOption) (res *VectorStoreFileBatch, err error) {
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	opts = append([]option.RequestOption{option.WithHeader("OpenAI-Beta", "assistants=v2")}, opts...)
 	if vectorStoreID == "" {
 		err = errors.New("missing required vector_store_id parameter")
@@ -124,7 +125,7 @@ func (r *VectorStoreFileBatchService) Get(ctx context.Context, vectorStoreID str
 		err = errors.New("missing required batch_id parameter")
 		return nil, err
 	}
-	path := fmt.Sprintf("vector_stores/%s/file_batches/%s", vectorStoreID, batchID)
+	path := requestconfig.FormatPath("vector_stores/%s/file_batches/%s", vectorStoreID, batchID)
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodGet, path, nil, &res, opts...)
 	return res, err
 }
@@ -132,7 +133,8 @@ func (r *VectorStoreFileBatchService) Get(ctx context.Context, vectorStoreID str
 // Cancel a vector store file batch. This attempts to cancel the processing of
 // files in this batch as soon as possible.
 func (r *VectorStoreFileBatchService) Cancel(ctx context.Context, vectorStoreID string, batchID string, opts ...option.RequestOption) (res *VectorStoreFileBatch, err error) {
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	opts = append([]option.RequestOption{option.WithHeader("OpenAI-Beta", "assistants=v2")}, opts...)
 	if vectorStoreID == "" {
 		err = errors.New("missing required vector_store_id parameter")
@@ -142,7 +144,7 @@ func (r *VectorStoreFileBatchService) Cancel(ctx context.Context, vectorStoreID 
 		err = errors.New("missing required batch_id parameter")
 		return nil, err
 	}
-	path := fmt.Sprintf("vector_stores/%s/file_batches/%s/cancel", vectorStoreID, batchID)
+	path := requestconfig.FormatPath("vector_stores/%s/file_batches/%s/cancel", vectorStoreID, batchID)
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodPost, path, nil, &res, opts...)
 	return res, err
 }
@@ -150,7 +152,8 @@ func (r *VectorStoreFileBatchService) Cancel(ctx context.Context, vectorStoreID 
 // Returns a list of vector store files in a batch.
 func (r *VectorStoreFileBatchService) ListFiles(ctx context.Context, vectorStoreID string, batchID string, query VectorStoreFileBatchListFilesParams, opts ...option.RequestOption) (res *pagination.CursorPage[VectorStoreFile], err error) {
 	var raw *http.Response
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	opts = append([]option.RequestOption{option.WithHeader("OpenAI-Beta", "assistants=v2"), option.WithResponseInto(&raw)}, opts...)
 	if vectorStoreID == "" {
 		err = errors.New("missing required vector_store_id parameter")
@@ -160,7 +163,7 @@ func (r *VectorStoreFileBatchService) ListFiles(ctx context.Context, vectorStore
 		err = errors.New("missing required batch_id parameter")
 		return nil, err
 	}
-	path := fmt.Sprintf("vector_stores/%s/file_batches/%s/files", vectorStoreID, batchID)
+	path := requestconfig.FormatPath("vector_stores/%s/file_batches/%s/files", vectorStoreID, batchID)
 	cfg, err := requestconfig.NewRequestConfig(ctx, http.MethodGet, path, query, &res, opts...)
 	if err != nil {
 		return nil, err
@@ -184,7 +187,7 @@ type VectorStoreFileBatch struct {
 	ID string `json:"id" api:"required"`
 	// The Unix timestamp (in seconds) for when the vector store files batch was
 	// created.
-	CreatedAt  int64                          `json:"created_at" api:"required"`
+	CreatedAt  int64                          `json:"created_at" api:"required" format:"unixtime"`
 	FileCounts VectorStoreFileBatchFileCounts `json:"file_counts" api:"required"`
 	// The object type, which is always `vector_store.file_batch`.
 	Object constant.VectorStoreFilesBatch `json:"object" default:"vector_store.files_batch"`
