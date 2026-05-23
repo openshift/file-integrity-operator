@@ -7,7 +7,7 @@ require (
 	github.com/coreos/ignition/v2 v2.26.0
 	github.com/go-logr/logr v1.4.3
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/onsi/ginkgo v1.16.5
+	github.com/onsi/ginkgo/v2 v2.29.0
 	github.com/onsi/gomega v1.39.1
 	github.com/openshift/api v0.0.0-20260408160412-464776f95207
 	github.com/openshift/library-go v0.0.0-20260413093329-d2db42c961e1
