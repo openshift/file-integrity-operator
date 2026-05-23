@@ -8,7 +8,7 @@ require (
 	github.com/go-logr/logr v1.4.3
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/onsi/ginkgo v1.16.5
-	github.com/onsi/gomega v1.39.1
+	github.com/onsi/gomega v1.41.0
 	github.com/openshift/api v0.0.0-20260408160412-464776f95207
 	github.com/openshift/library-go v0.0.0-20260413093329-d2db42c961e1
 	github.com/openshift/machine-config-operator v0.0.1-0.20230815171034-c2bb862bc08a
