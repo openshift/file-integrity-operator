@@ -605,7 +605,7 @@ github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumul
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor/internal/metrics
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor/internal/putil/pslice
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor/internal/telemetry
-# github.com/openai/openai-go/v3 v3.32.0
+# github.com/openai/openai-go/v3 v3.37.0
 ## explicit; go 1.22
 github.com/openai/openai-go/v3
 github.com/openai/openai-go/v3/auth

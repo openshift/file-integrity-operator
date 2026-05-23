@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/url"
 	"slices"
@@ -45,19 +44,21 @@ func NewItemService(opts ...option.RequestOption) (r ItemService) {
 
 // Create items in a conversation with the given ID.
 func (r *ItemService) New(ctx context.Context, conversationID string, params ItemNewParams, opts ...option.RequestOption) (res *ConversationItemList, err error) {
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	if conversationID == "" {
 		err = errors.New("missing required conversation_id parameter")
 		return nil, err
 	}
-	path := fmt.Sprintf("conversations/%s/items", conversationID)
+	path := requestconfig.FormatPath("conversations/%s/items", conversationID)
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodPost, path, params, &res, opts...)
 	return res, err
 }
 
 // Get a single item from a conversation with the given IDs.
 func (r *ItemService) Get(ctx context.Context, conversationID string, itemID string, query ItemGetParams, opts ...option.RequestOption) (res *ConversationItemUnion, err error) {
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	if conversationID == "" {
 		err = errors.New("missing required conversation_id parameter")
 		return nil, err
@@ -66,7 +67,7 @@ func (r *ItemService) Get(ctx context.Context, conversationID string, itemID str
 		err = errors.New("missing required item_id parameter")
 		return nil, err
 	}
-	path := fmt.Sprintf("conversations/%s/items/%s", conversationID, itemID)
+	path := requestconfig.FormatPath("conversations/%s/items/%s", conversationID, itemID)
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodGet, path, query, &res, opts...)
 	return res, err
 }
@@ -74,13 +75,14 @@ func (r *ItemService) Get(ctx context.Context, conversationID string, itemID str
 // List all items for a conversation with the given ID.
 func (r *ItemService) List(ctx context.Context, conversationID string, query ItemListParams, opts ...option.RequestOption) (res *pagination.ConversationCursorPage[ConversationItemUnion], err error) {
 	var raw *http.Response
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	opts = append([]option.RequestOption{option.WithResponseInto(&raw)}, opts...)
 	if conversationID == "" {
 		err = errors.New("missing required conversation_id parameter")
 		return nil, err
 	}
-	path := fmt.Sprintf("conversations/%s/items", conversationID)
+	path := requestconfig.FormatPath("conversations/%s/items", conversationID)
 	cfg, err := requestconfig.NewRequestConfig(ctx, http.MethodGet, path, query, &res, opts...)
 	if err != nil {
 		return nil, err
@@ -100,7 +102,8 @@ func (r *ItemService) ListAutoPaging(ctx context.Context, conversationID string,
 
 // Delete an item from a conversation with the given IDs.
 func (r *ItemService) Delete(ctx context.Context, conversationID string, itemID string, opts ...option.RequestOption) (res *Conversation, err error) {
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	if conversationID == "" {
 		err = errors.New("missing required conversation_id parameter")
 		return nil, err
@@ -109,7 +112,7 @@ func (r *ItemService) Delete(ctx context.Context, conversationID string, itemID 
 		err = errors.New("missing required item_id parameter")
 		return nil, err
 	}
-	path := fmt.Sprintf("conversations/%s/items/%s", conversationID, itemID)
+	path := requestconfig.FormatPath("conversations/%s/items/%s", conversationID, itemID)
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodDelete, path, nil, &res, opts...)
 	return res, err
 }

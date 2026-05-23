@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/url"
 	"slices"
@@ -70,7 +69,8 @@ func NewChatCompletionService(opts ...option.RequestOption) (r ChatCompletionSer
 // Returns a chat completion object, or a streamed sequence of chat completion
 // chunk objects if the request is streamed.
 func (r *ChatCompletionService) New(ctx context.Context, body ChatCompletionNewParams, opts ...option.RequestOption) (res *ChatCompletion, err error) {
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	path := "chat/completions"
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodPost, path, body, &res, opts...)
 	return res, err
@@ -101,7 +101,8 @@ func (r *ChatCompletionService) NewStreaming(ctx context.Context, body ChatCompl
 		raw *http.Response
 		err error
 	)
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	opts = append(opts, option.WithJSONSet("stream", true))
 	path := "chat/completions"
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodPost, path, body, &raw, opts...)
@@ -111,12 +112,13 @@ func (r *ChatCompletionService) NewStreaming(ctx context.Context, body ChatCompl
 // Get a stored chat completion. Only Chat Completions that have been created with
 // the `store` parameter set to `true` will be returned.
 func (r *ChatCompletionService) Get(ctx context.Context, completionID string, opts ...option.RequestOption) (res *ChatCompletion, err error) {
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	if completionID == "" {
 		err = errors.New("missing required completion_id parameter")
 		return nil, err
 	}
-	path := fmt.Sprintf("chat/completions/%s", completionID)
+	path := requestconfig.FormatPath("chat/completions/%s", completionID)
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodGet, path, nil, &res, opts...)
 	return res, err
 }
@@ -125,12 +127,13 @@ func (r *ChatCompletionService) Get(ctx context.Context, completionID string, op
 // with the `store` parameter set to `true` can be modified. Currently, the only
 // supported modification is to update the `metadata` field.
 func (r *ChatCompletionService) Update(ctx context.Context, completionID string, body ChatCompletionUpdateParams, opts ...option.RequestOption) (res *ChatCompletion, err error) {
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	if completionID == "" {
 		err = errors.New("missing required completion_id parameter")
 		return nil, err
 	}
-	path := fmt.Sprintf("chat/completions/%s", completionID)
+	path := requestconfig.FormatPath("chat/completions/%s", completionID)
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodPost, path, body, &res, opts...)
 	return res, err
 }
@@ -139,7 +142,8 @@ func (r *ChatCompletionService) Update(ctx context.Context, completionID string,
 // the `store` parameter set to `true` will be returned.
 func (r *ChatCompletionService) List(ctx context.Context, query ChatCompletionListParams, opts ...option.RequestOption) (res *pagination.CursorPage[ChatCompletion], err error) {
 	var raw *http.Response
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	opts = append([]option.RequestOption{option.WithResponseInto(&raw)}, opts...)
 	path := "chat/completions"
 	cfg, err := requestconfig.NewRequestConfig(ctx, http.MethodGet, path, query, &res, opts...)
@@ -163,12 +167,13 @@ func (r *ChatCompletionService) ListAutoPaging(ctx context.Context, query ChatCo
 // Delete a stored chat completion. Only Chat Completions that have been created
 // with the `store` parameter set to `true` can be deleted.
 func (r *ChatCompletionService) Delete(ctx context.Context, completionID string, opts ...option.RequestOption) (res *ChatCompletionDeleted, err error) {
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	if completionID == "" {
 		err = errors.New("missing required completion_id parameter")
 		return nil, err
 	}
-	path := fmt.Sprintf("chat/completions/%s", completionID)
+	path := requestconfig.FormatPath("chat/completions/%s", completionID)
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodDelete, path, nil, &res, opts...)
 	return res, err
 }
@@ -182,7 +187,7 @@ type ChatCompletion struct {
 	// than 1.
 	Choices []ChatCompletionChoice `json:"choices" api:"required"`
 	// The Unix timestamp (in seconds) of when the chat completion was created.
-	Created int64 `json:"created" api:"required"`
+	Created int64 `json:"created" api:"required" format:"unixtime"`
 	// The model used for the chat completion.
 	Model string `json:"model" api:"required"`
 	// The object type, which is always `chat.completion`.
@@ -512,7 +517,7 @@ type ChatCompletionAudio struct {
 	Data string `json:"data" api:"required"`
 	// The Unix timestamp (in seconds) for when this audio response will no longer be
 	// accessible on the server for use in multi-turn conversations.
-	ExpiresAt int64 `json:"expires_at" api:"required"`
+	ExpiresAt int64 `json:"expires_at" api:"required" format:"unixtime"`
 	// Transcript of the audio generated by the model.
 	Transcript string `json:"transcript" api:"required"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
@@ -646,7 +651,7 @@ type ChatCompletionChunk struct {
 	Choices []ChatCompletionChunkChoice `json:"choices" api:"required"`
 	// The Unix timestamp (in seconds) of when the chat completion was created. Each
 	// chunk has the same timestamp.
-	Created int64 `json:"created" api:"required"`
+	Created int64 `json:"created" api:"required" format:"unixtime"`
 	// The model to generate the completion.
 	Model string `json:"model" api:"required"`
 	// The object type, which is always `chat.completion.chunk`.
@@ -1688,7 +1693,7 @@ type ChatCompletionMessageAnnotationURLCitation struct {
 	// The title of the web resource.
 	Title string `json:"title" api:"required"`
 	// The URL of the web resource.
-	URL string `json:"url" api:"required"`
+	URL string `json:"url" api:"required" format:"uri"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		EndIndex    respjson.Field
@@ -2595,8 +2600,7 @@ type ChatCompletionTokenLogprob struct {
 	// unlikely.
 	Logprob float64 `json:"logprob" api:"required"`
 	// List of the most likely tokens and their log probability, at this token
-	// position. In rare cases, there may be fewer than the number of requested
-	// `top_logprobs` returned.
+	// position. The number of entries may be fewer than the requested `top_logprobs`.
 	TopLogprobs []ChatCompletionTokenLogprobTopLogprob `json:"top_logprobs" api:"required"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
@@ -3016,8 +3020,9 @@ type ChatCompletionNewParams struct {
 	// focused and deterministic. We generally recommend altering this or `top_p` but
 	// not both.
 	Temperature param.Opt[float64] `json:"temperature,omitzero"`
-	// An integer between 0 and 20 specifying the number of most likely tokens to
-	// return at each token position, each with an associated log probability.
+	// An integer between 0 and 20 specifying the maximum number of most likely tokens
+	// to return at each token position, each with an associated log probability. In
+	// some cases, the number of returned tokens may be fewer than requested.
 	// `logprobs` must be set to `true` if this parameter is used.
 	TopLogprobs param.Opt[int64] `json:"top_logprobs,omitzero"`
 	// An alternative to sampling with temperature, called nucleus sampling, where the
@@ -3085,7 +3090,7 @@ type ChatCompletionNewParams struct {
 	// of 24 hours.
 	// [Learn more](https://platform.openai.com/docs/guides/prompt-caching#prompt-cache-retention).
 	//
-	// Any of "in-memory", "24h".
+	// Any of "in_memory", "24h".
 	PromptCacheRetention ChatCompletionNewParamsPromptCacheRetention `json:"prompt_cache_retention,omitzero"`
 	// Constrains effort on reasoning for
 	// [reasoning models](https://platform.openai.com/docs/guides/reasoning). Currently
@@ -3269,7 +3274,7 @@ func (r *ChatCompletionNewParamsFunction) UnmarshalJSON(data []byte) error {
 type ChatCompletionNewParamsPromptCacheRetention string
 
 const (
-	ChatCompletionNewParamsPromptCacheRetentionInMemory ChatCompletionNewParamsPromptCacheRetention = "in-memory"
+	ChatCompletionNewParamsPromptCacheRetentionInMemory ChatCompletionNewParamsPromptCacheRetention = "in_memory"
 	ChatCompletionNewParamsPromptCacheRetention24h      ChatCompletionNewParamsPromptCacheRetention = "24h"
 )
 
