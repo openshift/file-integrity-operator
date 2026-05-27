@@ -30,7 +30,7 @@ LABEL \
         com.redhat.delivery.appregistry="false" \
         maintainer="Red Hat ISC <isc-team@redhat.com>" \
         License="GPLv2+" \
-        name="compliance/openshift-file-integrity-operator" \
+        name="compliance/openshift-file-integrity-rhel8-operator" \
         com.redhat.component="openshift-file-integrity-operator-container" \
         io.openshift.maintainer.product="OpenShift Container Platform" \
         io.openshift.maintainer.component="File Integrity Operator" \
