@@ -298,7 +298,7 @@ func ensureMetricsServiceAndSecret(ctx context.Context, kClient *kubernetes.Clie
 
 // ensureMetricsSecretsWithRetry attempts to verify metrics secrets exist with retry logic
 // to handle delays in secret sync from service-ca and token controllers.
-func ensureMetricsSecretsWithRetry(ctx context.Context, kClient *kubernetes.Clientset, ns string) error {
+func ensureMetricsSecretsWithRetry(ctx context.Context, kClient kubernetes.Interface, ns string) error {
 	err := backoff.Retry(func() error {
 		// Check for serving-cert secret (created by service-ca controller)
 		if _, err := kClient.CoreV1().Secrets(ns).Get(ctx, "file-integrity-operator-serving-cert", metav1.GetOptions{}); err != nil {
