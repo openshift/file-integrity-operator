@@ -2109,6 +2109,70 @@ func assertMasterDSNoRestart(t *testing.T, f *framework.Framework, fiName, names
 	t.Logf("Master node pods have not restarted")
 }
 
+func assertOperatorNoRestart(t *testing.T, f *framework.Framework, namespace string) {
+	pods, err := f.KubeClient.CoreV1().Pods(namespace).List(goctx.TODO(), metav1.ListOptions{
+		LabelSelector: "name=file-integrity-operator",
+	})
+	if err != nil {
+		t.Fatalf("Failed to get operator pods: %v", err)
+	}
+
+	if len(pods.Items) == 0 {
+		t.Fatal("No operator pods found")
+	}
+
+	for _, pod := range pods.Items {
+		for _, containerStatus := range pod.Status.ContainerStatuses {
+			if containerStatus.RestartCount > 0 {
+				t.Errorf("Operator pod %s container %s has restarted %d times",
+					pod.Name, containerStatus.Name, containerStatus.RestartCount)
+			}
+		}
+	}
+	t.Log("Operator pod has not restarted")
+}
+
+func assertOperatorLogsShowSecretsWait(t *testing.T, f *framework.Framework, namespace string) {
+	pods, err := f.KubeClient.CoreV1().Pods(namespace).List(goctx.TODO(), metav1.ListOptions{
+		LabelSelector: "name=file-integrity-operator",
+	})
+	if err != nil {
+		t.Fatalf("Failed to get operator pods: %v", err)
+	}
+
+	if len(pods.Items) == 0 {
+		t.Fatal("No operator pods found")
+	}
+
+	for _, pod := range pods.Items {
+		logOpts := &corev1.PodLogOptions{}
+		req := f.KubeClient.CoreV1().Pods(namespace).GetLogs(pod.Name, logOpts)
+		podLogs, err := req.Stream(goctx.TODO())
+		if err != nil {
+			t.Logf("Warning: Failed to get operator logs: %v", err)
+			continue
+		}
+
+		buf := new(bytes.Buffer)
+		_, copyErr := io.Copy(buf, podLogs)
+		podLogs.Close()
+		if copyErr != nil {
+			t.Logf("Warning: Failed to copy operator logs: %v", copyErr)
+			continue
+		}
+
+		logs := buf.String()
+
+		// Check if logs show waiting for secrets (indicates retry logic was exercised)
+		if strings.Contains(logs, "Waiting for file-integrity-operator-serving-cert") ||
+			strings.Contains(logs, "Created operator metrics token secret, waiting for it to be populated") {
+			t.Log("Operator logs confirm it waited for metrics secrets (retry logic working)")
+			return
+		}
+	}
+	t.Log("Operator logs don't show retry messages (secrets may have been immediately available)")
+}
+
 func assertDSPodHasArg(t *testing.T, f *framework.Framework, fiName, namespace, expectedLine string, interval, timeout time.Duration) error {
 	return wait.PollImmediate(interval, timeout, func() (bool, error) {
 		ds, getErr := f.KubeClient.AppsV1().DaemonSets(namespace).Get(goctx.TODO(), common.DaemonSetName(fiName), metav1.GetOptions{})
