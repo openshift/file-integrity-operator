@@ -537,6 +537,10 @@ type MessageBatchNewParamsRequestParams struct {
 	// Note that our models may stop _before_ reaching this maximum. This parameter
 	// only specifies the absolute maximum number of tokens to generate.
 	//
+	// Set to `0` to populate the
+	// [prompt cache](https://docs.claude.com/en/docs/build-with-claude/prompt-caching#pre-warming-the-cache)
+	// without generating a response.
+	//
 	// Different models have different maximum values for this parameter. See
 	// [models](https://docs.claude.com/en/docs/models-overview) for details.
 	MaxTokens int64 `json:"max_tokens" api:"required"`
@@ -610,8 +614,9 @@ type MessageBatchNewParamsRequestParams struct {
 	//
 	// There is a limit of 100,000 messages in a single request.
 	Messages []MessageParam `json:"messages,omitzero" api:"required"`
-	// The model that will complete your prompt.\n\nSee
-	// [models](https://docs.anthropic.com/en/docs/models-overview) for additional
+	// The model that will complete your prompt.
+	//
+	// See [models](https://docs.anthropic.com/en/docs/models-overview) for additional
 	// details and options.
 	Model Model `json:"model,omitzero" api:"required"`
 	// Container identifier for reuse across requests.
@@ -641,8 +646,7 @@ type MessageBatchNewParamsRequestParams struct {
 	// Used to remove "long tail" low probability responses.
 	// [Learn more technical details here](https://towardsdatascience.com/how-to-sample-from-language-models-682bceb97277).
 	//
-	// Recommended for advanced use cases only. You usually only need to use
-	// `temperature`.
+	// Recommended for advanced use cases only.
 	//
 	// Deprecated: Deprecated. Models released after Claude Opus 4.6 do not accept
 	// top_k; any value will be rejected with a 400 error.
@@ -651,11 +655,9 @@ type MessageBatchNewParamsRequestParams struct {
 	//
 	// In nucleus sampling, we compute the cumulative distribution over all the options
 	// for each subsequent token in decreasing probability order and cut it off once it
-	// reaches a particular probability specified by `top_p`. You should either alter
-	// `temperature` or `top_p`, but not both.
+	// reaches a particular probability specified by `top_p`.
 	//
-	// Recommended for advanced use cases only. You usually only need to use
-	// `temperature`.
+	// Recommended for advanced use cases only.
 	//
 	// Deprecated: Deprecated. Models released after Claude Opus 4.6 do not support
 	// setting top_p. A value >= 0.99 will be accepted for backwards compatibility, all
@@ -821,7 +823,7 @@ type MessageBatchListParams struct {
 // URLQuery serializes [MessageBatchListParams]'s query parameters as `url.Values`.
 func (r MessageBatchListParams) URLQuery() (v url.Values, err error) {
 	return apiquery.MarshalWithSettings(r, apiquery.QuerySettings{
-		ArrayFormat:  apiquery.ArrayQueryFormatComma,
+		ArrayFormat:  apiquery.ArrayQueryFormatBrackets,
 		NestedFormat: apiquery.NestedQueryFormatBrackets,
 	})
 }

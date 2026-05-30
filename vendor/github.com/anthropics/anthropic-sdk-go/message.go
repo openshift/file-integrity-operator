@@ -585,11 +585,23 @@ func (r *CitationCharLocationParam) UnmarshalJSON(data []byte) error {
 }
 
 type CitationContentBlockLocation struct {
-	CitedText       string                        `json:"cited_text" api:"required"`
-	DocumentIndex   int64                         `json:"document_index" api:"required"`
-	DocumentTitle   string                        `json:"document_title" api:"required"`
-	EndBlockIndex   int64                         `json:"end_block_index" api:"required"`
-	FileID          string                        `json:"file_id" api:"required"`
+	// The full text of the cited block range, concatenated.
+	//
+	// Always equals the contents of `content[start_block_index:end_block_index]`
+	// joined together. The text block is the minimal citable unit; this field is never
+	// a substring of a single block. Not counted toward output tokens, and not counted
+	// toward input tokens when sent back in subsequent turns.
+	CitedText     string `json:"cited_text" api:"required"`
+	DocumentIndex int64  `json:"document_index" api:"required"`
+	DocumentTitle string `json:"document_title" api:"required"`
+	// Exclusive 0-based end index of the cited block range in the source's `content`
+	// array.
+	//
+	// Always greater than `start_block_index`; a single-block citation has
+	// `end_block_index = start_block_index + 1`.
+	EndBlockIndex int64  `json:"end_block_index" api:"required"`
+	FileID        string `json:"file_id" api:"required"`
+	// 0-based index of the first cited block in the source's `content` array.
 	StartBlockIndex int64                         `json:"start_block_index" api:"required"`
 	Type            constant.ContentBlockLocation `json:"type" default:"content_block_location"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
@@ -615,11 +627,23 @@ func (r *CitationContentBlockLocation) UnmarshalJSON(data []byte) error {
 // The properties CitedText, DocumentIndex, DocumentTitle, EndBlockIndex,
 // StartBlockIndex, Type are required.
 type CitationContentBlockLocationParam struct {
-	DocumentTitle   param.Opt[string] `json:"document_title,omitzero" api:"required"`
-	CitedText       string            `json:"cited_text" api:"required"`
-	DocumentIndex   int64             `json:"document_index" api:"required"`
-	EndBlockIndex   int64             `json:"end_block_index" api:"required"`
-	StartBlockIndex int64             `json:"start_block_index" api:"required"`
+	DocumentTitle param.Opt[string] `json:"document_title,omitzero" api:"required"`
+	// The full text of the cited block range, concatenated.
+	//
+	// Always equals the contents of `content[start_block_index:end_block_index]`
+	// joined together. The text block is the minimal citable unit; this field is never
+	// a substring of a single block. Not counted toward output tokens, and not counted
+	// toward input tokens when sent back in subsequent turns.
+	CitedText     string `json:"cited_text" api:"required"`
+	DocumentIndex int64  `json:"document_index" api:"required"`
+	// Exclusive 0-based end index of the cited block range in the source's `content`
+	// array.
+	//
+	// Always greater than `start_block_index`; a single-block citation has
+	// `end_block_index = start_block_index + 1`.
+	EndBlockIndex int64 `json:"end_block_index" api:"required"`
+	// 0-based index of the first cited block in the source's `content` array.
+	StartBlockIndex int64 `json:"start_block_index" api:"required"`
 	// This field can be elided, and will marshal its zero value as
 	// "content_block_location".
 	Type constant.ContentBlockLocation `json:"type" default:"content_block_location"`
@@ -686,12 +710,30 @@ func (r *CitationPageLocationParam) UnmarshalJSON(data []byte) error {
 // The properties CitedText, EndBlockIndex, SearchResultIndex, Source,
 // StartBlockIndex, Title, Type are required.
 type CitationSearchResultLocationParam struct {
-	Title             param.Opt[string] `json:"title,omitzero" api:"required"`
-	CitedText         string            `json:"cited_text" api:"required"`
-	EndBlockIndex     int64             `json:"end_block_index" api:"required"`
-	SearchResultIndex int64             `json:"search_result_index" api:"required"`
-	Source            string            `json:"source" api:"required"`
-	StartBlockIndex   int64             `json:"start_block_index" api:"required"`
+	Title param.Opt[string] `json:"title,omitzero" api:"required"`
+	// The full text of the cited block range, concatenated.
+	//
+	// Always equals the contents of `content[start_block_index:end_block_index]`
+	// joined together. The text block is the minimal citable unit; this field is never
+	// a substring of a single block. Not counted toward output tokens, and not counted
+	// toward input tokens when sent back in subsequent turns.
+	CitedText string `json:"cited_text" api:"required"`
+	// Exclusive 0-based end index of the cited block range in the source's `content`
+	// array.
+	//
+	// Always greater than `start_block_index`; a single-block citation has
+	// `end_block_index = start_block_index + 1`.
+	EndBlockIndex int64 `json:"end_block_index" api:"required"`
+	// 0-based index of the cited search result among all `search_result` content
+	// blocks in the request, in the order they appear across messages and tool
+	// results.
+	//
+	// Counted separately from `document_index`; server-side web search results are not
+	// included in this count.
+	SearchResultIndex int64  `json:"search_result_index" api:"required"`
+	Source            string `json:"source" api:"required"`
+	// 0-based index of the first cited block in the source's `content` array.
+	StartBlockIndex int64 `json:"start_block_index" api:"required"`
 	// This field can be elided, and will marshal its zero value as
 	// "search_result_location".
 	Type constant.SearchResultLocation `json:"type" default:"search_result_location"`
@@ -901,13 +943,31 @@ func (r *CitationsDeltaCitationUnion) UnmarshalJSON(data []byte) error {
 }
 
 type CitationsSearchResultLocation struct {
-	CitedText         string                        `json:"cited_text" api:"required"`
-	EndBlockIndex     int64                         `json:"end_block_index" api:"required"`
-	SearchResultIndex int64                         `json:"search_result_index" api:"required"`
-	Source            string                        `json:"source" api:"required"`
-	StartBlockIndex   int64                         `json:"start_block_index" api:"required"`
-	Title             string                        `json:"title" api:"required"`
-	Type              constant.SearchResultLocation `json:"type" default:"search_result_location"`
+	// The full text of the cited block range, concatenated.
+	//
+	// Always equals the contents of `content[start_block_index:end_block_index]`
+	// joined together. The text block is the minimal citable unit; this field is never
+	// a substring of a single block. Not counted toward output tokens, and not counted
+	// toward input tokens when sent back in subsequent turns.
+	CitedText string `json:"cited_text" api:"required"`
+	// Exclusive 0-based end index of the cited block range in the source's `content`
+	// array.
+	//
+	// Always greater than `start_block_index`; a single-block citation has
+	// `end_block_index = start_block_index + 1`.
+	EndBlockIndex int64 `json:"end_block_index" api:"required"`
+	// 0-based index of the cited search result among all `search_result` content
+	// blocks in the request, in the order they appear across messages and tool
+	// results.
+	//
+	// Counted separately from `document_index`; server-side web search results are not
+	// included in this count.
+	SearchResultIndex int64  `json:"search_result_index" api:"required"`
+	Source            string `json:"source" api:"required"`
+	// 0-based index of the first cited block in the source's `content` array.
+	StartBlockIndex int64                         `json:"start_block_index" api:"required"`
+	Title           string                        `json:"title" api:"required"`
+	Type            constant.SearchResultLocation `json:"type" default:"search_result_location"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		CitedText         respjson.Field
@@ -1946,6 +2006,12 @@ func NewContainerUploadBlock(fileID string) ContentBlockParamUnion {
 	return ContentBlockParamUnion{OfContainerUpload: &containerUpload}
 }
 
+func NewMidConvSystemBlock(content []TextBlockParam) ContentBlockParamUnion {
+	var midConvSystem MidConversationSystemBlockParam
+	midConvSystem.Content = content
+	return ContentBlockParamUnion{OfMidConvSystem: &midConvSystem}
+}
+
 // Only one field can be non-zero.
 //
 // Use [param.IsOmitted] to confirm if a field is set.
@@ -1966,6 +2032,7 @@ type ContentBlockParamUnion struct {
 	OfTextEditorCodeExecutionToolResult *TextEditorCodeExecutionToolResultBlockParam `json:",omitzero,inline"`
 	OfToolSearchToolResult              *ToolSearchToolResultBlockParam              `json:",omitzero,inline"`
 	OfContainerUpload                   *ContainerUploadBlockParam                   `json:",omitzero,inline"`
+	OfMidConvSystem                     *MidConversationSystemBlockParam             `json:",omitzero,inline"`
 	paramUnion
 }
 
@@ -1985,7 +2052,8 @@ func (u ContentBlockParamUnion) MarshalJSON() ([]byte, error) {
 		u.OfBashCodeExecutionToolResult,
 		u.OfTextEditorCodeExecutionToolResult,
 		u.OfToolSearchToolResult,
-		u.OfContainerUpload)
+		u.OfContainerUpload,
+		u.OfMidConvSystem)
 }
 func (u *ContentBlockParamUnion) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, u)
@@ -2024,6 +2092,8 @@ func (u *ContentBlockParamUnion) asAny() any {
 		return u.OfToolSearchToolResult
 	} else if !param.IsOmitted(u.OfContainerUpload) {
 		return u.OfContainerUpload
+	} else if !param.IsOmitted(u.OfMidConvSystem) {
+		return u.OfMidConvSystem
 	}
 	return nil
 }
@@ -2118,6 +2188,8 @@ func (u ContentBlockParamUnion) GetType() *string {
 		return (*string)(&vt.Type)
 	} else if vt := u.OfContainerUpload; vt != nil {
 		return (*string)(&vt.Type)
+	} else if vt := u.OfMidConvSystem; vt != nil {
+		return (*string)(&vt.Type)
 	}
 	return nil
 }
@@ -2201,6 +2273,8 @@ func (u ContentBlockParamUnion) GetCacheControl() *CacheControlEphemeralParam {
 	} else if vt := u.OfToolSearchToolResult; vt != nil {
 		return &vt.CacheControl
 	} else if vt := u.OfContainerUpload; vt != nil {
+		return &vt.CacheControl
+	} else if vt := u.OfMidConvSystem; vt != nil {
 		return &vt.CacheControl
 	}
 	return nil
@@ -2349,6 +2423,8 @@ func (u ContentBlockParamUnion) GetContent() (res contentBlockParamUnionContent)
 		res.any = vt.Content.asAny()
 	} else if vt := u.OfToolSearchToolResult; vt != nil {
 		res.any = vt.Content.asAny()
+	} else if vt := u.OfMidConvSystem; vt != nil {
+		res.any = &vt.Content
 	}
 	return
 }
@@ -2752,6 +2828,7 @@ func init() {
 		apijson.Discriminator[TextEditorCodeExecutionToolResultBlockParam]("text_editor_code_execution_tool_result"),
 		apijson.Discriminator[ToolSearchToolResultBlockParam]("tool_search_tool_result"),
 		apijson.Discriminator[ContainerUploadBlockParam]("container_upload"),
+		apijson.Discriminator[MidConversationSystemBlockParam]("mid_conv_system"),
 	)
 }
 
@@ -3379,8 +3456,9 @@ type Message struct {
 	// [{ "type": "text", "text": "B)" }]
 	// ```
 	Content []ContentBlockUnion `json:"content" api:"required"`
-	// The model that will complete your prompt.\n\nSee
-	// [models](https://docs.anthropic.com/en/docs/models-overview) for additional
+	// The model that will complete your prompt.
+	//
+	// See [models](https://docs.anthropic.com/en/docs/models-overview) for additional
 	// details and options.
 	Model Model `json:"model" api:"required"`
 	// Conversational role of the generated message.
@@ -3455,7 +3533,6 @@ func (r Message) RawJSON() string { return r.JSON.raw }
 func (r *Message) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, r)
 }
-
 
 func MessageCountTokensToolParamOfTool(inputSchema ToolInputSchemaParam, name string) MessageCountTokensToolUnionParam {
 	var variant ToolParam
@@ -3939,6 +4016,13 @@ type MessageDeltaUsage struct {
 	InputTokens int64 `json:"input_tokens" api:"required"`
 	// The cumulative number of output tokens which were used.
 	OutputTokens int64 `json:"output_tokens" api:"required"`
+	// Breakdown of output tokens by category.
+	//
+	// `output_tokens` remains the inclusive, authoritative total used for billing.
+	// This object provides a read-only decomposition for observability — for example,
+	// how many of the billed output tokens were spent on internal reasoning that may
+	// have been summarized before being returned to you.
+	OutputTokensDetails OutputTokensDetails `json:"output_tokens_details" api:"required"`
 	// The number of server tool requests.
 	ServerToolUse ServerToolUsage `json:"server_tool_use" api:"required"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
@@ -3947,6 +4031,7 @@ type MessageDeltaUsage struct {
 		CacheReadInputTokens     respjson.Field
 		InputTokens              respjson.Field
 		OutputTokens             respjson.Field
+		OutputTokensDetails      respjson.Field
 		ServerToolUse            respjson.Field
 		ExtraFields              map[string]respjson.Field
 		raw                      string
@@ -3962,7 +4047,7 @@ func (r *MessageDeltaUsage) UnmarshalJSON(data []byte) error {
 // The properties Content, Role are required.
 type MessageParam struct {
 	Content []ContentBlockParamUnion `json:"content,omitzero" api:"required"`
-	// Any of "user", "assistant".
+	// Any of "user", "assistant", "system".
 	Role MessageParamRole `json:"role,omitzero" api:"required"`
 	paramObj
 }
@@ -3994,6 +4079,7 @@ type MessageParamRole string
 const (
 	MessageParamRoleUser      MessageParamRole = "user"
 	MessageParamRoleAssistant MessageParamRole = "assistant"
+	MessageParamRoleSystem    MessageParamRole = "system"
 )
 
 type MessageTokensCount struct {
@@ -4032,12 +4118,39 @@ func (r *MetadataParam) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, r)
 }
 
-// The model that will complete your prompt.\n\nSee
-// [models](https://docs.anthropic.com/en/docs/models-overview) for additional
+// System instructions that appear mid-conversation.
+//
+// Use this block to provide or update system-level instructions at a specific
+// point in the conversation, rather than only via the top-level `system`
+// parameter.
+//
+// The properties Content, Type are required.
+type MidConversationSystemBlockParam struct {
+	// System instruction text blocks.
+	Content []TextBlockParam `json:"content,omitzero" api:"required"`
+	// Create a cache control breakpoint at this content block.
+	CacheControl CacheControlEphemeralParam `json:"cache_control,omitzero"`
+	// This field can be elided, and will marshal its zero value as "mid_conv_system".
+	Type constant.MidConvSystem `json:"type" default:"mid_conv_system"`
+	paramObj
+}
+
+func (r MidConversationSystemBlockParam) MarshalJSON() (data []byte, err error) {
+	type shadow MidConversationSystemBlockParam
+	return param.MarshalObject(r, (*shadow)(&r))
+}
+func (r *MidConversationSystemBlockParam) UnmarshalJSON(data []byte) error {
+	return apijson.UnmarshalRoot(data, r)
+}
+
+// The model that will complete your prompt.
+//
+// See [models](https://docs.anthropic.com/en/docs/models-overview) for additional
 // details and options.
 type Model = string
 
 const (
+	ModelClaudeOpus4_8            Model = "claude-opus-4-8"
 	ModelClaudeOpus4_7            Model = "claude-opus-4-7"
 	ModelClaudeMythosPreview      Model = "claude-mythos-preview"
 	ModelClaudeOpus4_6            Model = "claude-opus-4-6"
@@ -4102,6 +4215,30 @@ const (
 	OutputConfigEffortXhigh  OutputConfigEffort = "xhigh"
 	OutputConfigEffortMax    OutputConfigEffort = "max"
 )
+
+type OutputTokensDetails struct {
+	// Number of output tokens the model generated as internal reasoning, including the
+	// thinking-block delimiter tokens.
+	//
+	// Reflects the raw reasoning the model produced, not the (possibly shorter)
+	// summarized thinking text returned in the response body. Computed by
+	// re-tokenizing the raw reasoning text, so it may differ from the model's exact
+	// generation count by a small number of tokens. Always ≤ `output_tokens`;
+	// `output_tokens - thinking_tokens` approximates the non-reasoning output.
+	ThinkingTokens int64 `json:"thinking_tokens" api:"required"`
+	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
+	JSON struct {
+		ThinkingTokens respjson.Field
+		ExtraFields    map[string]respjson.Field
+		raw            string
+	} `json:"-"`
+}
+
+// Returns the unmodified JSON received from the API
+func (r OutputTokensDetails) RawJSON() string { return r.JSON.raw }
+func (r *OutputTokensDetails) UnmarshalJSON(data []byte) error {
+	return apijson.UnmarshalRoot(data, r)
+}
 
 type PlainTextSource struct {
 	Data      string             `json:"data" api:"required"`
@@ -5225,8 +5362,8 @@ const (
 
 // The properties ID, Input, Name, Type are required.
 type ServerToolUseBlockParam struct {
-	ID    string         `json:"id" api:"required"`
-	Input any            `json:"input,omitzero" api:"required"`
+	ID    string `json:"id" api:"required"`
+	Input any    `json:"input,omitzero" api:"required"`
 	// Any of "web_search", "web_fetch", "code_execution", "bash_code_execution",
 	// "text_editor_code_execution", "tool_search_tool_regex", "tool_search_tool_bm25".
 	Name ServerToolUseBlockParamName `json:"name,omitzero" api:"required"`
@@ -7881,9 +8018,9 @@ type ToolUseBlock struct {
 	// Tool invocation directly from the model.
 	Caller ToolUseBlockCallerUnion `json:"caller" api:"required"`
 	// necessary custom code modification
-	Input json.RawMessage          `json:"input,required"`
-	Name   string                  `json:"name" api:"required"`
-	Type   constant.ToolUse        `json:"type" default:"tool_use"`
+	Input json.RawMessage  `json:"input,required"`
+	Name  string           `json:"name" api:"required"`
+	Type  constant.ToolUse `json:"type" default:"tool_use"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		ID          respjson.Field
@@ -8099,6 +8236,13 @@ type Usage struct {
 	InputTokens int64 `json:"input_tokens" api:"required"`
 	// The number of output tokens which were used.
 	OutputTokens int64 `json:"output_tokens" api:"required"`
+	// Breakdown of output tokens by category.
+	//
+	// `output_tokens` remains the inclusive, authoritative total used for billing.
+	// This object provides a read-only decomposition for observability — for example,
+	// how many of the billed output tokens were spent on internal reasoning that may
+	// have been summarized before being returned to you.
+	OutputTokensDetails OutputTokensDetails `json:"output_tokens_details" api:"required"`
 	// The number of server tool requests.
 	ServerToolUse ServerToolUsage `json:"server_tool_use" api:"required"`
 	// If the request used the priority, standard, or batch tier.
@@ -8113,6 +8257,7 @@ type Usage struct {
 		InferenceGeo             respjson.Field
 		InputTokens              respjson.Field
 		OutputTokens             respjson.Field
+		OutputTokensDetails      respjson.Field
 		ServerToolUse            respjson.Field
 		ServiceTier              respjson.Field
 		ExtraFields              map[string]respjson.Field
@@ -8625,8 +8770,8 @@ func init() {
 
 type WebFetchToolResultErrorBlock struct {
 	// Any of "invalid_tool_input", "url_too_long", "url_not_allowed",
-	// "url_not_accessible", "unsupported_content_type", "too_many_requests",
-	// "max_uses_exceeded", "unavailable".
+	// "url_not_in_prior_context", "url_not_accessible", "unsupported_content_type",
+	// "too_many_requests", "max_uses_exceeded", "unavailable".
 	ErrorCode WebFetchToolResultErrorCode      `json:"error_code" api:"required"`
 	Type      constant.WebFetchToolResultError `json:"type" default:"web_fetch_tool_result_error"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
@@ -8647,8 +8792,8 @@ func (r *WebFetchToolResultErrorBlock) UnmarshalJSON(data []byte) error {
 // The properties ErrorCode, Type are required.
 type WebFetchToolResultErrorBlockParam struct {
 	// Any of "invalid_tool_input", "url_too_long", "url_not_allowed",
-	// "url_not_accessible", "unsupported_content_type", "too_many_requests",
-	// "max_uses_exceeded", "unavailable".
+	// "url_not_in_prior_context", "url_not_accessible", "unsupported_content_type",
+	// "too_many_requests", "max_uses_exceeded", "unavailable".
 	ErrorCode WebFetchToolResultErrorCode `json:"error_code,omitzero" api:"required"`
 	// This field can be elided, and will marshal its zero value as
 	// "web_fetch_tool_result_error".
@@ -8670,6 +8815,7 @@ const (
 	WebFetchToolResultErrorCodeInvalidToolInput       WebFetchToolResultErrorCode = "invalid_tool_input"
 	WebFetchToolResultErrorCodeURLTooLong             WebFetchToolResultErrorCode = "url_too_long"
 	WebFetchToolResultErrorCodeURLNotAllowed          WebFetchToolResultErrorCode = "url_not_allowed"
+	WebFetchToolResultErrorCodeURLNotInPriorContext   WebFetchToolResultErrorCode = "url_not_in_prior_context"
 	WebFetchToolResultErrorCodeURLNotAccessible       WebFetchToolResultErrorCode = "url_not_accessible"
 	WebFetchToolResultErrorCodeUnsupportedContentType WebFetchToolResultErrorCode = "unsupported_content_type"
 	WebFetchToolResultErrorCodeTooManyRequests        WebFetchToolResultErrorCode = "too_many_requests"
@@ -9108,6 +9254,10 @@ type MessageNewParams struct {
 	// Note that our models may stop _before_ reaching this maximum. This parameter
 	// only specifies the absolute maximum number of tokens to generate.
 	//
+	// Set to `0` to populate the
+	// [prompt cache](https://docs.claude.com/en/docs/build-with-claude/prompt-caching#pre-warming-the-cache)
+	// without generating a response.
+	//
 	// Different models have different maximum values for this parameter. See
 	// [models](https://docs.claude.com/en/docs/models-overview) for details.
 	MaxTokens int64 `json:"max_tokens" api:"required"`
@@ -9181,8 +9331,9 @@ type MessageNewParams struct {
 	//
 	// There is a limit of 100,000 messages in a single request.
 	Messages []MessageParam `json:"messages,omitzero" api:"required"`
-	// The model that will complete your prompt.\n\nSee
-	// [models](https://docs.anthropic.com/en/docs/models-overview) for additional
+	// The model that will complete your prompt.
+	//
+	// See [models](https://docs.anthropic.com/en/docs/models-overview) for additional
 	// details and options.
 	Model Model `json:"model,omitzero" api:"required"`
 	// Container identifier for reuse across requests.
@@ -9204,18 +9355,15 @@ type MessageNewParams struct {
 	// Used to remove "long tail" low probability responses.
 	// [Learn more technical details here](https://towardsdatascience.com/how-to-sample-from-language-models-682bceb97277).
 	//
-	// Recommended for advanced use cases only. You usually only need to use
-	// `temperature`.
+	// Recommended for advanced use cases only.
 	TopK param.Opt[int64] `json:"top_k,omitzero"`
 	// Use nucleus sampling.
 	//
 	// In nucleus sampling, we compute the cumulative distribution over all the options
 	// for each subsequent token in decreasing probability order and cut it off once it
-	// reaches a particular probability specified by `top_p`. You should either alter
-	// `temperature` or `top_p`, but not both.
+	// reaches a particular probability specified by `top_p`.
 	//
-	// Recommended for advanced use cases only. You usually only need to use
-	// `temperature`.
+	// Recommended for advanced use cases only.
 	TopP param.Opt[float64] `json:"top_p,omitzero"`
 	// Top-level cache control automatically applies a cache_control marker to the last
 	// cacheable block in the request.
@@ -9437,8 +9585,9 @@ type MessageCountTokensParams struct {
 	//
 	// There is a limit of 100,000 messages in a single request.
 	Messages []MessageParam `json:"messages,omitzero" api:"required"`
-	// The model that will complete your prompt.\n\nSee
-	// [models](https://docs.anthropic.com/en/docs/models-overview) for additional
+	// The model that will complete your prompt.
+	//
+	// See [models](https://docs.anthropic.com/en/docs/models-overview) for additional
 	// details and options.
 	Model Model `json:"model,omitzero" api:"required"`
 	// Top-level cache control automatically applies a cache_control marker to the last
