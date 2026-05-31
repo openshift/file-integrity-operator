@@ -1,16 +1,5 @@
-// Copyright 2015 go-swagger maintainers
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//    http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-FileCopyrightText: Copyright 2015-2025 go-swagger maintainers
+// SPDX-License-Identifier: Apache-2.0
 
 package validate
 
@@ -20,35 +9,11 @@ import (
 	"github.com/go-openapi/spec"
 )
 
-// ExampleValidator validates example values defined in a spec
+// ExampleValidator validates example values defined in a spec.
 type exampleValidator struct {
 	SpecValidator  *SpecValidator
 	visitedSchemas map[string]struct{}
 	schemaOptions  *SchemaValidatorOptions
-}
-
-// resetVisited resets the internal state of visited schemas
-func (ex *exampleValidator) resetVisited() {
-	if ex.visitedSchemas == nil {
-		ex.visitedSchemas = make(map[string]struct{})
-
-		return
-	}
-
-	// TODO(go1.21): clear(ex.visitedSchemas)
-	for k := range ex.visitedSchemas {
-		delete(ex.visitedSchemas, k)
-	}
-}
-
-// beingVisited asserts a schema is being visited
-func (ex *exampleValidator) beingVisited(path string) {
-	ex.visitedSchemas[path] = struct{}{}
-}
-
-// isVisited tells if a path has already been visited
-func (ex *exampleValidator) isVisited(path string) bool {
-	return isVisited(path, ex.visitedSchemas)
 }
 
 // Validate validates the example values declared in the swagger spec
@@ -59,7 +24,7 @@ func (ex *exampleValidator) isVisited(path string) bool {
 //   - individual property
 //   - responses
 func (ex *exampleValidator) Validate() *Result {
-	errs := poolOfResults.BorrowResult()
+	errs := pools.poolOfResults.BorrowResult()
 
 	if ex == nil || ex.SpecValidator == nil {
 		return errs
@@ -70,12 +35,37 @@ func (ex *exampleValidator) Validate() *Result {
 	return errs
 }
 
+// resetVisited resets the internal state of visited schemas.
+func (ex *exampleValidator) resetVisited() {
+	if ex.visitedSchemas == nil {
+		ex.visitedSchemas = make(map[string]struct{})
+
+		return
+	}
+
+	// NOTE(go1.21): clear(ex.visitedSchemas)
+	for k := range ex.visitedSchemas {
+		delete(ex.visitedSchemas, k)
+	}
+}
+
+// beingVisited asserts a schema is being visited.
+func (ex *exampleValidator) beingVisited(path string) {
+	ex.visitedSchemas[path] = struct{}{}
+}
+
+// isVisited tells if a path has already been visited.
+func (ex *exampleValidator) isVisited(path string) bool {
+	return isVisited(path, ex.visitedSchemas)
+}
+
+//nolint:gocognit // refactor in a forthcoming PR
 func (ex *exampleValidator) validateExampleValueValidAgainstSchema() *Result {
 	// every example value that is specified must validate against the schema for that property
 	// in: schemas, properties, object, items
 	// not in: headers, parameters without schema
 
-	res := poolOfResults.BorrowResult()
+	res := pools.poolOfResults.BorrowResult()
 	s := ex.SpecValidator
 
 	for method, pathItem := range s.expandedAnalyzer().Operations() {
@@ -97,6 +87,8 @@ func (ex *exampleValidator) validateExampleValueValidAgainstSchema() *Result {
 					if red.HasErrorsOrWarnings() {
 						res.AddWarnings(exampleValueDoesNotValidateMsg(param.Name, param.In))
 						res.MergeAsWarnings(red)
+					} else if red.wantsRedeemOnMerge {
+						pools.poolOfResults.RedeemResult(red)
 					}
 				}
 
@@ -106,8 +98,8 @@ func (ex *exampleValidator) validateExampleValueValidAgainstSchema() *Result {
 					if red.HasErrorsOrWarnings() {
 						res.AddWarnings(exampleValueItemsDoesNotValidateMsg(param.Name, param.In))
 						res.Merge(red)
-					} else {
-						poolOfResults.RedeemResult(red)
+					} else if red.wantsRedeemOnMerge {
+						pools.poolOfResults.RedeemResult(red)
 					}
 				}
 
@@ -117,8 +109,8 @@ func (ex *exampleValidator) validateExampleValueValidAgainstSchema() *Result {
 					if red.HasErrorsOrWarnings() {
 						res.AddWarnings(exampleValueDoesNotValidateMsg(param.Name, param.In))
 						res.Merge(red)
-					} else {
-						poolOfResults.RedeemResult(red)
+					} else if red.wantsRedeemOnMerge {
+						pools.poolOfResults.RedeemResult(red)
 					}
 				}
 			}
@@ -144,7 +136,7 @@ func (ex *exampleValidator) validateExampleValueValidAgainstSchema() *Result {
 		// reset explored schemas to get depth-first recursive-proof exploration
 		ex.resetVisited()
 		for nm, sch := range s.spec.Spec().Definitions {
-			res.Merge(ex.validateExampleValueSchemaAgainstSchema(fmt.Sprintf("definitions.%s", nm), "body", &sch)) //#nosec
+			res.Merge(ex.validateExampleValueSchemaAgainstSchema("definitions."+nm, "body", &sch)) //#nosec
 		}
 	}
 	return res
@@ -170,6 +162,8 @@ func (ex *exampleValidator) validateExampleInResponse(resp *spec.Response, respo
 				if red.HasErrorsOrWarnings() {
 					res.AddWarnings(exampleValueHeaderDoesNotValidateMsg(operationID, nm, responseName))
 					res.MergeAsWarnings(red)
+				} else if red.wantsRedeemOnMerge {
+					pools.poolOfResults.RedeemResult(red)
 				}
 			}
 
@@ -179,6 +173,8 @@ func (ex *exampleValidator) validateExampleInResponse(resp *spec.Response, respo
 				if red.HasErrorsOrWarnings() {
 					res.AddWarnings(exampleValueHeaderItemsDoesNotValidateMsg(operationID, nm, responseName))
 					res.MergeAsWarnings(red)
+				} else if red.wantsRedeemOnMerge {
+					pools.poolOfResults.RedeemResult(red)
 				}
 			}
 
@@ -198,6 +194,8 @@ func (ex *exampleValidator) validateExampleInResponse(resp *spec.Response, respo
 			// Additional message to make sure the context of the error is not lost
 			res.AddWarnings(exampleValueInDoesNotValidateMsg(operationID, responseName))
 			res.Merge(red)
+		} else if red.wantsRedeemOnMerge {
+			pools.poolOfResults.RedeemResult(red)
 		}
 	}
 
@@ -208,7 +206,7 @@ func (ex *exampleValidator) validateExampleInResponse(resp *spec.Response, respo
 					newSchemaValidator(response.Schema, s.spec.Spec(), path+".examples", s.KnownFormats, s.schemaOptions).Validate(example),
 				)
 			} else {
-				// TODO: validate other media types too
+				// Proposal for enhancement: validate other media types too
 				res.AddWarnings(examplesMimeNotSupportedMsg(operationID, responseName))
 			}
 		} else {
@@ -225,7 +223,7 @@ func (ex *exampleValidator) validateExampleValueSchemaAgainstSchema(path, in str
 	}
 	ex.beingVisited(path)
 	s := ex.SpecValidator
-	res := poolOfResults.BorrowResult()
+	res := pools.poolOfResults.BorrowResult()
 
 	if schema.Example != nil {
 		res.MergeAsWarnings(
@@ -248,7 +246,7 @@ func (ex *exampleValidator) validateExampleValueSchemaAgainstSchema(path, in str
 	}
 	if schema.AdditionalItems != nil && schema.AdditionalItems.Schema != nil {
 		// NOTE: we keep validating values, even though additionalItems is unsupported in Swagger 2.0 (and 3.0 as well)
-		res.Merge(ex.validateExampleValueSchemaAgainstSchema(fmt.Sprintf("%s.additionalItems", path), in, schema.AdditionalItems.Schema))
+		res.Merge(ex.validateExampleValueSchemaAgainstSchema(path+".additionalItems", in, schema.AdditionalItems.Schema))
 	}
 	for propName, prop := range schema.Properties {
 		res.Merge(ex.validateExampleValueSchemaAgainstSchema(path+"."+propName, in, &prop)) //#nosec
@@ -257,7 +255,7 @@ func (ex *exampleValidator) validateExampleValueSchemaAgainstSchema(path, in str
 		res.Merge(ex.validateExampleValueSchemaAgainstSchema(path+"."+propName, in, &prop)) //#nosec
 	}
 	if schema.AdditionalProperties != nil && schema.AdditionalProperties.Schema != nil {
-		res.Merge(ex.validateExampleValueSchemaAgainstSchema(fmt.Sprintf("%s.additionalProperties", path), in, schema.AdditionalProperties.Schema))
+		res.Merge(ex.validateExampleValueSchemaAgainstSchema(path+".additionalProperties", in, schema.AdditionalProperties.Schema))
 	}
 	if schema.AllOf != nil {
 		for i, aoSch := range schema.AllOf {
@@ -267,11 +265,11 @@ func (ex *exampleValidator) validateExampleValueSchemaAgainstSchema(path, in str
 	return res
 }
 
-// TODO: Temporary duplicated code. Need to refactor with examples
+// NOTE: Temporary duplicated code. Need to refactor with examples
 //
 
-func (ex *exampleValidator) validateExampleValueItemsAgainstSchema(path, in string, root interface{}, items *spec.Items) *Result {
-	res := poolOfResults.BorrowResult()
+func (ex *exampleValidator) validateExampleValueItemsAgainstSchema(path, in string, root any, items *spec.Items) *Result {
+	res := pools.poolOfResults.BorrowResult()
 	s := ex.SpecValidator
 	if items != nil {
 		if items.Example != nil {

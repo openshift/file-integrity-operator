@@ -1,4 +1,4 @@
-// Copyright 2024 The Prometheus Authors
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -17,94 +17,106 @@
 package prometheusremotewrite
 
 import (
+	"context"
 	"math"
 
 	"github.com/prometheus/common/model"
-	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 
 	"github.com/prometheus/prometheus/model/value"
-	"github.com/prometheus/prometheus/prompb"
+	"github.com/prometheus/prometheus/storage"
 )
 
-func (c *PrometheusConverter) addGaugeNumberDataPoints(dataPoints pmetric.NumberDataPointSlice,
-	resource pcommon.Resource, settings Settings, name string) {
+func (c *PrometheusConverter) addGaugeNumberDataPoints(
+	ctx context.Context,
+	dataPoints pmetric.NumberDataPointSlice,
+	settings Settings,
+	appOpts storage.AOptions,
+) error {
 	for x := 0; x < dataPoints.Len(); x++ {
-		pt := dataPoints.At(x)
-		labels := createAttributes(
-			resource,
-			pt.Attributes(),
-			settings.ExternalLabels,
-			nil,
-			true,
-			model.MetricNameLabel,
-			name,
-		)
-		sample := &prompb.Sample{
-			// convert ns to ms
-			Timestamp: convertTimeStamp(pt.Timestamp()),
+		if err := c.everyN.checkContext(ctx); err != nil {
+			return err
 		}
+
+		pt := dataPoints.At(x)
+		labels, err := c.createAttributes(
+			pt.Attributes(),
+			settings,
+			reservedLabelNames,
+			true,
+			appOpts.Metadata,
+			model.MetricNameLabel,
+			appOpts.MetricFamilyName,
+		)
+		if err != nil {
+			return err
+		}
+		var val float64
 		switch pt.ValueType() {
 		case pmetric.NumberDataPointValueTypeInt:
-			sample.Value = float64(pt.IntValue())
+			val = float64(pt.IntValue())
 		case pmetric.NumberDataPointValueTypeDouble:
-			sample.Value = pt.DoubleValue()
+			val = pt.DoubleValue()
 		}
 		if pt.Flags().NoRecordedValue() {
-			sample.Value = math.Float64frombits(value.StaleNaN)
+			val = math.Float64frombits(value.StaleNaN)
 		}
-		c.addSample(sample, labels)
+		ts := convertTimeStamp(pt.Timestamp())
+		st := convertTimeStamp(pt.StartTimestamp())
+		if _, err = c.appender.Append(0, labels, st, ts, val, nil, nil, appOpts); err != nil {
+			return err
+		}
 	}
+
+	return nil
 }
 
-func (c *PrometheusConverter) addSumNumberDataPoints(dataPoints pmetric.NumberDataPointSlice,
-	resource pcommon.Resource, metric pmetric.Metric, settings Settings, name string) {
+func (c *PrometheusConverter) addSumNumberDataPoints(
+	ctx context.Context,
+	dataPoints pmetric.NumberDataPointSlice,
+	settings Settings,
+	appOpts storage.AOptions,
+) error {
 	for x := 0; x < dataPoints.Len(); x++ {
-		pt := dataPoints.At(x)
-		lbls := createAttributes(
-			resource,
-			pt.Attributes(),
-			settings.ExternalLabels,
-			nil,
-			true,
-			model.MetricNameLabel,
-			name,
-		)
-		sample := &prompb.Sample{
-			// convert ns to ms
-			Timestamp: convertTimeStamp(pt.Timestamp()),
+		if err := c.everyN.checkContext(ctx); err != nil {
+			return err
 		}
+
+		pt := dataPoints.At(x)
+		lbls, err := c.createAttributes(
+			pt.Attributes(),
+			settings,
+			reservedLabelNames,
+			true,
+			appOpts.Metadata,
+			model.MetricNameLabel,
+			appOpts.MetricFamilyName,
+		)
+		if err != nil {
+			return err
+		}
+		var val float64
 		switch pt.ValueType() {
 		case pmetric.NumberDataPointValueTypeInt:
-			sample.Value = float64(pt.IntValue())
+			val = float64(pt.IntValue())
 		case pmetric.NumberDataPointValueTypeDouble:
-			sample.Value = pt.DoubleValue()
+			val = pt.DoubleValue()
 		}
 		if pt.Flags().NoRecordedValue() {
-			sample.Value = math.Float64frombits(value.StaleNaN)
+			val = math.Float64frombits(value.StaleNaN)
 		}
-		ts := c.addSample(sample, lbls)
-		if ts != nil {
-			exemplars := getPromExemplars[pmetric.NumberDataPoint](pt)
-			ts.Exemplars = append(ts.Exemplars, exemplars...)
+		ts := convertTimeStamp(pt.Timestamp())
+		st := convertTimeStamp(pt.StartTimestamp())
+		exemplars, err := c.getPromExemplars(ctx, pt.Exemplars())
+		if err != nil {
+			return err
 		}
 
-		// add created time series if needed
-		if settings.ExportCreatedMetric && metric.Sum().IsMonotonic() {
-			startTimestamp := pt.StartTimestamp()
-			if startTimestamp == 0 {
-				return
-			}
-
-			createdLabels := make([]prompb.Label, len(lbls))
-			copy(createdLabels, lbls)
-			for i, l := range createdLabels {
-				if l.Name == model.MetricNameLabel {
-					createdLabels[i].Value = name + createdSuffix
-					break
-				}
-			}
-			c.addTimeSeriesIfNeeded(createdLabels, startTimestamp, pt.Timestamp())
+		appOpts.Exemplars = exemplars
+		if _, err = c.appender.Append(0, lbls, st, ts, val, nil, nil, appOpts); err != nil {
+			return err
 		}
 	}
+
+	return nil
 }

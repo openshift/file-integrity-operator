@@ -1,16 +1,5 @@
-// Copyright 2015 go-swagger maintainers
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//    http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-FileCopyrightText: Copyright 2015-2025 go-swagger maintainers
+// SPDX-License-Identifier: Apache-2.0
 
 package validate
 
@@ -33,7 +22,7 @@ type objectValidator struct {
 	Properties           map[string]spec.Schema
 	AdditionalProperties *spec.SchemaOrBool
 	PatternProperties    map[string]spec.Schema
-	Root                 interface{}
+	Root                 any
 	KnownFormats         strfmt.Registry
 	Options              *SchemaValidatorOptions
 	splitPath            []string
@@ -42,14 +31,15 @@ type objectValidator struct {
 func newObjectValidator(path, in string,
 	maxProperties, minProperties *int64, required []string, properties spec.SchemaProperties,
 	additionalProperties *spec.SchemaOrBool, patternProperties spec.SchemaProperties,
-	root interface{}, formats strfmt.Registry, opts *SchemaValidatorOptions) *objectValidator {
+	root any, formats strfmt.Registry, opts *SchemaValidatorOptions,
+) *objectValidator {
 	if opts == nil {
 		opts = new(SchemaValidatorOptions)
 	}
 
 	var v *objectValidator
 	if opts.recycleValidators {
-		v = poolOfObjectValidators.BorrowValidator()
+		v = pools.poolOfObjectValidators.BorrowValidator()
 	} else {
 		v = new(objectValidator)
 	}
@@ -70,13 +60,77 @@ func newObjectValidator(path, in string,
 	return v
 }
 
+func (o *objectValidator) Validate(data any) *Result {
+	if o.Options.recycleValidators {
+		defer func() {
+			o.redeem()
+		}()
+	}
+
+	var val map[string]any
+	if data != nil {
+		var ok bool
+		val, ok = data.(map[string]any)
+		if !ok {
+			return errorHelp.sErr(invalidObjectMsg(o.Path, o.In), o.Options.recycleResult)
+		}
+	}
+	numKeys := int64(len(val))
+
+	if o.MinProperties != nil && numKeys < *o.MinProperties {
+		return errorHelp.sErr(errors.TooFewProperties(o.Path, o.In, *o.MinProperties), o.Options.recycleResult)
+	}
+	if o.MaxProperties != nil && numKeys > *o.MaxProperties {
+		return errorHelp.sErr(errors.TooManyProperties(o.Path, o.In, *o.MaxProperties), o.Options.recycleResult)
+	}
+
+	var res *Result
+	if o.Options.recycleResult {
+		res = pools.poolOfResults.BorrowResult()
+	} else {
+		res = new(Result)
+	}
+
+	o.precheck(res, val)
+
+	// check validity of field names
+	if o.AdditionalProperties != nil && !o.AdditionalProperties.Allows {
+		// Case: additionalProperties: false
+		o.validateNoAdditionalProperties(val, res)
+	} else {
+		// Cases: empty additionalProperties (implying: true), or additionalProperties: true, or additionalProperties: { <<schema>> }
+		o.validateAdditionalProperties(val, res)
+	}
+
+	o.validatePropertiesSchema(val, res)
+
+	// Check patternProperties
+	// NOTE: it looks like we have done that twice in many cases
+	for key, value := range val {
+		_, regularProperty := o.Properties[key]
+		matched, _, patterns := o.validatePatternProperty(key, value, res) // applies to regular properties as well
+		if regularProperty || !matched {
+			continue
+		}
+
+		for _, pName := range patterns {
+			if v, ok := o.PatternProperties[pName]; ok {
+				r := newSchemaValidator(&v, o.Root, o.Path+"."+key, o.KnownFormats, o.Options).Validate(value)
+				res.mergeForField(data.(map[string]any), key, r) //nolint:forcetypeassert // data is always map[string]any at this point
+			}
+		}
+	}
+
+	return res
+}
+
 func (o *objectValidator) SetPath(path string) {
 	o.Path = path
 	o.splitPath = strings.Split(path, ".")
 }
 
-func (o *objectValidator) Applies(source interface{}, kind reflect.Kind) bool {
-	// TODO: this should also work for structs
+func (o *objectValidator) Applies(source any, kind reflect.Kind) bool {
+	// NOTE: this should also work for structs
 	// there is a problem in the type validator where it will be unhappy about null values
 	// so that requires more testing
 	_, isSchema := source.(*spec.Schema)
@@ -98,7 +152,7 @@ func (o *objectValidator) isExample() bool {
 	return len(p) > 1 && (p[len(p)-1] == swaggerExample || p[len(p)-1] == swaggerExamples) && p[len(p)-2] != swaggerExample
 }
 
-func (o *objectValidator) checkArrayMustHaveItems(res *Result, val map[string]interface{}) {
+func (o *objectValidator) checkArrayMustHaveItems(res *Result, val map[string]any) {
 	// for swagger 2.0 schemas, there is an additional constraint to have array items defined explicitly.
 	// with pure jsonschema draft 4, one may have arrays with undefined items (i.e. any type).
 	if val == nil {
@@ -123,7 +177,7 @@ func (o *objectValidator) checkArrayMustHaveItems(res *Result, val map[string]in
 	res.AddErrors(errors.Required(jsonItems, o.Path, item))
 }
 
-func (o *objectValidator) checkItemsMustBeTypeArray(res *Result, val map[string]interface{}) {
+func (o *objectValidator) checkItemsMustBeTypeArray(res *Result, val map[string]any) {
 	if val == nil {
 		return
 	}
@@ -148,7 +202,7 @@ func (o *objectValidator) checkItemsMustBeTypeArray(res *Result, val map[string]
 	}
 }
 
-func (o *objectValidator) precheck(res *Result, val map[string]interface{}) {
+func (o *objectValidator) precheck(res *Result, val map[string]any) {
 	if o.Options.EnableArrayMustHaveItemsCheck {
 		o.checkArrayMustHaveItems(res, val)
 	}
@@ -157,71 +211,7 @@ func (o *objectValidator) precheck(res *Result, val map[string]interface{}) {
 	}
 }
 
-func (o *objectValidator) Validate(data interface{}) *Result {
-	if o.Options.recycleValidators {
-		defer func() {
-			o.redeem()
-		}()
-	}
-
-	var val map[string]interface{}
-	if data != nil {
-		var ok bool
-		val, ok = data.(map[string]interface{})
-		if !ok {
-			return errorHelp.sErr(invalidObjectMsg(o.Path, o.In), o.Options.recycleResult)
-		}
-	}
-	numKeys := int64(len(val))
-
-	if o.MinProperties != nil && numKeys < *o.MinProperties {
-		return errorHelp.sErr(errors.TooFewProperties(o.Path, o.In, *o.MinProperties), o.Options.recycleResult)
-	}
-	if o.MaxProperties != nil && numKeys > *o.MaxProperties {
-		return errorHelp.sErr(errors.TooManyProperties(o.Path, o.In, *o.MaxProperties), o.Options.recycleResult)
-	}
-
-	var res *Result
-	if o.Options.recycleResult {
-		res = poolOfResults.BorrowResult()
-	} else {
-		res = new(Result)
-	}
-
-	o.precheck(res, val)
-
-	// check validity of field names
-	if o.AdditionalProperties != nil && !o.AdditionalProperties.Allows {
-		// Case: additionalProperties: false
-		o.validateNoAdditionalProperties(val, res)
-	} else {
-		// Cases: empty additionalProperties (implying: true), or additionalProperties: true, or additionalProperties: { <<schema>> }
-		o.validateAdditionalProperties(val, res)
-	}
-
-	o.validatePropertiesSchema(val, res)
-
-	// Check patternProperties
-	// TODO: it looks like we have done that twice in many cases
-	for key, value := range val {
-		_, regularProperty := o.Properties[key]
-		matched, _, patterns := o.validatePatternProperty(key, value, res) // applies to regular properties as well
-		if regularProperty || !matched {
-			continue
-		}
-
-		for _, pName := range patterns {
-			if v, ok := o.PatternProperties[pName]; ok {
-				r := newSchemaValidator(&v, o.Root, o.Path+"."+key, o.KnownFormats, o.Options).Validate(value)
-				res.mergeForField(data.(map[string]interface{}), key, r)
-			}
-		}
-	}
-
-	return res
-}
-
-func (o *objectValidator) validateNoAdditionalProperties(val map[string]interface{}, res *Result) {
+func (o *objectValidator) validateNoAdditionalProperties(val map[string]any, res *Result) {
 	for k := range val {
 		if k == "$schema" || k == "id" {
 			// special properties "$schema" and "id" are ignored
@@ -266,7 +256,7 @@ func (o *objectValidator) validateNoAdditionalProperties(val map[string]interfac
 		}
 
 		// $ref is forbidden in header
-		headers, mapOk := val[k].(map[string]interface{})
+		headers, mapOk := val[k].(map[string]any)
 		if !mapOk {
 			continue
 		}
@@ -276,7 +266,7 @@ func (o *objectValidator) validateNoAdditionalProperties(val map[string]interfac
 				continue
 			}
 
-			headerSchema, mapOfMapOk := headerBody.(map[string]interface{})
+			headerSchema, mapOfMapOk := headerBody.(map[string]any)
 			if !mapOfMapOk {
 				continue
 			}
@@ -296,14 +286,14 @@ func (o *objectValidator) validateNoAdditionalProperties(val map[string]interfac
 			/*
 				case "$ref":
 					if val[k] != nil {
-						// TODO: check context of that ref: warn about siblings, check against invalid context
+						// Proposal for enhancement: check context of that ref: warn about siblings, check against invalid context
 					}
 			*/
 		}
 	}
 }
 
-func (o *objectValidator) validateAdditionalProperties(val map[string]interface{}, res *Result) {
+func (o *objectValidator) validateAdditionalProperties(val map[string]any, res *Result) {
 	for key, value := range val {
 		_, regularProperty := o.Properties[key]
 		if regularProperty {
@@ -331,14 +321,14 @@ func (o *objectValidator) validateAdditionalProperties(val map[string]interface{
 	// Valid cases: additionalProperties: true or undefined
 }
 
-func (o *objectValidator) validatePropertiesSchema(val map[string]interface{}, res *Result) {
+func (o *objectValidator) validatePropertiesSchema(val map[string]any, res *Result) {
 	createdFromDefaults := map[string]struct{}{}
 
 	// Property types:
 	// - regular Property
-	pSchema := poolOfSchemas.BorrowSchema() // recycle a spec.Schema object which lifespan extends only to the validation of properties
+	pSchema := pools.poolOfSchemas.BorrowSchema() // recycle a spec.Schema object which lifespan extends only to the validation of properties
 	defer func() {
-		poolOfSchemas.RedeemSchema(pSchema)
+		pools.poolOfSchemas.RedeemSchema(pSchema)
 	}()
 
 	for pName := range o.Properties {
@@ -388,8 +378,8 @@ func (o *objectValidator) validatePropertiesSchema(val map[string]interface{}, r
 	}
 }
 
-// TODO: succeededOnce is not used anywhere
-func (o *objectValidator) validatePatternProperty(key string, value interface{}, result *Result) (bool, bool, []string) {
+// NOTE: succeededOnce is not used anywhere.
+func (o *objectValidator) validatePatternProperty(key string, value any, result *Result) (bool, bool, []string) {
 	if len(o.PatternProperties) == 0 {
 		return false, false, nil
 	}
@@ -398,9 +388,9 @@ func (o *objectValidator) validatePatternProperty(key string, value interface{},
 	succeededOnce := false
 	patterns := make([]string, 0, len(o.PatternProperties))
 
-	schema := poolOfSchemas.BorrowSchema()
+	schema := pools.poolOfSchemas.BorrowSchema()
 	defer func() {
-		poolOfSchemas.RedeemSchema(schema)
+		pools.poolOfSchemas.RedeemSchema(schema)
 	}()
 
 	for k := range o.PatternProperties {
@@ -427,5 +417,5 @@ func (o *objectValidator) validatePatternProperty(key string, value interface{},
 }
 
 func (o *objectValidator) redeem() {
-	poolOfObjectValidators.RedeemValidator(o)
+	pools.poolOfObjectValidators.RedeemValidator(o)
 }
