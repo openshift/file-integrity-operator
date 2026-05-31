@@ -21,39 +21,27 @@ import (
 	"github.com/securego/gosec/v2/issue"
 )
 
-type usesWeakCryptography struct {
-	issue.MetaData
-	blocklist map[string][]string
+type weakCryptoUsage struct {
+	callListRule
 }
 
-func (r *usesWeakCryptography) ID() string {
-	return r.MetaData.ID
+// NewUsesWeakCryptographyHash detects uses of md5.*, sha1.* (G401)
+func NewUsesWeakCryptographyHash(id string, _ gosec.Config) (gosec.Rule, []ast.Node) {
+	rule := &weakCryptoUsage{newCallListRule(id, "Use of weak cryptographic primitive", issue.Medium, issue.High)}
+	rule.AddAll("crypto/md5", "New", "Sum").AddAll("crypto/sha1", "New", "Sum")
+	return rule, []ast.Node{(*ast.CallExpr)(nil)}
 }
 
-func (r *usesWeakCryptography) Match(n ast.Node, c *gosec.Context) (*issue.Issue, error) {
-	for pkg, funcs := range r.blocklist {
-		if _, matched := gosec.MatchCallByPackage(n, c, pkg, funcs...); matched {
-			return c.NewIssue(n, r.ID(), r.What, r.Severity, r.Confidence), nil
-		}
-	}
-	return nil, nil
+// NewUsesWeakCryptographyEncryption detects uses of des.*, rc4.* (G405)
+func NewUsesWeakCryptographyEncryption(id string, _ gosec.Config) (gosec.Rule, []ast.Node) {
+	rule := &weakCryptoUsage{newCallListRule(id, "Use of weak cryptographic primitive", issue.Medium, issue.High)}
+	rule.AddAll("crypto/des", "NewCipher", "NewTripleDESCipher").Add("crypto/rc4", "NewCipher")
+	return rule, []ast.Node{(*ast.CallExpr)(nil)}
 }
 
-// NewUsesWeakCryptography detects uses of des.* md5.* or rc4.*
-func NewUsesWeakCryptography(id string, _ gosec.Config) (gosec.Rule, []ast.Node) {
-	calls := make(map[string][]string)
-	calls["crypto/des"] = []string{"NewCipher", "NewTripleDESCipher"}
-	calls["crypto/md5"] = []string{"New", "Sum"}
-	calls["crypto/sha1"] = []string{"New", "Sum"}
-	calls["crypto/rc4"] = []string{"NewCipher"}
-	rule := &usesWeakCryptography{
-		blocklist: calls,
-		MetaData: issue.MetaData{
-			ID:         id,
-			Severity:   issue.Medium,
-			Confidence: issue.High,
-			What:       "Use of weak cryptographic primitive",
-		},
-	}
+// NewUsesWeakDeprecatedCryptographyHash detects uses of md4.New, ripemd160.New (G406)
+func NewUsesWeakDeprecatedCryptographyHash(id string, _ gosec.Config) (gosec.Rule, []ast.Node) {
+	rule := &weakCryptoUsage{newCallListRule(id, "Use of deprecated weak cryptographic primitive", issue.Medium, issue.High)}
+	rule.Add("golang.org/x/crypto/md4", "New").Add("golang.org/x/crypto/ripemd160", "New")
 	return rule, []ast.Node{(*ast.CallExpr)(nil)}
 }
