@@ -1,16 +1,5 @@
-// Copyright 2015 go-swagger maintainers
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//    http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-FileCopyrightText: Copyright 2015-2025 go-swagger maintainers
+// SPDX-License-Identifier: Apache-2.0
 
 package validate
 
@@ -29,7 +18,19 @@ type defaultValidator struct {
 	schemaOptions  *SchemaValidatorOptions
 }
 
-// resetVisited resets the internal state of visited schemas
+// Validate validates the default values declared in the swagger spec.
+func (d *defaultValidator) Validate() *Result {
+	errs := pools.poolOfResults.BorrowResult() // will redeem when merged
+
+	if d == nil || d.SpecValidator == nil {
+		return errs
+	}
+	d.resetVisited()
+	errs.Merge(d.validateDefaultValueValidAgainstSchema()) // error -
+	return errs
+}
+
+// resetVisited resets the internal state of visited schemas.
 func (d *defaultValidator) resetVisited() {
 	if d.visitedSchemas == nil {
 		d.visitedSchemas = make(map[string]struct{})
@@ -37,7 +38,7 @@ func (d *defaultValidator) resetVisited() {
 		return
 	}
 
-	// TODO(go1.21): clear(ex.visitedSchemas)
+	// NOTE(go1.21): clear(ex.visitedSchemas)
 	for k := range d.visitedSchemas {
 		delete(d.visitedSchemas, k)
 	}
@@ -54,7 +55,8 @@ func isVisited(path string, visitedSchemas map[string]struct{}) bool {
 		parent string
 		suffix string
 	)
-	for i := len(path) - 2; i >= 0; i-- {
+	const backtrackFromEnd = 2
+	for i := len(path) - backtrackFromEnd; i >= 0; i-- {
 		r := path[i]
 		if r != '.' {
 			continue
@@ -71,33 +73,22 @@ func isVisited(path string, visitedSchemas map[string]struct{}) bool {
 	return false
 }
 
-// beingVisited asserts a schema is being visited
+// beingVisited asserts a schema is being visited.
 func (d *defaultValidator) beingVisited(path string) {
 	d.visitedSchemas[path] = struct{}{}
 }
 
-// isVisited tells if a path has already been visited
+// isVisited tells if a path has already been visited.
 func (d *defaultValidator) isVisited(path string) bool {
 	return isVisited(path, d.visitedSchemas)
 }
 
-// Validate validates the default values declared in the swagger spec
-func (d *defaultValidator) Validate() *Result {
-	errs := poolOfResults.BorrowResult() // will redeem when merged
-
-	if d == nil || d.SpecValidator == nil {
-		return errs
-	}
-	d.resetVisited()
-	errs.Merge(d.validateDefaultValueValidAgainstSchema()) // error -
-	return errs
-}
-
+//nolint:gocognit // refactor in a forthcoming PR
 func (d *defaultValidator) validateDefaultValueValidAgainstSchema() *Result {
 	// every default value that is specified must validate against the schema for that property
 	// headers, items, parameters, schema
 
-	res := poolOfResults.BorrowResult() // will redeem when merged
+	res := pools.poolOfResults.BorrowResult() // will redeem when merged
 	s := d.SpecValidator
 
 	for method, pathItem := range s.expandedAnalyzer().Operations() {
@@ -119,6 +110,8 @@ func (d *defaultValidator) validateDefaultValueValidAgainstSchema() *Result {
 					if red.HasErrorsOrWarnings() {
 						res.AddErrors(defaultValueDoesNotValidateMsg(param.Name, param.In))
 						res.Merge(red)
+					} else if red.wantsRedeemOnMerge {
+						pools.poolOfResults.RedeemResult(red)
 					}
 				}
 
@@ -128,6 +121,8 @@ func (d *defaultValidator) validateDefaultValueValidAgainstSchema() *Result {
 					if red.HasErrorsOrWarnings() {
 						res.AddErrors(defaultValueItemsDoesNotValidateMsg(param.Name, param.In))
 						res.Merge(red)
+					} else if red.wantsRedeemOnMerge {
+						pools.poolOfResults.RedeemResult(red)
 					}
 				}
 
@@ -137,6 +132,8 @@ func (d *defaultValidator) validateDefaultValueValidAgainstSchema() *Result {
 					if red.HasErrorsOrWarnings() {
 						res.AddErrors(defaultValueDoesNotValidateMsg(param.Name, param.In))
 						res.Merge(red)
+					} else if red.wantsRedeemOnMerge {
+						pools.poolOfResults.RedeemResult(red)
 					}
 				}
 			}
@@ -162,7 +159,7 @@ func (d *defaultValidator) validateDefaultValueValidAgainstSchema() *Result {
 		// reset explored schemas to get depth-first recursive-proof exploration
 		d.resetVisited()
 		for nm, sch := range s.spec.Spec().Definitions {
-			res.Merge(d.validateDefaultValueSchemaAgainstSchema(fmt.Sprintf("definitions.%s", nm), "body", &sch)) //#nosec
+			res.Merge(d.validateDefaultValueSchemaAgainstSchema("definitions."+nm, "body", &sch)) //#nosec
 		}
 	}
 	return res
@@ -188,6 +185,8 @@ func (d *defaultValidator) validateDefaultInResponse(resp *spec.Response, respon
 				if red.HasErrorsOrWarnings() {
 					res.AddErrors(defaultValueHeaderDoesNotValidateMsg(operationID, nm, responseName))
 					res.Merge(red)
+				} else if red.wantsRedeemOnMerge {
+					pools.poolOfResults.RedeemResult(red)
 				}
 			}
 
@@ -197,6 +196,8 @@ func (d *defaultValidator) validateDefaultInResponse(resp *spec.Response, respon
 				if red.HasErrorsOrWarnings() {
 					res.AddErrors(defaultValueHeaderItemsDoesNotValidateMsg(operationID, nm, responseName))
 					res.Merge(red)
+				} else if red.wantsRedeemOnMerge {
+					pools.poolOfResults.RedeemResult(red)
 				}
 			}
 
@@ -216,6 +217,8 @@ func (d *defaultValidator) validateDefaultInResponse(resp *spec.Response, respon
 			// Additional message to make sure the context of the error is not lost
 			res.AddErrors(defaultValueInDoesNotValidateMsg(operationID, responseName))
 			res.Merge(red)
+		} else if red.wantsRedeemOnMerge {
+			pools.poolOfResults.RedeemResult(red)
 		}
 	}
 	return res
@@ -227,7 +230,7 @@ func (d *defaultValidator) validateDefaultValueSchemaAgainstSchema(path, in stri
 		return nil
 	}
 	d.beingVisited(path)
-	res := poolOfResults.BorrowResult()
+	res := pools.poolOfResults.BorrowResult()
 	s := d.SpecValidator
 
 	if schema.Default != nil {
@@ -251,7 +254,7 @@ func (d *defaultValidator) validateDefaultValueSchemaAgainstSchema(path, in stri
 	}
 	if schema.AdditionalItems != nil && schema.AdditionalItems.Schema != nil {
 		// NOTE: we keep validating values, even though additionalItems is not supported by Swagger 2.0 (and 3.0 as well)
-		res.Merge(d.validateDefaultValueSchemaAgainstSchema(fmt.Sprintf("%s.additionalItems", path), in, schema.AdditionalItems.Schema))
+		res.Merge(d.validateDefaultValueSchemaAgainstSchema(path+".additionalItems", in, schema.AdditionalItems.Schema))
 	}
 	for propName, prop := range schema.Properties {
 		res.Merge(d.validateDefaultValueSchemaAgainstSchema(path+"."+propName, in, &prop)) //#nosec
@@ -260,7 +263,7 @@ func (d *defaultValidator) validateDefaultValueSchemaAgainstSchema(path, in stri
 		res.Merge(d.validateDefaultValueSchemaAgainstSchema(path+"."+propName, in, &prop)) //#nosec
 	}
 	if schema.AdditionalProperties != nil && schema.AdditionalProperties.Schema != nil {
-		res.Merge(d.validateDefaultValueSchemaAgainstSchema(fmt.Sprintf("%s.additionalProperties", path), in, schema.AdditionalProperties.Schema))
+		res.Merge(d.validateDefaultValueSchemaAgainstSchema(path+".additionalProperties", in, schema.AdditionalProperties.Schema))
 	}
 	if schema.AllOf != nil {
 		for i, aoSch := range schema.AllOf {
@@ -270,10 +273,10 @@ func (d *defaultValidator) validateDefaultValueSchemaAgainstSchema(path, in stri
 	return res
 }
 
-// TODO: Temporary duplicated code. Need to refactor with examples
+// NOTE: Temporary duplicated code. Need to refactor with examples
 
-func (d *defaultValidator) validateDefaultValueItemsAgainstSchema(path, in string, root interface{}, items *spec.Items) *Result {
-	res := poolOfResults.BorrowResult()
+func (d *defaultValidator) validateDefaultValueItemsAgainstSchema(path, in string, root any, items *spec.Items) *Result {
+	res := pools.poolOfResults.BorrowResult()
 	s := d.SpecValidator
 	if items != nil {
 		if items.Default != nil {
