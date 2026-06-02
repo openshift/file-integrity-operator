@@ -169,6 +169,15 @@ func TestServiceMonitoringMetricsTarget(t *testing.T) {
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-metrics-target-service-monitoring"
 	setupFileIntegrity(t, f, testctx, testName, namespace, nodeWorkerRoleLabelKey, defaultTestGracePeriod)
+
+	// Assert operator didn't restart due to metrics secrets issue
+	t.Log("Checking that operator pod has not restarted")
+	assertOperatorNoRestart(t, f, namespace)
+
+	// Check operator logs to verify retry logic for metrics secrets
+	t.Log("Checking operator logs for metrics secrets retry messages")
+	assertOperatorLogsShowSecretsWait(t, f, namespace)
+
 	// Wait for a while to ensure the metrics are available
 	// This is needed because the metrics are scraped every 30 seconds
 	time.Sleep(180 * time.Second)

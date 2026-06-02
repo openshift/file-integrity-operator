@@ -21,6 +21,7 @@ FROM scratch
 ARG FIO_NEW_VERSION
 
 LABEL name="compliance/openshift-file-integrity-operator-bundle"
+LABEL cpe="cpe:/a:redhat:openshift_file_integrity_operator:1::el9"
 LABEL version=${FIO_NEW_VERSION}
 LABEL summary='OpenShift File Integrity Operator'
 LABEL maintainer='Infrastructure Security and Compliance Team <isc-team@redhat.com>'
