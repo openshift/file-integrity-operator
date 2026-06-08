@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"slices"
 
@@ -46,7 +45,8 @@ func NewConversationService(opts ...option.RequestOption) (r ConversationService
 
 // Create a conversation.
 func (r *ConversationService) New(ctx context.Context, body ConversationNewParams, opts ...option.RequestOption) (res *Conversation, err error) {
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	path := "conversations"
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodPost, path, body, &res, opts...)
 	return res, err
@@ -54,36 +54,39 @@ func (r *ConversationService) New(ctx context.Context, body ConversationNewParam
 
 // Get a conversation
 func (r *ConversationService) Get(ctx context.Context, conversationID string, opts ...option.RequestOption) (res *Conversation, err error) {
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	if conversationID == "" {
 		err = errors.New("missing required conversation_id parameter")
 		return nil, err
 	}
-	path := fmt.Sprintf("conversations/%s", conversationID)
+	path := requestconfig.FormatPath("conversations/%s", conversationID)
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodGet, path, nil, &res, opts...)
 	return res, err
 }
 
 // Update a conversation
 func (r *ConversationService) Update(ctx context.Context, conversationID string, body ConversationUpdateParams, opts ...option.RequestOption) (res *Conversation, err error) {
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	if conversationID == "" {
 		err = errors.New("missing required conversation_id parameter")
 		return nil, err
 	}
-	path := fmt.Sprintf("conversations/%s", conversationID)
+	path := requestconfig.FormatPath("conversations/%s", conversationID)
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodPost, path, body, &res, opts...)
 	return res, err
 }
 
 // Delete a conversation. Items in the conversation will not be deleted.
 func (r *ConversationService) Delete(ctx context.Context, conversationID string, opts ...option.RequestOption) (res *ConversationDeletedResource, err error) {
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	if conversationID == "" {
 		err = errors.New("missing required conversation_id parameter")
 		return nil, err
 	}
-	path := fmt.Sprintf("conversations/%s", conversationID)
+	path := requestconfig.FormatPath("conversations/%s", conversationID)
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodDelete, path, nil, &res, opts...)
 	return res, err
 }
@@ -98,7 +101,7 @@ type ComputerScreenshotContent struct {
 	// The identifier of an uploaded file that contains the screenshot.
 	FileID string `json:"file_id" api:"required"`
 	// The URL of the screenshot image.
-	ImageURL string `json:"image_url" api:"required"`
+	ImageURL string `json:"image_url" api:"required" format:"uri"`
 	// Specifies the event type. For a computer screenshot, this property is always set
 	// to `computer_screenshot`.
 	Type constant.ComputerScreenshot `json:"type" default:"computer_screenshot"`
@@ -135,7 +138,7 @@ type Conversation struct {
 	ID string `json:"id" api:"required"`
 	// The time at which the conversation was created, measured in seconds since the
 	// Unix epoch.
-	CreatedAt int64 `json:"created_at" api:"required"`
+	CreatedAt int64 `json:"created_at" api:"required" format:"unixtime"`
 	// Set of 16 key-value pairs that can be attached to an object. This can be useful
 	// for storing additional information about the object in a structured format, and
 	// querying for objects via API or the dashboard. Keys are strings with a maximum
