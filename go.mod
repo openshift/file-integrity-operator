@@ -9,7 +9,7 @@ require (
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.39.1
-	github.com/openshift/api v0.0.0-20260408160412-464776f95207
+	github.com/openshift/api v0.0.0-20260619095050-5346161d1bf2
 	github.com/openshift/library-go v0.0.0-20260413093329-d2db42c961e1
 	github.com/openshift/machine-config-operator v0.0.1-0.20230815171034-c2bb862bc08a
 	github.com/pborman/uuid v1.2.1
@@ -210,7 +210,7 @@ require (
 	k8s.io/code-generator v0.35.4 // indirect
 	k8s.io/gengo/v2 v2.0.0-20260408192533-25e2208e0dc3 // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect
-	k8s.io/kube-openapi v0.0.0-20260414162039-ec9c827d403f // indirect
+	k8s.io/kube-openapi v0.0.0-20260519202549-bbf5c5577288 // indirect
 	k8s.io/utils v0.0.0-20260319190234-28399d86e0b5 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
