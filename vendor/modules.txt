@@ -647,8 +647,8 @@ github.com/openshift/machine-config-operator/pkg/daemon/constants
 github.com/pb33f/jsonpath/pkg/jsonpath
 github.com/pb33f/jsonpath/pkg/jsonpath/config
 github.com/pb33f/jsonpath/pkg/jsonpath/token
-# github.com/pb33f/libopenapi v0.36.1
-## explicit; go 1.25.0
+# github.com/pb33f/libopenapi v0.38.1
+## explicit; go 1.25.7
 github.com/pb33f/libopenapi
 github.com/pb33f/libopenapi/datamodel
 github.com/pb33f/libopenapi/datamodel/high
@@ -1005,10 +1005,11 @@ go.yaml.in/yaml/v2
 # go.yaml.in/yaml/v3 v3.0.4
 ## explicit; go 1.16
 go.yaml.in/yaml/v3
-# go.yaml.in/yaml/v4 v4.0.0-rc.4
+# go.yaml.in/yaml/v4 v4.0.0-rc.5
 ## explicit; go 1.18
 go.yaml.in/yaml/v4
 go.yaml.in/yaml/v4/internal/libyaml
+go.yaml.in/yaml/v4/plugin/limit
 # golang.org/x/crypto v0.50.0
 ## explicit; go 1.25.0
 golang.org/x/crypto/chacha20
@@ -1059,7 +1060,7 @@ golang.org/x/oauth2/google/internal/stsexchange
 golang.org/x/oauth2/internal
 golang.org/x/oauth2/jws
 golang.org/x/oauth2/jwt
-# golang.org/x/sync v0.20.0
+# golang.org/x/sync v0.21.0
 ## explicit; go 1.25.0
 golang.org/x/sync/errgroup
 golang.org/x/sync/semaphore
