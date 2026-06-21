@@ -630,11 +630,11 @@ github.com/openai/openai-go/v3/responses
 github.com/openai/openai-go/v3/shared
 github.com/openai/openai-go/v3/shared/constant
 github.com/openai/openai-go/v3/webhooks
-# github.com/openshift/api v0.0.0-20260408160412-464776f95207
+# github.com/openshift/api v0.0.0-20260521125114-09730f85d883
 ## explicit; go 1.25.0
 github.com/openshift/api/config/v1
 github.com/openshift/api/machine/v1beta1
-# github.com/openshift/library-go v0.0.0-20260413093329-d2db42c961e1
+# github.com/openshift/library-go v0.0.0-20260618132022-b0f5231f2ed6
 ## explicit; go 1.25.0
 github.com/openshift/library-go/pkg/crypto
 # github.com/openshift/machine-config-operator v0.0.1-0.20230815171034-c2bb862bc08a

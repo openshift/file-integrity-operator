@@ -9,8 +9,8 @@ require (
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.39.1
-	github.com/openshift/api v0.0.0-20260408160412-464776f95207
-	github.com/openshift/library-go v0.0.0-20260413093329-d2db42c961e1
+	github.com/openshift/api v0.0.0-20260521125114-09730f85d883
+	github.com/openshift/library-go v0.0.0-20260618132022-b0f5231f2ed6
 	github.com/openshift/machine-config-operator v0.0.1-0.20230815171034-c2bb862bc08a
 	github.com/pborman/uuid v1.2.1
 	github.com/pkg/errors v0.9.1
