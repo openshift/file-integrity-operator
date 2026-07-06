@@ -11,6 +11,8 @@ import (
 	fileintegrity2 "github.com/openshift/file-integrity-operator/pkg/controller/fileintegrity"
 	framework "github.com/openshift/file-integrity-operator/tests/framework"
 
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/types"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -908,6 +910,96 @@ func TestFileIntegrityChangeGracePeriod(t *testing.T) {
 	err = waitForDaemonSet(daemonSetIsReady(f.KubeClient, dsName, namespace))
 	if err != nil {
 		t.Errorf("Timed out waiting for DaemonSet %s", dsName)
+	}
+}
+
+func TestFileIntegrityChangeResources(t *testing.T) {
+	f, testctx, namespace := setupTest(t)
+	testName := testIntegrityNamePrefix + "-changeresources"
+	setupFileIntegrity(t, f, testctx, testName, namespace, nodeWorkerRoleLabelKey, defaultTestGracePeriod)
+	defer testctx.Cleanup()
+	defer func() {
+		if err := cleanNodes(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+		if err := resetBundleTestMetrics(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+	}()
+	defer logContainerOutput(t, f, namespace, testName)
+
+	// wait to go active.
+	err := waitForScanStatus(t, f, namespace, testName, v1alpha1.PhaseActive)
+	if err != nil {
+		t.Errorf("Timeout waiting for scan status")
+	}
+
+	// get daemonSet, make sure it has the default resources
+	defaultResources := corev1.ResourceRequirements{
+		Requests: corev1.ResourceList{
+			corev1.ResourceMemory: resource.MustParse("40Mi"),
+			corev1.ResourceCPU:    resource.MustParse("40m"),
+		},
+		Limits: corev1.ResourceList{
+			corev1.ResourceMemory: resource.MustParse("600Mi"),
+			corev1.ResourceCPU:    resource.MustParse("300m"),
+		},
+	}
+	err = assertDSPodHasResources(t, f, testName, namespace, defaultResources, time.Second*5, time.Minute*5)
+	if err != nil {
+		t.Errorf("pod spec didn't contain the expected default resources: %v\n", err)
+	}
+	t.Log("The pod spec contains the default resources")
+
+	oldPodList, err := getFiDsPods(f, testName, namespace)
+	if err != nil {
+		t.Errorf("Error retrieving DS pods")
+	}
+
+	// change the config
+	fileIntegrity := &v1alpha1.FileIntegrity{}
+	err = f.Client.Get(context.TODO(), types.NamespacedName{Name: testName, Namespace: namespace}, fileIntegrity)
+	if err != nil {
+		t.Errorf("failed to retrieve FI object: %v\n", err)
+	}
+
+	modifiedResources := corev1.ResourceRequirements{
+		Requests: corev1.ResourceList{
+			corev1.ResourceMemory: resource.MustParse("100Mi"),
+			corev1.ResourceCPU:    resource.MustParse("100m"),
+		},
+		Limits: corev1.ResourceList{
+			corev1.ResourceMemory: resource.MustParse("800Mi"),
+			corev1.ResourceCPU:    resource.MustParse("500m"),
+		},
+	}
+
+	fileIntegrityCopy := fileIntegrity.DeepCopy()
+	fileIntegrityCopy.Spec.Resources = &modifiedResources
+
+	err = f.Client.Update(context.TODO(), fileIntegrityCopy)
+	if err != nil {
+		t.Errorf("failed to update FI object: %v\n", err)
+	}
+
+	// make sure the daemonSet pods now have the resources we want
+	err = assertDSPodHasResources(t, f, testName, namespace, modifiedResources, time.Second*5, time.Minute*5)
+	if err != nil {
+		t.Errorf("spec didn't contain the expected resources: %v\n", err)
+	}
+	t.Log("The spec contains the modified resources")
+
+	// make sure the DS restarted by first making sure at least one of the original pods
+	// went away, then waiting until the DS is ready again
+	err = waitUntilPodsAreGone(t, f.Client.Client, oldPodList, time.Second*5, time.Minute*5)
+	if err != nil {
+		t.Errorf("The old pods were not shut down\n")
+	}
+
+	resDsName := common.DaemonSetName(testName)
+	err = waitForDaemonSet(daemonSetIsReady(f.KubeClient, resDsName, namespace))
+	if err != nil {
+		t.Errorf("Timed out waiting for DaemonSet %s", resDsName)
 	}
 }
 

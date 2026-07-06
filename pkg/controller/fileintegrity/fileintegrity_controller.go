@@ -592,8 +592,9 @@ func (r *FileIntegrityReconciler) FileIntegrityControllerReconcile(request recon
 		tolsNeedsUpdate := updateDSTolerations(dsCopy, instance, reqLogger)
 		pcNeedsUpdate := updateDSPriorityClassName(dsCopy, instance, reqLogger)
 		volsNeedUpdate := updateDSContainerVolumes(dsCopy, instance, operatorImage, reqLogger)
+		resNeedsUpdate := updateDSResources(dsCopy, instance, reqLogger)
 
-		if argsNeedUpdate || imgNeedsUpdate || nsNeedsUpdate || tolsNeedsUpdate || pcNeedsUpdate || volsNeedUpdate || scriptsUpdated {
+		if argsNeedUpdate || imgNeedsUpdate || nsNeedsUpdate || tolsNeedsUpdate || pcNeedsUpdate || volsNeedUpdate || resNeedsUpdate || scriptsUpdated {
 			if err := r.Client.Update(context.TODO(), dsCopy); err != nil {
 				return reconcile.Result{}, err
 			}
@@ -662,6 +663,20 @@ func updateDSPriorityClassName(currentDS *appsv1.DaemonSet, fi *v1alpha1.FileInt
 	if needsUpdate {
 		logger.Info("FileIntegrity needed priorityClassName update")
 		*pcRef = expectedPC
+	}
+	return needsUpdate
+}
+
+// Returns true when the daemon container resources derived from the FileIntegrity
+// object differ from the current DS. Returns false if there was no difference.
+// If an update is needed, this will update the resources from the given DaemonSet.
+func updateDSResources(currentDS *appsv1.DaemonSet, fi *v1alpha1.FileIntegrity, logger logr.Logger) bool {
+	resRef := &currentDS.Spec.Template.Spec.Containers[0].Resources
+	expectedResources := getDaemonResources(fi)
+	needsUpdate := !reflect.DeepEqual(*resRef, expectedResources)
+	if needsUpdate {
+		logger.Info("FileIntegrity needed daemon resources update")
+		*resRef = expectedResources
 	}
 	return needsUpdate
 }
@@ -1000,16 +1015,7 @@ func aideDaemonset(dsName string, fi *v1alpha1.FileIntegrity, operatorImage stri
 									MountPath: "/tmp",
 								},
 							},
-							Resources: corev1.ResourceRequirements{
-								Requests: corev1.ResourceList{
-									corev1.ResourceMemory: resource.MustParse("40Mi"),
-									corev1.ResourceCPU:    resource.MustParse("40m"),
-								},
-								Limits: corev1.ResourceList{
-									corev1.ResourceMemory: resource.MustParse("600Mi"),
-									corev1.ResourceCPU:    resource.MustParse("300m"),
-								},
-							},
+							Resources: getDaemonResources(fi),
 						},
 					},
 					Volumes: []corev1.Volume{
@@ -1062,6 +1068,27 @@ func getGracePeriod(fi *v1alpha1.FileIntegrity) string {
 
 func getDebug(fi *v1alpha1.FileIntegrity) string {
 	return strconv.FormatBool(fi.Spec.Debug)
+}
+
+// getDaemonResources returns the resource requirements for the AIDE daemon
+// container. The CRD applies a default when the field is omitted, but we keep a
+// built-in fallback here so objects constructed without defaulting (e.g. in
+// tests) still get sane values.
+func getDaemonResources(fi *v1alpha1.FileIntegrity) corev1.ResourceRequirements {
+	if fi.Spec.Resources != nil {
+		return *fi.Spec.Resources
+	}
+	// If the user did not specify any resources, return the operator's built-in defaults.
+	return corev1.ResourceRequirements{
+		Requests: corev1.ResourceList{
+			corev1.ResourceMemory: resource.MustParse("40Mi"),
+			corev1.ResourceCPU:    resource.MustParse("40m"),
+		},
+		Limits: corev1.ResourceList{
+			corev1.ResourceMemory: resource.MustParse("600Mi"),
+			corev1.ResourceCPU:    resource.MustParse("300m"),
+		},
+	}
 }
 
 func daemonArgs(dsName string, fi *v1alpha1.FileIntegrity) []string {
