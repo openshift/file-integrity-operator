@@ -934,7 +934,7 @@ go.opentelemetry.io/collector/pdata/plog
 go.opentelemetry.io/collector/pdata/pmetric
 go.opentelemetry.io/collector/pdata/pmetric/pmetricotlp
 go.opentelemetry.io/collector/pdata/ptrace
-# go.opentelemetry.io/collector/pipeline v1.56.0
+# go.opentelemetry.io/collector/pipeline v1.62.0
 ## explicit; go 1.25.0
 go.opentelemetry.io/collector/pipeline
 go.opentelemetry.io/collector/pipeline/internal/globalsignal
