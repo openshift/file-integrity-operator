@@ -1160,7 +1160,7 @@ google.golang.org/api/internal/impersonate
 google.golang.org/api/internal/third_party/uritemplates
 google.golang.org/api/option
 google.golang.org/api/transport/http
-# google.golang.org/genai v1.54.0
+# google.golang.org/genai v1.63.0
 ## explicit; go 1.24
 google.golang.org/genai
 # google.golang.org/genproto/googleapis/rpc v0.0.0-20260414002931-afd174a4e478
