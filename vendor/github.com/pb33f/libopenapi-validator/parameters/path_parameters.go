@@ -1,10 +1,9 @@
-// Copyright 2023 Princess B33f Heavy Industries / Dave Shanley
+// Copyright 2023-2026 Princess Beef Heavy Industries, LLC / Dave Shanley
 // SPDX-License-Identifier: MIT
 
 package parameters
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -52,9 +51,9 @@ func (v *paramValidator) ValidatePathParamsWithPathItem(request *http.Request, p
 
 	// extract params for the operation
 	params := helpers.ExtractParamsForOperation(request, pathItem)
-	var validationErrors []*errors.ValidationError
+	validationErrors := v.validateContentParameters(request, pathItem, pathValue, helpers.Path)
 	for _, p := range params {
-		if p.In == helpers.Path {
+		if p.In == helpers.Path && p.Schema != nil {
 			// var paramTemplate string
 			for x := range pathSegments {
 				if pathSegments[x] == "" { // skip empty segments
@@ -142,13 +141,8 @@ func (v *paramValidator) ValidatePathParamsWithPathItem(request *http.Request, p
 					// extract the schema from the parameter
 					sch := p.Schema.Schema()
 
-					// Render schema once for ReferenceSchema field in errors
-					var renderedSchema string
-					if sch != nil {
-						rendered, _ := sch.RenderInline()
-						schemaBytes, _ := json.Marshal(rendered)
-						renderedSchema = string(schemaBytes)
-					}
+					// Get rendered schema for ReferenceSchema field in errors (uses cache if available)
+					renderedSchema := GetRenderedSchema(sch, v.options)
 
 					// check enum (if present)
 					enumCheck := func(decodedValue string) {
@@ -309,13 +303,8 @@ func (v *paramValidator) ValidatePathParamsWithPathItem(request *http.Request, p
 								if sch.Items != nil && sch.Items.IsA() {
 									iSch := sch.Items.A.Schema()
 
-									// Render items schema once for ReferenceSchema field in array errors
-									var renderedItemsSchema string
-									if iSch != nil {
-										rendered, _ := iSch.RenderInline()
-										schemaBytes, _ := json.Marshal(rendered)
-										renderedItemsSchema = string(schemaBytes)
-									}
+									// Get rendered items schema for ReferenceSchema field in errors (uses cache if available)
+									renderedItemsSchema := GetRenderedSchema(iSch, v.options)
 
 									for n := range iSch.Type {
 										// determine how to explode the array
