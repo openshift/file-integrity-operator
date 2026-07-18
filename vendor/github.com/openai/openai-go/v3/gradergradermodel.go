@@ -48,6 +48,8 @@ type GraderInputUnion struct {
 	OfString string `json:",inline"`
 	Text     string `json:"text"`
 	Type     string `json:"type"`
+	// This field is from variant [responses.ResponseInputText].
+	PromptCacheBreakpoint responses.ResponseInputTextPromptCacheBreakpoint `json:"prompt_cache_breakpoint"`
 	// This field is from variant [GraderInputInputImage].
 	ImageURL string `json:"image_url"`
 	// This field is from variant [GraderInputInputImage].
@@ -55,13 +57,14 @@ type GraderInputUnion struct {
 	// This field is from variant [responses.ResponseInputAudio].
 	InputAudio responses.ResponseInputAudioInputAudio `json:"input_audio"`
 	JSON       struct {
-		OfString   respjson.Field
-		Text       respjson.Field
-		Type       respjson.Field
-		ImageURL   respjson.Field
-		Detail     respjson.Field
-		InputAudio respjson.Field
-		raw        string
+		OfString              respjson.Field
+		Text                  respjson.Field
+		Type                  respjson.Field
+		PromptCacheBreakpoint respjson.Field
+		ImageURL              respjson.Field
+		Detail                respjson.Field
+		InputAudio            respjson.Field
+		raw                   string
 	} `json:"-"`
 }
 
@@ -121,7 +124,7 @@ func (r *GraderInputOutputText) UnmarshalJSON(data []byte) error {
 // An image input block used within EvalItem content arrays.
 type GraderInputInputImage struct {
 	// The URL of the image input.
-	ImageURL string `json:"image_url" api:"required"`
+	ImageURL string `json:"image_url" api:"required" format:"uri"`
 	// The type of the image input. Always `input_image`.
 	Type constant.InputImage `json:"type" default:"input_image"`
 	// The detail level of the image to be sent to the model. One of `high`, `low`, or
@@ -179,6 +182,14 @@ func (u *GraderInputUnionParam) asAny() any {
 		return u.OfInputImage
 	} else if !param.IsOmitted(u.OfInputAudio) {
 		return u.OfInputAudio
+	}
+	return nil
+}
+
+// Returns a pointer to the underlying variant's property, if present.
+func (u GraderInputUnionParam) GetPromptCacheBreakpoint() *responses.ResponseInputTextPromptCacheBreakpointParam {
+	if vt := u.OfInputText; vt != nil {
+		return &vt.PromptCacheBreakpoint
 	}
 	return nil
 }
@@ -257,7 +268,7 @@ func (r *GraderInputOutputTextParam) UnmarshalJSON(data []byte) error {
 // The properties ImageURL, Type are required.
 type GraderInputInputImageParam struct {
 	// The URL of the image input.
-	ImageURL string `json:"image_url" api:"required"`
+	ImageURL string `json:"image_url" api:"required" format:"uri"`
 	// The detail level of the image to be sent to the model. One of `high`, `low`, or
 	// `auto`. Defaults to `auto`.
 	Detail param.Opt[string] `json:"detail,omitzero"`
@@ -370,6 +381,8 @@ type LabelModelGraderInputContentUnion struct {
 	OfAnArrayOfInputTextOutputTextInputImageAndInputAudio GraderInputs `json:",inline"`
 	Text                                                  string       `json:"text"`
 	Type                                                  string       `json:"type"`
+	// This field is from variant [responses.ResponseInputText].
+	PromptCacheBreakpoint responses.ResponseInputTextPromptCacheBreakpoint `json:"prompt_cache_breakpoint"`
 	// This field is from variant [LabelModelGraderInputContentInputImage].
 	ImageURL string `json:"image_url"`
 	// This field is from variant [LabelModelGraderInputContentInputImage].
@@ -381,6 +394,7 @@ type LabelModelGraderInputContentUnion struct {
 		OfAnArrayOfInputTextOutputTextInputImageAndInputAudio respjson.Field
 		Text                                                  respjson.Field
 		Type                                                  respjson.Field
+		PromptCacheBreakpoint                                 respjson.Field
 		ImageURL                                              respjson.Field
 		Detail                                                respjson.Field
 		InputAudio                                            respjson.Field
@@ -449,7 +463,7 @@ func (r *LabelModelGraderInputContentOutputText) UnmarshalJSON(data []byte) erro
 // An image input block used within EvalItem content arrays.
 type LabelModelGraderInputContentInputImage struct {
 	// The URL of the image input.
-	ImageURL string `json:"image_url" api:"required"`
+	ImageURL string `json:"image_url" api:"required" format:"uri"`
 	// The type of the image input. Always `input_image`.
 	Type constant.InputImage `json:"type" default:"input_image"`
 	// The detail level of the image to be sent to the model. One of `high`, `low`, or
@@ -583,6 +597,14 @@ func (u *LabelModelGraderInputContentUnionParam) asAny() any {
 }
 
 // Returns a pointer to the underlying variant's property, if present.
+func (u LabelModelGraderInputContentUnionParam) GetPromptCacheBreakpoint() *responses.ResponseInputTextPromptCacheBreakpointParam {
+	if vt := u.OfInputText; vt != nil {
+		return &vt.PromptCacheBreakpoint
+	}
+	return nil
+}
+
+// Returns a pointer to the underlying variant's property, if present.
 func (u LabelModelGraderInputContentUnionParam) GetImageURL() *string {
 	if vt := u.OfInputImage; vt != nil {
 		return &vt.ImageURL
@@ -656,7 +678,7 @@ func (r *LabelModelGraderInputContentOutputTextParam) UnmarshalJSON(data []byte)
 // The properties ImageURL, Type are required.
 type LabelModelGraderInputContentInputImageParam struct {
 	// The URL of the image input.
-	ImageURL string `json:"image_url" api:"required"`
+	ImageURL string `json:"image_url" api:"required" format:"uri"`
 	// The detail level of the image to be sent to the model. One of `high`, `low`, or
 	// `auto`. Defaults to `auto`.
 	Detail param.Opt[string] `json:"detail,omitzero"`
@@ -1191,6 +1213,8 @@ type ScoreModelGraderInputContentUnion struct {
 	OfAnArrayOfInputTextOutputTextInputImageAndInputAudio GraderInputs `json:",inline"`
 	Text                                                  string       `json:"text"`
 	Type                                                  string       `json:"type"`
+	// This field is from variant [responses.ResponseInputText].
+	PromptCacheBreakpoint responses.ResponseInputTextPromptCacheBreakpoint `json:"prompt_cache_breakpoint"`
 	// This field is from variant [ScoreModelGraderInputContentInputImage].
 	ImageURL string `json:"image_url"`
 	// This field is from variant [ScoreModelGraderInputContentInputImage].
@@ -1202,6 +1226,7 @@ type ScoreModelGraderInputContentUnion struct {
 		OfAnArrayOfInputTextOutputTextInputImageAndInputAudio respjson.Field
 		Text                                                  respjson.Field
 		Type                                                  respjson.Field
+		PromptCacheBreakpoint                                 respjson.Field
 		ImageURL                                              respjson.Field
 		Detail                                                respjson.Field
 		InputAudio                                            respjson.Field
@@ -1270,7 +1295,7 @@ func (r *ScoreModelGraderInputContentOutputText) UnmarshalJSON(data []byte) erro
 // An image input block used within EvalItem content arrays.
 type ScoreModelGraderInputContentInputImage struct {
 	// The URL of the image input.
-	ImageURL string `json:"image_url" api:"required"`
+	ImageURL string `json:"image_url" api:"required" format:"uri"`
 	// The type of the image input. Always `input_image`.
 	Type constant.InputImage `json:"type" default:"input_image"`
 	// The detail level of the image to be sent to the model. One of `high`, `low`, or
@@ -1296,21 +1321,14 @@ func (r *ScoreModelGraderInputContentInputImage) UnmarshalJSON(data []byte) erro
 type ScoreModelGraderSamplingParams struct {
 	// The maximum number of tokens the grader model may generate in its response.
 	MaxCompletionsTokens int64 `json:"max_completions_tokens" api:"nullable"`
-	// Constrains effort on reasoning for
-	// [reasoning models](https://platform.openai.com/docs/guides/reasoning). Currently
-	// supported values are `none`, `minimal`, `low`, `medium`, `high`, and `xhigh`.
-	// Reducing reasoning effort can result in faster responses and fewer tokens used
-	// on reasoning in a response.
+	// Constrains effort on reasoning for reasoning models. Currently supported values
+	// are `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, and `max`. Reducing
+	// reasoning effort can result in faster responses and fewer tokens used on
+	// reasoning in a response. Not all reasoning models support every value. See the
+	// [reasoning guide](https://platform.openai.com/docs/guides/reasoning) for
+	// model-specific support.
 	//
-	//   - `gpt-5.1` defaults to `none`, which does not perform reasoning. The supported
-	//     reasoning values for `gpt-5.1` are `none`, `low`, `medium`, and `high`. Tool
-	//     calls are supported for all reasoning values in gpt-5.1.
-	//   - All models before `gpt-5.1` default to `medium` reasoning effort, and do not
-	//     support `none`.
-	//   - The `gpt-5-pro` model defaults to (and only supports) `high` reasoning effort.
-	//   - `xhigh` is supported for all models after `gpt-5.1-codex-max`.
-	//
-	// Any of "none", "minimal", "low", "medium", "high", "xhigh".
+	// Any of "none", "minimal", "low", "medium", "high", "xhigh", "max".
 	ReasoningEffort shared.ReasoningEffort `json:"reasoning_effort" api:"nullable"`
 	// A seed value to initialize the randomness, during sampling.
 	Seed int64 `json:"seed" api:"nullable"`
@@ -1449,6 +1467,14 @@ func (u *ScoreModelGraderInputContentUnionParam) asAny() any {
 }
 
 // Returns a pointer to the underlying variant's property, if present.
+func (u ScoreModelGraderInputContentUnionParam) GetPromptCacheBreakpoint() *responses.ResponseInputTextPromptCacheBreakpointParam {
+	if vt := u.OfInputText; vt != nil {
+		return &vt.PromptCacheBreakpoint
+	}
+	return nil
+}
+
+// Returns a pointer to the underlying variant's property, if present.
 func (u ScoreModelGraderInputContentUnionParam) GetImageURL() *string {
 	if vt := u.OfInputImage; vt != nil {
 		return &vt.ImageURL
@@ -1522,7 +1548,7 @@ func (r *ScoreModelGraderInputContentOutputTextParam) UnmarshalJSON(data []byte)
 // The properties ImageURL, Type are required.
 type ScoreModelGraderInputContentInputImageParam struct {
 	// The URL of the image input.
-	ImageURL string `json:"image_url" api:"required"`
+	ImageURL string `json:"image_url" api:"required" format:"uri"`
 	// The detail level of the image to be sent to the model. One of `high`, `low`, or
 	// `auto`. Defaults to `auto`.
 	Detail param.Opt[string] `json:"detail,omitzero"`
@@ -1551,21 +1577,14 @@ type ScoreModelGraderSamplingParamsParam struct {
 	Temperature param.Opt[float64] `json:"temperature,omitzero"`
 	// An alternative to temperature for nucleus sampling; 1.0 includes all tokens.
 	TopP param.Opt[float64] `json:"top_p,omitzero"`
-	// Constrains effort on reasoning for
-	// [reasoning models](https://platform.openai.com/docs/guides/reasoning). Currently
-	// supported values are `none`, `minimal`, `low`, `medium`, `high`, and `xhigh`.
-	// Reducing reasoning effort can result in faster responses and fewer tokens used
-	// on reasoning in a response.
+	// Constrains effort on reasoning for reasoning models. Currently supported values
+	// are `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, and `max`. Reducing
+	// reasoning effort can result in faster responses and fewer tokens used on
+	// reasoning in a response. Not all reasoning models support every value. See the
+	// [reasoning guide](https://platform.openai.com/docs/guides/reasoning) for
+	// model-specific support.
 	//
-	//   - `gpt-5.1` defaults to `none`, which does not perform reasoning. The supported
-	//     reasoning values for `gpt-5.1` are `none`, `low`, `medium`, and `high`. Tool
-	//     calls are supported for all reasoning values in gpt-5.1.
-	//   - All models before `gpt-5.1` default to `medium` reasoning effort, and do not
-	//     support `none`.
-	//   - The `gpt-5-pro` model defaults to (and only supports) `high` reasoning effort.
-	//   - `xhigh` is supported for all models after `gpt-5.1-codex-max`.
-	//
-	// Any of "none", "minimal", "low", "medium", "high", "xhigh".
+	// Any of "none", "minimal", "low", "medium", "high", "xhigh", "max".
 	ReasoningEffort shared.ReasoningEffort `json:"reasoning_effort,omitzero"`
 	paramObj
 }
