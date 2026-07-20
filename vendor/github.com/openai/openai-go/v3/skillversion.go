@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -47,19 +46,21 @@ func NewSkillVersionService(opts ...option.RequestOption) (r SkillVersionService
 
 // Create a new immutable skill version.
 func (r *SkillVersionService) New(ctx context.Context, skillID string, body SkillVersionNewParams, opts ...option.RequestOption) (res *SkillVersion, err error) {
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	if skillID == "" {
 		err = errors.New("missing required skill_id parameter")
 		return nil, err
 	}
-	path := fmt.Sprintf("skills/%s/versions", skillID)
+	path := requestconfig.FormatPath("skills/%s/versions", skillID)
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodPost, path, body, &res, opts...)
 	return res, err
 }
 
 // Get a specific skill version.
 func (r *SkillVersionService) Get(ctx context.Context, skillID string, version string, opts ...option.RequestOption) (res *SkillVersion, err error) {
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	if skillID == "" {
 		err = errors.New("missing required skill_id parameter")
 		return nil, err
@@ -68,7 +69,7 @@ func (r *SkillVersionService) Get(ctx context.Context, skillID string, version s
 		err = errors.New("missing required version parameter")
 		return nil, err
 	}
-	path := fmt.Sprintf("skills/%s/versions/%s", skillID, version)
+	path := requestconfig.FormatPath("skills/%s/versions/%s", skillID, version)
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodGet, path, nil, &res, opts...)
 	return res, err
 }
@@ -76,13 +77,14 @@ func (r *SkillVersionService) Get(ctx context.Context, skillID string, version s
 // List skill versions for a skill.
 func (r *SkillVersionService) List(ctx context.Context, skillID string, query SkillVersionListParams, opts ...option.RequestOption) (res *pagination.CursorPage[SkillVersion], err error) {
 	var raw *http.Response
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	opts = append([]option.RequestOption{option.WithResponseInto(&raw)}, opts...)
 	if skillID == "" {
 		err = errors.New("missing required skill_id parameter")
 		return nil, err
 	}
-	path := fmt.Sprintf("skills/%s/versions", skillID)
+	path := requestconfig.FormatPath("skills/%s/versions", skillID)
 	cfg, err := requestconfig.NewRequestConfig(ctx, http.MethodGet, path, query, &res, opts...)
 	if err != nil {
 		return nil, err
@@ -102,7 +104,8 @@ func (r *SkillVersionService) ListAutoPaging(ctx context.Context, skillID string
 
 // Delete a skill version.
 func (r *SkillVersionService) Delete(ctx context.Context, skillID string, version string, opts ...option.RequestOption) (res *DeletedSkillVersion, err error) {
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	if skillID == "" {
 		err = errors.New("missing required skill_id parameter")
 		return nil, err
@@ -111,7 +114,7 @@ func (r *SkillVersionService) Delete(ctx context.Context, skillID string, versio
 		err = errors.New("missing required version parameter")
 		return nil, err
 	}
-	path := fmt.Sprintf("skills/%s/versions/%s", skillID, version)
+	path := requestconfig.FormatPath("skills/%s/versions/%s", skillID, version)
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodDelete, path, nil, &res, opts...)
 	return res, err
 }
@@ -143,7 +146,7 @@ type SkillVersion struct {
 	// Unique identifier for the skill version.
 	ID string `json:"id" api:"required"`
 	// Unix timestamp (seconds) for when the version was created.
-	CreatedAt int64 `json:"created_at" api:"required"`
+	CreatedAt int64 `json:"created_at" api:"required" format:"unixtime"`
 	// Description of the skill version.
 	Description string `json:"description" api:"required"`
 	// Name of the skill version.
