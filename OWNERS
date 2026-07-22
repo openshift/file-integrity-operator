@@ -1,14 +1,13 @@
 component: "File Integrity Operator"
 approvers:
-  - jhrozek
-  - mrogers950
-  - xiaojiey
   - Vincent056
   - rhmdnd
   - yuumasato
   - BhargaviGudi
   - vickeybrown
-  - abushkin
+  - abushkin-redhat
+  - Anna-Koudelkova
+  - taimurhafeez
 reviewers:
   - jhrozek
   - mrogers950
@@ -19,4 +18,6 @@ reviewers:
   - mkumku
   - BhargaviGudi
   - vickeybrown
-  - abushkin
+  - abushkin-redhat
+  - Anna-Koudelkova
+  - taimurhafeez
