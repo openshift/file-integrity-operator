@@ -234,6 +234,10 @@ verify: vet gosec ## Run vet and gosec checks.
 gosec: ## Run gosec against code.
 	@$(GO) run github.com/securego/gosec/v2/cmd/gosec -severity medium -confidence medium -quiet $(PKGS)
 
+.PHONY: lint
+lint: ## Run golangci-lint against code.
+	golangci-lint run ./...
+
 CONTROLLER_GEN = $(shell pwd)/build/controller-gen
 controller-gen: ## Build controller-gen from what's in vendor.
 	$(call go-build,./vendor/sigs.k8s.io/controller-tools/cmd/controller-gen)
