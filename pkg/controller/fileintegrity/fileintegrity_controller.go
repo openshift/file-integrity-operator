@@ -833,12 +833,12 @@ func reinitAideDaemonset(reinitDaemonSetName string, fi *v1alpha1.FileIntegrity,
 							},
 							Resources: corev1.ResourceRequirements{
 								Requests: corev1.ResourceList{
-									corev1.ResourceMemory: resource.MustParse("10Mi"),
-									corev1.ResourceCPU:    resource.MustParse("10m"),
+									corev1.ResourceMemory: resource.MustParse(common.DefaultHelperMemoryRequest),
+									corev1.ResourceCPU:    resource.MustParse(common.DefaultHelperCPURequest),
 								},
 								Limits: corev1.ResourceList{
-									corev1.ResourceMemory: resource.MustParse("50Mi"),
-									corev1.ResourceCPU:    resource.MustParse("50m"),
+									corev1.ResourceMemory: resource.MustParse(common.DefaultHelperMemoryLimit),
+									corev1.ResourceCPU:    resource.MustParse(common.DefaultHelperCPULimit),
 								},
 							},
 						},
@@ -857,12 +857,12 @@ func reinitAideDaemonset(reinitDaemonSetName string, fi *v1alpha1.FileIntegrity,
 							},
 							Resources: corev1.ResourceRequirements{
 								Requests: corev1.ResourceList{
-									corev1.ResourceMemory: resource.MustParse("10Mi"),
-									corev1.ResourceCPU:    resource.MustParse("10m"),
+									corev1.ResourceMemory: resource.MustParse(common.DefaultHelperMemoryRequest),
+									corev1.ResourceCPU:    resource.MustParse(common.DefaultHelperCPURequest),
 								},
 								Limits: corev1.ResourceList{
-									corev1.ResourceMemory: resource.MustParse("50Mi"),
-									corev1.ResourceCPU:    resource.MustParse("50m"),
+									corev1.ResourceMemory: resource.MustParse(common.DefaultHelperMemoryLimit),
+									corev1.ResourceCPU:    resource.MustParse(common.DefaultHelperCPULimit),
 								},
 							},
 						},
@@ -954,12 +954,12 @@ func aideDaemonset(dsName string, fi *v1alpha1.FileIntegrity, operatorImage stri
 							},
 							Resources: corev1.ResourceRequirements{
 								Requests: corev1.ResourceList{
-									corev1.ResourceMemory: resource.MustParse("10Mi"),
-									corev1.ResourceCPU:    resource.MustParse("10m"),
+									corev1.ResourceMemory: resource.MustParse(common.DefaultHelperMemoryRequest),
+									corev1.ResourceCPU:    resource.MustParse(common.DefaultHelperCPURequest),
 								},
 								Limits: corev1.ResourceList{
-									corev1.ResourceMemory: resource.MustParse("50Mi"),
-									corev1.ResourceCPU:    resource.MustParse("50m"),
+									corev1.ResourceMemory: resource.MustParse(common.DefaultHelperMemoryLimit),
+									corev1.ResourceCPU:    resource.MustParse(common.DefaultHelperCPULimit),
 								},
 							},
 							VolumeMounts: []corev1.VolumeMount{
@@ -1081,12 +1081,12 @@ func getDaemonResources(fi *v1alpha1.FileIntegrity) corev1.ResourceRequirements 
 	// If the user did not specify any resources, return the operator's built-in defaults.
 	return corev1.ResourceRequirements{
 		Requests: corev1.ResourceList{
-			corev1.ResourceMemory: resource.MustParse("40Mi"),
-			corev1.ResourceCPU:    resource.MustParse("40m"),
+			corev1.ResourceMemory: resource.MustParse(common.DefaultDaemonMemoryRequest),
+			corev1.ResourceCPU:    resource.MustParse(common.DefaultDaemonCPURequest),
 		},
 		Limits: corev1.ResourceList{
-			corev1.ResourceMemory: resource.MustParse("600Mi"),
-			corev1.ResourceCPU:    resource.MustParse("300m"),
+			corev1.ResourceMemory: resource.MustParse(common.DefaultDaemonMemoryLimit),
+			corev1.ResourceCPU:    resource.MustParse(common.DefaultDaemonCPULimit),
 		},
 	}
 }
