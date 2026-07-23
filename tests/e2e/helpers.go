@@ -2190,6 +2190,39 @@ func assertDSPodHasArg(t *testing.T, f *framework.Framework, fiName, namespace, 
 	})
 }
 
+// assertDSPodHasResources polls the FileIntegrity DaemonSet until the daemon
+// container's resource requests and limits match the expected values.
+func assertDSPodHasResources(t *testing.T, f *framework.Framework, fiName, namespace string, expected corev1.ResourceRequirements, interval, timeout time.Duration) error {
+	return wait.PollImmediate(interval, timeout, func() (bool, error) {
+		ds, getErr := f.KubeClient.AppsV1().DaemonSets(namespace).Get(goctx.TODO(), common.DaemonSetName(fiName), metav1.GetOptions{})
+		if getErr != nil {
+			t.Logf("Retrying. Got error: %v\n", getErr)
+			return false, nil
+		}
+		actual := ds.Spec.Template.Spec.Containers[0].Resources
+		if resourceListMatches(expected.Requests, actual.Requests) && resourceListMatches(expected.Limits, actual.Limits) {
+			return true, nil
+		}
+		t.Logf("Expected resources not found, retrying. Got: %v", actual)
+		return false, nil
+	})
+}
+
+// resourceListMatches returns true when every quantity in expected is present
+// in actual with an equal value.
+func resourceListMatches(expected, actual corev1.ResourceList) bool {
+	if len(expected) != len(actual) {
+		return false
+	}
+	for name, q := range expected {
+		aq, ok := actual[name]
+		if !ok || q.Cmp(aq) != 0 {
+			return false
+		}
+	}
+	return true
+}
+
 func getFiDsPods(f *framework.Framework, fileIntegrityName, namespace string) (*corev1.PodList, error) {
 	dsName := common.DaemonSetName(fileIntegrityName)
 	ds, err := f.KubeClient.AppsV1().DaemonSets(namespace).Get(goctx.TODO(), dsName, metav1.GetOptions{})
