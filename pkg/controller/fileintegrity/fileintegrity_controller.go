@@ -675,7 +675,7 @@ func updateDSResources(currentDS *appsv1.DaemonSet, fi *v1alpha1.FileIntegrity, 
 	expectedResources := getDaemonResources(fi)
 	needsUpdate := !reflect.DeepEqual(*resRef, expectedResources)
 	if needsUpdate {
-		logger.Info("FileIntegrity needed daemon resources update")
+		logger.Info("FileIntegrity needed DaemonSet resources update")
 		*resRef = expectedResources
 	}
 	return needsUpdate
