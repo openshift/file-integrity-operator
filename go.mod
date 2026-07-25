@@ -5,7 +5,7 @@ go 1.25.8
 require (
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/coreos/ignition/v2 v2.26.0
-	github.com/go-logr/logr v1.4.3
+	github.com/go-logr/logr v1.4.4
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.39.1
