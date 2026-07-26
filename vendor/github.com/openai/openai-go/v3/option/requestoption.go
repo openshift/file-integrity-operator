@@ -112,7 +112,7 @@ func WithMaxRetries(retries int) RequestOption {
 // any value if there was one already present.
 func WithHeader(key, value string) RequestOption {
 	return requestconfig.RequestOptionFunc(func(r *requestconfig.RequestConfig) error {
-		r.Request.Header.Set(key, value)
+		r.SetHeader(key, value)
 		return nil
 	})
 }
@@ -121,7 +121,7 @@ func WithHeader(key, value string) RequestOption {
 // onto any existing values.
 func WithHeaderAdd(key, value string) RequestOption {
 	return requestconfig.RequestOptionFunc(func(r *requestconfig.RequestConfig) error {
-		r.Request.Header.Add(key, value)
+		r.AddHeader(key, value)
 		return nil
 	})
 }
@@ -129,7 +129,7 @@ func WithHeaderAdd(key, value string) RequestOption {
 // WithHeaderDel returns a RequestOption that deletes the header value(s) associated with the given key.
 func WithHeaderDel(key string) RequestOption {
 	return requestconfig.RequestOptionFunc(func(r *requestconfig.RequestConfig) error {
-		r.Request.Header.Del(key)
+		r.DelHeader(key)
 		return nil
 	})
 }
@@ -271,8 +271,16 @@ func WithEnvironmentProduction() RequestOption {
 // WithAPIKey returns a RequestOption that sets the client setting "api_key".
 func WithAPIKey(value string) RequestOption {
 	return requestconfig.RequestOptionFunc(func(r *requestconfig.RequestConfig) error {
-		r.APIKey = value
-		return r.Apply(WithHeader("authorization", fmt.Sprintf("Bearer %s", r.APIKey)))
+		r.SetAPIKey(value)
+		return nil
+	})
+}
+
+// WithAdminAPIKey returns a RequestOption that sets the client setting "admin_api_key".
+func WithAdminAPIKey(value string) RequestOption {
+	return requestconfig.RequestOptionFunc(func(r *requestconfig.RequestConfig) error {
+		r.SetAdminAPIKey(value)
+		return nil
 	})
 }
 
@@ -309,7 +317,7 @@ func WithWorkloadIdentity(config auth.WorkloadIdentity) RequestOption {
 	var initErr error
 
 	return requestconfig.RequestOptionFunc(func(r *requestconfig.RequestConfig) error {
-		r.APIKey = ""
+		r.SetAPIKey("")
 
 		r.Middlewares = append(r.Middlewares, func(req *http.Request, next func(*http.Request) (*http.Response, error)) (*http.Response, error) {
 			initOnce.Do(func() {
