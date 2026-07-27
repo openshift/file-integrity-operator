@@ -214,5 +214,8 @@ func (ctx *Context) InitializeClusterResources(cleanupOptions *CleanupOptions) e
 	if err != nil {
 		return fmt.Errorf("failed to read namespaced manifest: %w", err)
 	}
-	return ctx.createFromYAML(namespacedYAML, false, cleanupOptions)
+	// skipIfExists=true tolerates cluster-scoped resources (e.g. the ClusterRole/ClusterRoleBinding)
+	// left behind by a prior test whose cleanup was skipped after a failure, so one failed test
+	// doesn't cascade into every subsequent test in the run.
+	return ctx.createFromYAML(namespacedYAML, true, cleanupOptions)
 }

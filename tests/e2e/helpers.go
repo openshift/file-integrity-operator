@@ -2469,17 +2469,34 @@ func runOCandCheckError(t *testing.T, args []string) error {
 	return nil
 }
 
+// runOCGetOutputMaxAttempts and runOCGetOutputRetryDelay bound the retries in runOCandGetOutput.
+// The ephemeral pods it drives routinely hit curl exit 7 (connection refused) when the target
+// service isn't quite ready yet, which is expected and recovers within a few seconds.
+const (
+	runOCGetOutputMaxAttempts = 3
+	runOCGetOutputRetryDelay  = 5 * time.Second
+)
+
 func runOCandGetOutput(t *testing.T, arg []string) string {
 	ocPath := getOCpath(t)
 
-	// We're just under test.
-	// G204 (CWE-78): Subprocess launched with variable (Confidence: HIGH, Severity: MEDIUM)
-	// #nosec
-	cmd := exec.Command(ocPath, arg...)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Errorf("error getting output %s", err)
+	var out []byte
+	var err error
+	for attempt := 1; attempt <= runOCGetOutputMaxAttempts; attempt++ {
+		// We're just under test.
+		// G204 (CWE-78): Subprocess launched with variable (Confidence: HIGH, Severity: MEDIUM)
+		// #nosec
+		cmd := exec.Command(ocPath, arg...)
+		out, err = cmd.CombinedOutput()
+		if err == nil {
+			return string(out)
+		}
+		t.Logf("attempt %d/%d: error getting output %s", attempt, runOCGetOutputMaxAttempts, err)
+		if attempt < runOCGetOutputMaxAttempts {
+			time.Sleep(runOCGetOutputRetryDelay)
+		}
 	}
+	t.Errorf("error getting output %s", err)
 	return string(out)
 }
 
