@@ -249,7 +249,9 @@ func (f *Framework) runM(m *testing.M) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("failed to read global resource manifest: %w", err)
 	}
-	err = ctx.createFromYAML(globalYAML, true, &CleanupOptions{TestContext: ctx})
+	// replaceIfExists=false: this is one-time global setup (e.g. CRDs); leave any that already
+	// exist alone rather than deleting and recreating them.
+	err = ctx.createFromYAML(globalYAML, false, &CleanupOptions{TestContext: ctx})
 	if err != nil {
 		return 0, fmt.Errorf("failed to create resource(s) in global resource manifest: %w", err)
 	}
