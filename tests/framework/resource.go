@@ -155,7 +155,28 @@ func (ctx *Context) GetWatchNamespace() (string, error) {
 	return ctx.watchNamespace, nil
 }
 
-func (ctx *Context) createFromYAML(yamlFile []byte, skipIfExists bool, cleanupOptions *CleanupOptions) error {
+// createOrReplace creates obj. If it already exists, behavior depends on replaceIfExists:
+// with false, the existing object is left alone (used for one-time global setup, e.g. CRDs,
+// where deleting and recreating would be destructive and pointless). With true, the existing
+// object is deleted and recreated (used for per-test cluster-scoped resources, e.g. a
+// ClusterRole/ClusterRoleBinding left behind by a previous test whose cleanup was skipped
+// after a failure -- leaving it in place would keep it pointed at that deleted namespace's
+// ServiceAccount, silently breaking authorization for every following test).
+func (ctx *Context) createOrReplace(gCtx goctx.Context, obj *unstructured.Unstructured, replaceIfExists bool, cleanupOptions *CleanupOptions) error {
+	err := ctx.client.Create(gCtx, obj, cleanupOptions)
+	if !apierrors.IsAlreadyExists(err) {
+		return err
+	}
+	if !replaceIfExists {
+		return nil
+	}
+	if delErr := ctx.client.Delete(gCtx, obj); delErr != nil && !apierrors.IsNotFound(delErr) {
+		return fmt.Errorf("failed to delete stale resource before recreating: %w", delErr)
+	}
+	return ctx.client.Create(gCtx, obj, cleanupOptions)
+}
+
+func (ctx *Context) createFromYAML(yamlFile []byte, replaceIfExists bool, cleanupOptions *CleanupOptions) error {
 	operatorNamespace, err := ctx.GetOperatorNamespace()
 	if err != nil {
 		return err
@@ -173,10 +194,7 @@ func (ctx *Context) createFromYAML(yamlFile []byte, skipIfExists bool, cleanupOp
 			return fmt.Errorf("failed to unmarshal object spec: %w", err)
 		}
 		obj.SetNamespace(operatorNamespace)
-		err = ctx.client.Create(goctx.TODO(), obj, cleanupOptions)
-		if skipIfExists && apierrors.IsAlreadyExists(err) {
-			continue
-		}
+		err = ctx.createOrReplace(goctx.TODO(), obj, replaceIfExists, cleanupOptions)
 		if err != nil {
 			_, restErr := ctx.restMapper.RESTMappings(obj.GetObjectKind().GroupVersionKind().GroupKind())
 			if restErr == nil {
@@ -192,10 +210,7 @@ func (ctx *Context) createFromYAML(yamlFile []byte, skipIfExists bool, cleanupOp
 				}
 				return true, nil
 			})
-			err = ctx.client.Create(goctx.TODO(), obj, cleanupOptions)
-			if skipIfExists && apierrors.IsAlreadyExists(err) {
-				continue
-			}
+			err = ctx.createOrReplace(goctx.TODO(), obj, replaceIfExists, cleanupOptions)
 			if err != nil {
 				return err
 			}
@@ -214,8 +229,8 @@ func (ctx *Context) InitializeClusterResources(cleanupOptions *CleanupOptions) e
 	if err != nil {
 		return fmt.Errorf("failed to read namespaced manifest: %w", err)
 	}
-	// skipIfExists=true tolerates cluster-scoped resources (e.g. the ClusterRole/ClusterRoleBinding)
-	// left behind by a prior test whose cleanup was skipped after a failure, so one failed test
-	// doesn't cascade into every subsequent test in the run.
+	// replaceIfExists=true: delete and recreate any cluster-scoped resource left behind by a
+	// previous test whose cleanup was skipped after a failure, so it's freshly bound to this
+	// test's namespace instead of a stale, since-deleted one.
 	return ctx.createFromYAML(namespacedYAML, true, cleanupOptions)
 }

@@ -2449,34 +2449,30 @@ func runOCandCheckError(t *testing.T, args []string) error {
 	return nil
 }
 
-// runOCGetOutputMaxAttempts and runOCGetOutputRetryDelay bound the retries in runOCandGetOutput.
-// The ephemeral pods it drives routinely hit curl exit 7 (connection refused) when the target
-// service isn't quite ready yet, which is expected and recovers within a few seconds.
-const (
-	runOCGetOutputMaxAttempts = 3
-	runOCGetOutputRetryDelay  = 5 * time.Second
-)
-
 func runOCandGetOutput(t *testing.T, arg []string) string {
 	ocPath := getOCpath(t)
 
 	var out []byte
 	var err error
-	for attempt := 1; attempt <= runOCGetOutputMaxAttempts; attempt++ {
+	// The ephemeral pods this drives routinely hit curl exit 7 (connection refused) while the
+	// target service is still coming up. getMetricResultsSupressWarning tolerates the same
+	// condition via an external wait.Poll using these same pollInterval/pollTimeout constants;
+	// apply it here too instead of failing on the first attempt.
+	_ = wait.PollImmediate(pollInterval, pollTimeout, func() (bool, error) {
 		// We're just under test.
 		// G204 (CWE-78): Subprocess launched with variable (Confidence: HIGH, Severity: MEDIUM)
 		// #nosec
 		cmd := exec.Command(ocPath, arg...)
 		out, err = cmd.CombinedOutput()
-		if err == nil {
-			return string(out)
+		if err != nil {
+			t.Logf("error getting output, retrying: %s", err)
+			return false, nil
 		}
-		t.Logf("attempt %d/%d: error getting output %s", attempt, runOCGetOutputMaxAttempts, err)
-		if attempt < runOCGetOutputMaxAttempts {
-			time.Sleep(runOCGetOutputRetryDelay)
-		}
+		return true, nil
+	})
+	if err != nil {
+		t.Errorf("error getting output %s", err)
 	}
-	t.Errorf("error getting output %s", err)
 	return string(out)
 }
 
