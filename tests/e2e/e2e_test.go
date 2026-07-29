@@ -577,9 +577,10 @@ func TestFileIntegrityMetricsResetPersistence(t *testing.T) {
 	}
 	t.Log("Operator pod restarted")
 
-	time.Sleep(5 * time.Second)
-	// check again the metrics, they should still be there
-	err = assertEachMetric(t, namespace, expectedMetrics)
+	// The node_failed gauges are restored asynchronously as each node's
+	// status is re-reconciled after the restart, so poll for the expected
+	// values instead of asserting a single snapshot.
+	err = assertEachMetricWithRetry(t, namespace, expectedMetrics, 5*time.Second, 5*time.Minute)
 	if err != nil {
 		t.Error(err)
 	}
