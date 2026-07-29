@@ -17,8 +17,12 @@ limitations under the License.
 package metrics
 
 import (
+	"context"
 	"errors"
+	"os"
+	"path"
 	"testing"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
@@ -126,4 +130,44 @@ func TestFileIntegrityMetrics(t *testing.T) {
 		tc.when(sut)
 		tc.then(sut)
 	}
+}
+
+func TestWaitForServingCertFiles(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns when files appear", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		certFile := path.Join(dir, "tls.crt")
+		keyFile := path.Join(dir, "tls.key")
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		sut := NewControllerMetrics()
+		errCh := make(chan error, 1)
+		go func() {
+			errCh <- sut.waitForServingCertFiles(ctx, certFile, keyFile)
+		}()
+
+		time.Sleep(50 * time.Millisecond)
+		require.NoError(t, os.WriteFile(certFile, []byte("cert"), 0o600))
+		require.NoError(t, os.WriteFile(keyFile, []byte("key"), 0o600))
+
+		require.NoError(t, <-errCh)
+	})
+
+	t.Run("returns on context cancel", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		certFile := path.Join(dir, "tls.crt")
+		keyFile := path.Join(dir, "tls.key")
+
+		ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+		defer cancel()
+
+		sut := NewControllerMetrics()
+		err := sut.waitForServingCertFiles(ctx, certFile, keyFile)
+		require.Error(t, err)
+	})
 }

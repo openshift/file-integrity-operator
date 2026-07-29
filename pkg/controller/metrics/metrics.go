@@ -5,7 +5,11 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net/http"
+	"os"
+	"path"
+	"time"
 
+	"github.com/cenkalti/backoff/v4"
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -60,6 +64,12 @@ const (
 	HandlerPath                        = "/metrics-fio"
 	ControllerMetricsServiceName       = "metrics-fio"
 	ControllerMetricsPort        int32 = 8585
+
+	// Serving cert volume mount (optional secret projected by kubelet after
+	// service-ca creates file-integrity-operator-serving-cert).
+	servingCertDir  = "/var/run/secrets/serving-cert"
+	servingCertFile = servingCertDir + "/tls.crt"
+	servingKeyFile  = servingCertDir + "/tls.key"
 )
 
 var (
@@ -188,9 +198,20 @@ func (m *Metrics) Register() error {
 }
 
 func (m *Metrics) Start(ctx context.Context) error {
-
 	m.log.Info("Starting to serve controller metrics")
 	http.Handle(HandlerPath, promhttp.Handler())
+
+	// The serving-cert volume is optional because service-ca creates the secret
+	// after the metrics Service exists. ensureMetricsSecretsWithRetry only waits
+	// for the Secret in the API; kubelet may still need time to project the files.
+	// Wait for the files on disk so ListenAndServeTLS does not fail once and leave
+	// :8585 dead for the life of the pod.
+	if err := m.waitForServingCertFiles(ctx, servingCertFile, servingKeyFile); err != nil {
+		if ctx.Err() != nil {
+			return nil
+		}
+		return errors.Wrap(err, "waiting for serving certificate files")
+	}
 
 	tlsConfig := &tls.Config{
 		MinVersion: tls.VersionTLS12,
@@ -198,15 +219,48 @@ func (m *Metrics) Start(ctx context.Context) error {
 	}
 	tlsConfig = libgocrypto.SecureTLSConfig(tlsConfig)
 	server := &http.Server{
-		Addr:      ":8585",
+		Addr:      fmt.Sprintf(":%d", ControllerMetricsPort),
 		TLSConfig: tlsConfig,
 	}
 
-	err := server.ListenAndServeTLS("/var/run/secrets/serving-cert/tls.crt", "/var/run/secrets/serving-cert/tls.key")
-	if err != nil {
-		m.log.Error(err, "Metrics service failed")
+	go func() {
+		<-ctx.Done()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			m.log.Error(err, "Error shutting down controller metrics server")
+		}
+	}()
+
+	m.log.Info("Serving controller metrics", "addr", server.Addr)
+	err := server.ListenAndServeTLS(path.Clean(servingCertFile), path.Clean(servingKeyFile))
+	if err == nil || err == http.ErrServerClosed {
+		return nil
 	}
-	return nil
+	m.log.Error(err, "Metrics service failed")
+	return err
+}
+
+// waitForServingCertFiles polls until both TLS files are readable or ctx is done.
+// Uses the same backoff pattern as ensureMetricsSecretsWithRetry in cmd/manager.
+func (m *Metrics) waitForServingCertFiles(ctx context.Context, certFile, keyFile string) error {
+	certFile = path.Clean(certFile)
+	keyFile = path.Clean(keyFile)
+
+	bo := backoff.NewExponentialBackOff()
+	bo.MaxElapsedTime = 0 // retry until context cancellation
+
+	return backoff.Retry(func() error {
+		if _, err := os.Stat(certFile); err != nil {
+			m.log.Info("Waiting for serving certificate to be mounted, retrying...", "path", certFile)
+			return err
+		}
+		if _, err := os.Stat(keyFile); err != nil {
+			m.log.Info("Waiting for serving certificate key to be mounted, retrying...", "path", keyFile)
+			return err
+		}
+		return nil
+	}, backoff.WithContext(bo, ctx))
 }
 
 // IncFileIntegrityPhaseInit increments the FileIntegrity Phase init counter.
