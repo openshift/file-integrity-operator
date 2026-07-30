@@ -5,7 +5,10 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net/http"
+	"os"
+	"time"
 
+	backoff "github.com/cenkalti/backoff/v4"
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -60,6 +63,10 @@ const (
 	HandlerPath                        = "/metrics-fio"
 	ControllerMetricsServiceName       = "metrics-fio"
 	ControllerMetricsPort        int32 = 8585
+
+	servingCertFile        = "/var/run/secrets/serving-cert/tls.crt"
+	servingKeyFile         = "/var/run/secrets/serving-cert/tls.key"
+	servingCertMaxWaitTime = 5 * time.Minute
 )
 
 var (
@@ -202,11 +209,41 @@ func (m *Metrics) Start(ctx context.Context) error {
 		TLSConfig: tlsConfig,
 	}
 
-	err := server.ListenAndServeTLS("/var/run/secrets/serving-cert/tls.crt", "/var/run/secrets/serving-cert/tls.key")
-	if err != nil {
+	// The serving cert secret is created by the service-ca controller after
+	// the operator creates the metrics Service, so the kubelet may sync the
+	// cert files into the volume mount well after this container starts.
+	if err := m.waitForServingCert(ctx); err != nil {
+		m.log.Error(err, "Timed out waiting for the metrics serving cert")
+		return err
+	}
+
+	go func() {
+		<-ctx.Done()
+		server.Close()
+	}()
+
+	err := server.ListenAndServeTLS(servingCertFile, servingKeyFile)
+	if err != nil && err != http.ErrServerClosed {
 		m.log.Error(err, "Metrics service failed")
+		return err
 	}
 	return nil
+}
+
+// waitForServingCert waits for the kubelet to sync the metrics serving cert
+// key pair into the container's volume mount.
+func (m *Metrics) waitForServingCert(ctx context.Context) error {
+	bo := backoff.NewExponentialBackOff()
+	bo.MaxElapsedTime = servingCertMaxWaitTime
+	return backoff.Retry(func() error {
+		for _, f := range []string{servingCertFile, servingKeyFile} {
+			if _, err := os.Stat(f); err != nil {
+				m.log.Info("Waiting for the metrics serving cert to be mounted", "file", f)
+				return err
+			}
+		}
+		return nil
+	}, backoff.WithContext(bo, ctx))
 }
 
 // IncFileIntegrityPhaseInit increments the FileIntegrity Phase init counter.

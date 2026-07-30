@@ -2502,6 +2502,23 @@ func assertEachMetric(t *testing.T, namespace string, expectedMetrics map[string
 	return nil
 }
 
+// assertEachMetricWithRetry polls the metrics endpoint until every expected
+// metric reports the expected value, tolerating transient query failures and
+// metrics that are restored asynchronously (e.g. right after an operator
+// restart).
+func assertEachMetricWithRetry(t *testing.T, namespace string, expectedMetrics map[string]int, interval, timeout time.Duration) error {
+	return wait.Poll(interval, timeout, func() (bool, error) {
+		metricsOutput := getMetricResultsSupressWarning(t, namespace)
+		for metric, expected := range expectedMetrics {
+			if val := parseMetric(t, metricsOutput, metric); val != expected {
+				t.Logf("metric %s is %d, expecting %d; retrying", metric, val, expected)
+				return false, nil
+			}
+		}
+		return true, nil
+	})
+}
+
 func parseMetric(t *testing.T, content, metric string) int {
 	scanner := bufio.NewScanner(strings.NewReader(content))
 	for scanner.Scan() {
