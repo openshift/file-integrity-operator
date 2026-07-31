@@ -13,6 +13,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -84,6 +85,14 @@ const (
 	metricsURLFmt   = "https://metrics.%s.svc:8585/"
 	PromethusTestSA = "prometheus-query-sa"
 )
+
+func metricsTestPodOverrides(_ string) string {
+	return `--overrides={"spec":{"securityContext":{"runAsNonRoot":true,"runAsUser":65534,"seccompProfile":{"type":"RuntimeDefault"}}}}`
+}
+
+func metricsTestPodOverridesWithSA(_ string, sa string) string {
+	return fmt.Sprintf(`--overrides={"spec":{"serviceAccountName":"%s","securityContext":{"runAsNonRoot":true,"runAsUser":65534,"seccompProfile":{"type":"RuntimeDefault"}}}}`, sa)
+}
 
 var mcLabelForWorkerRole = map[string]string{
 	mcWorkerRoleLabelKey: "worker",
@@ -443,21 +452,30 @@ func setupTestRequirements(t *testing.T) *framework.Context {
 	return f
 }
 
+var (
+	originalManifest     []byte
+	originalManifestOnce sync.Once
+)
+
 func replaceNamespaceFromManifest(t *testing.T, nsFrom, nsTo string, namespacedManPath *string) {
 	if namespacedManPath == nil {
 		t.Fatal("Error: no namespaced manifest given as test argument. operator-sdk might have changed.")
 	}
 	manPath := *namespacedManPath
-	// #nosec
-	read, err := os.ReadFile(manPath)
-	if err != nil {
-		t.Fatalf("Error reading namespaced manifest file: %s", err)
-	}
 
-	newContents := strings.Replace(string(read), nsFrom, nsTo, -1)
+	originalManifestOnce.Do(func() {
+		// #nosec
+		data, err := os.ReadFile(manPath)
+		if err != nil {
+			t.Fatalf("Error reading namespaced manifest file: %s", err)
+		}
+		originalManifest = data
+	})
+
+	newContents := strings.Replace(string(originalManifest), nsFrom, nsTo, -1)
 
 	// #nosec
-	err = os.WriteFile(manPath, []byte(newContents), 0644)
+	err := os.WriteFile(manPath, []byte(newContents), 0644)
 	if err != nil {
 		t.Fatalf("Error writing namespaced manifest file: %s", err)
 	}
@@ -2395,9 +2413,10 @@ func logContainerOutput(t *testing.T, f *framework.Framework, namespace, name st
 }
 
 func getMetricResults(t *testing.T, namespace string) string {
+	const image = "registry.fedoraproject.org/fedora-minimal:latest"
 	out := runOCandGetOutput(t, []string{
-		"run", "--rm", "-i", "--restart=Never", "--image=registry.fedoraproject.org/fedora-minimal:latest",
-		"-n" + namespace, "metrics-test", "--", "bash", "-c",
+		"run", "--rm", "-i", "--restart=Never", "--image=" + image,
+		"-n" + namespace, metricsTestPodOverrides(image), "metrics-test", "--", "bash", "-c",
 		getCurlFIOCMD(namespace),
 	})
 
@@ -2406,9 +2425,10 @@ func getMetricResults(t *testing.T, namespace string) string {
 }
 
 func getMetricResultsSupressWarning(t *testing.T, namespace string) string {
+	const image = "registry.fedoraproject.org/fedora-minimal:latest"
 	out := runOCandGetOutputSupressWarning(t, []string{
-		"run", "--rm", "-i", "--restart=Never", "--image=registry.fedoraproject.org/fedora-minimal:latest",
-		"-n" + namespace, "metrics-test", "--", "bash", "-c",
+		"run", "--rm", "-i", "--restart=Never", "--image=" + image,
+		"-n" + namespace, metricsTestPodOverrides(image), "metrics-test", "--", "bash", "-c",
 		getCurlFIOCMD(namespace),
 	})
 
@@ -2452,11 +2472,24 @@ func runOCandCheckError(t *testing.T, args []string) error {
 func runOCandGetOutput(t *testing.T, arg []string) string {
 	ocPath := getOCpath(t)
 
-	// We're just under test.
-	// G204 (CWE-78): Subprocess launched with variable (Confidence: HIGH, Severity: MEDIUM)
-	// #nosec
-	cmd := exec.Command(ocPath, arg...)
-	out, err := cmd.CombinedOutput()
+	var out []byte
+	var err error
+	// The ephemeral pods this drives routinely hit curl exit 7 (connection refused) while the
+	// target service is still coming up. getMetricResultsSupressWarning tolerates the same
+	// condition via an external wait.Poll using these same pollInterval/pollTimeout constants;
+	// apply it here too instead of failing on the first attempt.
+	_ = wait.PollImmediate(pollInterval, pollTimeout, func() (bool, error) {
+		// We're just under test.
+		// G204 (CWE-78): Subprocess launched with variable (Confidence: HIGH, Severity: MEDIUM)
+		// #nosec
+		cmd := exec.Command(ocPath, arg...)
+		out, err = cmd.CombinedOutput()
+		if err != nil {
+			t.Logf("error getting output, retrying: %s", err)
+			return false, nil
+		}
+		return true, nil
+	})
 	if err != nil {
 		t.Errorf("error getting output %s", err)
 	}
@@ -2468,8 +2501,9 @@ func AssertMetricsEndpointUsesHTTPVersion(t *testing.T, endpoint, version, names
 	// We're just under test.
 	// G204 (CWE-78): Subprocess launched with variable (Confidence: HIGH, Severity: MEDIUM)
 	// #nosec
-	out := runOCandGetOutput(t, []string{"run", "--rm", "-i", "--restart=Never", "--image=registry.fedoraproject.org/fedora-minimal:latest",
-		"-n", namespace, "metrics-test", "--", "bash", "-c", curlCMD})
+	const image = "registry.fedoraproject.org/fedora-minimal:latest"
+	out := runOCandGetOutput(t, []string{"run", "--rm", "-i", "--restart=Never", "--image=" + image,
+		"-n", namespace, metricsTestPodOverrides(image), "metrics-test", "--", "bash", "-c", curlCMD})
 
 	if !strings.Contains(string(out), version) {
 		return fmt.Errorf("metric endpoint is not using %s, got %s", version, out)
@@ -2562,9 +2596,10 @@ func CleanupRBACForMetricsTest(t *testing.T, operatorNamespace string) {
 // GetPrometheusMetricTargets retrieves Prometheus metric targets
 func GetPrometheusMetricTargets(t *testing.T, operatorNamespace string) []promv1.Target {
 	const prometheusCommand = `TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token) && { curl -k -s https://prometheus-k8s.openshift-monitoring.svc.cluster.local:9091/api/v1/targets --cacert /var/run/secrets/kubernetes.io/serviceaccount/ca.crt -H "Authorization: Bearer $TOKEN"; }`
+	const image = "registry.fedoraproject.org/fedora:latest"
 	out := runOCandGetOutput(t, []string{
-		"run", "--rm", "-i", "--restart=Never", "--image=registry.fedoraproject.org/fedora:latest",
-		"-n", operatorNamespace, "--overrides={\"spec\": {\"serviceAccountName\": \"" + PromethusTestSA + "\"}}", "metrics-test", "--", "bash", "-c", prometheusCommand})
+		"run", "--rm", "-i", "--restart=Never", "--image=" + image,
+		"-n", operatorNamespace, metricsTestPodOverridesWithSA(image, PromethusTestSA), "metrics-test", "--", "bash", "-c", prometheusCommand})
 
 	outTrimmed := trimOutput(out)
 	if outTrimmed == "" {

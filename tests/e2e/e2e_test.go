@@ -330,9 +330,7 @@ func TestFileIntegrityPruneBackup(t *testing.T) {
 		t.Errorf("failed to retrieve FI object: %v\n", err)
 	}
 	fileIntegrityCopy := fileIntegrity.DeepCopy()
-	fileIntegrityCopy.Spec.Config = v1alpha1.FileIntegrityConfig{
-		MaxBackups: 1,
-	}
+	fileIntegrityCopy.Spec.Config.MaxBackups = 1
 	err = f.Client.Update(context.TODO(), fileIntegrityCopy)
 	if err != nil {
 		t.Errorf("failed to update FI object: %v\n", err)
