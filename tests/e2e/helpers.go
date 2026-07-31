@@ -86,12 +86,12 @@ const (
 	PromethusTestSA = "prometheus-query-sa"
 )
 
-func metricsTestPodOverrides(image string) string {
-	return fmt.Sprintf(`--overrides={"spec":{"securityContext":{"runAsNonRoot":true,"seccompProfile":{"type":"RuntimeDefault"}},"containers":[{"name":"metrics-test","image":"%s","securityContext":{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]}}}]}}`, image)
+func metricsTestPodOverrides(_ string) string {
+	return `--overrides={"spec":{"securityContext":{"runAsNonRoot":true,"runAsUser":65534,"seccompProfile":{"type":"RuntimeDefault"}}}}`
 }
 
-func metricsTestPodOverridesWithSA(image, sa string) string {
-	return fmt.Sprintf(`--overrides={"spec":{"serviceAccountName":"%s","securityContext":{"runAsNonRoot":true,"seccompProfile":{"type":"RuntimeDefault"}},"containers":[{"name":"metrics-test","image":"%s","securityContext":{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]}}}]}}`, sa, image)
+func metricsTestPodOverridesWithSA(_ string, sa string) string {
+	return fmt.Sprintf(`--overrides={"spec":{"serviceAccountName":"%s","securityContext":{"runAsNonRoot":true,"runAsUser":65534,"seccompProfile":{"type":"RuntimeDefault"}}}}`, sa)
 }
 
 var mcLabelForWorkerRole = map[string]string{
