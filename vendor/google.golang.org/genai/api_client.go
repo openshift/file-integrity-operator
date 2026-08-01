@@ -38,7 +38,7 @@ import (
 const maxChunkSize = 8 * 1024 * 1024 // 8 MB chunk size
 const maxRetryCount = 3
 const initialRetryDelay = time.Second
-const delayMultiplier = 2
+const vertexPrefix = "vertex-genai-modules/"
 
 type apiClient struct {
 	clientConfig *ClientConfig
@@ -66,17 +66,25 @@ func sendStreamRequest[T responseStream[R], R any](ctx context.Context, ac *apiC
 	var cancel context.CancelFunc
 	if timeout != nil && *timeout > 0*time.Second && isTimeoutBeforeDeadline(ctx, *timeout) {
 		requestContext, cancel = context.WithTimeout(ctx, *timeout)
-		defer cancel()
 	}
 	req = req.WithContext(requestContext)
 
 	resp, err := doRequest(ac, req)
 	if err != nil {
+		if cancel != nil {
+			cancel()
+		}
 		return err
 	}
 
+	output.cancel = cancel
+
 	// resp.Body will be closed by the iterator
-	return deserializeStreamResponse(resp, output)
+	err = deserializeStreamResponse(resp, output)
+	if err != nil && cancel != nil {
+		cancel()
+	}
+	return err
 }
 
 // SendRequest issues an API request and returns a map of the response contents.
@@ -159,8 +167,7 @@ func (ac *apiClient) createAPIURL(suffix, method string, httpOptions *HTTPOption
 	var finalURL *url.URL
 	if ac.clientConfig.Backend == BackendVertexAI {
 		queryVertexBaseModel := method == http.MethodGet && strings.HasPrefix(path, "publishers/google/models")
-		shouldPrepend := ac.clientConfig.APIKey == "" &&
-			ac.clientConfig.Project != "" &&
+		shouldPrepend := ac.clientConfig.Project != "" &&
 			ac.clientConfig.Location != "" &&
 			httpOptions.BaseURLResourceScope != ResourceScopeCollection &&
 			(!strings.HasPrefix(path, "projects/") && !queryVertexBaseModel)
@@ -237,6 +244,43 @@ func appendSDKHeaders(headers http.Header) {
 
 	libraryLabel := fmt.Sprintf("google-genai-sdk/%s", version)
 	languageLabel := fmt.Sprintf("gl-go/%s", runtime.Version())
+
+	var vertexLabel string
+	if uaValues := headers.Values("user-agent"); uaValues != nil {
+		var newUserAgents []string
+		for _, ua := range uaValues {
+			var newParts []string
+			parts := strings.Fields(ua)
+			foundVertex := false
+			for _, part := range parts {
+				if strings.HasPrefix(part, vertexPrefix) {
+					if vertexLabel == "" {
+						vertexLabel = part
+					}
+					foundVertex = true
+				} else {
+					newParts = append(newParts, part)
+				}
+			}
+
+			if foundVertex {
+				if len(newParts) > 0 {
+					newUserAgents = append(newUserAgents, strings.Join(newParts, " "))
+				}
+			} else {
+				newUserAgents = append(newUserAgents, ua)
+			}
+		}
+
+		if vertexLabel != "" {
+			headers.Del("user-agent")
+			for _, ua := range newUserAgents {
+				headers.Add("user-agent", ua)
+			}
+			libraryLabel = fmt.Sprintf("%s+%s", libraryLabel, vertexLabel)
+		}
+	}
+
 	versionHeaderValue := fmt.Sprintf("%s %s", libraryLabel, languageLabel)
 
 	if !slices.Contains(headers.Values("user-agent"), versionHeaderValue) {
@@ -399,9 +443,10 @@ func deserializeUnaryResponse(resp *http.Response) (map[string]any, error) {
 }
 
 type responseStream[R any] struct {
-	r  *bufio.Scanner
-	rc io.ReadCloser
-	h  http.Header
+	r      *bufio.Scanner
+	rc     io.ReadCloser
+	h      http.Header
+	cancel context.CancelFunc
 }
 
 func iterateResponseStream[R any](rs *responseStream[R], responseConverter func(responseMap map[string]any) (*R, error)) iter.Seq2[*R, error] {
@@ -410,6 +455,9 @@ func iterateResponseStream[R any](rs *responseStream[R], responseConverter func(
 			// Close the response body range over function is done.
 			if err := rs.rc.Close(); err != nil {
 				log.Printf("Error closing response body: %v", err)
+			}
+			if rs.cancel != nil {
+				rs.cancel()
 			}
 		}()
 		for rs.r.Scan() {
@@ -482,6 +530,7 @@ func iterateResponseStream[R any](rs *responseStream[R], responseConverter func(
 				log.Printf("The response is too large to process in streaming mode. Please use a non-streaming method.")
 			}
 			log.Printf("Error %v", rs.r.Err())
+			yield(nil, rs.r.Err())
 		}
 	}
 }
@@ -650,7 +699,7 @@ func (ac *apiClient) upload(ctx context.Context, r io.Reader, uploadURL string, 
 			select {
 			case <-ctx.Done():
 				return nil, fmt.Errorf("upload aborted while waiting to retry (attempt %d, offset %d): %w", attempt+1, offset, ctx.Err())
-			case <-time.After(initialRetryDelay * time.Duration(delayMultiplier^attempt)):
+			case <-time.After(initialRetryDelay * time.Duration(1<<attempt)):
 				// Sleep completed, continue to the next attempt.
 			}
 		}
