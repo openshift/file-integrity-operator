@@ -199,7 +199,7 @@ func main() {
 	newVersion := os.Args[3]
 
 	// Default values
-	operatorImageURL := "quay.io/redhat-user-workloads/ocp-isc-tenant/file-integrity-operator-release@sha256:16c6e7379647c265fd9d06c8b716de753b00cccc9a818d4ca5c1ccb85b63c408"
+	operatorImageURL := "quay.io/redhat-user-workloads/ocp-isc-tenant/file-integrity-operator-release@sha256:e657ee05320073616a60fe314dd0ee380ed50c90594f7825c4d92bf32dea7275"
 	translateToRedHat := true
 
 	// Override with provided operator image if given
