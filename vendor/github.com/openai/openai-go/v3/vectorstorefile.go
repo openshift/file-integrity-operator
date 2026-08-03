@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/url"
 	"slices"
@@ -44,13 +43,14 @@ func NewVectorStoreFileService(opts ...option.RequestOption) (r VectorStoreFileS
 // [File](https://platform.openai.com/docs/api-reference/files) to a
 // [vector store](https://platform.openai.com/docs/api-reference/vector-stores/object).
 func (r *VectorStoreFileService) New(ctx context.Context, vectorStoreID string, body VectorStoreFileNewParams, opts ...option.RequestOption) (res *VectorStoreFile, err error) {
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	opts = append([]option.RequestOption{option.WithHeader("OpenAI-Beta", "assistants=v2")}, opts...)
 	if vectorStoreID == "" {
 		err = errors.New("missing required vector_store_id parameter")
 		return nil, err
 	}
-	path := fmt.Sprintf("vector_stores/%s/files", vectorStoreID)
+	path := requestconfig.FormatPath("vector_stores/%s/files", vectorStoreID)
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodPost, path, body, &res, opts...)
 	return res, err
 }
@@ -96,7 +96,8 @@ func (r *VectorStoreFileService) UploadAndPoll(ctx context.Context, vectorStoreI
 
 // Retrieves a vector store file.
 func (r *VectorStoreFileService) Get(ctx context.Context, vectorStoreID string, fileID string, opts ...option.RequestOption) (res *VectorStoreFile, err error) {
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	opts = append([]option.RequestOption{option.WithHeader("OpenAI-Beta", "assistants=v2")}, opts...)
 	if vectorStoreID == "" {
 		err = errors.New("missing required vector_store_id parameter")
@@ -106,14 +107,15 @@ func (r *VectorStoreFileService) Get(ctx context.Context, vectorStoreID string, 
 		err = errors.New("missing required file_id parameter")
 		return nil, err
 	}
-	path := fmt.Sprintf("vector_stores/%s/files/%s", vectorStoreID, fileID)
+	path := requestconfig.FormatPath("vector_stores/%s/files/%s", vectorStoreID, fileID)
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodGet, path, nil, &res, opts...)
 	return res, err
 }
 
 // Update attributes on a vector store file.
 func (r *VectorStoreFileService) Update(ctx context.Context, vectorStoreID string, fileID string, body VectorStoreFileUpdateParams, opts ...option.RequestOption) (res *VectorStoreFile, err error) {
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	opts = append([]option.RequestOption{option.WithHeader("OpenAI-Beta", "assistants=v2")}, opts...)
 	if vectorStoreID == "" {
 		err = errors.New("missing required vector_store_id parameter")
@@ -123,7 +125,7 @@ func (r *VectorStoreFileService) Update(ctx context.Context, vectorStoreID strin
 		err = errors.New("missing required file_id parameter")
 		return nil, err
 	}
-	path := fmt.Sprintf("vector_stores/%s/files/%s", vectorStoreID, fileID)
+	path := requestconfig.FormatPath("vector_stores/%s/files/%s", vectorStoreID, fileID)
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodPost, path, body, &res, opts...)
 	return res, err
 }
@@ -131,13 +133,14 @@ func (r *VectorStoreFileService) Update(ctx context.Context, vectorStoreID strin
 // Returns a list of vector store files.
 func (r *VectorStoreFileService) List(ctx context.Context, vectorStoreID string, query VectorStoreFileListParams, opts ...option.RequestOption) (res *pagination.CursorPage[VectorStoreFile], err error) {
 	var raw *http.Response
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	opts = append([]option.RequestOption{option.WithHeader("OpenAI-Beta", "assistants=v2"), option.WithResponseInto(&raw)}, opts...)
 	if vectorStoreID == "" {
 		err = errors.New("missing required vector_store_id parameter")
 		return nil, err
 	}
-	path := fmt.Sprintf("vector_stores/%s/files", vectorStoreID)
+	path := requestconfig.FormatPath("vector_stores/%s/files", vectorStoreID)
 	cfg, err := requestconfig.NewRequestConfig(ctx, http.MethodGet, path, query, &res, opts...)
 	if err != nil {
 		return nil, err
@@ -160,7 +163,8 @@ func (r *VectorStoreFileService) ListAutoPaging(ctx context.Context, vectorStore
 // [delete file](https://platform.openai.com/docs/api-reference/files/delete)
 // endpoint.
 func (r *VectorStoreFileService) Delete(ctx context.Context, vectorStoreID string, fileID string, opts ...option.RequestOption) (res *VectorStoreFileDeleted, err error) {
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	opts = append([]option.RequestOption{option.WithHeader("OpenAI-Beta", "assistants=v2")}, opts...)
 	if vectorStoreID == "" {
 		err = errors.New("missing required vector_store_id parameter")
@@ -170,7 +174,7 @@ func (r *VectorStoreFileService) Delete(ctx context.Context, vectorStoreID strin
 		err = errors.New("missing required file_id parameter")
 		return nil, err
 	}
-	path := fmt.Sprintf("vector_stores/%s/files/%s", vectorStoreID, fileID)
+	path := requestconfig.FormatPath("vector_stores/%s/files/%s", vectorStoreID, fileID)
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodDelete, path, nil, &res, opts...)
 	return res, err
 }
@@ -178,7 +182,8 @@ func (r *VectorStoreFileService) Delete(ctx context.Context, vectorStoreID strin
 // Retrieve the parsed contents of a vector store file.
 func (r *VectorStoreFileService) Content(ctx context.Context, vectorStoreID string, fileID string, opts ...option.RequestOption) (res *pagination.Page[VectorStoreFileContentResponse], err error) {
 	var raw *http.Response
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	opts = append([]option.RequestOption{option.WithHeader("OpenAI-Beta", "assistants=v2"), option.WithResponseInto(&raw)}, opts...)
 	if vectorStoreID == "" {
 		err = errors.New("missing required vector_store_id parameter")
@@ -188,7 +193,7 @@ func (r *VectorStoreFileService) Content(ctx context.Context, vectorStoreID stri
 		err = errors.New("missing required file_id parameter")
 		return nil, err
 	}
-	path := fmt.Sprintf("vector_stores/%s/files/%s/content", vectorStoreID, fileID)
+	path := requestconfig.FormatPath("vector_stores/%s/files/%s/content", vectorStoreID, fileID)
 	cfg, err := requestconfig.NewRequestConfig(ctx, http.MethodGet, path, nil, &res, opts...)
 	if err != nil {
 		return nil, err
@@ -211,7 +216,7 @@ type VectorStoreFile struct {
 	// The identifier, which can be referenced in API endpoints.
 	ID string `json:"id" api:"required"`
 	// The Unix timestamp (in seconds) for when the vector store file was created.
-	CreatedAt int64 `json:"created_at" api:"required"`
+	CreatedAt int64 `json:"created_at" api:"required" format:"unixtime"`
 	// The last error associated with this vector store file. Will be `null` if there
 	// are no errors.
 	LastError VectorStoreFileLastError `json:"last_error" api:"required"`
