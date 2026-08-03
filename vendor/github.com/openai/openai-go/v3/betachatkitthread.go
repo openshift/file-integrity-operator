@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/url"
 	"slices"
@@ -42,13 +41,14 @@ func NewBetaChatKitThreadService(opts ...option.RequestOption) (r BetaChatKitThr
 
 // Retrieve a ChatKit thread by its identifier.
 func (r *BetaChatKitThreadService) Get(ctx context.Context, threadID string, opts ...option.RequestOption) (res *ChatKitThread, err error) {
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	opts = append([]option.RequestOption{option.WithHeader("OpenAI-Beta", "chatkit_beta=v1")}, opts...)
 	if threadID == "" {
 		err = errors.New("missing required thread_id parameter")
 		return nil, err
 	}
-	path := fmt.Sprintf("chatkit/threads/%s", threadID)
+	path := requestconfig.FormatPath("chatkit/threads/%s", threadID)
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodGet, path, nil, &res, opts...)
 	return res, err
 }
@@ -56,7 +56,8 @@ func (r *BetaChatKitThreadService) Get(ctx context.Context, threadID string, opt
 // List ChatKit threads with optional pagination and user filters.
 func (r *BetaChatKitThreadService) List(ctx context.Context, query BetaChatKitThreadListParams, opts ...option.RequestOption) (res *pagination.ConversationCursorPage[ChatKitThread], err error) {
 	var raw *http.Response
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	opts = append([]option.RequestOption{option.WithHeader("OpenAI-Beta", "chatkit_beta=v1"), option.WithResponseInto(&raw)}, opts...)
 	path := "chatkit/threads"
 	cfg, err := requestconfig.NewRequestConfig(ctx, http.MethodGet, path, query, &res, opts...)
@@ -78,13 +79,14 @@ func (r *BetaChatKitThreadService) ListAutoPaging(ctx context.Context, query Bet
 
 // Delete a ChatKit thread along with its items and stored attachments.
 func (r *BetaChatKitThreadService) Delete(ctx context.Context, threadID string, opts ...option.RequestOption) (res *BetaChatKitThreadDeleteResponse, err error) {
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	opts = append([]option.RequestOption{option.WithHeader("OpenAI-Beta", "chatkit_beta=v1")}, opts...)
 	if threadID == "" {
 		err = errors.New("missing required thread_id parameter")
 		return nil, err
 	}
-	path := fmt.Sprintf("chatkit/threads/%s", threadID)
+	path := requestconfig.FormatPath("chatkit/threads/%s", threadID)
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodDelete, path, nil, &res, opts...)
 	return res, err
 }
@@ -92,13 +94,14 @@ func (r *BetaChatKitThreadService) Delete(ctx context.Context, threadID string, 
 // List items that belong to a ChatKit thread.
 func (r *BetaChatKitThreadService) ListItems(ctx context.Context, threadID string, query BetaChatKitThreadListItemsParams, opts ...option.RequestOption) (res *pagination.ConversationCursorPage[ChatKitThreadItemListDataUnion], err error) {
 	var raw *http.Response
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	opts = append([]option.RequestOption{option.WithHeader("OpenAI-Beta", "chatkit_beta=v1"), option.WithResponseInto(&raw)}, opts...)
 	if threadID == "" {
 		err = errors.New("missing required thread_id parameter")
 		return nil, err
 	}
-	path := fmt.Sprintf("chatkit/threads/%s/items", threadID)
+	path := requestconfig.FormatPath("chatkit/threads/%s/items", threadID)
 	cfg, err := requestconfig.NewRequestConfig(ctx, http.MethodGet, path, query, &res, opts...)
 	if err != nil {
 		return nil, err
@@ -125,7 +128,7 @@ type ChatSession struct {
 	// Ephemeral client secret that authenticates session requests.
 	ClientSecret string `json:"client_secret" api:"required"`
 	// Unix timestamp (in seconds) for when the session expires.
-	ExpiresAt int64 `json:"expires_at" api:"required"`
+	ExpiresAt int64 `json:"expires_at" api:"required" format:"unixtime"`
 	// Convenience copy of the per-minute request limit.
 	MaxRequestsPer1Minute int64 `json:"max_requests_per_1_minute" api:"required"`
 	// Type discriminator that is always `chatkit.session`.
@@ -469,7 +472,7 @@ type ChatKitAttachment struct {
 	// Original display name for the attachment.
 	Name string `json:"name" api:"required"`
 	// Preview URL for rendering the attachment inline.
-	PreviewURL string `json:"preview_url" api:"required"`
+	PreviewURL string `json:"preview_url" api:"required" format:"uri"`
 	// Attachment discriminator.
 	//
 	// Any of "image", "file".
@@ -683,7 +686,7 @@ type ChatKitResponseOutputTextAnnotationURLSource struct {
 	// Type discriminator that is always `url`.
 	Type constant.URL `json:"type" default:"url"`
 	// URL referenced by the annotation.
-	URL string `json:"url" api:"required"`
+	URL string `json:"url" api:"required" format:"uri"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Type        respjson.Field
@@ -704,7 +707,7 @@ type ChatKitThread struct {
 	// Identifier of the thread.
 	ID string `json:"id" api:"required"`
 	// Unix timestamp (in seconds) for when the thread was created.
-	CreatedAt int64 `json:"created_at" api:"required"`
+	CreatedAt int64 `json:"created_at" api:"required" format:"unixtime"`
 	// Type discriminator that is always `chatkit.thread`.
 	Object constant.ChatKitThread `json:"object" default:"chatkit.thread"`
 	// Current status for the thread. Defaults to `active` for newly created threads.
@@ -872,7 +875,7 @@ type ChatKitThreadAssistantMessageItem struct {
 	// Ordered assistant response segments.
 	Content []ChatKitResponseOutputText `json:"content" api:"required"`
 	// Unix timestamp (in seconds) for when the item was created.
-	CreatedAt int64 `json:"created_at" api:"required"`
+	CreatedAt int64 `json:"created_at" api:"required" format:"unixtime"`
 	// Type discriminator that is always `chatkit.thread_item`.
 	Object constant.ChatKitThreadItem `json:"object" default:"chatkit.thread_item"`
 	// Identifier of the parent thread.
@@ -1114,7 +1117,7 @@ type ChatKitThreadItemListDataChatKitClientToolCall struct {
 	// Identifier for the client tool call.
 	CallID string `json:"call_id" api:"required"`
 	// Unix timestamp (in seconds) for when the item was created.
-	CreatedAt int64 `json:"created_at" api:"required"`
+	CreatedAt int64 `json:"created_at" api:"required" format:"unixtime"`
 	// Tool name that was invoked.
 	Name string `json:"name" api:"required"`
 	// Type discriminator that is always `chatkit.thread_item`.
@@ -1158,7 +1161,7 @@ type ChatKitThreadItemListDataChatKitTask struct {
 	// Identifier of the thread item.
 	ID string `json:"id" api:"required"`
 	// Unix timestamp (in seconds) for when the item was created.
-	CreatedAt int64 `json:"created_at" api:"required"`
+	CreatedAt int64 `json:"created_at" api:"required" format:"unixtime"`
 	// Optional heading for the task. Defaults to null when not provided.
 	Heading string `json:"heading" api:"required"`
 	// Type discriminator that is always `chatkit.thread_item`.
@@ -1199,7 +1202,7 @@ type ChatKitThreadItemListDataChatKitTaskGroup struct {
 	// Identifier of the thread item.
 	ID string `json:"id" api:"required"`
 	// Unix timestamp (in seconds) for when the item was created.
-	CreatedAt int64 `json:"created_at" api:"required"`
+	CreatedAt int64 `json:"created_at" api:"required" format:"unixtime"`
 	// Type discriminator that is always `chatkit.thread_item`.
 	Object constant.ChatKitThreadItem `json:"object" default:"chatkit.thread_item"`
 	// Tasks included in the group.
@@ -1262,7 +1265,7 @@ type ChatKitThreadUserMessageItem struct {
 	// Ordered content elements supplied by the user.
 	Content []ChatKitThreadUserMessageItemContentUnion `json:"content" api:"required"`
 	// Unix timestamp (in seconds) for when the item was created.
-	CreatedAt int64 `json:"created_at" api:"required"`
+	CreatedAt int64 `json:"created_at" api:"required" format:"unixtime"`
 	// Inference overrides applied to the message. Defaults to null when unset.
 	InferenceOptions ChatKitThreadUserMessageItemInferenceOptions `json:"inference_options" api:"required"`
 	// Type discriminator that is always `chatkit.thread_item`.
@@ -1442,7 +1445,7 @@ type ChatKitWidgetItem struct {
 	// Identifier of the thread item.
 	ID string `json:"id" api:"required"`
 	// Unix timestamp (in seconds) for when the item was created.
-	CreatedAt int64 `json:"created_at" api:"required"`
+	CreatedAt int64 `json:"created_at" api:"required" format:"unixtime"`
 	// Type discriminator that is always `chatkit.thread_item`.
 	Object constant.ChatKitThreadItem `json:"object" default:"chatkit.thread_item"`
 	// Identifier of the parent thread.
