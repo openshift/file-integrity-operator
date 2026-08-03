@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -16,6 +17,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/openai/openai-go/v3/internal"
@@ -29,6 +31,25 @@ func getDefaultHeaders() map[string]string {
 	return map[string]string{
 		"User-Agent": fmt.Sprintf("OpenAI/Go %s", internal.PackageVersion),
 	}
+}
+
+func encodePathParam(value string) string {
+	switch value {
+	case ".":
+		return "%2E"
+	case "..":
+		return "%2E%2E"
+	}
+	return url.PathEscape(value)
+}
+
+// FormatPath escapes path parameters and inserts them into a request path.
+func FormatPath(format string, params ...string) string {
+	args := make([]any, len(params))
+	for i, param := range params {
+		args[i] = encodePathParam(param)
+	}
+	return fmt.Sprintf(format, args...)
 }
 
 func getNormalizedOS() string {
@@ -84,6 +105,78 @@ type RequestOption interface {
 
 type RequestOptionFunc func(*RequestConfig) error
 type PreRequestOptionFunc func(*RequestConfig) error
+
+// requestFinalizer is an internal extension point for provider integrations
+// that must inspect the fully configured request and install middleware after
+// all client- and method-level options have been applied.
+type requestFinalizer func(*RequestConfig) error
+
+type requestFinalizerOption struct {
+	finalize func(*RequestConfig) error
+}
+
+// noRetryError marks deterministic request setup or policy failures that
+// cannot be fixed by replaying the same request. It deliberately remains an
+// internal implementation detail so public error strings and wrapping stay
+// unchanged.
+type noRetryError struct {
+	err error
+}
+
+func (e *noRetryError) Error() string { return e.err.Error() }
+func (e *noRetryError) Unwrap() error { return e.err }
+func (e *noRetryError) noRetry()      {}
+
+// WithNoRetryError marks err as deterministic for the generic request retry
+// loop while preserving its message and unwrap chain. This function is
+// internal API and may change without notice.
+func WithNoRetryError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return &noRetryError{err: err}
+}
+
+func (o requestFinalizerOption) Apply(cfg *RequestConfig) error {
+	cfg.finalizers = append(cfg.finalizers, o.finalize)
+	return nil
+}
+
+// WithRequestFinalizer registers an internal provider finalizer. Finalizers run
+// after every RequestOption has been applied and before request security is
+// selected. This keeps provider authentication closest to the wire, including
+// when callers add method-level middleware.
+//
+// This function is internal API and may change without notice.
+func WithRequestFinalizer(finalize func(*RequestConfig) error) RequestOption {
+	return requestFinalizerOption{finalize: finalize}
+}
+
+type environmentDefaultsDisabledOption struct{}
+
+func (environmentDefaultsDisabledOption) Apply(*RequestConfig) error {
+	return nil
+}
+
+// WithEnvironmentDefaultsDisabled marks a provider-owned client that must not
+// inherit ambient OPENAI_* configuration. The regular transport defaults still
+// apply.
+//
+// This function is internal API and may change without notice.
+func WithEnvironmentDefaultsDisabled() RequestOption {
+	return environmentDefaultsDisabledOption{}
+}
+
+// EnvironmentDefaultsDisabled reports whether opts contains the internal
+// provider marker returned by WithEnvironmentDefaultsDisabled.
+func EnvironmentDefaultsDisabled(opts ...RequestOption) bool {
+	for _, opt := range opts {
+		if _, ok := opt.(environmentDefaultsDisabledOption); ok {
+			return true
+		}
+	}
+	return false
+}
 
 func (s RequestOptionFunc) Apply(r *RequestConfig) error    { return s(r) }
 func (s PreRequestOptionFunc) Apply(r *RequestConfig) error { return s(r) }
@@ -178,10 +271,25 @@ func NewRequestConfig(ctx context.Context, method string, u string, body any, ds
 		Body:       reader,
 	}
 	cfg.ResponseBodyInto = dst
+	cfg.Security = Security{
+		BearerAuth:      true,
+		AdminAPIKeyAuth: true,
+	}
 	err = cfg.Apply(opts...)
 	if err != nil {
 		return nil, err
 	}
+
+	// Provider finalizers intentionally run after every regular option so they
+	// can sign the final URL, headers, and serialized body on each attempt.
+	for _, finalizer := range cfg.finalizers {
+		if err := finalizer(&cfg); err != nil {
+			return nil, err
+		}
+	}
+
+	// This must run after `cfg.Apply(...)` above so we know which specific security scheme to add
+	ApplySecurity(cfg)
 
 	// This must run after `cfg.Apply(...)` above in case the request timeout gets modified. We also only
 	// apply our own logic for it if it's still "0" from above. If it's not, then it was deleted or modified
@@ -215,14 +323,20 @@ type RequestConfig struct {
 	BaseURL        *url.URL
 	// DefaultBaseURL will be used if BaseURL is not explicitly overridden using
 	// WithBaseURL.
-	DefaultBaseURL *url.URL
-	CustomHTTPDoer HTTPDoer
-	HTTPClient     *http.Client
-	Middlewares    []middleware
-	APIKey         string
-	Organization   string
-	Project        string
-	WebhookSecret  string
+	DefaultBaseURL     *url.URL
+	CustomHTTPDoer     HTTPDoer
+	HTTPClient         *http.Client
+	Middlewares        []middleware
+	APIKey             string
+	AdminAPIKey        string
+	Organization       string
+	Project            string
+	WebhookSecret      string
+	finalizers         []requestFinalizer
+	authHeaderOverride bool
+	authPreference     authCredentialPreference
+	// Configure which security scheme(s) should be enabled for this request
+	Security Security
 	// If ResponseBodyInto not nil, then we will attempt to deserialize into
 	// ResponseBodyInto. If Destination is a []byte, then it will return the body as
 	// is.
@@ -247,9 +361,14 @@ func applyMiddleware(middleware middleware, next middlewareNext) middlewareNext 
 	}
 }
 
-func shouldRetry(req *http.Request, res *http.Response) bool {
+func shouldRetry(req *http.Request, res *http.Response, err error) bool {
 	// If there is no way to recover the Body, then we shouldn't retry.
 	if req.Body != nil && req.GetBody == nil {
+		return false
+	}
+
+	var deterministic interface{ noRetry() }
+	if errors.As(err, &deterministic) {
 		return false
 	}
 
@@ -364,6 +483,22 @@ func (b *bodyWithTimeout) Close() error {
 	return err
 }
 
+// closeOnceReadCloser lets Execute clean up bodies when middleware returns an
+// error before reaching the transport, without double-closing bodies that a
+// transport has already closed.
+type closeOnceReadCloser struct {
+	io.ReadCloser
+	once sync.Once
+	err  error
+}
+
+func (b *closeOnceReadCloser) Close() error {
+	b.once.Do(func() {
+		b.err = b.ReadCloser.Close()
+	})
+	return b.err
+}
+
 func retryDelay(res *http.Response, retryCount int) time.Duration {
 	// If the backend tells us to wait a certain amount of time, use that value
 	if retryAfterDelay, ok := parseRetryAfterHeader(res); ok {
@@ -444,15 +579,21 @@ func (cfg *RequestConfig) Execute() (err error) {
 		}
 
 		req := cfg.Request.Clone(ctx)
+		if req.Body != nil {
+			req.Body = &closeOnceReadCloser{ReadCloser: req.Body}
+		}
 		if shouldSendRetryCount {
 			req.Header.Set("X-Stainless-Retry-Count", strconv.Itoa(retryCount))
 		}
 
 		res, err = handler(req)
+		if err != nil && req.Body != nil {
+			_ = req.Body.Close()
+		}
 		if ctx != nil && ctx.Err() != nil {
 			return ctx.Err()
 		}
-		if !shouldRetry(cfg.Request, res) || retryCount >= cfg.MaxRetries {
+		if !shouldRetry(cfg.Request, res, err) || retryCount >= cfg.MaxRetries {
 			break
 		}
 
@@ -590,20 +731,57 @@ func (cfg *RequestConfig) Clone(ctx context.Context) *RequestConfig {
 		return nil
 	}
 	new := &RequestConfig{
-		MaxRetries:     cfg.MaxRetries,
-		RequestTimeout: cfg.RequestTimeout,
-		Context:        ctx,
-		Request:        req,
-		BaseURL:        cfg.BaseURL,
-		HTTPClient:     cfg.HTTPClient,
-		Middlewares:    cfg.Middlewares,
-		APIKey:         cfg.APIKey,
-		Organization:   cfg.Organization,
-		Project:        cfg.Project,
-		WebhookSecret:  cfg.WebhookSecret,
+		MaxRetries:         cfg.MaxRetries,
+		RequestTimeout:     cfg.RequestTimeout,
+		Context:            ctx,
+		Request:            req,
+		BaseURL:            cfg.BaseURL,
+		HTTPClient:         cfg.HTTPClient,
+		Middlewares:        cfg.Middlewares,
+		APIKey:             cfg.APIKey,
+		AdminAPIKey:        cfg.AdminAPIKey,
+		Organization:       cfg.Organization,
+		Project:            cfg.Project,
+		WebhookSecret:      cfg.WebhookSecret,
+		finalizers:         append([]requestFinalizer(nil), cfg.finalizers...),
+		authHeaderOverride: cfg.authHeaderOverride,
+		authPreference:     cfg.authPreference,
 	}
 
 	return new
+}
+
+func (cfg *RequestConfig) SetHeader(key, value string) {
+	cfg.Request.Header.Set(key, value)
+	if strings.EqualFold(key, "Authorization") {
+		cfg.authHeaderOverride = true
+	}
+}
+
+func (cfg *RequestConfig) AddHeader(key, value string) {
+	cfg.Request.Header.Add(key, value)
+	if strings.EqualFold(key, "Authorization") {
+		cfg.authHeaderOverride = true
+	}
+}
+
+func (cfg *RequestConfig) DelHeader(key string) {
+	cfg.Request.Header.Del(key)
+	if strings.EqualFold(key, "Authorization") {
+		cfg.authHeaderOverride = true
+	}
+}
+
+func (cfg *RequestConfig) SetAPIKey(value string) {
+	cfg.APIKey = value
+	cfg.authHeaderOverride = false
+	cfg.authPreference = authCredentialPreferenceBearer
+}
+
+func (cfg *RequestConfig) SetAdminAPIKey(value string) {
+	cfg.AdminAPIKey = value
+	cfg.authHeaderOverride = false
+	cfg.authPreference = authCredentialPreferenceAdmin
 }
 
 func (cfg *RequestConfig) Apply(opts ...RequestOption) error {
@@ -647,4 +825,82 @@ func WithDefaultBaseURL(baseURL string) RequestOption {
 		r.DefaultBaseURL = u
 		return nil
 	})
+}
+
+type Security struct {
+	BearerAuth      bool
+	AdminAPIKeyAuth bool
+}
+
+type authCredentialPreference int
+
+const (
+	authCredentialPreferenceNone authCredentialPreference = iota
+	authCredentialPreferenceBearer
+	authCredentialPreferenceAdmin
+)
+
+func WithSecurity(security Security) RequestOption {
+	return RequestOptionFunc(func(r *RequestConfig) error {
+		r.Security = security
+		return nil
+	})
+}
+
+// WithBearerAuthSecurity() should only be used within a method, not provided to at
+// the client-level.
+func WithBearerAuthSecurity() RequestOption {
+	return RequestOptionFunc(func(r *RequestConfig) error {
+		r.Security = Security{
+			BearerAuth:      true,
+			AdminAPIKeyAuth: false,
+		}
+		return nil
+	})
+}
+
+// WithAdminAPIKeyAuthSecurity() should only be used within a method, not provided
+// to at the client-level.
+func WithAdminAPIKeyAuthSecurity() RequestOption {
+	return RequestOptionFunc(func(r *RequestConfig) error {
+		r.Security = Security{
+			BearerAuth:      false,
+			AdminAPIKeyAuth: true,
+		}
+		return nil
+	})
+}
+
+// WithBearerAuthPreference() should only be used when a request supports multiple
+// auth schemes and has no endpoint-specific security preference.
+func WithBearerAuthPreference() RequestOption {
+	return RequestOptionFunc(func(r *RequestConfig) error {
+		r.authPreference = authCredentialPreferenceBearer
+		return nil
+	})
+}
+
+func ApplySecurity(r RequestConfig) {
+	if r.authHeaderOverride {
+		return
+	}
+
+	if r.authPreference == authCredentialPreferenceBearer && r.Security.BearerAuth && r.APIKey != "" {
+		r.Request.Header.Set("authorization", fmt.Sprintf("Bearer %s", r.APIKey))
+		return
+	}
+
+	if r.authPreference == authCredentialPreferenceAdmin && r.Security.AdminAPIKeyAuth && r.AdminAPIKey != "" {
+		r.Request.Header.Set("authorization", fmt.Sprintf("Bearer %s", r.AdminAPIKey))
+		return
+	}
+
+	if r.Security.AdminAPIKeyAuth && r.AdminAPIKey != "" {
+		r.Request.Header.Set("authorization", fmt.Sprintf("Bearer %s", r.AdminAPIKey))
+		return
+	}
+
+	if r.Security.BearerAuth && r.APIKey != "" {
+		r.Request.Header.Set("authorization", fmt.Sprintf("Bearer %s", r.APIKey))
+	}
 }
