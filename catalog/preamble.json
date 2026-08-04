@@ -13,8 +13,8 @@
     "package": "file-integrity-operator",
     "entries": [
         {
-            "name": "file-integrity-operator.v1.4.0",
-            "skipRange": ">=1.0.0 <1.4.0"
+            "name": "file-integrity-operator.v1.4.1",
+            "skipRange": ">=1.0.0 <1.4.1"
         }
     ]
 }

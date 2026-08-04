@@ -335,6 +335,14 @@ image: test-unit clean-controller-gen ## Build the operator image.
 
 .PHONY: bundle
 bundle: check-operator-version operator-sdk manifests update-skip-range kustomize ## Generate bundle manifests and metadata, then validate generated files.
+	@CURRENT_VERSION=$$(grep '^VERSION?=' version.Makefile | cut -d= -f2); \
+	if [ "$(VERSION)" != "$$CURRENT_VERSION" ]; then \
+		sed -i "s/^ARG FIO_OLD_VERSION=.*/ARG FIO_OLD_VERSION=\"$$CURRENT_VERSION\"/" bundle.openshift.Dockerfile; \
+		sed -i 's/^ARG FIO_NEW_VERSION=.*/ARG FIO_NEW_VERSION="$(VERSION)"/' bundle.openshift.Dockerfile; \
+	fi
+	sed -i 's/^VERSION?=.*/VERSION?=$(VERSION)/' version.Makefile
+	sed -i 's/Version = ".*"/Version = "$(VERSION)"/' version/version.go
+	sed -i 's/version=.*/version=$(VERSION)/' build/Dockerfile.openshift
 	$(SDK_BIN) generate kustomize manifests --apis-dir=./pkg/apis -q
 	@echo "kustomize using deployment image $(IMG)"
 	cd config/manager && $(KUSTOMIZE) edit set image $(APP_NAME)=$(IMG)
