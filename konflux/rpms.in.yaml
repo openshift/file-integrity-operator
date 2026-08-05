@@ -4,7 +4,7 @@ contentOrigin:
 
 packages:
   - tar
-  - aide
+  - aide-0.16
 
 arches:
   - x86_64
