@@ -4,20 +4,20 @@ lockfileVendor: redhat
 arches:
 - arch: ppc64le
   packages:
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/appstream/os/Packages/a/aide-0.19.2-5.el9_8.1.ppc64le.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/appstream/os/Packages/a/aide-0.16-105.el9.ppc64le.rpm
     repoid: rhel-9-for-ppc64le-appstream-rpms
-    size: 180195
-    checksum: sha256:6b8d8470fc508791b729ddd4103a472353bd9d557fb5b391f92e323edb56b7b1
+    size: 157993
+    checksum: sha256:6116783b76ccc99830542f3ca74a2fa3671ce410ce77067cae32754109e7f037
     name: aide
-    evr: 0.19.2-5.el9_8.1
-    sourcerpm: aide-0.19.2-5.el9_8.1.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/appstream/os/Packages/l/libgcrypt-devel-1.10.0-11.el9.ppc64le.rpm
+    evr: 0.16-105.el9
+    sourcerpm: aide-0.16-105.el9.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/appstream/os/Packages/l/libgcrypt-devel-1.10.0-13.el9_8.ppc64le.rpm
     repoid: rhel-9-for-ppc64le-appstream-rpms
-    size: 153840
-    checksum: sha256:500a0ba8749ac0e1f1da05e8fc5902eb997d68ac04aaf58df4fe6fb8f9a43e70
+    size: 154383
+    checksum: sha256:4966eac91d344fb5ca62e0edca6ab545ed7e991b7635bcffc398f3b1db0ebc4e
     name: libgcrypt-devel
-    evr: 1.10.0-11.el9
-    sourcerpm: libgcrypt-1.10.0-11.el9.src.rpm
+    evr: 1.10.0-13.el9_8
+    sourcerpm: libgcrypt-1.10.0-13.el9_8.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/appstream/os/Packages/l/libgpg-error-devel-1.42-5.el9.ppc64le.rpm
     repoid: rhel-9-for-ppc64le-appstream-rpms
     size: 73469
@@ -32,13 +32,13 @@ arches:
     name: e2fsprogs-libs
     evr: 1.46.5-5.el9
     sourcerpm: e2fsprogs-1.46.5-5.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/os/Packages/l/libgcrypt-1.10.0-11.el9.ppc64le.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/os/Packages/l/libgcrypt-1.10.0-13.el9_8.ppc64le.rpm
     repoid: rhel-9-for-ppc64le-baseos-rpms
-    size: 612983
-    checksum: sha256:917a9fc0eca0405813697b4d830578c92b01c1dba766321bfa880a248b0c4d5e
+    size: 614376
+    checksum: sha256:cd0365593ac9982a10b01b84237873a578ee715c17a27fa781451203f935df9b
     name: libgcrypt
-    evr: 1.10.0-11.el9
-    sourcerpm: libgcrypt-1.10.0-11.el9.src.rpm
+    evr: 1.10.0-13.el9_8
+    sourcerpm: libgcrypt-1.10.0-13.el9_8.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/os/Packages/l/libpkgconf-1.7.3-10.el9.ppc64le.rpm
     repoid: rhel-9-for-ppc64le-baseos-rpms
     size: 42712
@@ -75,24 +75,24 @@ arches:
     evr: 2:1.34-11.el9
     sourcerpm: tar-1.34-11.el9.src.rpm
   source:
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/appstream/source/SRPMS/Packages/a/aide-0.19.2-5.el9_8.1.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/appstream/source/SRPMS/Packages/a/aide-0.16-105.el9.src.rpm
     repoid: rhel-9-for-ppc64le-appstream-source-rpms
-    size: 439367
-    checksum: sha256:02f43c0564438bc1c93cde65f49ee747296b6b4c7a7522089eb5997e8b049eb0
+    size: 440355
+    checksum: sha256:fa35cafde8fa6ff1b93e319f8df152c9d675979f02ab72ab09a273168e77caaa
     name: aide
-    evr: 0.19.2-5.el9_8.1
+    evr: 0.16-105.el9
   - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/source/SRPMS/Packages/e/e2fsprogs-1.46.5-5.el9.src.rpm
     repoid: rhel-9-for-ppc64le-baseos-source-rpms
     size: 7417195
     checksum: sha256:d54bf1aa0e66a1e45dceaa7add783b00fc6f958cafa74fe3c7a2986c35f7af4d
     name: e2fsprogs
     evr: 1.46.5-5.el9
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/source/SRPMS/Packages/l/libgcrypt-1.10.0-11.el9.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/source/SRPMS/Packages/l/libgcrypt-1.10.0-13.el9_8.src.rpm
     repoid: rhel-9-for-ppc64le-baseos-source-rpms
-    size: 3981814
-    checksum: sha256:3ac5b6ac1a4be5513e76fa2f33346014b8b3c5c47bbe71524ce326782b163d2e
+    size: 3983873
+    checksum: sha256:c2737830c577d7c45aefa3213d770be924617a46e6ab56824edec9b6341af8d4
     name: libgcrypt
-    evr: 1.10.0-11.el9
+    evr: 1.10.0-13.el9_8
   - url: https://cdn.redhat.com/content/dist/rhel9/9/ppc64le/baseos/source/SRPMS/Packages/l/libgpg-error-1.42-5.el9.src.rpm
     repoid: rhel-9-for-ppc64le-baseos-source-rpms
     size: 994101
@@ -114,20 +114,20 @@ arches:
   module_metadata: []
 - arch: s390x
   packages:
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/appstream/os/Packages/a/aide-0.19.2-5.el9_8.1.s390x.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/appstream/os/Packages/a/aide-0.16-105.el9.s390x.rpm
     repoid: rhel-9-for-s390x-appstream-rpms
-    size: 171231
-    checksum: sha256:9aab67a2015bf6e8ed2395456ad718dce686ff53ed50803fa2c720e568305975
+    size: 151380
+    checksum: sha256:c9d96e78a36692a29a2f9e4a6d8bd9d591f1c6342b3fa2ea8eb109d3beb79be0
     name: aide
-    evr: 0.19.2-5.el9_8.1
-    sourcerpm: aide-0.19.2-5.el9_8.1.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/appstream/os/Packages/l/libgcrypt-devel-1.10.0-11.el9.s390x.rpm
+    evr: 0.16-105.el9
+    sourcerpm: aide-0.16-105.el9.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/appstream/os/Packages/l/libgcrypt-devel-1.10.0-13.el9_8.s390x.rpm
     repoid: rhel-9-for-s390x-appstream-rpms
-    size: 151412
-    checksum: sha256:194583641dbac01215baa553eebbe03902ebfbd8f40a265e0da90a88ec3cf930
+    size: 151882
+    checksum: sha256:cae7c2223a0ff1918a9918824b9e1ee8c616786e84ce28628c851815fc446d8d
     name: libgcrypt-devel
-    evr: 1.10.0-11.el9
-    sourcerpm: libgcrypt-1.10.0-11.el9.src.rpm
+    evr: 1.10.0-13.el9_8
+    sourcerpm: libgcrypt-1.10.0-13.el9_8.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/appstream/os/Packages/l/libgpg-error-devel-1.42-5.el9.s390x.rpm
     repoid: rhel-9-for-s390x-appstream-rpms
     size: 70545
@@ -142,13 +142,13 @@ arches:
     name: e2fsprogs-libs
     evr: 1.46.5-5.el9
     sourcerpm: e2fsprogs-1.46.5-5.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/os/Packages/l/libgcrypt-1.10.0-11.el9.s390x.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/os/Packages/l/libgcrypt-1.10.0-13.el9_8.s390x.rpm
     repoid: rhel-9-for-s390x-baseos-rpms
-    size: 469635
-    checksum: sha256:ad73b3b1163668089b5768b0887561960dd3eae21b6d05f3a09fe1dca42920a3
+    size: 470164
+    checksum: sha256:e29ed2d365748f7aa865e875ec33b16243a132af30ce4878e5dbcebda17cfa54
     name: libgcrypt
-    evr: 1.10.0-11.el9
-    sourcerpm: libgcrypt-1.10.0-11.el9.src.rpm
+    evr: 1.10.0-13.el9_8
+    sourcerpm: libgcrypt-1.10.0-13.el9_8.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/os/Packages/l/libpkgconf-1.7.3-10.el9.s390x.rpm
     repoid: rhel-9-for-s390x-baseos-rpms
     size: 37876
@@ -185,24 +185,24 @@ arches:
     evr: 2:1.34-11.el9
     sourcerpm: tar-1.34-11.el9.src.rpm
   source:
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/appstream/source/SRPMS/Packages/a/aide-0.19.2-5.el9_8.1.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/appstream/source/SRPMS/Packages/a/aide-0.16-105.el9.src.rpm
     repoid: rhel-9-for-s390x-appstream-source-rpms
-    size: 439367
-    checksum: sha256:02f43c0564438bc1c93cde65f49ee747296b6b4c7a7522089eb5997e8b049eb0
+    size: 440355
+    checksum: sha256:fa35cafde8fa6ff1b93e319f8df152c9d675979f02ab72ab09a273168e77caaa
     name: aide
-    evr: 0.19.2-5.el9_8.1
+    evr: 0.16-105.el9
   - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/source/SRPMS/Packages/e/e2fsprogs-1.46.5-5.el9.src.rpm
     repoid: rhel-9-for-s390x-baseos-source-rpms
     size: 7417195
     checksum: sha256:d54bf1aa0e66a1e45dceaa7add783b00fc6f958cafa74fe3c7a2986c35f7af4d
     name: e2fsprogs
     evr: 1.46.5-5.el9
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/source/SRPMS/Packages/l/libgcrypt-1.10.0-11.el9.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/source/SRPMS/Packages/l/libgcrypt-1.10.0-13.el9_8.src.rpm
     repoid: rhel-9-for-s390x-baseos-source-rpms
-    size: 3981814
-    checksum: sha256:3ac5b6ac1a4be5513e76fa2f33346014b8b3c5c47bbe71524ce326782b163d2e
+    size: 3983873
+    checksum: sha256:c2737830c577d7c45aefa3213d770be924617a46e6ab56824edec9b6341af8d4
     name: libgcrypt
-    evr: 1.10.0-11.el9
+    evr: 1.10.0-13.el9_8
   - url: https://cdn.redhat.com/content/dist/rhel9/9/s390x/baseos/source/SRPMS/Packages/l/libgpg-error-1.42-5.el9.src.rpm
     repoid: rhel-9-for-s390x-baseos-source-rpms
     size: 994101
@@ -224,20 +224,20 @@ arches:
   module_metadata: []
 - arch: x86_64
   packages:
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/a/aide-0.19.2-5.el9_8.1.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/a/aide-0.16-105.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-appstream-rpms
-    size: 176407
-    checksum: sha256:1b81dc1ef72dad980318fa0704e19e720823f7f6863457f9a243b0c455c8baa6
+    size: 153070
+    checksum: sha256:8d47c27cc827a8eee5ff3eca5fbf51c88ebf0b1cea0051eca707851b32077915
     name: aide
-    evr: 0.19.2-5.el9_8.1
-    sourcerpm: aide-0.19.2-5.el9_8.1.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/l/libgcrypt-devel-1.10.0-11.el9.x86_64.rpm
+    evr: 0.16-105.el9
+    sourcerpm: aide-0.16-105.el9.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/l/libgcrypt-devel-1.10.0-13.el9_8.x86_64.rpm
     repoid: rhel-9-for-x86_64-appstream-rpms
-    size: 151880
-    checksum: sha256:01f2174ed9540035f3b5fe2c952ace6fca28bebf0dbb567cd7671db3c6a5e2c8
+    size: 152271
+    checksum: sha256:0ede8df6018da6d0e0273c4d6d6824fa07c83e60959e4cce50dd7558ea926b83
     name: libgcrypt-devel
-    evr: 1.10.0-11.el9
-    sourcerpm: libgcrypt-1.10.0-11.el9.src.rpm
+    evr: 1.10.0-13.el9_8
+    sourcerpm: libgcrypt-1.10.0-13.el9_8.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/l/libgpg-error-devel-1.42-5.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-appstream-rpms
     size: 70899
@@ -252,13 +252,13 @@ arches:
     name: e2fsprogs-libs
     evr: 1.46.5-5.el9
     sourcerpm: e2fsprogs-1.46.5-5.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/l/libgcrypt-1.10.0-11.el9.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/l/libgcrypt-1.10.0-13.el9_8.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
-    size: 522581
-    checksum: sha256:9d5a5a4292a5a345143b632c2764ad8e7b095413f78f5693d29c2ea5e7d37119
+    size: 523829
+    checksum: sha256:c07cd9f613809195b8691d28fd2f3bff55b2a83b9c1cdf4a32c681e0e32dfafb
     name: libgcrypt
-    evr: 1.10.0-11.el9
-    sourcerpm: libgcrypt-1.10.0-11.el9.src.rpm
+    evr: 1.10.0-13.el9_8
+    sourcerpm: libgcrypt-1.10.0-13.el9_8.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/l/libpkgconf-1.7.3-10.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
     size: 38387
@@ -295,24 +295,24 @@ arches:
     evr: 2:1.34-11.el9
     sourcerpm: tar-1.34-11.el9.src.rpm
   source:
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/source/SRPMS/Packages/a/aide-0.19.2-5.el9_8.1.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/source/SRPMS/Packages/a/aide-0.16-105.el9.src.rpm
     repoid: rhel-9-for-x86_64-appstream-source-rpms
-    size: 439367
-    checksum: sha256:02f43c0564438bc1c93cde65f49ee747296b6b4c7a7522089eb5997e8b049eb0
+    size: 440355
+    checksum: sha256:fa35cafde8fa6ff1b93e319f8df152c9d675979f02ab72ab09a273168e77caaa
     name: aide
-    evr: 0.19.2-5.el9_8.1
+    evr: 0.16-105.el9
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/source/SRPMS/Packages/e/e2fsprogs-1.46.5-5.el9.src.rpm
     repoid: rhel-9-for-x86_64-baseos-source-rpms
     size: 7417195
     checksum: sha256:d54bf1aa0e66a1e45dceaa7add783b00fc6f958cafa74fe3c7a2986c35f7af4d
     name: e2fsprogs
     evr: 1.46.5-5.el9
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/source/SRPMS/Packages/l/libgcrypt-1.10.0-11.el9.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/source/SRPMS/Packages/l/libgcrypt-1.10.0-13.el9_8.src.rpm
     repoid: rhel-9-for-x86_64-baseos-source-rpms
-    size: 3981814
-    checksum: sha256:3ac5b6ac1a4be5513e76fa2f33346014b8b3c5c47bbe71524ce326782b163d2e
+    size: 3983873
+    checksum: sha256:c2737830c577d7c45aefa3213d770be924617a46e6ab56824edec9b6341af8d4
     name: libgcrypt
-    evr: 1.10.0-11.el9
+    evr: 1.10.0-13.el9_8
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/source/SRPMS/Packages/l/libgpg-error-1.42-5.el9.src.rpm
     repoid: rhel-9-for-x86_64-baseos-source-rpms
     size: 994101
