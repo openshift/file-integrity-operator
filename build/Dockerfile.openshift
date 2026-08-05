@@ -20,7 +20,7 @@ FROM registry.redhat.io/rhel9-4-els/rhel-minimal:latest
 # without bloating the image.
 RUN export SMDEV_CONTAINER_OFF=1 && \
     microdnf -y update && \
-    microdnf -y install aide tar && microdnf clean all && \
+    microdnf -y install aide-0.16 tar && microdnf clean all && \
     microdnf -y clean all && rm -rf /var/cache/microdnf
 
 LABEL \
