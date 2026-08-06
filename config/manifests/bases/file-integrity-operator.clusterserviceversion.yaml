@@ -282,4 +282,5 @@ spec:
   provider:
     name: Red Hat
     url: https://github.com/openshift/file-integrity-operator
-  version: 0.1.22
+  replaces: file-integrity-operator.v1.4.0
+  version: 1.4.1

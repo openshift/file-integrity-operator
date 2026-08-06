@@ -327,4 +327,5 @@ spec:
   relatedImages:
   - image: quay.io/file-integrity-operator/file-integrity-operator:latest
     name: operator
+  replaces: file-integrity-operator.v1.4.0
   version: 1.4.1

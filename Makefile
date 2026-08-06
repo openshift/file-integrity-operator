@@ -297,7 +297,11 @@ endif
 
 .PHONY: update-skip-range
 update-skip-range: check-operator-version
-	sed -i '/replaces:/d' config/manifests/bases/file-integrity-operator.clusterserviceversion.yaml
+	@CURRENT_VERSION=$$(grep '^VERSION?=' version.Makefile | cut -d= -f2); \
+	if [ "$(VERSION)" != "$$CURRENT_VERSION" ]; then \
+		sed -i "s/\(^  replaces: file-integrity-operator.v\).*/\1$$CURRENT_VERSION/" config/manifests/bases/file-integrity-operator.clusterserviceversion.yaml; \
+	fi
+	sed -i "s/\(^  version: \).*/\1$(VERSION)/" config/manifests/bases/file-integrity-operator.clusterserviceversion.yaml
 	sed -i "s/\(olm.skipRange: '>=.*\)<.*'/\1<$(VERSION)'/" config/manifests/bases/file-integrity-operator.clusterserviceversion.yaml
 	sed -i "s/\(\"name\": \"file-integrity-operator.v\).*\"/\1$(VERSION)\"/" catalog/preamble.json
 	sed -i "s/\(\"skipRange\": \">=.*\)<.*\"/\1<$(VERSION)\"/" catalog/preamble.json
