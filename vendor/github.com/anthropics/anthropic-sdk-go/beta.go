@@ -18,16 +18,22 @@ import (
 // automatically. You should not instantiate this service directly, and instead use
 // the [NewBetaService] method instead.
 type BetaService struct {
-	Options      []option.RequestOption
-	Models       BetaModelService
-	Messages     BetaMessageService
-	Agents       BetaAgentService
-	Environments BetaEnvironmentService
-	Sessions     BetaSessionService
-	Vaults       BetaVaultService
-	Files        BetaFileService
-	Skills       BetaSkillService
-	UserProfiles BetaUserProfileService
+	Options        []option.RequestOption
+	Models         BetaModelService
+	Messages       BetaMessageService
+	Agents         BetaAgentService
+	Environments   BetaEnvironmentService
+	Sessions       BetaSessionService
+	Deployments    BetaDeploymentService
+	DeploymentRuns BetaDeploymentRunService
+	Vaults         BetaVaultService
+	MemoryStores   BetaMemoryStoreService
+	Files          BetaFileService
+	Skills         BetaSkillService
+	Webhooks       BetaWebhookService
+	UserProfiles   BetaUserProfileService
+	Dreams         BetaDreamService
+	Tunnels        BetaTunnelService
 }
 
 // NewBetaService generates a new service that applies the given options to each
@@ -41,10 +47,16 @@ func NewBetaService(opts ...option.RequestOption) (r BetaService) {
 	r.Agents = NewBetaAgentService(opts...)
 	r.Environments = NewBetaEnvironmentService(opts...)
 	r.Sessions = NewBetaSessionService(opts...)
+	r.Deployments = NewBetaDeploymentService(opts...)
+	r.DeploymentRuns = NewBetaDeploymentRunService(opts...)
 	r.Vaults = NewBetaVaultService(opts...)
+	r.MemoryStores = NewBetaMemoryStoreService(opts...)
 	r.Files = NewBetaFileService(opts...)
 	r.Skills = NewBetaSkillService(opts...)
+	r.Webhooks = NewBetaWebhookService(opts...)
 	r.UserProfiles = NewBetaUserProfileService(opts...)
+	r.Dreams = NewBetaDreamService(opts...)
+	r.Tunnels = NewBetaTunnelService(opts...)
 	return
 }
 
@@ -72,8 +84,17 @@ const (
 	AnthropicBetaSkills2025_10_02                     AnthropicBeta = "skills-2025-10-02"
 	AnthropicBetaFastMode2026_02_01                   AnthropicBeta = "fast-mode-2026-02-01"
 	AnthropicBetaOutput300k2026_03_24                 AnthropicBeta = "output-300k-2026-03-24"
-	AnthropicBetaAdvisorTool2026_03_01                AnthropicBeta = "advisor-tool-2026-03-01"
 	AnthropicBetaUserProfiles2026_03_24               AnthropicBeta = "user-profiles-2026-03-24"
+	AnthropicBetaAdvisorTool2026_03_01                AnthropicBeta = "advisor-tool-2026-03-01"
+	AnthropicBetaManagedAgents2026_04_01              AnthropicBeta = "managed-agents-2026-04-01"
+	AnthropicBetaCacheDiagnosis2026_04_07             AnthropicBeta = "cache-diagnosis-2026-04-07"
+	AnthropicBetaDreaming2026_04_21                   AnthropicBeta = "dreaming-2026-04-21"
+	AnthropicBetaThinkingTokenCount2026_05_13         AnthropicBeta = "thinking-token-count-2026-05-13"
+	AnthropicBetaServerSideFallback2026_06_01         AnthropicBeta = "server-side-fallback-2026-06-01"
+	AnthropicBetaServerSideFallback2026_07_01         AnthropicBeta = "server-side-fallback-2026-07-01"
+	AnthropicBetaFallbackCredit2026_06_01             AnthropicBeta = "fallback-credit-2026-06-01"
+	AnthropicBetaFallbackCredit2026_07_01             AnthropicBeta = "fallback-credit-2026-07-01"
+	AnthropicBetaAgentMemory2026_07_22                AnthropicBeta = "agent-memory-2026-07-22"
 )
 
 type BetaAPIError struct {
