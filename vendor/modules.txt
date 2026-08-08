@@ -923,17 +923,17 @@ go.opentelemetry.io/collector/confmap/internal/third_party/composehook
 # go.opentelemetry.io/collector/confmap/xconfmap v0.157.0
 ## explicit; go 1.25.0
 go.opentelemetry.io/collector/confmap/xconfmap
-# go.opentelemetry.io/collector/consumer v1.63.0
+# go.opentelemetry.io/collector/consumer v1.64.0
 ## explicit; go 1.25.0
 go.opentelemetry.io/collector/consumer
 go.opentelemetry.io/collector/consumer/internal
-# go.opentelemetry.io/collector/featuregate v1.63.0
+# go.opentelemetry.io/collector/featuregate v1.64.0
 ## explicit; go 1.25.0
 go.opentelemetry.io/collector/featuregate
 # go.opentelemetry.io/collector/internal/componentalias v0.157.0
 ## explicit; go 1.25.0
 go.opentelemetry.io/collector/internal/componentalias
-# go.opentelemetry.io/collector/pdata v1.63.0
+# go.opentelemetry.io/collector/pdata v1.64.0
 ## explicit; go 1.25.0
 go.opentelemetry.io/collector/pdata/internal
 go.opentelemetry.io/collector/pdata/internal/json
@@ -1183,7 +1183,7 @@ google.golang.org/genai
 google.golang.org/genproto/googleapis/rpc/code
 google.golang.org/genproto/googleapis/rpc/errdetails
 google.golang.org/genproto/googleapis/rpc/status
-# google.golang.org/grpc v1.82.0
+# google.golang.org/grpc v1.82.1
 ## explicit; go 1.25.0
 google.golang.org/grpc
 google.golang.org/grpc/attributes
