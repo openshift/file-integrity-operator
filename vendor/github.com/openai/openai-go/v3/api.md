@@ -164,6 +164,16 @@ Methods:
 - <code title="post /images/edits">client.Images.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#ImageService.Edit">Edit</a>(ctx <a href="https://pkg.go.dev/context">context</a>.<a href="https://pkg.go.dev/context#Context">Context</a>, body <a href="https://pkg.go.dev/github.com/openai/openai-go/v3">openai</a>.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#ImageEditParams">ImageEditParams</a>) (\*<a href="https://pkg.go.dev/github.com/openai/openai-go/v3">openai</a>.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#ImagesResponse">ImagesResponse</a>, <a href="https://pkg.go.dev/builtin#error">error</a>)</code>
 - <code title="post /images/generations">client.Images.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#ImageService.Generate">Generate</a>(ctx <a href="https://pkg.go.dev/context">context</a>.<a href="https://pkg.go.dev/context#Context">Context</a>, body <a href="https://pkg.go.dev/github.com/openai/openai-go/v3">openai</a>.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#ImageGenerateParams">ImageGenerateParams</a>) (\*<a href="https://pkg.go.dev/github.com/openai/openai-go/v3">openai</a>.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#ImagesResponse">ImagesResponse</a>, <a href="https://pkg.go.dev/builtin#error">error</a>)</code>
 
+# ContentProvenanceChecks
+
+Response Types:
+
+- <a href="https://pkg.go.dev/github.com/openai/openai-go/v3">openai</a>.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#ContentProvenanceCheck">ContentProvenanceCheck</a>
+
+Methods:
+
+- <code title="post /content_provenance_checks">client.ContentProvenanceChecks.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#ContentProvenanceCheckService.New">New</a>(ctx <a href="https://pkg.go.dev/context">context</a>.<a href="https://pkg.go.dev/context#Context">Context</a>, body <a href="https://pkg.go.dev/github.com/openai/openai-go/v3">openai</a>.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#ContentProvenanceCheckNewParams">ContentProvenanceCheckNewParams</a>) (\*<a href="https://pkg.go.dev/github.com/openai/openai-go/v3">openai</a>.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#ContentProvenanceCheck">ContentProvenanceCheck</a>, <a href="https://pkg.go.dev/builtin#error">error</a>)</code>
+
 # Audio
 
 Params Types:
@@ -180,6 +190,7 @@ Params Types:
 Response Types:
 
 - <a href="https://pkg.go.dev/github.com/openai/openai-go/v3">openai</a>.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#Transcription">Transcription</a>
+- <a href="https://pkg.go.dev/github.com/openai/openai-go/v3">openai</a>.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#TranscriptionLanguage">TranscriptionLanguage</a>
 - <a href="https://pkg.go.dev/github.com/openai/openai-go/v3">openai</a>.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#TranscriptionSegment">TranscriptionSegment</a>
 - <a href="https://pkg.go.dev/github.com/openai/openai-go/v3">openai</a>.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#TranscriptionStreamEventUnion">TranscriptionStreamEventUnion</a>
 - <a href="https://pkg.go.dev/github.com/openai/openai-go/v3">openai</a>.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#TranscriptionTextDeltaEvent">TranscriptionTextDeltaEvent</a>
@@ -1074,6 +1085,19 @@ Methods:
 - <code title="get /organization/data_retention">client.Admin.Organization.DataRetention.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#AdminOrganizationDataRetentionService.Get">Get</a>(ctx <a href="https://pkg.go.dev/context">context</a>.<a href="https://pkg.go.dev/context#Context">Context</a>) (\*<a href="https://pkg.go.dev/github.com/openai/openai-go/v3">openai</a>.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#OrganizationDataRetention">OrganizationDataRetention</a>, <a href="https://pkg.go.dev/builtin#error">error</a>)</code>
 - <code title="post /organization/data_retention">client.Admin.Organization.DataRetention.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#AdminOrganizationDataRetentionService.Update">Update</a>(ctx <a href="https://pkg.go.dev/context">context</a>.<a href="https://pkg.go.dev/context#Context">Context</a>, body <a href="https://pkg.go.dev/github.com/openai/openai-go/v3">openai</a>.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#AdminOrganizationDataRetentionUpdateParams">AdminOrganizationDataRetentionUpdateParams</a>) (\*<a href="https://pkg.go.dev/github.com/openai/openai-go/v3">openai</a>.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#OrganizationDataRetention">OrganizationDataRetention</a>, <a href="https://pkg.go.dev/builtin#error">error</a>)</code>
 
+### SpendLimit
+
+Response Types:
+
+- <a href="https://pkg.go.dev/github.com/openai/openai-go/v3">openai</a>.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#OrganizationSpendLimit">OrganizationSpendLimit</a>
+- <a href="https://pkg.go.dev/github.com/openai/openai-go/v3">openai</a>.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#OrganizationSpendLimitDeleted">OrganizationSpendLimitDeleted</a>
+
+Methods:
+
+- <code title="get /organization/spend_limit">client.Admin.Organization.SpendLimit.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#AdminOrganizationSpendLimitService.Get">Get</a>(ctx <a href="https://pkg.go.dev/context">context</a>.<a href="https://pkg.go.dev/context#Context">Context</a>) (\*<a href="https://pkg.go.dev/github.com/openai/openai-go/v3">openai</a>.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#OrganizationSpendLimit">OrganizationSpendLimit</a>, <a href="https://pkg.go.dev/builtin#error">error</a>)</code>
+- <code title="post /organization/spend_limit">client.Admin.Organization.SpendLimit.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#AdminOrganizationSpendLimitService.Update">Update</a>(ctx <a href="https://pkg.go.dev/context">context</a>.<a href="https://pkg.go.dev/context#Context">Context</a>, body <a href="https://pkg.go.dev/github.com/openai/openai-go/v3">openai</a>.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#AdminOrganizationSpendLimitUpdateParams">AdminOrganizationSpendLimitUpdateParams</a>) (\*<a href="https://pkg.go.dev/github.com/openai/openai-go/v3">openai</a>.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#OrganizationSpendLimit">OrganizationSpendLimit</a>, <a href="https://pkg.go.dev/builtin#error">error</a>)</code>
+- <code title="delete /organization/spend_limit">client.Admin.Organization.SpendLimit.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#AdminOrganizationSpendLimitService.Delete">Delete</a>(ctx <a href="https://pkg.go.dev/context">context</a>.<a href="https://pkg.go.dev/context#Context">Context</a>) (\*<a href="https://pkg.go.dev/github.com/openai/openai-go/v3">openai</a>.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#OrganizationSpendLimitDeleted">OrganizationSpendLimitDeleted</a>, <a href="https://pkg.go.dev/builtin#error">error</a>)</code>
+
 ### SpendAlerts
 
 Response Types:
@@ -1282,6 +1306,19 @@ Methods:
 
 - <code title="get /organization/projects/{project_id}/data_retention">client.Admin.Organization.Projects.DataRetention.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#AdminOrganizationProjectDataRetentionService.Get">Get</a>(ctx <a href="https://pkg.go.dev/context">context</a>.<a href="https://pkg.go.dev/context#Context">Context</a>, projectID <a href="https://pkg.go.dev/builtin#string">string</a>) (\*<a href="https://pkg.go.dev/github.com/openai/openai-go/v3">openai</a>.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#ProjectDataRetention">ProjectDataRetention</a>, <a href="https://pkg.go.dev/builtin#error">error</a>)</code>
 - <code title="post /organization/projects/{project_id}/data_retention">client.Admin.Organization.Projects.DataRetention.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#AdminOrganizationProjectDataRetentionService.Update">Update</a>(ctx <a href="https://pkg.go.dev/context">context</a>.<a href="https://pkg.go.dev/context#Context">Context</a>, projectID <a href="https://pkg.go.dev/builtin#string">string</a>, body <a href="https://pkg.go.dev/github.com/openai/openai-go/v3">openai</a>.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#AdminOrganizationProjectDataRetentionUpdateParams">AdminOrganizationProjectDataRetentionUpdateParams</a>) (\*<a href="https://pkg.go.dev/github.com/openai/openai-go/v3">openai</a>.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#ProjectDataRetention">ProjectDataRetention</a>, <a href="https://pkg.go.dev/builtin#error">error</a>)</code>
+
+#### SpendLimit
+
+Response Types:
+
+- <a href="https://pkg.go.dev/github.com/openai/openai-go/v3">openai</a>.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#ProjectSpendLimit">ProjectSpendLimit</a>
+- <a href="https://pkg.go.dev/github.com/openai/openai-go/v3">openai</a>.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#ProjectSpendLimitDeleted">ProjectSpendLimitDeleted</a>
+
+Methods:
+
+- <code title="get /organization/projects/{project_id}/spend_limit">client.Admin.Organization.Projects.SpendLimit.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#AdminOrganizationProjectSpendLimitService.Get">Get</a>(ctx <a href="https://pkg.go.dev/context">context</a>.<a href="https://pkg.go.dev/context#Context">Context</a>, projectID <a href="https://pkg.go.dev/builtin#string">string</a>) (\*<a href="https://pkg.go.dev/github.com/openai/openai-go/v3">openai</a>.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#ProjectSpendLimit">ProjectSpendLimit</a>, <a href="https://pkg.go.dev/builtin#error">error</a>)</code>
+- <code title="post /organization/projects/{project_id}/spend_limit">client.Admin.Organization.Projects.SpendLimit.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#AdminOrganizationProjectSpendLimitService.Update">Update</a>(ctx <a href="https://pkg.go.dev/context">context</a>.<a href="https://pkg.go.dev/context#Context">Context</a>, projectID <a href="https://pkg.go.dev/builtin#string">string</a>, body <a href="https://pkg.go.dev/github.com/openai/openai-go/v3">openai</a>.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#AdminOrganizationProjectSpendLimitUpdateParams">AdminOrganizationProjectSpendLimitUpdateParams</a>) (\*<a href="https://pkg.go.dev/github.com/openai/openai-go/v3">openai</a>.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#ProjectSpendLimit">ProjectSpendLimit</a>, <a href="https://pkg.go.dev/builtin#error">error</a>)</code>
+- <code title="delete /organization/projects/{project_id}/spend_limit">client.Admin.Organization.Projects.SpendLimit.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#AdminOrganizationProjectSpendLimitService.Delete">Delete</a>(ctx <a href="https://pkg.go.dev/context">context</a>.<a href="https://pkg.go.dev/context#Context">Context</a>, projectID <a href="https://pkg.go.dev/builtin#string">string</a>) (\*<a href="https://pkg.go.dev/github.com/openai/openai-go/v3">openai</a>.<a href="https://pkg.go.dev/github.com/openai/openai-go/v3#ProjectSpendLimitDeleted">ProjectSpendLimitDeleted</a>, <a href="https://pkg.go.dev/builtin#error">error</a>)</code>
 
 #### SpendAlerts
 

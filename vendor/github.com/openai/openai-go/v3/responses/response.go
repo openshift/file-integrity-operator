@@ -3441,9 +3441,13 @@ type Response struct {
 	//     will use 'default'.
 	//   - If set to 'default', then the request will be processed with the standard
 	//     pricing and performance for the selected model.
-	//   - If set to '[flex](https://platform.openai.com/docs/guides/flex-processing)' or
-	//     '[priority](https://openai.com/api-priority-processing/)', then the request
-	//     will be processed with the corresponding service tier.
+	//   - If set to '[flex](https://platform.openai.com/docs/guides/flex-processing)',
+	//     then the request will be processed with the Flex Processing service tier.
+	//   - To opt-in to [Fast mode](/api/docs/guides/fast-mode) at the request level,
+	//     include the `service_tier=fast` or `service_tier=priority` parameter for
+	//     Responses or Chat Completions. The response will show `service_tier=priority`
+	//     regardless of if you specify `service_tier=fast` or `priority` in your
+	//     request.
 	//   - When not set, the default behavior is 'auto'.
 	//
 	// When the `service_tier` parameter is set, the response body will include the
@@ -3451,7 +3455,7 @@ type Response struct {
 	// request. This response value may be different from the value set in the
 	// parameter.
 	//
-	// Any of "auto", "default", "flex", "scale", "priority".
+	// Any of "auto", "default", "flex", "scale", "priority", "fast".
 	ServiceTier ResponseServiceTier `json:"service_tier" api:"nullable"`
 	// The status of the response generation. One of `completed`, `failed`,
 	// `in_progress`, `cancelled`, `queued`, or `incomplete`.
@@ -4086,9 +4090,13 @@ const (
 //     will use 'default'.
 //   - If set to 'default', then the request will be processed with the standard
 //     pricing and performance for the selected model.
-//   - If set to '[flex](https://platform.openai.com/docs/guides/flex-processing)' or
-//     '[priority](https://openai.com/api-priority-processing/)', then the request
-//     will be processed with the corresponding service tier.
+//   - If set to '[flex](https://platform.openai.com/docs/guides/flex-processing)',
+//     then the request will be processed with the Flex Processing service tier.
+//   - To opt-in to [Fast mode](/api/docs/guides/fast-mode) at the request level,
+//     include the `service_tier=fast` or `service_tier=priority` parameter for
+//     Responses or Chat Completions. The response will show `service_tier=priority`
+//     regardless of if you specify `service_tier=fast` or `priority` in your
+//     request.
 //   - When not set, the default behavior is 'auto'.
 //
 // When the `service_tier` parameter is set, the response body will include the
@@ -4103,6 +4111,7 @@ const (
 	ResponseServiceTierFlex     ResponseServiceTier = "flex"
 	ResponseServiceTierScale    ResponseServiceTier = "scale"
 	ResponseServiceTierPriority ResponseServiceTier = "priority"
+	ResponseServiceTierFast     ResponseServiceTier = "fast"
 )
 
 // The truncation strategy to use for the model response.
@@ -9852,6 +9861,10 @@ type ResponseFunctionToolCallOutputItem struct {
 	Caller ResponseFunctionToolCallOutputItemCallerUnion `json:"caller" api:"nullable"`
 	// The identifier of the actor that created the item.
 	CreatedBy string `json:"created_by"`
+	// The name of the tool that produced the output.
+	Name string `json:"name"`
+	// The namespace of the tool that produced the output.
+	Namespace string `json:"namespace"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		ID          respjson.Field
@@ -9861,6 +9874,8 @@ type ResponseFunctionToolCallOutputItem struct {
 		Type        respjson.Field
 		Caller      respjson.Field
 		CreatedBy   respjson.Field
+		Name        respjson.Field
+		Namespace   respjson.Field
 		ExtraFields map[string]respjson.Field
 		raw         string
 	} `json:"-"`
@@ -12560,6 +12575,10 @@ type ResponseInputItemFunctionCallOutput struct {
 	ID string `json:"id" api:"nullable"`
 	// The execution context that produced this tool call.
 	Caller ResponseInputItemFunctionCallOutputCallerUnion `json:"caller" api:"nullable"`
+	// The name of the tool that produced the output.
+	Name string `json:"name" api:"nullable"`
+	// The namespace of the tool that produced the output.
+	Namespace string `json:"namespace" api:"nullable"`
 	// The status of the item. One of `in_progress`, `completed`, or `incomplete`.
 	// Populated when items are returned via API.
 	//
@@ -12572,6 +12591,8 @@ type ResponseInputItemFunctionCallOutput struct {
 		Type        respjson.Field
 		ID          respjson.Field
 		Caller      respjson.Field
+		Name        respjson.Field
+		Namespace   respjson.Field
 		Status      respjson.Field
 		ExtraFields map[string]respjson.Field
 		raw         string
@@ -14702,6 +14723,8 @@ func (u ResponseInputItemUnionParam) GetCallID() *string {
 func (u ResponseInputItemUnionParam) GetName() *string {
 	if vt := u.OfFunctionCall; vt != nil {
 		return (*string)(&vt.Name)
+	} else if vt := u.OfFunctionCallOutput; vt != nil && vt.Name.Valid() {
+		return &vt.Name.Value
 	} else if vt := u.OfMcpApprovalRequest; vt != nil {
 		return (*string)(&vt.Name)
 	} else if vt := u.OfMcpCall; vt != nil {
@@ -14715,6 +14738,8 @@ func (u ResponseInputItemUnionParam) GetName() *string {
 // Returns a pointer to the underlying variant's property, if present.
 func (u ResponseInputItemUnionParam) GetNamespace() *string {
 	if vt := u.OfFunctionCall; vt != nil && vt.Namespace.Valid() {
+		return &vt.Namespace.Value
+	} else if vt := u.OfFunctionCallOutput; vt != nil && vt.Namespace.Valid() {
 		return &vt.Namespace.Value
 	} else if vt := u.OfCustomToolCall; vt != nil && vt.Namespace.Valid() {
 		return &vt.Namespace.Value
@@ -15441,6 +15466,10 @@ type ResponseInputItemFunctionCallOutputParam struct {
 	// The unique ID of the function tool call output. Populated when this item is
 	// returned via API.
 	ID param.Opt[string] `json:"id,omitzero"`
+	// The name of the tool that produced the output.
+	Name param.Opt[string] `json:"name,omitzero"`
+	// The namespace of the tool that produced the output.
+	Namespace param.Opt[string] `json:"namespace,omitzero"`
 	// The execution context that produced this tool call.
 	Caller ResponseInputItemFunctionCallOutputCallerUnionParam `json:"caller,omitzero"`
 	// The status of the item. One of `in_progress`, `completed`, or `incomplete`.
@@ -25825,9 +25854,13 @@ type ResponseNewParams struct {
 	//     will use 'default'.
 	//   - If set to 'default', then the request will be processed with the standard
 	//     pricing and performance for the selected model.
-	//   - If set to '[flex](https://platform.openai.com/docs/guides/flex-processing)' or
-	//     '[priority](https://openai.com/api-priority-processing/)', then the request
-	//     will be processed with the corresponding service tier.
+	//   - If set to '[flex](https://platform.openai.com/docs/guides/flex-processing)',
+	//     then the request will be processed with the Flex Processing service tier.
+	//   - To opt-in to [Fast mode](/api/docs/guides/fast-mode) at the request level,
+	//     include the `service_tier=fast` or `service_tier=priority` parameter for
+	//     Responses or Chat Completions. The response will show `service_tier=priority`
+	//     regardless of if you specify `service_tier=fast` or `priority` in your
+	//     request.
 	//   - When not set, the default behavior is 'auto'.
 	//
 	// When the `service_tier` parameter is set, the response body will include the
@@ -25835,7 +25868,7 @@ type ResponseNewParams struct {
 	// request. This response value may be different from the value set in the
 	// parameter.
 	//
-	// Any of "auto", "default", "flex", "scale", "priority".
+	// Any of "auto", "default", "flex", "scale", "priority", "fast".
 	ServiceTier ResponseNewParamsServiceTier `json:"service_tier,omitzero"`
 	// Options for streaming responses. Only set this when you set `stream: true`.
 	StreamOptions ResponseNewParamsStreamOptions `json:"stream_options,omitzero"`
@@ -26147,9 +26180,13 @@ const (
 //     will use 'default'.
 //   - If set to 'default', then the request will be processed with the standard
 //     pricing and performance for the selected model.
-//   - If set to '[flex](https://platform.openai.com/docs/guides/flex-processing)' or
-//     '[priority](https://openai.com/api-priority-processing/)', then the request
-//     will be processed with the corresponding service tier.
+//   - If set to '[flex](https://platform.openai.com/docs/guides/flex-processing)',
+//     then the request will be processed with the Flex Processing service tier.
+//   - To opt-in to [Fast mode](/api/docs/guides/fast-mode) at the request level,
+//     include the `service_tier=fast` or `service_tier=priority` parameter for
+//     Responses or Chat Completions. The response will show `service_tier=priority`
+//     regardless of if you specify `service_tier=fast` or `priority` in your
+//     request.
 //   - When not set, the default behavior is 'auto'.
 //
 // When the `service_tier` parameter is set, the response body will include the
@@ -26164,6 +26201,7 @@ const (
 	ResponseNewParamsServiceTierFlex     ResponseNewParamsServiceTier = "flex"
 	ResponseNewParamsServiceTierScale    ResponseNewParamsServiceTier = "scale"
 	ResponseNewParamsServiceTierPriority ResponseNewParamsServiceTier = "priority"
+	ResponseNewParamsServiceTierFast     ResponseNewParamsServiceTier = "fast"
 )
 
 // Options for streaming responses. Only set this when you set `stream: true`.
@@ -26394,9 +26432,23 @@ type ResponseCompactParams struct {
 	//
 	// Any of "in_memory", "24h".
 	PromptCacheRetention ResponseCompactParamsPromptCacheRetention `json:"prompt_cache_retention,omitzero"`
-	// The service tier to use for this request.
+	// Specifies the processing type used for serving the request. - If set to 'auto',
+	// then the request will be processed with the service tier configured in the
+	// Project settings. Unless otherwise configured, the Project will use 'default'. -
+	// If set to 'default', then the request will be processed with the standard
+	// pricing and performance for the selected model. - If set to
+	// '[flex](https://platform.openai.com/docs/guides/flex-processing)', then the
+	// request will be processed with the Flex Processing service tier. - To opt-in to
+	// [Fast mode](/api/docs/guides/fast-mode) at the request level, include the
+	// `service_tier=fast` or `service_tier=priority` parameter for Responses or Chat
+	// Completions. The response will show `service_tier=priority` regardless of if you
+	// specify `service_tier=fast` or `priority` in your request. - When not set, the
+	// default behavior is 'auto'. When the `service_tier` parameter is set, the
+	// response body will include the `service_tier` value based on the processing mode
+	// actually used to serve the request. This response value may be different from
+	// the value set in the parameter.
 	//
-	// Any of "auto", "default", "flex", "priority".
+	// Any of "auto", "default", "fast", "flex", "priority".
 	ServiceTier ResponseCompactParamsServiceTier `json:"service_tier,omitzero"`
 	paramObj
 }
@@ -26420,6 +26472,7 @@ const (
 	ResponseCompactParamsModelGPT5_6Sol                        ResponseCompactParamsModel = "gpt-5.6-sol"
 	ResponseCompactParamsModelGPT5_6Terra                      ResponseCompactParamsModel = "gpt-5.6-terra"
 	ResponseCompactParamsModelGPT5_6Luna                       ResponseCompactParamsModel = "gpt-5.6-luna"
+	ResponseCompactParamsModelGPT5_5                           ResponseCompactParamsModel = "gpt-5.5"
 	ResponseCompactParamsModelGPT5_4                           ResponseCompactParamsModel = "gpt-5.4"
 	ResponseCompactParamsModelGPT5_4Mini                       ResponseCompactParamsModel = "gpt-5.4-mini"
 	ResponseCompactParamsModelGPT5_4Nano                       ResponseCompactParamsModel = "gpt-5.4-nano"
@@ -26592,12 +26645,27 @@ const (
 	ResponseCompactParamsPromptCacheRetention24h      ResponseCompactParamsPromptCacheRetention = "24h"
 )
 
-// The service tier to use for this request.
+// Specifies the processing type used for serving the request. - If set to 'auto',
+// then the request will be processed with the service tier configured in the
+// Project settings. Unless otherwise configured, the Project will use 'default'. -
+// If set to 'default', then the request will be processed with the standard
+// pricing and performance for the selected model. - If set to
+// '[flex](https://platform.openai.com/docs/guides/flex-processing)', then the
+// request will be processed with the Flex Processing service tier. - To opt-in to
+// [Fast mode](/api/docs/guides/fast-mode) at the request level, include the
+// `service_tier=fast` or `service_tier=priority` parameter for Responses or Chat
+// Completions. The response will show `service_tier=priority` regardless of if you
+// specify `service_tier=fast` or `priority` in your request. - When not set, the
+// default behavior is 'auto'. When the `service_tier` parameter is set, the
+// response body will include the `service_tier` value based on the processing mode
+// actually used to serve the request. This response value may be different from
+// the value set in the parameter.
 type ResponseCompactParamsServiceTier string
 
 const (
 	ResponseCompactParamsServiceTierAuto     ResponseCompactParamsServiceTier = "auto"
 	ResponseCompactParamsServiceTierDefault  ResponseCompactParamsServiceTier = "default"
+	ResponseCompactParamsServiceTierFast     ResponseCompactParamsServiceTier = "fast"
 	ResponseCompactParamsServiceTierFlex     ResponseCompactParamsServiceTier = "flex"
 	ResponseCompactParamsServiceTierPriority ResponseCompactParamsServiceTier = "priority"
 )
