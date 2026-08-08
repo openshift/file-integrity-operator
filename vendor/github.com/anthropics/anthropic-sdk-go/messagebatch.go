@@ -50,11 +50,14 @@ func NewMessageBatchService(opts ...option.RequestOption) (r MessageBatchService
 // can take up to 24 hours to complete.
 //
 // Learn more about the Message Batches API in our
-// [user guide](https://docs.claude.com/en/docs/build-with-claude/batch-processing)
-func (r *MessageBatchService) New(ctx context.Context, body MessageBatchNewParams, opts ...option.RequestOption) (res *MessageBatch, err error) {
+// [user guide](https://platform.claude.com/docs/en/build-with-claude/batch-processing)
+func (r *MessageBatchService) New(ctx context.Context, params MessageBatchNewParams, opts ...option.RequestOption) (res *MessageBatch, err error) {
+	if !param.IsOmitted(params.UserProfileID) {
+		opts = append(opts, option.WithHeader("anthropic-user-profile-id", fmt.Sprintf("%v", params.UserProfileID.Value)))
+	}
 	opts = slices.Concat(r.Options, opts)
 	path := "v1/messages/batches"
-	err = requestconfig.ExecuteNewRequest(ctx, http.MethodPost, path, body, &res, opts...)
+	err = requestconfig.ExecuteNewRequest(ctx, http.MethodPost, path, params, &res, opts...)
 	return res, err
 }
 
@@ -63,7 +66,7 @@ func (r *MessageBatchService) New(ctx context.Context, body MessageBatchNewParam
 // `results_url` field in the response.
 //
 // Learn more about the Message Batches API in our
-// [user guide](https://docs.claude.com/en/docs/build-with-claude/batch-processing)
+// [user guide](https://platform.claude.com/docs/en/build-with-claude/batch-processing)
 func (r *MessageBatchService) Get(ctx context.Context, messageBatchID string, opts ...option.RequestOption) (res *MessageBatch, err error) {
 	opts = slices.Concat(r.Options, opts)
 	if messageBatchID == "" {
@@ -79,7 +82,7 @@ func (r *MessageBatchService) Get(ctx context.Context, messageBatchID string, op
 // returned first.
 //
 // Learn more about the Message Batches API in our
-// [user guide](https://docs.claude.com/en/docs/build-with-claude/batch-processing)
+// [user guide](https://platform.claude.com/docs/en/build-with-claude/batch-processing)
 func (r *MessageBatchService) List(ctx context.Context, query MessageBatchListParams, opts ...option.RequestOption) (res *pagination.Page[MessageBatch], err error) {
 	var raw *http.Response
 	opts = slices.Concat(r.Options, opts)
@@ -101,7 +104,7 @@ func (r *MessageBatchService) List(ctx context.Context, query MessageBatchListPa
 // returned first.
 //
 // Learn more about the Message Batches API in our
-// [user guide](https://docs.claude.com/en/docs/build-with-claude/batch-processing)
+// [user guide](https://platform.claude.com/docs/en/build-with-claude/batch-processing)
 func (r *MessageBatchService) ListAutoPaging(ctx context.Context, query MessageBatchListParams, opts ...option.RequestOption) *pagination.PageAutoPager[MessageBatch] {
 	return pagination.NewPageAutoPager(r.List(ctx, query, opts...))
 }
@@ -112,7 +115,7 @@ func (r *MessageBatchService) ListAutoPaging(ctx context.Context, query MessageB
 // like to delete an in-progress batch, you must first cancel it.
 //
 // Learn more about the Message Batches API in our
-// [user guide](https://docs.claude.com/en/docs/build-with-claude/batch-processing)
+// [user guide](https://platform.claude.com/docs/en/build-with-claude/batch-processing)
 func (r *MessageBatchService) Delete(ctx context.Context, messageBatchID string, opts ...option.RequestOption) (res *DeletedMessageBatch, err error) {
 	opts = slices.Concat(r.Options, opts)
 	if messageBatchID == "" {
@@ -135,7 +138,7 @@ func (r *MessageBatchService) Delete(ctx context.Context, messageBatchID string,
 // non-interruptible.
 //
 // Learn more about the Message Batches API in our
-// [user guide](https://docs.claude.com/en/docs/build-with-claude/batch-processing)
+// [user guide](https://platform.claude.com/docs/en/build-with-claude/batch-processing)
 func (r *MessageBatchService) Cancel(ctx context.Context, messageBatchID string, opts ...option.RequestOption) (res *MessageBatch, err error) {
 	opts = slices.Concat(r.Options, opts)
 	if messageBatchID == "" {
@@ -154,7 +157,7 @@ func (r *MessageBatchService) Cancel(ctx context.Context, messageBatchID string,
 // requests. Use the `custom_id` field to match results to requests.
 //
 // Learn more about the Message Batches API in our
-// [user guide](https://docs.claude.com/en/docs/build-with-claude/batch-processing)
+// [user guide](https://platform.claude.com/docs/en/build-with-claude/batch-processing)
 func (r *MessageBatchService) ResultsStreaming(ctx context.Context, messageBatchID string, opts ...option.RequestOption) (stream *jsonl.Stream[MessageBatchIndividualResponse]) {
 	var (
 		raw *http.Response
@@ -491,6 +494,11 @@ type MessageBatchNewParams struct {
 	// List of requests for prompt completion. Each is an individual request to create
 	// a Message.
 	Requests []MessageBatchNewParamsRequest `json:"requests,omitzero" api:"required"`
+	// The user profile ID to attribute the requests in this batch to. Use when acting
+	// on behalf of a party other than your organization. Requires the `user-profiles`
+	// beta header. Applies to every request in the batch; an individual request whose
+	// `user_profile_id` body field conflicts with this header is errored.
+	UserProfileID param.Opt[string] `header:"anthropic-user-profile-id,omitzero" json:"-"`
 	paramObj
 }
 
@@ -511,7 +519,8 @@ type MessageBatchNewParamsRequest struct {
 	CustomID string `json:"custom_id" api:"required"`
 	// Messages API creation parameters for the individual request.
 	//
-	// See the [Messages API reference](https://docs.claude.com/en/api/messages) for
+	// See the
+	// [Messages API reference](https://platform.claude.com/docs/en/api/messages) for
 	// full documentation on available parameters.
 	Params MessageBatchNewParamsRequestParams `json:"params,omitzero" api:"required"`
 	paramObj
@@ -527,7 +536,8 @@ func (r *MessageBatchNewParamsRequest) UnmarshalJSON(data []byte) error {
 
 // Messages API creation parameters for the individual request.
 //
-// See the [Messages API reference](https://docs.claude.com/en/api/messages) for
+// See the
+// [Messages API reference](https://platform.claude.com/docs/en/api/messages) for
 // full documentation on available parameters.
 //
 // The properties MaxTokens, Messages, Model are required.
@@ -537,8 +547,13 @@ type MessageBatchNewParamsRequestParams struct {
 	// Note that our models may stop _before_ reaching this maximum. This parameter
 	// only specifies the absolute maximum number of tokens to generate.
 	//
+	// Set to `0` to populate the
+	// [prompt cache](https://platform.claude.com/docs/en/build-with-claude/prompt-caching#pre-warming-the-cache)
+	// without generating a response.
+	//
 	// Different models have different maximum values for this parameter. See
-	// [models](https://docs.claude.com/en/docs/models-overview) for details.
+	// [models](https://platform.claude.com/docs/en/about-claude/models/overview) for
+	// details.
 	MaxTokens int64 `json:"max_tokens" api:"required"`
 	// Input messages.
 	//
@@ -601,17 +616,19 @@ type MessageBatchNewParamsRequestParams struct {
 	// { "role": "user", "content": [{ "type": "text", "text": "Hello, Claude" }] }
 	// ```
 	//
-	// See [input examples](https://docs.claude.com/en/api/messages-examples).
+	// See
+	// [input examples](https://platform.claude.com/docs/en/build-with-claude/working-with-messages).
 	//
 	// Note that if you want to include a
-	// [system prompt](https://docs.claude.com/en/docs/system-prompts), you can use the
-	// top-level `system` parameter — there is no `"system"` role for input messages in
-	// the Messages API.
+	// [system prompt](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#give-claude-a-role),
+	// you can use the top-level `system` parameter — there is no `"system"` role for
+	// input messages in the Messages API.
 	//
 	// There is a limit of 100,000 messages in a single request.
 	Messages []MessageParam `json:"messages,omitzero" api:"required"`
-	// The model that will complete your prompt.\n\nSee
-	// [models](https://docs.anthropic.com/en/docs/models-overview) for additional
+	// The model that will complete your prompt.
+	//
+	// See [models](https://docs.anthropic.com/en/docs/models-overview) for additional
 	// details and options.
 	Model Model `json:"model,omitzero" api:"required"`
 	// Container identifier for reuse across requests.
@@ -621,7 +638,8 @@ type MessageBatchNewParamsRequestParams struct {
 	InferenceGeo param.Opt[string] `json:"inference_geo,omitzero"`
 	// Whether to incrementally stream the response using server-sent events.
 	//
-	// See [streaming](https://docs.claude.com/en/api/messages-streaming) for details.
+	// See [streaming](https://platform.claude.com/docs/en/build-with-claude/streaming)
+	// for details.
 	Stream param.Opt[bool] `json:"stream,omitzero"`
 	// Amount of randomness injected into the response.
 	//
@@ -641,8 +659,7 @@ type MessageBatchNewParamsRequestParams struct {
 	// Used to remove "long tail" low probability responses.
 	// [Learn more technical details here](https://towardsdatascience.com/how-to-sample-from-language-models-682bceb97277).
 	//
-	// Recommended for advanced use cases only. You usually only need to use
-	// `temperature`.
+	// Recommended for advanced use cases only.
 	//
 	// Deprecated: Deprecated. Models released after Claude Opus 4.6 do not accept
 	// top_k; any value will be rejected with a 400 error.
@@ -651,11 +668,9 @@ type MessageBatchNewParamsRequestParams struct {
 	//
 	// In nucleus sampling, we compute the cumulative distribution over all the options
 	// for each subsequent token in decreasing probability order and cut it off once it
-	// reaches a particular probability specified by `top_p`. You should either alter
-	// `temperature` or `top_p`, but not both.
+	// reaches a particular probability specified by `top_p`.
 	//
-	// Recommended for advanced use cases only. You usually only need to use
-	// `temperature`.
+	// Recommended for advanced use cases only.
 	//
 	// Deprecated: Deprecated. Models released after Claude Opus 4.6 do not support
 	// setting top_p. A value >= 0.99 will be accepted for backwards compatibility, all
@@ -672,7 +687,8 @@ type MessageBatchNewParamsRequestParams struct {
 	// for this request.
 	//
 	// Anthropic offers different levels of service for your API requests. See
-	// [service-tiers](https://docs.claude.com/en/api/service-tiers) for details.
+	// [service-tiers](https://platform.claude.com/docs/en/api/service-tiers) for
+	// details.
 	//
 	// Any of "auto", "standard_only".
 	ServiceTier string `json:"service_tier,omitzero"`
@@ -690,7 +706,7 @@ type MessageBatchNewParamsRequestParams struct {
 	//
 	// A system prompt is a way of providing context and instructions to Claude, such
 	// as specifying a particular goal or role. See our
-	// [guide to system prompts](https://docs.claude.com/en/docs/system-prompts).
+	// [guide to system prompts](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#give-claude-a-role).
 	System []TextBlockParam `json:"system,omitzero"`
 	// Configuration for enabling Claude's extended thinking.
 	//
@@ -699,7 +715,7 @@ type MessageBatchNewParamsRequestParams struct {
 	// tokens and counts towards your `max_tokens` limit.
 	//
 	// See
-	// [extended thinking](https://docs.claude.com/en/docs/build-with-claude/extended-thinking)
+	// [extended thinking](https://platform.claude.com/docs/en/build-with-claude/extended-thinking)
 	// for details.
 	Thinking ThinkingConfigParamUnion `json:"thinking,omitzero"`
 	// How the model should use the provided tools. The model can use a specific tool,
@@ -714,9 +730,9 @@ type MessageBatchNewParamsRequestParams struct {
 	//
 	// There are two types of tools: **client tools** and **server tools**. The
 	// behavior described below applies to client tools. For
-	// [server tools](https://docs.claude.com/en/docs/agents-and-tools/tool-use/overview#server-tools),
+	// [server tools](https://platform.claude.com/docs/en/agents-and-tools/tool-use/server-tools),
 	// see their individual documentation as each has its own behavior (e.g., the
-	// [web search tool](https://docs.claude.com/en/docs/agents-and-tools/tool-use/web-search-tool)).
+	// [web search tool](https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool)).
 	//
 	// Each tool definition includes:
 	//
@@ -785,7 +801,9 @@ type MessageBatchNewParamsRequestParams struct {
 	// functions, or more generally whenever you want the model to produce a particular
 	// JSON structure of output.
 	//
-	// See our [guide](https://docs.claude.com/en/docs/tool-use) for more details.
+	// See our
+	// [guide](https://platform.claude.com/docs/en/agents-and-tools/tool-use/overview)
+	// for more details.
 	Tools []ToolUnionParam `json:"tools,omitzero"`
 	paramObj
 }
@@ -821,7 +839,7 @@ type MessageBatchListParams struct {
 // URLQuery serializes [MessageBatchListParams]'s query parameters as `url.Values`.
 func (r MessageBatchListParams) URLQuery() (v url.Values, err error) {
 	return apiquery.MarshalWithSettings(r, apiquery.QuerySettings{
-		ArrayFormat:  apiquery.ArrayQueryFormatComma,
+		ArrayFormat:  apiquery.ArrayQueryFormatBrackets,
 		NestedFormat: apiquery.NestedQueryFormatBrackets,
 	})
 }

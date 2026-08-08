@@ -286,16 +286,16 @@ func (r *BetaSkillDeleteResponse) UnmarshalJSON(data []byte) error {
 }
 
 type BetaSkillNewParams struct {
+	// Files to upload for the skill.
+	//
+	// All files must be in the same top-level directory and must include a SKILL.md
+	// file at the root of that directory.
+	Files []io.Reader `json:"files,omitzero" api:"required" format:"binary"`
 	// Display title for the skill.
 	//
 	// This is a human-readable label that is not included in the prompt sent to the
 	// model.
 	DisplayTitle param.Opt[string] `json:"display_title,omitzero"`
-	// Files to upload for the skill.
-	//
-	// All files must be in the same top-level directory and must include a SKILL.md
-	// file at the root of that directory.
-	Files []io.Reader `json:"files,omitzero" format:"binary"`
 	// Optional header to specify the beta version(s) you want to use.
 	Betas []AnthropicBeta `header:"anthropic-beta,omitzero" json:"-"`
 	paramObj
@@ -350,7 +350,7 @@ type BetaSkillListParams struct {
 // URLQuery serializes [BetaSkillListParams]'s query parameters as `url.Values`.
 func (r BetaSkillListParams) URLQuery() (v url.Values, err error) {
 	return apiquery.MarshalWithSettings(r, apiquery.QuerySettings{
-		ArrayFormat:  apiquery.ArrayQueryFormatComma,
+		ArrayFormat:  apiquery.ArrayQueryFormatBrackets,
 		NestedFormat: apiquery.NestedQueryFormatBrackets,
 	})
 }
