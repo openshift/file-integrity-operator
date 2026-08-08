@@ -910,7 +910,7 @@ github.com/xo/terminfo
 ## explicit; go 1.24.0
 go.opentelemetry.io/auto/sdk
 go.opentelemetry.io/auto/sdk/internal/telemetry
-# go.opentelemetry.io/collector/component v1.63.0
+# go.opentelemetry.io/collector/component v1.64.0
 ## explicit; go 1.25.0
 go.opentelemetry.io/collector/component
 # go.opentelemetry.io/collector/confmap v1.63.0
@@ -923,17 +923,17 @@ go.opentelemetry.io/collector/confmap/internal/third_party/composehook
 # go.opentelemetry.io/collector/confmap/xconfmap v0.157.0
 ## explicit; go 1.25.0
 go.opentelemetry.io/collector/confmap/xconfmap
-# go.opentelemetry.io/collector/consumer v1.63.0
+# go.opentelemetry.io/collector/consumer v1.64.0
 ## explicit; go 1.25.0
 go.opentelemetry.io/collector/consumer
 go.opentelemetry.io/collector/consumer/internal
-# go.opentelemetry.io/collector/featuregate v1.63.0
+# go.opentelemetry.io/collector/featuregate v1.64.0
 ## explicit; go 1.25.0
 go.opentelemetry.io/collector/featuregate
-# go.opentelemetry.io/collector/internal/componentalias v0.157.0
+# go.opentelemetry.io/collector/internal/componentalias v0.158.0
 ## explicit; go 1.25.0
 go.opentelemetry.io/collector/internal/componentalias
-# go.opentelemetry.io/collector/pdata v1.63.0
+# go.opentelemetry.io/collector/pdata v1.64.0
 ## explicit; go 1.25.0
 go.opentelemetry.io/collector/pdata/internal
 go.opentelemetry.io/collector/pdata/internal/json
@@ -946,11 +946,11 @@ go.opentelemetry.io/collector/pdata/plog
 go.opentelemetry.io/collector/pdata/pmetric
 go.opentelemetry.io/collector/pdata/pmetric/pmetricotlp
 go.opentelemetry.io/collector/pdata/ptrace
-# go.opentelemetry.io/collector/pipeline v1.63.0
+# go.opentelemetry.io/collector/pipeline v1.64.0
 ## explicit; go 1.25.0
 go.opentelemetry.io/collector/pipeline
 go.opentelemetry.io/collector/pipeline/internal/globalsignal
-# go.opentelemetry.io/collector/processor v1.63.0
+# go.opentelemetry.io/collector/processor v1.64.0
 ## explicit; go 1.25.0
 go.opentelemetry.io/collector/processor
 # go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace v0.68.0
@@ -1183,7 +1183,7 @@ google.golang.org/genai
 google.golang.org/genproto/googleapis/rpc/code
 google.golang.org/genproto/googleapis/rpc/errdetails
 google.golang.org/genproto/googleapis/rpc/status
-# google.golang.org/grpc v1.82.0
+# google.golang.org/grpc v1.82.1
 ## explicit; go 1.25.0
 google.golang.org/grpc
 google.golang.org/grpc/attributes
