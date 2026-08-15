@@ -164,7 +164,7 @@ require (
 	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/vincent-petithory/dataurl v1.0.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
-	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
+	github.com/xo/terminfo v1.0.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/collector/component v1.63.0 // indirect
 	go.opentelemetry.io/collector/confmap v1.63.0 // indirect
