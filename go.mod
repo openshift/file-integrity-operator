@@ -143,7 +143,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.157.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor v0.157.0 // indirect
 	github.com/openai/openai-go/v3 v3.45.0 // indirect
-	github.com/pb33f/jsonpath v0.8.2 // indirect
+	github.com/pb33f/jsonpath v0.8.3 // indirect
 	github.com/pb33f/libopenapi v0.38.7 // indirect
 	github.com/pb33f/libopenapi-validator v0.14.0 // indirect
 	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect

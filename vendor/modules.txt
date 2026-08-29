@@ -650,7 +650,7 @@ github.com/openshift/library-go/pkg/crypto
 github.com/openshift/machine-config-operator/pkg/apis/machineconfiguration.openshift.io
 github.com/openshift/machine-config-operator/pkg/apis/machineconfiguration.openshift.io/v1
 github.com/openshift/machine-config-operator/pkg/daemon/constants
-# github.com/pb33f/jsonpath v0.8.2
+# github.com/pb33f/jsonpath v0.8.3
 ## explicit; go 1.24
 github.com/pb33f/jsonpath/pkg/jsonpath
 github.com/pb33f/jsonpath/pkg/jsonpath/config
