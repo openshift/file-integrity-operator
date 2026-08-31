@@ -5,6 +5,7 @@ contentOrigin:
 packages:
   - tar
   - aide
+  - libgcrypt-devel
 
 arches:
   - x86_64
