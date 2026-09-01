@@ -53,6 +53,10 @@ type FileIntegritySpec struct {
 	// This is an optional field. If PriorityClass is invalid or not found,
 	// it will be ignored and cleared from the spec.
 	PriorityClassName string `json:"priorityClassName,omitempty"`
+	// Resources allows specifying the resource requests and limits for the AIDE
+	// daemon container. When omitted, the built-in defaults below are applied.
+	// +kubebuilder:default={requests: {memory: "40Mi", cpu: "40m"}, limits: {memory: "600Mi", cpu: "300m"}}
+	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
 }
 
 // FileIntegrityConfig defines the name, namespace, and data key for an AIDE config to use for integrity checking.
