@@ -17,7 +17,6 @@ package manager
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"flag"
 	"fmt"
@@ -28,6 +27,7 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	"github.com/spf13/cobra"
 
+	configv1 "github.com/openshift/api/config/v1"
 	v1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
@@ -47,7 +47,6 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
-	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	monitoring "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	monclientv1 "github.com/prometheus-operator/prometheus-operator/pkg/client/versioned/typed/monitoring/v1"
@@ -83,6 +82,7 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
 	utilruntime.Must(v1alpha1.AddToScheme(scheme))
+	utilruntime.Must(configv1.Install(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -93,7 +93,6 @@ var (
 	defaultPrometheusAlertName       = "file-integrity"
 	metricsServiceName               = "metrics"
 	leaderElectionID                 = "962a0cf2.openshift.io"
-	enableHTTP2                      = false
 )
 
 func printVersion() {
@@ -127,16 +126,12 @@ func RunOperator(cmd *cobra.Command, args []string) {
 	kubeClient := kubernetes.NewForConfigOrDie(cfg)
 	monitoringClient := monclientv1.NewForConfigOrDie(cfg)
 
-	ctx := context.TODO()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
 
 	log.Info("Registering Components.")
 
-	disableHTTP2 := func(c *tls.Config) {
-		if enableHTTP2 {
-			return
-		}
-		c.NextProtos = []string{"http/1.1"}
-	}
+	tlsConfig := makeTLSConfig(ctx, cfg)
 	c := cache.Options{DefaultNamespaces: map[string]cache.Config{namespace: {}}}
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Cache: c,
@@ -152,7 +147,7 @@ func RunOperator(cmd *cobra.Command, args []string) {
 		Scheme:                 scheme,
 		Metrics:                metricsserver.Options{BindAddress: fmt.Sprintf("%s:%d", metricsHost, metricsPort)},
 		HealthProbeBindAddress: ":8081",
-		WebhookServer:          webhook.NewServer(webhook.Options{Port: 9443, TLSOpts: []func(config *tls.Config){disableHTTP2}}),
+		WebhookServer:          tlsConfig.makeWebhookServer(),
 		LeaderElection:         true,
 		LeaderElectionID:       leaderElectionID,
 	})
@@ -164,6 +159,13 @@ func RunOperator(cmd *cobra.Command, args []string) {
 	met := metrics.NewControllerMetrics()
 	if err := met.Register(); err != nil {
 		log.Error(err, "Error registering metrics")
+		os.Exit(1)
+	}
+
+	watcher := tlsConfig.makeSecurityProfileWatcher(mgr.GetClient(), met, cancel)
+
+	if err := watcher.SetupWithManager(mgr); err != nil {
+		log.Error(err, "Unable to set up TLS security profile watcher")
 		os.Exit(1)
 	}
 
@@ -223,7 +225,16 @@ func RunOperator(cmd *cobra.Command, args []string) {
 	}
 
 	log.Info("Starting manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+
+	// Start the Cmd. The context is cancelled either by OS signals or by
+	// the SecurityProfileWatcher when TLS configuration changes, causing
+	// a graceful shutdown so the pod restarts with updated TLS settings.
+	sigCtx := ctrl.SetupSignalHandler()
+	go func() {
+		<-sigCtx.Done()
+		cancel()
+	}()
+	if err := mgr.Start(ctx); err != nil {
 		log.Error(err, "Manager exited non-zero")
 		os.Exit(1)
 	}
