@@ -4,20 +4,13 @@ import (
 	"context"
 	"crypto/tls"
 
-	"github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	configv1 "github.com/openshift/api/config/v1"
 	tlspkg "github.com/openshift/controller-runtime-common/pkg/tls"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
-
-var _ = BeforeSuite(func() {
-	ctrl.SetLogger(logr.New(logf.NullLogSink{}))
-})
 
 var _ = Describe("fetchClusterTLSState", func() {
 	Context("when the APIServer resource specifies a profile and adherence policy", func() {
