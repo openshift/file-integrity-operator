@@ -1,6 +1,6 @@
 module github.com/openshift/file-integrity-operator
 
-go 1.25.11
+go 1.26.8
 
 require (
 	github.com/cenkalti/backoff/v4 v4.3.0
@@ -9,9 +9,9 @@ require (
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.39.1
-	github.com/openshift/api v0.0.0-20260408160412-464776f95207
+	github.com/openshift/api v0.0.0-20260901194050-81278704edb0
 	github.com/openshift/library-go v0.0.0-20260413093329-d2db42c961e1
-	github.com/openshift/machine-config-operator v0.0.1-0.20230815171034-c2bb862bc08a
+	github.com/openshift/machine-config-operator v0.0.1-0.20260410020757-449e78f7ec94
 	github.com/pborman/uuid v1.2.1
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.90.1
@@ -26,11 +26,11 @@ require (
 	golang.org/x/mod v0.38.0
 	golang.org/x/net v0.57.0
 	gopkg.in/yaml.v3 v3.0.1
-	k8s.io/api v0.35.4
-	k8s.io/apiextensions-apiserver v0.35.4
-	k8s.io/apimachinery v0.35.4
-	k8s.io/client-go v0.35.4
-	sigs.k8s.io/controller-runtime v0.23.3
+	k8s.io/api v0.36.2
+	k8s.io/apiextensions-apiserver v0.36.2
+	k8s.io/apimachinery v0.36.2
+	k8s.io/client-go v0.36.2
+	sigs.k8s.io/controller-runtime v0.24.1
 	sigs.k8s.io/controller-tools v0.20.1
 	sigs.k8s.io/yaml v1.6.0
 )
@@ -109,7 +109,6 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/golang/snappy v1.0.0 // indirect
-	github.com/google/btree v1.1.3 // indirect
 	github.com/google/gnostic-models v0.7.1 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
@@ -201,16 +200,16 @@ require (
 	google.golang.org/genai v1.54.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260414002931-afd174a4e478 // indirect
 	google.golang.org/grpc v1.82.0 // indirect
-	google.golang.org/protobuf v1.36.11 // indirect
+	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	k8s.io/apiserver v0.35.4 // indirect
-	k8s.io/code-generator v0.35.4 // indirect
+	k8s.io/apiserver v0.36.2 // indirect; indir6.2
+	k8s.io/code-generator v0.36.2 // indirect; indir6.2
 	k8s.io/gengo/v2 v2.0.0-20260408192533-25e2208e0dc3 // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect
-	k8s.io/kube-openapi v0.0.0-20260414162039-ec9c827d403f // indirect
+	k8s.io/kube-openapi v0.0.0-20260519202549-bbf5c5577288 // indirect
 	k8s.io/utils v0.0.0-20260319190234-28399d86e0b5 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
