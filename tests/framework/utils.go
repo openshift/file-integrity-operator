@@ -375,8 +375,8 @@ func (f *Framework) GetOperatorPods() ([]corev1.Pod, error) {
 	}
 	var operatorPods []corev1.Pod
 	for _, pod := range podList.Items {
-		if strings.Contains(pod.Name, OperatorName) &&
-			!strings.Contains(pod.Name, OperatorName+"-result") {
+		if strings.Contains(pod.Name, "file-integrity-operator") &&
+			!strings.Contains(pod.Name, "file-integrity-operator-result") {
 			operatorPods = append(operatorPods, pod)
 		}
 	}
