@@ -1,7 +1,6 @@
 package e2e
 
 import (
-	"context"
 	"testing"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -63,7 +62,7 @@ func TestOperatorHonorsClusterTLSProfile(t *testing.T) {
 		Type:   configv1.TLSProfileModernType,
 		Modern: &configv1.ModernTLSProfile{},
 	}
-	if err := f.Client.Update(context.TODO(), apiServer); err != nil {
+	if err := f.Client.Update(t.Context(), apiServer); err != nil {
 		t.Fatalf("failed to update APIServer TLS configuration: %s", err)
 	}
 
@@ -75,7 +74,7 @@ func TestOperatorHonorsClusterTLSProfile(t *testing.T) {
 	}
 
 	// Wait for the operator deployment to be fully available.
-	if err := f.WaitForDeployment(framework.OperatorName, 1, framework.RetryInterval, framework.Timeout); err != nil {
+	if err := f.WaitForDeployment("file-integrity-operator", 1, framework.RetryInterval, framework.Timeout); err != nil {
 		t.Fatalf("operator did not become ready after TLS profile change: %s", err)
 	}
 

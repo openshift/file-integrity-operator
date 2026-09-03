@@ -12,7 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
-var _ = Describe("fetchClusterTLSState", func() {
+var _ = Describe("fetchClusterTLSSettings", func() {
 	Context("when the APIServer resource specifies a profile and adherence policy", func() {
 		It("returns the configured profile and adherence policy", func() {
 			apiServer := &configv1.APIServer{
@@ -26,9 +26,9 @@ var _ = Describe("fetchClusterTLSState", func() {
 			}
 			cl := fake.NewClientBuilder().WithScheme(scheme).WithObjects(apiServer).Build()
 
-			tlsState := fetchClusterTLSState(context.Background(), cl)
-			Expect(tlsState.adherence).To(Equal(configv1.TLSAdherencePolicyStrictAllComponents))
-			Expect(tlsState.profile.MinTLSVersion).To(Equal(configv1.TLSProfiles[configv1.TLSProfileModernType].MinTLSVersion))
+			profile, adherence := fetchClusterTLSSettings(context.Background(), cl)
+			Expect(adherence).To(Equal(configv1.TLSAdherencePolicyStrictAllComponents))
+			Expect(profile.MinTLSVersion).To(Equal(configv1.TLSProfiles[configv1.TLSProfileModernType].MinTLSVersion))
 		})
 	})
 
@@ -36,10 +36,10 @@ var _ = Describe("fetchClusterTLSState", func() {
 		It("falls back to secure defaults and a no-opinion adherence policy", func() {
 			cl := fake.NewClientBuilder().WithScheme(scheme).Build()
 
-			tlsState := fetchClusterTLSState(context.Background(), cl)
-			Expect(tlsState.adherence).To(Equal(configv1.TLSAdherencePolicyNoOpinion))
-			Expect(tlsState.profile.MinTLSVersion).To(Equal(tlspkg.DefaultMinTLSVersion))
-			Expect(tlsState.profile.Ciphers).To(Equal(tlspkg.DefaultTLSCiphers))
+			profile, adherence := fetchClusterTLSSettings(context.Background(), cl)
+			Expect(adherence).To(Equal(configv1.TLSAdherencePolicyNoOpinion))
+			Expect(profile.MinTLSVersion).To(Equal(tlspkg.DefaultMinTLSVersion))
+			Expect(profile.Ciphers).To(Equal(tlspkg.DefaultTLSCiphers))
 		})
 	})
 })
@@ -56,7 +56,7 @@ var _ = Describe("applyClusterTLSProfile", func() {
 	Context("when adherence is NoOpinion", func() {
 		It("does not modify the config", func() {
 			profile := *configv1.TLSProfiles[configv1.TLSProfileModernType]
-			unsupported := applyClusterTLSProfile(baseConfig, &tlsState{profile, configv1.TLSAdherencePolicyNoOpinion})
+			unsupported := applyClusterTLSSettings(baseConfig, &clusterTLSSettings{profile, configv1.TLSAdherencePolicyNoOpinion})
 
 			Expect(unsupported).To(BeNil())
 			Expect(baseConfig.MinVersion).To(Equal(uint16(tls.VersionTLS12)))
@@ -66,7 +66,7 @@ var _ = Describe("applyClusterTLSProfile", func() {
 	Context("when adherence is LegacyAdheringComponentsOnly", func() {
 		It("does not modify the config", func() {
 			profile := *configv1.TLSProfiles[configv1.TLSProfileModernType]
-			unsupported := applyClusterTLSProfile(baseConfig, &tlsState{profile, configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly})
+			unsupported := applyClusterTLSSettings(baseConfig, &clusterTLSSettings{profile, configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly})
 
 			Expect(unsupported).To(BeNil())
 			Expect(baseConfig.MinVersion).To(Equal(uint16(tls.VersionTLS12)))
@@ -76,7 +76,7 @@ var _ = Describe("applyClusterTLSProfile", func() {
 	Context("when adherence is StrictAllComponents", func() {
 		It("applies the Modern profile (TLS 1.3)", func() {
 			profile := *configv1.TLSProfiles[configv1.TLSProfileModernType]
-			unsupported := applyClusterTLSProfile(baseConfig, &tlsState{profile, configv1.TLSAdherencePolicyStrictAllComponents})
+			unsupported := applyClusterTLSSettings(baseConfig, &clusterTLSSettings{profile, configv1.TLSAdherencePolicyStrictAllComponents})
 
 			Expect(unsupported).To(BeEmpty())
 			Expect(baseConfig.MinVersion).To(Equal(uint16(tls.VersionTLS13)))
@@ -84,7 +84,7 @@ var _ = Describe("applyClusterTLSProfile", func() {
 
 		It("applies the Intermediate profile (TLS 1.2)", func() {
 			profile := *configv1.TLSProfiles[configv1.TLSProfileIntermediateType]
-			unsupported := applyClusterTLSProfile(baseConfig, &tlsState{profile, configv1.TLSAdherencePolicyStrictAllComponents})
+			unsupported := applyClusterTLSSettings(baseConfig, &clusterTLSSettings{profile, configv1.TLSAdherencePolicyStrictAllComponents})
 
 			Expect(baseConfig.MinVersion).To(Equal(uint16(tls.VersionTLS12)))
 			Expect(baseConfig.CipherSuites).NotTo(BeEmpty())
