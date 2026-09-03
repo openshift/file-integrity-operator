@@ -17,6 +17,8 @@ import (
 
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 
+	configv1 "github.com/openshift/api/config/v1"
+	tlspkg "github.com/openshift/controller-runtime-common/pkg/tls"
 	libgocrypto "github.com/openshift/library-go/pkg/crypto"
 )
 
@@ -77,6 +79,7 @@ var (
 type Metrics struct {
 	impl                                     impl
 	log                                      logr.Logger
+	tlsProfileSpec                           *configv1.TLSProfileSpec
 	metricFileIntegrityPhase                 *prometheus.CounterVec
 	metricFileIntegrityError                 *prometheus.CounterVec
 	metricFileIntegrityPause                 *prometheus.CounterVec
@@ -172,6 +175,13 @@ func NewControllerMetrics() *Metrics {
 	}
 }
 
+// SetTLSProfileSpec configures the TLS profile spec to use for the metrics
+// server. When set, the server uses cipher suites and minimum TLS version
+// from the given profile spec instead of the defaults.
+func (m *Metrics) SetTLSProfileSpec(profile configv1.TLSProfileSpec) {
+	m.tlsProfileSpec = &profile
+}
+
 // Register iterates over all available Metrics and registers them.
 func (m *Metrics) Register() error {
 	for name, collector := range map[string]prometheus.Collector{
@@ -204,6 +214,14 @@ func (m *Metrics) Start(ctx context.Context) error {
 		NextProtos: []string{"http/1.1"},
 	}
 	tlsConfig = libgocrypto.SecureTLSConfig(tlsConfig)
+	if m.tlsProfileSpec != nil {
+		tlsConfigFn, unsupported := tlspkg.NewTLSConfigFromProfile(*m.tlsProfileSpec)
+		if len(unsupported) > 0 {
+			m.log.Info("TLS profile contains ciphers unsupported by Go", "unsupported", unsupported)
+		}
+		tlsConfigFn(tlsConfig)
+	}
+
 	server := &http.Server{
 		Addr:      ":8585",
 		TLSConfig: tlsConfig,
