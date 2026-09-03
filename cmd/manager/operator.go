@@ -129,14 +129,14 @@ func RunOperator(cmd *cobra.Command, args []string) {
 
 	log.Info("Registering Components.")
 
-	tlsConfig := makeTLSConfig(ctx, cfg)
+	tlsSettings := makeClusterTLSSettings(ctx, cfg)
 	c := cache.Options{DefaultNamespaces: map[string]cache.Config{namespace: {}}}
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Cache:                  c,
 		Scheme:                 scheme,
 		Metrics:                metricsserver.Options{BindAddress: fmt.Sprintf("%s:%d", metricsHost, metricsPort)},
 		HealthProbeBindAddress: ":8081",
-		WebhookServer:          tlsConfig.makeWebhookServer(),
+		WebhookServer:          makeWebhookServer(tlsSettings),
 		LeaderElection:         true,
 		LeaderElectionID:       leaderElectionID,
 	})
@@ -150,9 +150,9 @@ func RunOperator(cmd *cobra.Command, args []string) {
 		log.Error(err, "Error registering metrics")
 		os.Exit(1)
 	}
+	configureMetricsTLSProfile(met, tlsSettings)
 
-	watcher := tlsConfig.makeSecurityProfileWatcher(mgr.GetClient(), met, cancel)
-
+	watcher := makeSecurityProfileWatcher(mgr.GetClient(), tlsSettings, cancel)
 	if err := watcher.SetupWithManager(mgr); err != nil {
 		log.Error(err, "Unable to set up TLS security profile watcher")
 		os.Exit(1)

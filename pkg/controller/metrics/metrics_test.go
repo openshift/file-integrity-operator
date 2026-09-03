@@ -20,13 +20,11 @@ import (
 	"errors"
 	"testing"
 
+	configv1 "github.com/openshift/api/config/v1"
+	"github.com/openshift/file-integrity-operator/pkg/controller/metrics/metricsfakes"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
-
-	configv1 "github.com/openshift/api/config/v1"
-
-	"github.com/openshift/file-integrity-operator/pkg/controller/metrics/metricsfakes"
 )
 
 var errTest = errors.New("")
