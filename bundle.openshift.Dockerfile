@@ -2,7 +2,7 @@ ARG FIO_OLD_VERSION="1.3.8"
 ARG FIO_NEW_VERSION="1.4.0"
 ARG OPERATOR_IMAGE=""
 
-FROM brew.registry.redhat.io/rh-osbs/openshift-golang-builder:v1.25 as builder
+FROM brew.registry.redhat.io/rh-osbs/openshift-golang-builder:v1.26 as builder
 
 
 COPY . .
