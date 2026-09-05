@@ -45,7 +45,7 @@ func (r *BetaUserProfileService) New(ctx context.Context, params BetaUserProfile
 		opts = append(opts, option.WithHeaderAdd("anthropic-beta", fmt.Sprintf("%v", v)))
 	}
 	opts = slices.Concat(r.Options, opts)
-	opts = append([]option.RequestOption{option.WithHeader("anthropic-beta", "user-profiles-2026-03-24")}, opts...)
+	opts = append([]option.RequestOption{option.WithHeader("anthropic-beta", "user-profiles-2026-08-18")}, opts...)
 	path := "v1/user_profiles?beta=true"
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodPost, path, params, &res, opts...)
 	return res, err
@@ -57,7 +57,7 @@ func (r *BetaUserProfileService) Get(ctx context.Context, userProfileID string, 
 		opts = append(opts, option.WithHeaderAdd("anthropic-beta", fmt.Sprintf("%v", v)))
 	}
 	opts = slices.Concat(r.Options, opts)
-	opts = append([]option.RequestOption{option.WithHeader("anthropic-beta", "user-profiles-2026-03-24")}, opts...)
+	opts = append([]option.RequestOption{option.WithHeader("anthropic-beta", "user-profiles-2026-08-18")}, opts...)
 	if userProfileID == "" {
 		err = errors.New("missing required user_profile_id parameter")
 		return nil, err
@@ -73,7 +73,7 @@ func (r *BetaUserProfileService) Update(ctx context.Context, userProfileID strin
 		opts = append(opts, option.WithHeaderAdd("anthropic-beta", fmt.Sprintf("%v", v)))
 	}
 	opts = slices.Concat(r.Options, opts)
-	opts = append([]option.RequestOption{option.WithHeader("anthropic-beta", "user-profiles-2026-03-24")}, opts...)
+	opts = append([]option.RequestOption{option.WithHeader("anthropic-beta", "user-profiles-2026-08-18")}, opts...)
 	if userProfileID == "" {
 		err = errors.New("missing required user_profile_id parameter")
 		return nil, err
@@ -90,7 +90,7 @@ func (r *BetaUserProfileService) List(ctx context.Context, params BetaUserProfil
 		opts = append(opts, option.WithHeaderAdd("anthropic-beta", fmt.Sprintf("%v", v)))
 	}
 	opts = slices.Concat(r.Options, opts)
-	opts = append([]option.RequestOption{option.WithHeader("anthropic-beta", "user-profiles-2026-03-24"), option.WithResponseInto(&raw)}, opts...)
+	opts = append([]option.RequestOption{option.WithHeader("anthropic-beta", "user-profiles-2026-08-18"), option.WithResponseInto(&raw)}, opts...)
 	path := "v1/user_profiles?beta=true"
 	cfg, err := requestconfig.NewRequestConfig(ctx, http.MethodGet, path, params, &res, opts...)
 	if err != nil {
@@ -115,7 +115,7 @@ func (r *BetaUserProfileService) NewEnrollmentURL(ctx context.Context, userProfi
 		opts = append(opts, option.WithHeaderAdd("anthropic-beta", fmt.Sprintf("%v", v)))
 	}
 	opts = slices.Concat(r.Options, opts)
-	opts = append([]option.RequestOption{option.WithHeader("anthropic-beta", "user-profiles-2026-03-24")}, opts...)
+	opts = append([]option.RequestOption{option.WithHeader("anthropic-beta", "user-profiles-2026-08-18")}, opts...)
 	if userProfileID == "" {
 		err = errors.New("missing required user_profile_id parameter")
 		return nil, err
@@ -142,19 +142,36 @@ type BetaUserProfile struct {
 	Type BetaUserProfileType `json:"type" api:"required"`
 	// A timestamp in RFC 3339 format
 	UpdatedAt time.Time `json:"updated_at" api:"required" format:"date-time"`
+	// How the platform uses the API on behalf of the entity this profile represents.
+	// `application`: the platform sells a product that uses the API behind the scenes,
+	// and the profile represents an individual end-user of that product.
+	// `passthrough`: the platform resells raw inference, and the profile identifies
+	// the resold-to company.
+	//
+	// Any of "application", "passthrough".
+	AccessType BetaUserProfileAccessType `json:"access_type"`
 	// Platform's own identifier for this user. Not enforced unique.
 	ExternalID string `json:"external_id" api:"nullable"`
+	// A timestamp in RFC 3339 format
+	ExternalUserOnboardedAt time.Time `json:"external_user_onboarded_at" api:"nullable" format:"date-time"`
+	// Real-world name of the entity this profile represents (company or individual).
+	// For a company the platform resells Claude access to (`access_type`
+	// `passthrough`) this is that company's name.
+	Name string `json:"name" api:"nullable"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
-		ID          respjson.Field
-		CreatedAt   respjson.Field
-		Metadata    respjson.Field
-		TrustGrants respjson.Field
-		Type        respjson.Field
-		UpdatedAt   respjson.Field
-		ExternalID  respjson.Field
-		ExtraFields map[string]respjson.Field
-		raw         string
+		ID                      respjson.Field
+		CreatedAt               respjson.Field
+		Metadata                respjson.Field
+		TrustGrants             respjson.Field
+		Type                    respjson.Field
+		UpdatedAt               respjson.Field
+		AccessType              respjson.Field
+		ExternalID              respjson.Field
+		ExternalUserOnboardedAt respjson.Field
+		Name                    respjson.Field
+		ExtraFields             map[string]respjson.Field
+		raw                     string
 	} `json:"-"`
 }
 
@@ -169,6 +186,18 @@ type BetaUserProfileType string
 
 const (
 	BetaUserProfileTypeUserProfile BetaUserProfileType = "user_profile"
+)
+
+// How the platform uses the API on behalf of the entity this profile represents.
+// `application`: the platform sells a product that uses the API behind the scenes,
+// and the profile represents an individual end-user of that product.
+// `passthrough`: the platform resells raw inference, and the profile identifies
+// the resold-to company.
+type BetaUserProfileAccessType string
+
+const (
+	BetaUserProfileAccessTypeApplication BetaUserProfileAccessType = "application"
+	BetaUserProfileAccessTypePassthrough BetaUserProfileAccessType = "passthrough"
 )
 
 type BetaUserProfileEnrollmentURL struct {
@@ -235,6 +264,21 @@ type BetaUserProfileNewParams struct {
 	// Platform's own identifier for this user. Not enforced unique. Maximum 255
 	// characters.
 	ExternalID param.Opt[string] `json:"external_id,omitzero"`
+	// Optional for all profiles. Real-world name of the entity this profile represents
+	// (company or individual); for a company the platform resells Claude access to
+	// (`access_type` `passthrough`), that company's name where known. Maximum 255
+	// characters.
+	Name param.Opt[string] `json:"name,omitzero"`
+	// A timestamp in RFC 3339 format
+	ExternalUserOnboardedAt param.Opt[time.Time] `json:"external_user_onboarded_at,omitzero" format:"date-time"`
+	// How the platform uses the API on behalf of the entity this profile represents.
+	// `application`: the platform sells a product that uses the API behind the scenes,
+	// and the profile represents an individual end-user of that product.
+	// `passthrough`: the platform resells raw inference, and the profile identifies
+	// the resold-to company.
+	//
+	// Any of "application", "passthrough".
+	AccessType BetaUserProfileNewParamsAccessType `json:"access_type,omitzero"`
 	// Free-form key-value data to attach to this user profile. Maximum 16 keys, with
 	// keys up to 64 characters and values up to 512 characters. Values must be
 	// non-empty strings.
@@ -252,6 +296,18 @@ func (r *BetaUserProfileNewParams) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, r)
 }
 
+// How the platform uses the API on behalf of the entity this profile represents.
+// `application`: the platform sells a product that uses the API behind the scenes,
+// and the profile represents an individual end-user of that product.
+// `passthrough`: the platform resells raw inference, and the profile identifies
+// the resold-to company.
+type BetaUserProfileNewParamsAccessType string
+
+const (
+	BetaUserProfileNewParamsAccessTypeApplication BetaUserProfileNewParamsAccessType = "application"
+	BetaUserProfileNewParamsAccessTypePassthrough BetaUserProfileNewParamsAccessType = "passthrough"
+)
+
 type BetaUserProfileGetParams struct {
 	// Optional header to specify the beta version(s) you want to use.
 	Betas []AnthropicBeta `header:"anthropic-beta,omitzero" json:"-"`
@@ -262,6 +318,19 @@ type BetaUserProfileUpdateParams struct {
 	// If present, replaces the stored external_id. Omit to leave unchanged. Maximum
 	// 255 characters.
 	ExternalID param.Opt[string] `json:"external_id,omitzero"`
+	// If present, replaces the stored name. Omit to leave unchanged. Maximum 255
+	// characters.
+	Name param.Opt[string] `json:"name,omitzero"`
+	// A timestamp in RFC 3339 format
+	ExternalUserOnboardedAt param.Opt[time.Time] `json:"external_user_onboarded_at,omitzero" format:"date-time"`
+	// How the platform uses the API on behalf of the entity this profile represents.
+	// `application`: the platform sells a product that uses the API behind the scenes,
+	// and the profile represents an individual end-user of that product.
+	// `passthrough`: the platform resells raw inference, and the profile identifies
+	// the resold-to company.
+	//
+	// Any of "application", "passthrough".
+	AccessType BetaUserProfileUpdateParamsAccessType `json:"access_type,omitzero"`
 	// Key-value pairs to merge into the stored metadata. Keys provided overwrite
 	// existing values. To remove a key, set its value to an empty string. Keys not
 	// provided are left unchanged. Maximum 16 keys, with keys up to 64 characters and
@@ -280,6 +349,18 @@ func (r *BetaUserProfileUpdateParams) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, r)
 }
 
+// How the platform uses the API on behalf of the entity this profile represents.
+// `application`: the platform sells a product that uses the API behind the scenes,
+// and the profile represents an individual end-user of that product.
+// `passthrough`: the platform resells raw inference, and the profile identifies
+// the resold-to company.
+type BetaUserProfileUpdateParamsAccessType string
+
+const (
+	BetaUserProfileUpdateParamsAccessTypeApplication BetaUserProfileUpdateParamsAccessType = "application"
+	BetaUserProfileUpdateParamsAccessTypePassthrough BetaUserProfileUpdateParamsAccessType = "passthrough"
+)
+
 type BetaUserProfileListParams struct {
 	// Query parameter for limit
 	Limit param.Opt[int64] `query:"limit,omitzero" json:"-"`
@@ -289,6 +370,10 @@ type BetaUserProfileListParams struct {
 	//
 	// Any of "asc", "desc".
 	Order BetaUserProfileListParamsOrder `query:"order,omitzero" json:"-"`
+	// Query parameter for order_by
+	//
+	// Any of "created_at", "name".
+	OrderBy BetaUserProfileListParamsOrderBy `query:"order_by,omitzero" json:"-"`
 	// Optional header to specify the beta version(s) you want to use.
 	Betas []AnthropicBeta `header:"anthropic-beta,omitzero" json:"-"`
 	paramObj
@@ -298,7 +383,7 @@ type BetaUserProfileListParams struct {
 // `url.Values`.
 func (r BetaUserProfileListParams) URLQuery() (v url.Values, err error) {
 	return apiquery.MarshalWithSettings(r, apiquery.QuerySettings{
-		ArrayFormat:  apiquery.ArrayQueryFormatComma,
+		ArrayFormat:  apiquery.ArrayQueryFormatBrackets,
 		NestedFormat: apiquery.NestedQueryFormatBrackets,
 	})
 }
@@ -309,6 +394,14 @@ type BetaUserProfileListParamsOrder string
 const (
 	BetaUserProfileListParamsOrderAsc  BetaUserProfileListParamsOrder = "asc"
 	BetaUserProfileListParamsOrderDesc BetaUserProfileListParamsOrder = "desc"
+)
+
+// Query parameter for order_by
+type BetaUserProfileListParamsOrderBy string
+
+const (
+	BetaUserProfileListParamsOrderByCreatedAt BetaUserProfileListParamsOrderBy = "created_at"
+	BetaUserProfileListParamsOrderByName      BetaUserProfileListParamsOrderBy = "name"
 )
 
 type BetaUserProfileNewEnrollmentURLParams struct {
