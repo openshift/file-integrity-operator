@@ -1,4 +1,4 @@
-// File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+// File generated from our OpenAPI spec by Castiron. See CONTRIBUTING.md for details.
 
 package openai
 
@@ -33,7 +33,7 @@ type AdminOrganizationUsageService struct {
 // options (if there is one), and before any request-specific options.
 func NewAdminOrganizationUsageService(opts ...option.RequestOption) (r AdminOrganizationUsageService) {
 	r = AdminOrganizationUsageService{}
-	r.Options = opts
+	r.Options = requestconfig.InheritedOptions(opts...)
 	return
 }
 
@@ -135,6 +135,21 @@ func (r *AdminOrganizationUsageService) WebSearchCalls(ctx context.Context, quer
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodGet, path, query, &res, opts...)
 	return res, err
 }
+
+// The unit of the `quantity` value. If no single supported unit applies to the
+// result, this field is `null`.
+type CostQuantityUnit string
+
+const (
+	CostQuantityUnitTokens          CostQuantityUnit = "tokens"
+	CostQuantityUnit1000Tokens      CostQuantityUnit = "1000_tokens"
+	CostQuantityUnitDurationSeconds CostQuantityUnit = "duration_seconds"
+	CostQuantityUnitDurationMinutes CostQuantityUnit = "duration_minutes"
+	CostQuantityUnitDurationHours   CostQuantityUnit = "duration_hours"
+	CostQuantityUnitGibibyteHours   CostQuantityUnit = "gibibyte_hours"
+	CostQuantityUnitImages          CostQuantityUnit = "images"
+	CostQuantityUnitCharacters      CostQuantityUnit = "characters"
+)
 
 type AdminOrganizationUsageAudioSpeechesResponse struct {
 	Data     []AdminOrganizationUsageAudioSpeechesResponseData `json:"data" api:"required"`
@@ -296,7 +311,10 @@ type AdminOrganizationUsageAudioSpeechesResponseDataResultUnion struct {
 	// This field is from variant
 	// [AdminOrganizationUsageAudioSpeechesResponseDataResultOrganizationCostsResult].
 	Quantity float64 `json:"quantity"`
-	JSON     struct {
+	// This field is from variant
+	// [AdminOrganizationUsageAudioSpeechesResponseDataResultOrganizationCostsResult].
+	QuantityUnit CostQuantityUnit `json:"quantity_unit"`
+	JSON         struct {
 		InputTokens            respjson.Field
 		NumModelRequests       respjson.Field
 		Object                 respjson.Field
@@ -332,6 +350,7 @@ type AdminOrganizationUsageAudioSpeechesResponseDataResultUnion struct {
 		Amount                 respjson.Field
 		LineItem               respjson.Field
 		Quantity               respjson.Field
+		QuantityUnit           respjson.Field
 		raw                    string
 	} `json:"-"`
 }
@@ -413,57 +432,57 @@ func (u AdminOrganizationUsageAudioSpeechesResponseDataResultUnion) AsAny() anyA
 }
 
 func (u AdminOrganizationUsageAudioSpeechesResponseDataResultUnion) AsOrganizationUsageCompletionsResult() (v AdminOrganizationUsageAudioSpeechesResponseDataResultOrganizationUsageCompletionsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageAudioSpeechesResponseDataResultUnion) AsOrganizationUsageEmbeddingsResult() (v AdminOrganizationUsageAudioSpeechesResponseDataResultOrganizationUsageEmbeddingsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageAudioSpeechesResponseDataResultUnion) AsOrganizationUsageModerationsResult() (v AdminOrganizationUsageAudioSpeechesResponseDataResultOrganizationUsageModerationsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageAudioSpeechesResponseDataResultUnion) AsOrganizationUsageImagesResult() (v AdminOrganizationUsageAudioSpeechesResponseDataResultOrganizationUsageImagesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageAudioSpeechesResponseDataResultUnion) AsOrganizationUsageAudioSpeechesResult() (v AdminOrganizationUsageAudioSpeechesResponseDataResultOrganizationUsageAudioSpeechesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageAudioSpeechesResponseDataResultUnion) AsOrganizationUsageAudioTranscriptionsResult() (v AdminOrganizationUsageAudioSpeechesResponseDataResultOrganizationUsageAudioTranscriptionsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageAudioSpeechesResponseDataResultUnion) AsOrganizationUsageVectorStoresResult() (v AdminOrganizationUsageAudioSpeechesResponseDataResultOrganizationUsageVectorStoresResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageAudioSpeechesResponseDataResultUnion) AsOrganizationUsageCodeInterpreterSessionsResult() (v AdminOrganizationUsageAudioSpeechesResponseDataResultOrganizationUsageCodeInterpreterSessionsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageAudioSpeechesResponseDataResultUnion) AsOrganizationUsageFileSearchesResult() (v AdminOrganizationUsageAudioSpeechesResponseDataResultOrganizationUsageFileSearchesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageAudioSpeechesResponseDataResultUnion) AsOrganizationUsageWebSearchesResult() (v AdminOrganizationUsageAudioSpeechesResponseDataResultOrganizationUsageWebSearchesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageAudioSpeechesResponseDataResultUnion) AsOrganizationCostsResult() (v AdminOrganizationUsageAudioSpeechesResponseDataResultOrganizationCostsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -937,16 +956,20 @@ type AdminOrganizationUsageAudioSpeechesResponseDataResultOrganizationCostsResul
 	// When `group_by=line_item`, this field provides the quantity of the grouped costs
 	// result.
 	Quantity float64 `json:"quantity" api:"nullable"`
+	// The unit of the `quantity` value. If no single supported unit applies to the
+	// result, this field is `null`.
+	QuantityUnit CostQuantityUnit `json:"quantity_unit" api:"nullable"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
-		Object      respjson.Field
-		Amount      respjson.Field
-		APIKeyID    respjson.Field
-		LineItem    respjson.Field
-		ProjectID   respjson.Field
-		Quantity    respjson.Field
-		ExtraFields map[string]respjson.Field
-		raw         string
+		Object       respjson.Field
+		Amount       respjson.Field
+		APIKeyID     respjson.Field
+		LineItem     respjson.Field
+		ProjectID    respjson.Field
+		Quantity     respjson.Field
+		QuantityUnit respjson.Field
+		ExtraFields  map[string]respjson.Field
+		raw          string
 	} `json:"-"`
 }
 
@@ -1141,7 +1164,10 @@ type AdminOrganizationUsageAudioTranscriptionsResponseDataResultUnion struct {
 	// This field is from variant
 	// [AdminOrganizationUsageAudioTranscriptionsResponseDataResultOrganizationCostsResult].
 	Quantity float64 `json:"quantity"`
-	JSON     struct {
+	// This field is from variant
+	// [AdminOrganizationUsageAudioTranscriptionsResponseDataResultOrganizationCostsResult].
+	QuantityUnit CostQuantityUnit `json:"quantity_unit"`
+	JSON         struct {
 		InputTokens            respjson.Field
 		NumModelRequests       respjson.Field
 		Object                 respjson.Field
@@ -1177,6 +1203,7 @@ type AdminOrganizationUsageAudioTranscriptionsResponseDataResultUnion struct {
 		Amount                 respjson.Field
 		LineItem               respjson.Field
 		Quantity               respjson.Field
+		QuantityUnit           respjson.Field
 		raw                    string
 	} `json:"-"`
 }
@@ -1259,57 +1286,57 @@ func (u AdminOrganizationUsageAudioTranscriptionsResponseDataResultUnion) AsAny(
 }
 
 func (u AdminOrganizationUsageAudioTranscriptionsResponseDataResultUnion) AsOrganizationUsageCompletionsResult() (v AdminOrganizationUsageAudioTranscriptionsResponseDataResultOrganizationUsageCompletionsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageAudioTranscriptionsResponseDataResultUnion) AsOrganizationUsageEmbeddingsResult() (v AdminOrganizationUsageAudioTranscriptionsResponseDataResultOrganizationUsageEmbeddingsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageAudioTranscriptionsResponseDataResultUnion) AsOrganizationUsageModerationsResult() (v AdminOrganizationUsageAudioTranscriptionsResponseDataResultOrganizationUsageModerationsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageAudioTranscriptionsResponseDataResultUnion) AsOrganizationUsageImagesResult() (v AdminOrganizationUsageAudioTranscriptionsResponseDataResultOrganizationUsageImagesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageAudioTranscriptionsResponseDataResultUnion) AsOrganizationUsageAudioSpeechesResult() (v AdminOrganizationUsageAudioTranscriptionsResponseDataResultOrganizationUsageAudioSpeechesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageAudioTranscriptionsResponseDataResultUnion) AsOrganizationUsageAudioTranscriptionsResult() (v AdminOrganizationUsageAudioTranscriptionsResponseDataResultOrganizationUsageAudioTranscriptionsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageAudioTranscriptionsResponseDataResultUnion) AsOrganizationUsageVectorStoresResult() (v AdminOrganizationUsageAudioTranscriptionsResponseDataResultOrganizationUsageVectorStoresResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageAudioTranscriptionsResponseDataResultUnion) AsOrganizationUsageCodeInterpreterSessionsResult() (v AdminOrganizationUsageAudioTranscriptionsResponseDataResultOrganizationUsageCodeInterpreterSessionsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageAudioTranscriptionsResponseDataResultUnion) AsOrganizationUsageFileSearchesResult() (v AdminOrganizationUsageAudioTranscriptionsResponseDataResultOrganizationUsageFileSearchesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageAudioTranscriptionsResponseDataResultUnion) AsOrganizationUsageWebSearchesResult() (v AdminOrganizationUsageAudioTranscriptionsResponseDataResultOrganizationUsageWebSearchesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageAudioTranscriptionsResponseDataResultUnion) AsOrganizationCostsResult() (v AdminOrganizationUsageAudioTranscriptionsResponseDataResultOrganizationCostsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -1783,16 +1810,20 @@ type AdminOrganizationUsageAudioTranscriptionsResponseDataResultOrganizationCost
 	// When `group_by=line_item`, this field provides the quantity of the grouped costs
 	// result.
 	Quantity float64 `json:"quantity" api:"nullable"`
+	// The unit of the `quantity` value. If no single supported unit applies to the
+	// result, this field is `null`.
+	QuantityUnit CostQuantityUnit `json:"quantity_unit" api:"nullable"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
-		Object      respjson.Field
-		Amount      respjson.Field
-		APIKeyID    respjson.Field
-		LineItem    respjson.Field
-		ProjectID   respjson.Field
-		Quantity    respjson.Field
-		ExtraFields map[string]respjson.Field
-		raw         string
+		Object       respjson.Field
+		Amount       respjson.Field
+		APIKeyID     respjson.Field
+		LineItem     respjson.Field
+		ProjectID    respjson.Field
+		Quantity     respjson.Field
+		QuantityUnit respjson.Field
+		ExtraFields  map[string]respjson.Field
+		raw          string
 	} `json:"-"`
 }
 
@@ -1990,7 +2021,10 @@ type AdminOrganizationUsageCodeInterpreterSessionsResponseDataResultUnion struct
 	// This field is from variant
 	// [AdminOrganizationUsageCodeInterpreterSessionsResponseDataResultOrganizationCostsResult].
 	Quantity float64 `json:"quantity"`
-	JSON     struct {
+	// This field is from variant
+	// [AdminOrganizationUsageCodeInterpreterSessionsResponseDataResultOrganizationCostsResult].
+	QuantityUnit CostQuantityUnit `json:"quantity_unit"`
+	JSON         struct {
 		InputTokens            respjson.Field
 		NumModelRequests       respjson.Field
 		Object                 respjson.Field
@@ -2026,6 +2060,7 @@ type AdminOrganizationUsageCodeInterpreterSessionsResponseDataResultUnion struct
 		Amount                 respjson.Field
 		LineItem               respjson.Field
 		Quantity               respjson.Field
+		QuantityUnit           respjson.Field
 		raw                    string
 	} `json:"-"`
 }
@@ -2108,57 +2143,57 @@ func (u AdminOrganizationUsageCodeInterpreterSessionsResponseDataResultUnion) As
 }
 
 func (u AdminOrganizationUsageCodeInterpreterSessionsResponseDataResultUnion) AsOrganizationUsageCompletionsResult() (v AdminOrganizationUsageCodeInterpreterSessionsResponseDataResultOrganizationUsageCompletionsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageCodeInterpreterSessionsResponseDataResultUnion) AsOrganizationUsageEmbeddingsResult() (v AdminOrganizationUsageCodeInterpreterSessionsResponseDataResultOrganizationUsageEmbeddingsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageCodeInterpreterSessionsResponseDataResultUnion) AsOrganizationUsageModerationsResult() (v AdminOrganizationUsageCodeInterpreterSessionsResponseDataResultOrganizationUsageModerationsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageCodeInterpreterSessionsResponseDataResultUnion) AsOrganizationUsageImagesResult() (v AdminOrganizationUsageCodeInterpreterSessionsResponseDataResultOrganizationUsageImagesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageCodeInterpreterSessionsResponseDataResultUnion) AsOrganizationUsageAudioSpeechesResult() (v AdminOrganizationUsageCodeInterpreterSessionsResponseDataResultOrganizationUsageAudioSpeechesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageCodeInterpreterSessionsResponseDataResultUnion) AsOrganizationUsageAudioTranscriptionsResult() (v AdminOrganizationUsageCodeInterpreterSessionsResponseDataResultOrganizationUsageAudioTranscriptionsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageCodeInterpreterSessionsResponseDataResultUnion) AsOrganizationUsageVectorStoresResult() (v AdminOrganizationUsageCodeInterpreterSessionsResponseDataResultOrganizationUsageVectorStoresResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageCodeInterpreterSessionsResponseDataResultUnion) AsOrganizationUsageCodeInterpreterSessionsResult() (v AdminOrganizationUsageCodeInterpreterSessionsResponseDataResultOrganizationUsageCodeInterpreterSessionsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageCodeInterpreterSessionsResponseDataResultUnion) AsOrganizationUsageFileSearchesResult() (v AdminOrganizationUsageCodeInterpreterSessionsResponseDataResultOrganizationUsageFileSearchesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageCodeInterpreterSessionsResponseDataResultUnion) AsOrganizationUsageWebSearchesResult() (v AdminOrganizationUsageCodeInterpreterSessionsResponseDataResultOrganizationUsageWebSearchesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageCodeInterpreterSessionsResponseDataResultUnion) AsOrganizationCostsResult() (v AdminOrganizationUsageCodeInterpreterSessionsResponseDataResultOrganizationCostsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -2632,16 +2667,20 @@ type AdminOrganizationUsageCodeInterpreterSessionsResponseDataResultOrganization
 	// When `group_by=line_item`, this field provides the quantity of the grouped costs
 	// result.
 	Quantity float64 `json:"quantity" api:"nullable"`
+	// The unit of the `quantity` value. If no single supported unit applies to the
+	// result, this field is `null`.
+	QuantityUnit CostQuantityUnit `json:"quantity_unit" api:"nullable"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
-		Object      respjson.Field
-		Amount      respjson.Field
-		APIKeyID    respjson.Field
-		LineItem    respjson.Field
-		ProjectID   respjson.Field
-		Quantity    respjson.Field
-		ExtraFields map[string]respjson.Field
-		raw         string
+		Object       respjson.Field
+		Amount       respjson.Field
+		APIKeyID     respjson.Field
+		LineItem     respjson.Field
+		ProjectID    respjson.Field
+		Quantity     respjson.Field
+		QuantityUnit respjson.Field
+		ExtraFields  map[string]respjson.Field
+		raw          string
 	} `json:"-"`
 }
 
@@ -2836,7 +2875,10 @@ type AdminOrganizationUsageCompletionsResponseDataResultUnion struct {
 	// This field is from variant
 	// [AdminOrganizationUsageCompletionsResponseDataResultOrganizationCostsResult].
 	Quantity float64 `json:"quantity"`
-	JSON     struct {
+	// This field is from variant
+	// [AdminOrganizationUsageCompletionsResponseDataResultOrganizationCostsResult].
+	QuantityUnit CostQuantityUnit `json:"quantity_unit"`
+	JSON         struct {
 		InputTokens            respjson.Field
 		NumModelRequests       respjson.Field
 		Object                 respjson.Field
@@ -2872,6 +2914,7 @@ type AdminOrganizationUsageCompletionsResponseDataResultUnion struct {
 		Amount                 respjson.Field
 		LineItem               respjson.Field
 		Quantity               respjson.Field
+		QuantityUnit           respjson.Field
 		raw                    string
 	} `json:"-"`
 }
@@ -2953,57 +2996,57 @@ func (u AdminOrganizationUsageCompletionsResponseDataResultUnion) AsAny() anyAdm
 }
 
 func (u AdminOrganizationUsageCompletionsResponseDataResultUnion) AsOrganizationUsageCompletionsResult() (v AdminOrganizationUsageCompletionsResponseDataResultOrganizationUsageCompletionsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageCompletionsResponseDataResultUnion) AsOrganizationUsageEmbeddingsResult() (v AdminOrganizationUsageCompletionsResponseDataResultOrganizationUsageEmbeddingsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageCompletionsResponseDataResultUnion) AsOrganizationUsageModerationsResult() (v AdminOrganizationUsageCompletionsResponseDataResultOrganizationUsageModerationsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageCompletionsResponseDataResultUnion) AsOrganizationUsageImagesResult() (v AdminOrganizationUsageCompletionsResponseDataResultOrganizationUsageImagesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageCompletionsResponseDataResultUnion) AsOrganizationUsageAudioSpeechesResult() (v AdminOrganizationUsageCompletionsResponseDataResultOrganizationUsageAudioSpeechesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageCompletionsResponseDataResultUnion) AsOrganizationUsageAudioTranscriptionsResult() (v AdminOrganizationUsageCompletionsResponseDataResultOrganizationUsageAudioTranscriptionsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageCompletionsResponseDataResultUnion) AsOrganizationUsageVectorStoresResult() (v AdminOrganizationUsageCompletionsResponseDataResultOrganizationUsageVectorStoresResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageCompletionsResponseDataResultUnion) AsOrganizationUsageCodeInterpreterSessionsResult() (v AdminOrganizationUsageCompletionsResponseDataResultOrganizationUsageCodeInterpreterSessionsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageCompletionsResponseDataResultUnion) AsOrganizationUsageFileSearchesResult() (v AdminOrganizationUsageCompletionsResponseDataResultOrganizationUsageFileSearchesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageCompletionsResponseDataResultUnion) AsOrganizationUsageWebSearchesResult() (v AdminOrganizationUsageCompletionsResponseDataResultOrganizationUsageWebSearchesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageCompletionsResponseDataResultUnion) AsOrganizationCostsResult() (v AdminOrganizationUsageCompletionsResponseDataResultOrganizationCostsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -3475,16 +3518,20 @@ type AdminOrganizationUsageCompletionsResponseDataResultOrganizationCostsResult 
 	// When `group_by=line_item`, this field provides the quantity of the grouped costs
 	// result.
 	Quantity float64 `json:"quantity" api:"nullable"`
+	// The unit of the `quantity` value. If no single supported unit applies to the
+	// result, this field is `null`.
+	QuantityUnit CostQuantityUnit `json:"quantity_unit" api:"nullable"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
-		Object      respjson.Field
-		Amount      respjson.Field
-		APIKeyID    respjson.Field
-		LineItem    respjson.Field
-		ProjectID   respjson.Field
-		Quantity    respjson.Field
-		ExtraFields map[string]respjson.Field
-		raw         string
+		Object       respjson.Field
+		Amount       respjson.Field
+		APIKeyID     respjson.Field
+		LineItem     respjson.Field
+		ProjectID    respjson.Field
+		Quantity     respjson.Field
+		QuantityUnit respjson.Field
+		ExtraFields  map[string]respjson.Field
+		raw          string
 	} `json:"-"`
 }
 
@@ -3679,7 +3726,10 @@ type AdminOrganizationUsageCostsResponseDataResultUnion struct {
 	// This field is from variant
 	// [AdminOrganizationUsageCostsResponseDataResultOrganizationCostsResult].
 	Quantity float64 `json:"quantity"`
-	JSON     struct {
+	// This field is from variant
+	// [AdminOrganizationUsageCostsResponseDataResultOrganizationCostsResult].
+	QuantityUnit CostQuantityUnit `json:"quantity_unit"`
+	JSON         struct {
 		InputTokens            respjson.Field
 		NumModelRequests       respjson.Field
 		Object                 respjson.Field
@@ -3715,6 +3765,7 @@ type AdminOrganizationUsageCostsResponseDataResultUnion struct {
 		Amount                 respjson.Field
 		LineItem               respjson.Field
 		Quantity               respjson.Field
+		QuantityUnit           respjson.Field
 		raw                    string
 	} `json:"-"`
 }
@@ -3795,57 +3846,57 @@ func (u AdminOrganizationUsageCostsResponseDataResultUnion) AsAny() anyAdminOrga
 }
 
 func (u AdminOrganizationUsageCostsResponseDataResultUnion) AsOrganizationUsageCompletionsResult() (v AdminOrganizationUsageCostsResponseDataResultOrganizationUsageCompletionsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageCostsResponseDataResultUnion) AsOrganizationUsageEmbeddingsResult() (v AdminOrganizationUsageCostsResponseDataResultOrganizationUsageEmbeddingsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageCostsResponseDataResultUnion) AsOrganizationUsageModerationsResult() (v AdminOrganizationUsageCostsResponseDataResultOrganizationUsageModerationsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageCostsResponseDataResultUnion) AsOrganizationUsageImagesResult() (v AdminOrganizationUsageCostsResponseDataResultOrganizationUsageImagesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageCostsResponseDataResultUnion) AsOrganizationUsageAudioSpeechesResult() (v AdminOrganizationUsageCostsResponseDataResultOrganizationUsageAudioSpeechesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageCostsResponseDataResultUnion) AsOrganizationUsageAudioTranscriptionsResult() (v AdminOrganizationUsageCostsResponseDataResultOrganizationUsageAudioTranscriptionsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageCostsResponseDataResultUnion) AsOrganizationUsageVectorStoresResult() (v AdminOrganizationUsageCostsResponseDataResultOrganizationUsageVectorStoresResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageCostsResponseDataResultUnion) AsOrganizationUsageCodeInterpreterSessionsResult() (v AdminOrganizationUsageCostsResponseDataResultOrganizationUsageCodeInterpreterSessionsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageCostsResponseDataResultUnion) AsOrganizationUsageFileSearchesResult() (v AdminOrganizationUsageCostsResponseDataResultOrganizationUsageFileSearchesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageCostsResponseDataResultUnion) AsOrganizationUsageWebSearchesResult() (v AdminOrganizationUsageCostsResponseDataResultOrganizationUsageWebSearchesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageCostsResponseDataResultUnion) AsOrganizationCostsResult() (v AdminOrganizationUsageCostsResponseDataResultOrganizationCostsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -4317,16 +4368,20 @@ type AdminOrganizationUsageCostsResponseDataResultOrganizationCostsResult struct
 	// When `group_by=line_item`, this field provides the quantity of the grouped costs
 	// result.
 	Quantity float64 `json:"quantity" api:"nullable"`
+	// The unit of the `quantity` value. If no single supported unit applies to the
+	// result, this field is `null`.
+	QuantityUnit CostQuantityUnit `json:"quantity_unit" api:"nullable"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
-		Object      respjson.Field
-		Amount      respjson.Field
-		APIKeyID    respjson.Field
-		LineItem    respjson.Field
-		ProjectID   respjson.Field
-		Quantity    respjson.Field
-		ExtraFields map[string]respjson.Field
-		raw         string
+		Object       respjson.Field
+		Amount       respjson.Field
+		APIKeyID     respjson.Field
+		LineItem     respjson.Field
+		ProjectID    respjson.Field
+		Quantity     respjson.Field
+		QuantityUnit respjson.Field
+		ExtraFields  map[string]respjson.Field
+		raw          string
 	} `json:"-"`
 }
 
@@ -4521,7 +4576,10 @@ type AdminOrganizationUsageEmbeddingsResponseDataResultUnion struct {
 	// This field is from variant
 	// [AdminOrganizationUsageEmbeddingsResponseDataResultOrganizationCostsResult].
 	Quantity float64 `json:"quantity"`
-	JSON     struct {
+	// This field is from variant
+	// [AdminOrganizationUsageEmbeddingsResponseDataResultOrganizationCostsResult].
+	QuantityUnit CostQuantityUnit `json:"quantity_unit"`
+	JSON         struct {
 		InputTokens            respjson.Field
 		NumModelRequests       respjson.Field
 		Object                 respjson.Field
@@ -4557,6 +4615,7 @@ type AdminOrganizationUsageEmbeddingsResponseDataResultUnion struct {
 		Amount                 respjson.Field
 		LineItem               respjson.Field
 		Quantity               respjson.Field
+		QuantityUnit           respjson.Field
 		raw                    string
 	} `json:"-"`
 }
@@ -4638,57 +4697,57 @@ func (u AdminOrganizationUsageEmbeddingsResponseDataResultUnion) AsAny() anyAdmi
 }
 
 func (u AdminOrganizationUsageEmbeddingsResponseDataResultUnion) AsOrganizationUsageCompletionsResult() (v AdminOrganizationUsageEmbeddingsResponseDataResultOrganizationUsageCompletionsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageEmbeddingsResponseDataResultUnion) AsOrganizationUsageEmbeddingsResult() (v AdminOrganizationUsageEmbeddingsResponseDataResultOrganizationUsageEmbeddingsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageEmbeddingsResponseDataResultUnion) AsOrganizationUsageModerationsResult() (v AdminOrganizationUsageEmbeddingsResponseDataResultOrganizationUsageModerationsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageEmbeddingsResponseDataResultUnion) AsOrganizationUsageImagesResult() (v AdminOrganizationUsageEmbeddingsResponseDataResultOrganizationUsageImagesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageEmbeddingsResponseDataResultUnion) AsOrganizationUsageAudioSpeechesResult() (v AdminOrganizationUsageEmbeddingsResponseDataResultOrganizationUsageAudioSpeechesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageEmbeddingsResponseDataResultUnion) AsOrganizationUsageAudioTranscriptionsResult() (v AdminOrganizationUsageEmbeddingsResponseDataResultOrganizationUsageAudioTranscriptionsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageEmbeddingsResponseDataResultUnion) AsOrganizationUsageVectorStoresResult() (v AdminOrganizationUsageEmbeddingsResponseDataResultOrganizationUsageVectorStoresResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageEmbeddingsResponseDataResultUnion) AsOrganizationUsageCodeInterpreterSessionsResult() (v AdminOrganizationUsageEmbeddingsResponseDataResultOrganizationUsageCodeInterpreterSessionsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageEmbeddingsResponseDataResultUnion) AsOrganizationUsageFileSearchesResult() (v AdminOrganizationUsageEmbeddingsResponseDataResultOrganizationUsageFileSearchesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageEmbeddingsResponseDataResultUnion) AsOrganizationUsageWebSearchesResult() (v AdminOrganizationUsageEmbeddingsResponseDataResultOrganizationUsageWebSearchesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageEmbeddingsResponseDataResultUnion) AsOrganizationCostsResult() (v AdminOrganizationUsageEmbeddingsResponseDataResultOrganizationCostsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -5160,16 +5219,20 @@ type AdminOrganizationUsageEmbeddingsResponseDataResultOrganizationCostsResult s
 	// When `group_by=line_item`, this field provides the quantity of the grouped costs
 	// result.
 	Quantity float64 `json:"quantity" api:"nullable"`
+	// The unit of the `quantity` value. If no single supported unit applies to the
+	// result, this field is `null`.
+	QuantityUnit CostQuantityUnit `json:"quantity_unit" api:"nullable"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
-		Object      respjson.Field
-		Amount      respjson.Field
-		APIKeyID    respjson.Field
-		LineItem    respjson.Field
-		ProjectID   respjson.Field
-		Quantity    respjson.Field
-		ExtraFields map[string]respjson.Field
-		raw         string
+		Object       respjson.Field
+		Amount       respjson.Field
+		APIKeyID     respjson.Field
+		LineItem     respjson.Field
+		ProjectID    respjson.Field
+		Quantity     respjson.Field
+		QuantityUnit respjson.Field
+		ExtraFields  map[string]respjson.Field
+		raw          string
 	} `json:"-"`
 }
 
@@ -5364,7 +5427,10 @@ type AdminOrganizationUsageFileSearchCallsResponseDataResultUnion struct {
 	// This field is from variant
 	// [AdminOrganizationUsageFileSearchCallsResponseDataResultOrganizationCostsResult].
 	Quantity float64 `json:"quantity"`
-	JSON     struct {
+	// This field is from variant
+	// [AdminOrganizationUsageFileSearchCallsResponseDataResultOrganizationCostsResult].
+	QuantityUnit CostQuantityUnit `json:"quantity_unit"`
+	JSON         struct {
 		InputTokens            respjson.Field
 		NumModelRequests       respjson.Field
 		Object                 respjson.Field
@@ -5400,6 +5466,7 @@ type AdminOrganizationUsageFileSearchCallsResponseDataResultUnion struct {
 		Amount                 respjson.Field
 		LineItem               respjson.Field
 		Quantity               respjson.Field
+		QuantityUnit           respjson.Field
 		raw                    string
 	} `json:"-"`
 }
@@ -5481,57 +5548,57 @@ func (u AdminOrganizationUsageFileSearchCallsResponseDataResultUnion) AsAny() an
 }
 
 func (u AdminOrganizationUsageFileSearchCallsResponseDataResultUnion) AsOrganizationUsageCompletionsResult() (v AdminOrganizationUsageFileSearchCallsResponseDataResultOrganizationUsageCompletionsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageFileSearchCallsResponseDataResultUnion) AsOrganizationUsageEmbeddingsResult() (v AdminOrganizationUsageFileSearchCallsResponseDataResultOrganizationUsageEmbeddingsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageFileSearchCallsResponseDataResultUnion) AsOrganizationUsageModerationsResult() (v AdminOrganizationUsageFileSearchCallsResponseDataResultOrganizationUsageModerationsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageFileSearchCallsResponseDataResultUnion) AsOrganizationUsageImagesResult() (v AdminOrganizationUsageFileSearchCallsResponseDataResultOrganizationUsageImagesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageFileSearchCallsResponseDataResultUnion) AsOrganizationUsageAudioSpeechesResult() (v AdminOrganizationUsageFileSearchCallsResponseDataResultOrganizationUsageAudioSpeechesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageFileSearchCallsResponseDataResultUnion) AsOrganizationUsageAudioTranscriptionsResult() (v AdminOrganizationUsageFileSearchCallsResponseDataResultOrganizationUsageAudioTranscriptionsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageFileSearchCallsResponseDataResultUnion) AsOrganizationUsageVectorStoresResult() (v AdminOrganizationUsageFileSearchCallsResponseDataResultOrganizationUsageVectorStoresResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageFileSearchCallsResponseDataResultUnion) AsOrganizationUsageCodeInterpreterSessionsResult() (v AdminOrganizationUsageFileSearchCallsResponseDataResultOrganizationUsageCodeInterpreterSessionsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageFileSearchCallsResponseDataResultUnion) AsOrganizationUsageFileSearchesResult() (v AdminOrganizationUsageFileSearchCallsResponseDataResultOrganizationUsageFileSearchesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageFileSearchCallsResponseDataResultUnion) AsOrganizationUsageWebSearchesResult() (v AdminOrganizationUsageFileSearchCallsResponseDataResultOrganizationUsageWebSearchesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageFileSearchCallsResponseDataResultUnion) AsOrganizationCostsResult() (v AdminOrganizationUsageFileSearchCallsResponseDataResultOrganizationCostsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -6005,16 +6072,20 @@ type AdminOrganizationUsageFileSearchCallsResponseDataResultOrganizationCostsRes
 	// When `group_by=line_item`, this field provides the quantity of the grouped costs
 	// result.
 	Quantity float64 `json:"quantity" api:"nullable"`
+	// The unit of the `quantity` value. If no single supported unit applies to the
+	// result, this field is `null`.
+	QuantityUnit CostQuantityUnit `json:"quantity_unit" api:"nullable"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
-		Object      respjson.Field
-		Amount      respjson.Field
-		APIKeyID    respjson.Field
-		LineItem    respjson.Field
-		ProjectID   respjson.Field
-		Quantity    respjson.Field
-		ExtraFields map[string]respjson.Field
-		raw         string
+		Object       respjson.Field
+		Amount       respjson.Field
+		APIKeyID     respjson.Field
+		LineItem     respjson.Field
+		ProjectID    respjson.Field
+		Quantity     respjson.Field
+		QuantityUnit respjson.Field
+		ExtraFields  map[string]respjson.Field
+		raw          string
 	} `json:"-"`
 }
 
@@ -6209,7 +6280,10 @@ type AdminOrganizationUsageImagesResponseDataResultUnion struct {
 	// This field is from variant
 	// [AdminOrganizationUsageImagesResponseDataResultOrganizationCostsResult].
 	Quantity float64 `json:"quantity"`
-	JSON     struct {
+	// This field is from variant
+	// [AdminOrganizationUsageImagesResponseDataResultOrganizationCostsResult].
+	QuantityUnit CostQuantityUnit `json:"quantity_unit"`
+	JSON         struct {
 		InputTokens            respjson.Field
 		NumModelRequests       respjson.Field
 		Object                 respjson.Field
@@ -6245,6 +6319,7 @@ type AdminOrganizationUsageImagesResponseDataResultUnion struct {
 		Amount                 respjson.Field
 		LineItem               respjson.Field
 		Quantity               respjson.Field
+		QuantityUnit           respjson.Field
 		raw                    string
 	} `json:"-"`
 }
@@ -6325,57 +6400,57 @@ func (u AdminOrganizationUsageImagesResponseDataResultUnion) AsAny() anyAdminOrg
 }
 
 func (u AdminOrganizationUsageImagesResponseDataResultUnion) AsOrganizationUsageCompletionsResult() (v AdminOrganizationUsageImagesResponseDataResultOrganizationUsageCompletionsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageImagesResponseDataResultUnion) AsOrganizationUsageEmbeddingsResult() (v AdminOrganizationUsageImagesResponseDataResultOrganizationUsageEmbeddingsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageImagesResponseDataResultUnion) AsOrganizationUsageModerationsResult() (v AdminOrganizationUsageImagesResponseDataResultOrganizationUsageModerationsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageImagesResponseDataResultUnion) AsOrganizationUsageImagesResult() (v AdminOrganizationUsageImagesResponseDataResultOrganizationUsageImagesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageImagesResponseDataResultUnion) AsOrganizationUsageAudioSpeechesResult() (v AdminOrganizationUsageImagesResponseDataResultOrganizationUsageAudioSpeechesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageImagesResponseDataResultUnion) AsOrganizationUsageAudioTranscriptionsResult() (v AdminOrganizationUsageImagesResponseDataResultOrganizationUsageAudioTranscriptionsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageImagesResponseDataResultUnion) AsOrganizationUsageVectorStoresResult() (v AdminOrganizationUsageImagesResponseDataResultOrganizationUsageVectorStoresResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageImagesResponseDataResultUnion) AsOrganizationUsageCodeInterpreterSessionsResult() (v AdminOrganizationUsageImagesResponseDataResultOrganizationUsageCodeInterpreterSessionsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageImagesResponseDataResultUnion) AsOrganizationUsageFileSearchesResult() (v AdminOrganizationUsageImagesResponseDataResultOrganizationUsageFileSearchesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageImagesResponseDataResultUnion) AsOrganizationUsageWebSearchesResult() (v AdminOrganizationUsageImagesResponseDataResultOrganizationUsageWebSearchesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageImagesResponseDataResultUnion) AsOrganizationCostsResult() (v AdminOrganizationUsageImagesResponseDataResultOrganizationCostsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -6847,16 +6922,20 @@ type AdminOrganizationUsageImagesResponseDataResultOrganizationCostsResult struc
 	// When `group_by=line_item`, this field provides the quantity of the grouped costs
 	// result.
 	Quantity float64 `json:"quantity" api:"nullable"`
+	// The unit of the `quantity` value. If no single supported unit applies to the
+	// result, this field is `null`.
+	QuantityUnit CostQuantityUnit `json:"quantity_unit" api:"nullable"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
-		Object      respjson.Field
-		Amount      respjson.Field
-		APIKeyID    respjson.Field
-		LineItem    respjson.Field
-		ProjectID   respjson.Field
-		Quantity    respjson.Field
-		ExtraFields map[string]respjson.Field
-		raw         string
+		Object       respjson.Field
+		Amount       respjson.Field
+		APIKeyID     respjson.Field
+		LineItem     respjson.Field
+		ProjectID    respjson.Field
+		Quantity     respjson.Field
+		QuantityUnit respjson.Field
+		ExtraFields  map[string]respjson.Field
+		raw          string
 	} `json:"-"`
 }
 
@@ -7051,7 +7130,10 @@ type AdminOrganizationUsageModerationsResponseDataResultUnion struct {
 	// This field is from variant
 	// [AdminOrganizationUsageModerationsResponseDataResultOrganizationCostsResult].
 	Quantity float64 `json:"quantity"`
-	JSON     struct {
+	// This field is from variant
+	// [AdminOrganizationUsageModerationsResponseDataResultOrganizationCostsResult].
+	QuantityUnit CostQuantityUnit `json:"quantity_unit"`
+	JSON         struct {
 		InputTokens            respjson.Field
 		NumModelRequests       respjson.Field
 		Object                 respjson.Field
@@ -7087,6 +7169,7 @@ type AdminOrganizationUsageModerationsResponseDataResultUnion struct {
 		Amount                 respjson.Field
 		LineItem               respjson.Field
 		Quantity               respjson.Field
+		QuantityUnit           respjson.Field
 		raw                    string
 	} `json:"-"`
 }
@@ -7168,57 +7251,57 @@ func (u AdminOrganizationUsageModerationsResponseDataResultUnion) AsAny() anyAdm
 }
 
 func (u AdminOrganizationUsageModerationsResponseDataResultUnion) AsOrganizationUsageCompletionsResult() (v AdminOrganizationUsageModerationsResponseDataResultOrganizationUsageCompletionsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageModerationsResponseDataResultUnion) AsOrganizationUsageEmbeddingsResult() (v AdminOrganizationUsageModerationsResponseDataResultOrganizationUsageEmbeddingsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageModerationsResponseDataResultUnion) AsOrganizationUsageModerationsResult() (v AdminOrganizationUsageModerationsResponseDataResultOrganizationUsageModerationsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageModerationsResponseDataResultUnion) AsOrganizationUsageImagesResult() (v AdminOrganizationUsageModerationsResponseDataResultOrganizationUsageImagesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageModerationsResponseDataResultUnion) AsOrganizationUsageAudioSpeechesResult() (v AdminOrganizationUsageModerationsResponseDataResultOrganizationUsageAudioSpeechesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageModerationsResponseDataResultUnion) AsOrganizationUsageAudioTranscriptionsResult() (v AdminOrganizationUsageModerationsResponseDataResultOrganizationUsageAudioTranscriptionsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageModerationsResponseDataResultUnion) AsOrganizationUsageVectorStoresResult() (v AdminOrganizationUsageModerationsResponseDataResultOrganizationUsageVectorStoresResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageModerationsResponseDataResultUnion) AsOrganizationUsageCodeInterpreterSessionsResult() (v AdminOrganizationUsageModerationsResponseDataResultOrganizationUsageCodeInterpreterSessionsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageModerationsResponseDataResultUnion) AsOrganizationUsageFileSearchesResult() (v AdminOrganizationUsageModerationsResponseDataResultOrganizationUsageFileSearchesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageModerationsResponseDataResultUnion) AsOrganizationUsageWebSearchesResult() (v AdminOrganizationUsageModerationsResponseDataResultOrganizationUsageWebSearchesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageModerationsResponseDataResultUnion) AsOrganizationCostsResult() (v AdminOrganizationUsageModerationsResponseDataResultOrganizationCostsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -7690,16 +7773,20 @@ type AdminOrganizationUsageModerationsResponseDataResultOrganizationCostsResult 
 	// When `group_by=line_item`, this field provides the quantity of the grouped costs
 	// result.
 	Quantity float64 `json:"quantity" api:"nullable"`
+	// The unit of the `quantity` value. If no single supported unit applies to the
+	// result, this field is `null`.
+	QuantityUnit CostQuantityUnit `json:"quantity_unit" api:"nullable"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
-		Object      respjson.Field
-		Amount      respjson.Field
-		APIKeyID    respjson.Field
-		LineItem    respjson.Field
-		ProjectID   respjson.Field
-		Quantity    respjson.Field
-		ExtraFields map[string]respjson.Field
-		raw         string
+		Object       respjson.Field
+		Amount       respjson.Field
+		APIKeyID     respjson.Field
+		LineItem     respjson.Field
+		ProjectID    respjson.Field
+		Quantity     respjson.Field
+		QuantityUnit respjson.Field
+		ExtraFields  map[string]respjson.Field
+		raw          string
 	} `json:"-"`
 }
 
@@ -7894,7 +7981,10 @@ type AdminOrganizationUsageVectorStoresResponseDataResultUnion struct {
 	// This field is from variant
 	// [AdminOrganizationUsageVectorStoresResponseDataResultOrganizationCostsResult].
 	Quantity float64 `json:"quantity"`
-	JSON     struct {
+	// This field is from variant
+	// [AdminOrganizationUsageVectorStoresResponseDataResultOrganizationCostsResult].
+	QuantityUnit CostQuantityUnit `json:"quantity_unit"`
+	JSON         struct {
 		InputTokens            respjson.Field
 		NumModelRequests       respjson.Field
 		Object                 respjson.Field
@@ -7930,6 +8020,7 @@ type AdminOrganizationUsageVectorStoresResponseDataResultUnion struct {
 		Amount                 respjson.Field
 		LineItem               respjson.Field
 		Quantity               respjson.Field
+		QuantityUnit           respjson.Field
 		raw                    string
 	} `json:"-"`
 }
@@ -8011,57 +8102,57 @@ func (u AdminOrganizationUsageVectorStoresResponseDataResultUnion) AsAny() anyAd
 }
 
 func (u AdminOrganizationUsageVectorStoresResponseDataResultUnion) AsOrganizationUsageCompletionsResult() (v AdminOrganizationUsageVectorStoresResponseDataResultOrganizationUsageCompletionsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageVectorStoresResponseDataResultUnion) AsOrganizationUsageEmbeddingsResult() (v AdminOrganizationUsageVectorStoresResponseDataResultOrganizationUsageEmbeddingsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageVectorStoresResponseDataResultUnion) AsOrganizationUsageModerationsResult() (v AdminOrganizationUsageVectorStoresResponseDataResultOrganizationUsageModerationsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageVectorStoresResponseDataResultUnion) AsOrganizationUsageImagesResult() (v AdminOrganizationUsageVectorStoresResponseDataResultOrganizationUsageImagesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageVectorStoresResponseDataResultUnion) AsOrganizationUsageAudioSpeechesResult() (v AdminOrganizationUsageVectorStoresResponseDataResultOrganizationUsageAudioSpeechesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageVectorStoresResponseDataResultUnion) AsOrganizationUsageAudioTranscriptionsResult() (v AdminOrganizationUsageVectorStoresResponseDataResultOrganizationUsageAudioTranscriptionsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageVectorStoresResponseDataResultUnion) AsOrganizationUsageVectorStoresResult() (v AdminOrganizationUsageVectorStoresResponseDataResultOrganizationUsageVectorStoresResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageVectorStoresResponseDataResultUnion) AsOrganizationUsageCodeInterpreterSessionsResult() (v AdminOrganizationUsageVectorStoresResponseDataResultOrganizationUsageCodeInterpreterSessionsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageVectorStoresResponseDataResultUnion) AsOrganizationUsageFileSearchesResult() (v AdminOrganizationUsageVectorStoresResponseDataResultOrganizationUsageFileSearchesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageVectorStoresResponseDataResultUnion) AsOrganizationUsageWebSearchesResult() (v AdminOrganizationUsageVectorStoresResponseDataResultOrganizationUsageWebSearchesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageVectorStoresResponseDataResultUnion) AsOrganizationCostsResult() (v AdminOrganizationUsageVectorStoresResponseDataResultOrganizationCostsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -8535,16 +8626,20 @@ type AdminOrganizationUsageVectorStoresResponseDataResultOrganizationCostsResult
 	// When `group_by=line_item`, this field provides the quantity of the grouped costs
 	// result.
 	Quantity float64 `json:"quantity" api:"nullable"`
+	// The unit of the `quantity` value. If no single supported unit applies to the
+	// result, this field is `null`.
+	QuantityUnit CostQuantityUnit `json:"quantity_unit" api:"nullable"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
-		Object      respjson.Field
-		Amount      respjson.Field
-		APIKeyID    respjson.Field
-		LineItem    respjson.Field
-		ProjectID   respjson.Field
-		Quantity    respjson.Field
-		ExtraFields map[string]respjson.Field
-		raw         string
+		Object       respjson.Field
+		Amount       respjson.Field
+		APIKeyID     respjson.Field
+		LineItem     respjson.Field
+		ProjectID    respjson.Field
+		Quantity     respjson.Field
+		QuantityUnit respjson.Field
+		ExtraFields  map[string]respjson.Field
+		raw          string
 	} `json:"-"`
 }
 
@@ -8739,7 +8834,10 @@ type AdminOrganizationUsageWebSearchCallsResponseDataResultUnion struct {
 	// This field is from variant
 	// [AdminOrganizationUsageWebSearchCallsResponseDataResultOrganizationCostsResult].
 	Quantity float64 `json:"quantity"`
-	JSON     struct {
+	// This field is from variant
+	// [AdminOrganizationUsageWebSearchCallsResponseDataResultOrganizationCostsResult].
+	QuantityUnit CostQuantityUnit `json:"quantity_unit"`
+	JSON         struct {
 		InputTokens            respjson.Field
 		NumModelRequests       respjson.Field
 		Object                 respjson.Field
@@ -8775,6 +8873,7 @@ type AdminOrganizationUsageWebSearchCallsResponseDataResultUnion struct {
 		Amount                 respjson.Field
 		LineItem               respjson.Field
 		Quantity               respjson.Field
+		QuantityUnit           respjson.Field
 		raw                    string
 	} `json:"-"`
 }
@@ -8856,57 +8955,57 @@ func (u AdminOrganizationUsageWebSearchCallsResponseDataResultUnion) AsAny() any
 }
 
 func (u AdminOrganizationUsageWebSearchCallsResponseDataResultUnion) AsOrganizationUsageCompletionsResult() (v AdminOrganizationUsageWebSearchCallsResponseDataResultOrganizationUsageCompletionsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageWebSearchCallsResponseDataResultUnion) AsOrganizationUsageEmbeddingsResult() (v AdminOrganizationUsageWebSearchCallsResponseDataResultOrganizationUsageEmbeddingsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageWebSearchCallsResponseDataResultUnion) AsOrganizationUsageModerationsResult() (v AdminOrganizationUsageWebSearchCallsResponseDataResultOrganizationUsageModerationsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageWebSearchCallsResponseDataResultUnion) AsOrganizationUsageImagesResult() (v AdminOrganizationUsageWebSearchCallsResponseDataResultOrganizationUsageImagesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageWebSearchCallsResponseDataResultUnion) AsOrganizationUsageAudioSpeechesResult() (v AdminOrganizationUsageWebSearchCallsResponseDataResultOrganizationUsageAudioSpeechesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageWebSearchCallsResponseDataResultUnion) AsOrganizationUsageAudioTranscriptionsResult() (v AdminOrganizationUsageWebSearchCallsResponseDataResultOrganizationUsageAudioTranscriptionsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageWebSearchCallsResponseDataResultUnion) AsOrganizationUsageVectorStoresResult() (v AdminOrganizationUsageWebSearchCallsResponseDataResultOrganizationUsageVectorStoresResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageWebSearchCallsResponseDataResultUnion) AsOrganizationUsageCodeInterpreterSessionsResult() (v AdminOrganizationUsageWebSearchCallsResponseDataResultOrganizationUsageCodeInterpreterSessionsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageWebSearchCallsResponseDataResultUnion) AsOrganizationUsageFileSearchesResult() (v AdminOrganizationUsageWebSearchCallsResponseDataResultOrganizationUsageFileSearchesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageWebSearchCallsResponseDataResultUnion) AsOrganizationUsageWebSearchesResult() (v AdminOrganizationUsageWebSearchCallsResponseDataResultOrganizationUsageWebSearchesResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AdminOrganizationUsageWebSearchCallsResponseDataResultUnion) AsOrganizationCostsResult() (v AdminOrganizationUsageWebSearchCallsResponseDataResultOrganizationCostsResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -9380,16 +9479,20 @@ type AdminOrganizationUsageWebSearchCallsResponseDataResultOrganizationCostsResu
 	// When `group_by=line_item`, this field provides the quantity of the grouped costs
 	// result.
 	Quantity float64 `json:"quantity" api:"nullable"`
+	// The unit of the `quantity` value. If no single supported unit applies to the
+	// result, this field is `null`.
+	QuantityUnit CostQuantityUnit `json:"quantity_unit" api:"nullable"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
-		Object      respjson.Field
-		Amount      respjson.Field
-		APIKeyID    respjson.Field
-		LineItem    respjson.Field
-		ProjectID   respjson.Field
-		Quantity    respjson.Field
-		ExtraFields map[string]respjson.Field
-		raw         string
+		Object       respjson.Field
+		Amount       respjson.Field
+		APIKeyID     respjson.Field
+		LineItem     respjson.Field
+		ProjectID    respjson.Field
+		Quantity     respjson.Field
+		QuantityUnit respjson.Field
+		ExtraFields  map[string]respjson.Field
+		raw          string
 	} `json:"-"`
 }
 
@@ -9661,6 +9764,9 @@ type AdminOrganizationUsageCostsParams struct {
 	//
 	// Any of "project_id", "line_item", "api_key_id".
 	GroupBy []string `query:"group_by,omitzero" json:"-"`
+	// Return only costs for these exact line item names. Each value must match the
+	// complete `line_item` value, for example `gpt-5.6-sol, input_tokens`.
+	LineItems []string `query:"line_items,omitzero" json:"-"`
 	// Return only costs for these projects.
 	ProjectIDs []string `query:"project_ids,omitzero" json:"-"`
 	paramObj

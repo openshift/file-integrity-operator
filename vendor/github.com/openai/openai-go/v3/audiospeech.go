@@ -1,4 +1,4 @@
-// File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+// File generated from our OpenAPI spec by Castiron. See CONTRIBUTING.md for details.
 
 package openai
 
@@ -30,7 +30,7 @@ type AudioSpeechService struct {
 // there is one), and before any request-specific options.
 func NewAudioSpeechService(opts ...option.RequestOption) (r AudioSpeechService) {
 	r = AudioSpeechService{}
-	r.Options = opts
+	r.Options = requestconfig.InheritedOptions(opts...)
 	return
 }
 
@@ -112,17 +112,6 @@ func (u AudioSpeechNewParamsVoiceUnion) MarshalJSON() ([]byte, error) {
 }
 func (u *AudioSpeechNewParamsVoiceUnion) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, u)
-}
-
-func (u *AudioSpeechNewParamsVoiceUnion) asAny() any {
-	if !param.IsOmitted(u.OfString) {
-		return &u.OfString.Value
-	} else if !param.IsOmitted(u.OfAudioSpeechNewsVoiceString2) {
-		return &u.OfAudioSpeechNewsVoiceString2
-	} else if !param.IsOmitted(u.OfAudioSpeechNewsVoiceID) {
-		return u.OfAudioSpeechNewsVoiceID
-	}
-	return nil
 }
 
 type AudioSpeechNewParamsVoiceString2 string

@@ -1,4 +1,4 @@
-// File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+// File generated from our OpenAPI spec by Castiron. See CONTRIBUTING.md for details.
 
 package openai
 
@@ -35,7 +35,7 @@ type UploadService struct {
 // is one), and before any request-specific options.
 func NewUploadService(opts ...option.RequestOption) (r UploadService) {
 	r = UploadService{}
-	r.Options = opts
+	r.Options = requestconfig.InheritedOptions(opts...)
 	r.Parts = NewUploadPartService(opts...)
 	return
 }

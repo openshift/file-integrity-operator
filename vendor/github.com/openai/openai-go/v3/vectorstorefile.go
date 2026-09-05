@@ -1,4 +1,4 @@
-// File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+// File generated from our OpenAPI spec by Castiron. See CONTRIBUTING.md for details.
 
 package openai
 
@@ -35,7 +35,7 @@ type VectorStoreFileService struct {
 // there is one), and before any request-specific options.
 func NewVectorStoreFileService(opts ...option.RequestOption) (r VectorStoreFileService) {
 	r = VectorStoreFileService{}
-	r.Options = opts
+	r.Options = requestconfig.InheritedOptions(opts...)
 	return
 }
 
@@ -62,11 +62,7 @@ func (r *VectorStoreFileService) New(ctx context.Context, vectorStoreID string, 
 // Polls the API and blocks until the task is complete.
 // Default polling interval is 1 second.
 func (r *VectorStoreFileService) NewAndPoll(ctx context.Context, vectorStoreId string, body VectorStoreFileNewParams, pollIntervalMs int, opts ...option.RequestOption) (res *VectorStoreFile, err error) {
-	file, err := r.New(ctx, vectorStoreId, body, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return r.PollStatus(ctx, vectorStoreId, file.ID, pollIntervalMs, opts...)
+	return newVectorStoreFileAndPoll(r, ctx, vectorStoreId, body, pollIntervalMs, opts...)
 }
 
 // Upload a file to the `files` API and then attach it to the given vector store.
@@ -74,24 +70,13 @@ func (r *VectorStoreFileService) NewAndPoll(ctx context.Context, vectorStoreId s
 // Note the file will be asynchronously processed (you can use the alternative
 // polling helper method to wait for processing to complete).
 func (r *VectorStoreFileService) Upload(ctx context.Context, vectorStoreID string, body FileNewParams, opts ...option.RequestOption) (*VectorStoreFile, error) {
-	filesService := NewFileService(r.Options...)
-	fileObj, err := filesService.New(ctx, body, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return r.New(ctx, vectorStoreID, VectorStoreFileNewParams{
-		FileID: fileObj.ID,
-	}, opts...)
+	return uploadVectorStoreFile(r, ctx, vectorStoreID, body, opts...)
 }
 
 // Add a file to a vector store and poll until processing is complete.
 // Default polling interval is 1 second.
 func (r *VectorStoreFileService) UploadAndPoll(ctx context.Context, vectorStoreID string, body FileNewParams, pollIntervalMs int, opts ...option.RequestOption) (*VectorStoreFile, error) {
-	res, err := r.Upload(ctx, vectorStoreID, body, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return r.PollStatus(ctx, vectorStoreID, res.ID, pollIntervalMs, opts...)
+	return uploadVectorStoreFileAndPoll(r, ctx, vectorStoreID, body, pollIntervalMs, opts...)
 }
 
 // Retrieves a vector store file.
@@ -325,17 +310,17 @@ type VectorStoreFileAttributeUnion struct {
 }
 
 func (u VectorStoreFileAttributeUnion) AsString() (v string) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u VectorStoreFileAttributeUnion) AsFloat() (v float64) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u VectorStoreFileAttributeUnion) AsBool() (v bool) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -430,17 +415,6 @@ func (u *VectorStoreFileNewParamsAttributeUnion) UnmarshalJSON(data []byte) erro
 	return apijson.UnmarshalRoot(data, u)
 }
 
-func (u *VectorStoreFileNewParamsAttributeUnion) asAny() any {
-	if !param.IsOmitted(u.OfString) {
-		return &u.OfString.Value
-	} else if !param.IsOmitted(u.OfFloat) {
-		return &u.OfFloat.Value
-	} else if !param.IsOmitted(u.OfBool) {
-		return &u.OfBool.Value
-	}
-	return nil
-}
-
 type VectorStoreFileUpdateParams struct {
 	// Set of 16 key-value pairs that can be attached to an object. This can be useful
 	// for storing additional information about the object in a structured format, and
@@ -474,17 +448,6 @@ func (u VectorStoreFileUpdateParamsAttributeUnion) MarshalJSON() ([]byte, error)
 }
 func (u *VectorStoreFileUpdateParamsAttributeUnion) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, u)
-}
-
-func (u *VectorStoreFileUpdateParamsAttributeUnion) asAny() any {
-	if !param.IsOmitted(u.OfString) {
-		return &u.OfString.Value
-	} else if !param.IsOmitted(u.OfFloat) {
-		return &u.OfFloat.Value
-	} else if !param.IsOmitted(u.OfBool) {
-		return &u.OfBool.Value
-	}
-	return nil
 }
 
 type VectorStoreFileListParams struct {

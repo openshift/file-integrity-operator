@@ -1,4 +1,4 @@
-// File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+// File generated from our OpenAPI spec by Castiron. See CONTRIBUTING.md for details.
 
 package openai
 
@@ -32,7 +32,7 @@ type AdminOrganizationProjectServiceAccountAPIKeyService struct {
 // options.
 func NewAdminOrganizationProjectServiceAccountAPIKeyService(opts ...option.RequestOption) (r AdminOrganizationProjectServiceAccountAPIKeyService) {
 	r = AdminOrganizationProjectServiceAccountAPIKeyService{}
-	r.Options = opts
+	r.Options = requestconfig.InheritedOptions(opts...)
 	return
 }
 
