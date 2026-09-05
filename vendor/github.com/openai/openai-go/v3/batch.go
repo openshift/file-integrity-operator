@@ -1,4 +1,4 @@
-// File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+// File generated from our OpenAPI spec by Castiron. See CONTRIBUTING.md for details.
 
 package openai
 
@@ -37,7 +37,7 @@ type BatchService struct {
 // is one), and before any request-specific options.
 func NewBatchService(opts ...option.RequestOption) (r BatchService) {
 	r = BatchService{}
-	r.Options = opts
+	r.Options = requestconfig.InheritedOptions(opts...)
 	return
 }
 
@@ -145,9 +145,9 @@ type Batch struct {
 	// Keys are strings with a maximum length of 64 characters. Values are strings with
 	// a maximum length of 512 characters.
 	Metadata shared.Metadata `json:"metadata" api:"nullable"`
-	// Model ID used to process the batch, like `gpt-5-2025-08-07`. OpenAI offers a
-	// wide range of models with different capabilities, performance characteristics,
-	// and price points. Refer to the
+	// Model ID used to process the batch, like `gpt-5.6-sol`. OpenAI offers a wide
+	// range of models with different capabilities, performance characteristics, and
+	// price points. Refer to the
 	// [model guide](https://platform.openai.com/docs/models) to browse and compare
 	// available models.
 	Model string `json:"model"`

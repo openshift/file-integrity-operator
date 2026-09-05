@@ -1,4 +1,4 @@
-// File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+// File generated from our OpenAPI spec by Castiron. See CONTRIBUTING.md for details.
 
 package openai
 
@@ -41,7 +41,7 @@ type FileService struct {
 // is one), and before any request-specific options.
 func NewFileService(opts ...option.RequestOption) (r FileService) {
 	r = FileService{}
-	r.Options = opts
+	r.Options = requestconfig.InheritedOptions(opts...)
 	return
 }
 
@@ -130,7 +130,7 @@ func (r *FileService) Delete(ctx context.Context, fileID string, opts ...option.
 	return res, err
 }
 
-// Returns the contents of the specified file.
+// Returns a response containing the contents of the specified file.
 func (r *FileService) Content(ctx context.Context, fileID string, opts ...option.RequestOption) (res *http.Response, err error) {
 	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
 	opts = slices.Concat(preClientOpts, r.Options, opts)
@@ -292,7 +292,7 @@ func (r FileNewParams) MarshalMultipart() (data []byte, contentType string, err 
 		err = apiform.WriteExtras(writer, r.ExtraFields())
 	}
 	if err != nil {
-		writer.Close()
+		_ = writer.Close()
 		return nil, "", err
 	}
 	err = writer.Close()

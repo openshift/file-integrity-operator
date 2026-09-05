@@ -1,4 +1,4 @@
-// File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+// File generated from our OpenAPI spec by Castiron. See CONTRIBUTING.md for details.
 
 package openai
 
@@ -33,8 +33,9 @@ type Client struct {
 	// Assistants and Fine-tuning.
 	Files FileService
 	// Given a prompt and/or an input image, the model will generate a new image.
-	Images ImageService
-	Audio  AudioService
+	Images                  ImageService
+	ContentProvenanceChecks ContentProvenanceCheckService
+	Audio                   AudioService
 	// Given text and/or image inputs, classifies if those inputs are potentially
 	// harmful.
 	Moderations ModerationService
@@ -56,7 +57,9 @@ type Client struct {
 	Conversations conversations.ConversationService
 	Containers    ContainerService
 	Skills        SkillService
-	Videos        VideoService
+	// Deprecated: The Sora API is scheduled to permanently shut down on September 24,
+	// 2026.
+	Videos VideoService
 }
 
 // DefaultClientOptions read from the environment (OPENAI_API_KEY,
@@ -90,7 +93,7 @@ func DefaultClientOptions() []option.RequestOption {
 			}
 		}
 	}
-	return defaults
+	return requestconfig.InheritedOptions(defaults...)
 }
 
 func defaultClientOptionsWithoutEnvironment() []option.RequestOption {
@@ -105,9 +108,9 @@ func defaultClientOptionsWithoutEnvironment() []option.RequestOption {
 func NewClient(opts ...option.RequestOption) (r Client) {
 	defaults := DefaultClientOptions()
 	if requestconfig.EnvironmentDefaultsDisabled(opts...) {
-		defaults = defaultClientOptionsWithoutEnvironment()
+		defaults = requestconfig.InheritedOptions(defaultClientOptionsWithoutEnvironment()...)
 	}
-	opts = append(defaults, opts...)
+	opts = requestconfig.InheritedOptions(append(defaults, opts...)...)
 
 	r = Client{Options: opts}
 
@@ -116,6 +119,7 @@ func NewClient(opts ...option.RequestOption) (r Client) {
 	r.Embeddings = NewEmbeddingService(opts...)
 	r.Files = NewFileService(opts...)
 	r.Images = NewImageService(opts...)
+	r.ContentProvenanceChecks = NewContentProvenanceCheckService(opts...)
 	r.Audio = NewAudioService(opts...)
 	r.Moderations = NewModerationService(opts...)
 	r.Models = NewModelService(opts...)

@@ -1,4 +1,4 @@
-// File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+// File generated from our OpenAPI spec by Castiron. See CONTRIBUTING.md for details.
 
 package openai
 
@@ -39,7 +39,7 @@ type BetaResponseService struct {
 // there is one), and before any request-specific options.
 func NewBetaResponseService(opts ...option.RequestOption) (r BetaResponseService) {
 	r = BetaResponseService{}
-	r.Options = opts
+	r.Options = requestconfig.InheritedOptions(opts...)
 	r.InputItems = NewBetaResponseInputItemService(opts...)
 	r.InputTokens = NewBetaResponseInputTokenService(opts...)
 	return
@@ -366,47 +366,47 @@ func (u BetaComputerActionUnion) AsAny() anyBetaComputerAction {
 }
 
 func (u BetaComputerActionUnion) AsClick() (v BetaComputerActionClick) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaComputerActionUnion) AsDoubleClick() (v BetaComputerActionDoubleClick) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaComputerActionUnion) AsDrag() (v BetaComputerActionDrag) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaComputerActionUnion) AsKeypress() (v BetaComputerActionKeypress) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaComputerActionUnion) AsMove() (v BetaComputerActionMove) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaComputerActionUnion) AsScreenshot() (v BetaComputerActionScreenshot) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaComputerActionUnion) AsScroll() (v BetaComputerActionScroll) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaComputerActionUnion) AsType() (v BetaComputerActionType) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaComputerActionUnion) AsWait() (v BetaComputerActionWait) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -1412,12 +1412,12 @@ func (u BetaContainerAutoNetworkPolicyUnion) AsAny() anyBetaContainerAutoNetwork
 }
 
 func (u BetaContainerAutoNetworkPolicyUnion) AsDisabled() (v BetaContainerNetworkPolicyDisabled) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaContainerAutoNetworkPolicyUnion) AsAllowlist() (v BetaContainerNetworkPolicyAllowlist) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -1487,12 +1487,12 @@ func (u BetaContainerAutoSkillUnion) AsAny() anyBetaContainerAutoSkill {
 }
 
 func (u BetaContainerAutoSkillUnion) AsSkillReference() (v BetaSkillReference) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaContainerAutoSkillUnion) AsInline() (v BetaInlineSkill) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -1546,15 +1546,6 @@ func (u *BetaContainerAutoNetworkPolicyUnionParam) UnmarshalJSON(data []byte) er
 	return apijson.UnmarshalRoot(data, u)
 }
 
-func (u *BetaContainerAutoNetworkPolicyUnionParam) asAny() any {
-	if !param.IsOmitted(u.OfDisabled) {
-		return u.OfDisabled
-	} else if !param.IsOmitted(u.OfAllowlist) {
-		return u.OfAllowlist
-	}
-	return nil
-}
-
 // Returns a pointer to the underlying variant's property, if present.
 func (u BetaContainerAutoNetworkPolicyUnionParam) GetAllowedDomains() []string {
 	if vt := u.OfAllowlist; vt != nil {
@@ -1603,15 +1594,6 @@ func (u BetaContainerAutoSkillUnionParam) MarshalJSON() ([]byte, error) {
 }
 func (u *BetaContainerAutoSkillUnionParam) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, u)
-}
-
-func (u *BetaContainerAutoSkillUnionParam) asAny() any {
-	if !param.IsOmitted(u.OfSkillReference) {
-		return u.OfSkillReference
-	} else if !param.IsOmitted(u.OfInline) {
-		return u.OfInline
-	}
-	return nil
 }
 
 // Returns a pointer to the underlying variant's property, if present.
@@ -1971,12 +1953,12 @@ func (u BetaCustomToolFormatUnion) AsAny() anyBetaCustomToolFormat {
 }
 
 func (u BetaCustomToolFormatUnion) AsText() (v BetaCustomToolFormatText) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaCustomToolFormatUnion) AsGrammar() (v BetaCustomToolFormatGrammar) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -2077,15 +2059,6 @@ func (u BetaCustomToolFormatUnionParam) MarshalJSON() ([]byte, error) {
 }
 func (u *BetaCustomToolFormatUnionParam) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, u)
-}
-
-func (u *BetaCustomToolFormatUnionParam) asAny() any {
-	if !param.IsOmitted(u.OfText) {
-		return u.OfText
-	} else if !param.IsOmitted(u.OfGrammar) {
-		return u.OfGrammar
-	}
-	return nil
 }
 
 // Returns a pointer to the underlying variant's property, if present.
@@ -2249,12 +2222,12 @@ type BetaEasyInputMessageContentUnion struct {
 }
 
 func (u BetaEasyInputMessageContentUnion) AsString() (v string) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaEasyInputMessageContentUnion) AsInputItemContentList() (v BetaResponseInputMessageContentList) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -2411,7 +2384,7 @@ type BetaFileSearchToolFiltersUnion struct {
 	// This field is from variant [BetaFileSearchToolFiltersComparisonFilter].
 	Value BetaFileSearchToolFiltersComparisonFilterValueUnion `json:"value"`
 	// This field is from variant [BetaFileSearchToolFiltersCompoundFilter].
-	Filters []BetaFileSearchToolFiltersCompoundFilterFilter `json:"filters"`
+	Filters []BetaFileSearchToolFiltersCompoundFilterFilterUnion `json:"filters"`
 	JSON    struct {
 		Key     respjson.Field
 		Type    respjson.Field
@@ -2422,12 +2395,12 @@ type BetaFileSearchToolFiltersUnion struct {
 }
 
 func (u BetaFileSearchToolFiltersUnion) AsComparisonFilter() (v BetaFileSearchToolFiltersComparisonFilter) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaFileSearchToolFiltersUnion) AsCompoundFilter() (v BetaFileSearchToolFiltersCompoundFilter) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -2506,22 +2479,22 @@ type BetaFileSearchToolFiltersComparisonFilterValueUnion struct {
 }
 
 func (u BetaFileSearchToolFiltersComparisonFilterValueUnion) AsString() (v string) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaFileSearchToolFiltersComparisonFilterValueUnion) AsFloat() (v float64) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaFileSearchToolFiltersComparisonFilterValueUnion) AsBool() (v bool) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaFileSearchToolFiltersComparisonFilterValueUnion) AsBetaFileSearchToolFiltersComparisonFilterValueArray() (v []BetaFileSearchToolFiltersComparisonFilterValueArrayItemUnion) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -2552,12 +2525,12 @@ type BetaFileSearchToolFiltersComparisonFilterValueArrayItemUnion struct {
 }
 
 func (u BetaFileSearchToolFiltersComparisonFilterValueArrayItemUnion) AsString() (v string) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaFileSearchToolFiltersComparisonFilterValueArrayItemUnion) AsFloat() (v float64) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -2574,7 +2547,7 @@ func (r *BetaFileSearchToolFiltersComparisonFilterValueArrayItemUnion) Unmarshal
 type BetaFileSearchToolFiltersCompoundFilter struct {
 	// Array of filters to combine. Items can be `ComparisonFilter` or
 	// `CompoundFilter`.
-	Filters []BetaFileSearchToolFiltersCompoundFilterFilter `json:"filters" api:"required"`
+	Filters []BetaFileSearchToolFiltersCompoundFilterFilterUnion `json:"filters" api:"required"`
 	// Type of operation: `and` or `or`.
 	//
 	// Any of "and", "or".
@@ -2591,6 +2564,45 @@ type BetaFileSearchToolFiltersCompoundFilter struct {
 // Returns the unmodified JSON received from the API
 func (r BetaFileSearchToolFiltersCompoundFilter) RawJSON() string { return r.JSON.raw }
 func (r *BetaFileSearchToolFiltersCompoundFilter) UnmarshalJSON(data []byte) error {
+	return apijson.UnmarshalRoot(data, r)
+}
+
+// BetaFileSearchToolFiltersCompoundFilterFilterUnion contains all possible
+// properties and values from [BetaFileSearchToolFiltersCompoundFilterFilter],
+// [BetaFileSearchToolFiltersCompoundFilter].
+//
+// Use the methods beginning with 'As' to cast the union to one of its variants.
+type BetaFileSearchToolFiltersCompoundFilterFilterUnion struct {
+	// This field is from variant [BetaFileSearchToolFiltersCompoundFilterFilter].
+	Key string `json:"key"`
+	// This field is from variant [BetaFileSearchToolFiltersCompoundFilterFilter].
+	Type string `json:"type"`
+	// This field is from variant [BetaFileSearchToolFiltersCompoundFilterFilter].
+	Value                                     BetaFileSearchToolFiltersCompoundFilterFilterValueUnion `json:"value"`
+	OfBetaFileSearchToolFiltersCompoundFilter BetaFileSearchToolFiltersCompoundFilter                 `json:",inline"`
+	JSON                                      struct {
+		Key                                       respjson.Field
+		Type                                      respjson.Field
+		Value                                     respjson.Field
+		OfBetaFileSearchToolFiltersCompoundFilter respjson.Field
+		raw                                       string
+	} `json:"-"`
+}
+
+func (u BetaFileSearchToolFiltersCompoundFilterFilterUnion) AsFileSearchToolFiltersCompound() (v BetaFileSearchToolFiltersCompoundFilterFilter) {
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	return
+}
+
+func (u BetaFileSearchToolFiltersCompoundFilterFilterUnion) AsBetaFileSearchToolFiltersCompoundFilter() (v BetaFileSearchToolFiltersCompoundFilter) {
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	return
+}
+
+// Returns the unmodified JSON received from the API
+func (u BetaFileSearchToolFiltersCompoundFilterFilterUnion) RawJSON() string { return u.JSON.raw }
+
+func (r *BetaFileSearchToolFiltersCompoundFilterFilterUnion) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, r)
 }
 
@@ -2662,22 +2674,22 @@ type BetaFileSearchToolFiltersCompoundFilterFilterValueUnion struct {
 }
 
 func (u BetaFileSearchToolFiltersCompoundFilterFilterValueUnion) AsString() (v string) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaFileSearchToolFiltersCompoundFilterFilterValueUnion) AsFloat() (v float64) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaFileSearchToolFiltersCompoundFilterFilterValueUnion) AsBool() (v bool) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaFileSearchToolFiltersCompoundFilterFilterValueUnion) AsBetaFileSearchToolFiltersCompoundFilterFilterValueArray() (v []BetaFileSearchToolFiltersCompoundFilterFilterValueArrayItemUnion) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -2708,12 +2720,12 @@ type BetaFileSearchToolFiltersCompoundFilterFilterValueArrayItemUnion struct {
 }
 
 func (u BetaFileSearchToolFiltersCompoundFilterFilterValueArrayItemUnion) AsString() (v string) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaFileSearchToolFiltersCompoundFilterFilterValueArrayItemUnion) AsFloat() (v float64) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -2849,7 +2861,7 @@ func (u BetaFileSearchToolFiltersUnionParam) GetValue() *BetaFileSearchToolFilte
 }
 
 // Returns a pointer to the underlying variant's property, if present.
-func (u BetaFileSearchToolFiltersUnionParam) GetFilters() []BetaFileSearchToolFiltersCompoundFilterFilterParam {
+func (u BetaFileSearchToolFiltersUnionParam) GetFilters() []BetaFileSearchToolFiltersCompoundFilterFilterUnionParam {
 	if vt := u.OfCompoundFilter; vt != nil {
 		return vt.Filters
 	}
@@ -2925,19 +2937,6 @@ func (u *BetaFileSearchToolFiltersComparisonFilterValueUnionParam) UnmarshalJSON
 	return apijson.UnmarshalRoot(data, u)
 }
 
-func (u *BetaFileSearchToolFiltersComparisonFilterValueUnionParam) asAny() any {
-	if !param.IsOmitted(u.OfString) {
-		return &u.OfString.Value
-	} else if !param.IsOmitted(u.OfFloat) {
-		return &u.OfFloat.Value
-	} else if !param.IsOmitted(u.OfBool) {
-		return &u.OfBool.Value
-	} else if !param.IsOmitted(u.OfBetaFileSearchToolFiltersComparisonFilterValueArray) {
-		return &u.OfBetaFileSearchToolFiltersComparisonFilterValueArray
-	}
-	return nil
-}
-
 // Only one field can be non-zero.
 //
 // Use [param.IsOmitted] to confirm if a field is set.
@@ -2954,22 +2953,13 @@ func (u *BetaFileSearchToolFiltersComparisonFilterValueArrayItemUnionParam) Unma
 	return apijson.UnmarshalRoot(data, u)
 }
 
-func (u *BetaFileSearchToolFiltersComparisonFilterValueArrayItemUnionParam) asAny() any {
-	if !param.IsOmitted(u.OfString) {
-		return &u.OfString.Value
-	} else if !param.IsOmitted(u.OfFloat) {
-		return &u.OfFloat.Value
-	}
-	return nil
-}
-
 // Combine multiple filters using `and` or `or`.
 //
 // The properties Filters, Type are required.
 type BetaFileSearchToolFiltersCompoundFilterParam struct {
 	// Array of filters to combine. Items can be `ComparisonFilter` or
 	// `CompoundFilter`.
-	Filters []BetaFileSearchToolFiltersCompoundFilterFilterParam `json:"filters,omitzero" api:"required"`
+	Filters []BetaFileSearchToolFiltersCompoundFilterFilterUnionParam `json:"filters,omitzero" api:"required"`
 	// Type of operation: `and` or `or`.
 	//
 	// Any of "and", "or".
@@ -2988,6 +2978,72 @@ func (r *BetaFileSearchToolFiltersCompoundFilterParam) UnmarshalJSON(data []byte
 func init() {
 	apijson.RegisterFieldValidator[BetaFileSearchToolFiltersCompoundFilterParam](
 		"type", "and", "or",
+	)
+}
+
+// Only one field can be non-zero.
+//
+// Use [param.IsOmitted] to confirm if a field is set.
+type BetaFileSearchToolFiltersCompoundFilterFilterUnionParam struct {
+	OfFileSearchToolFiltersCompound *BetaFileSearchToolFiltersCompoundFilterFilterParam `json:",omitzero,inline"`
+	OfFilter                        *BetaFileSearchToolFiltersCompoundFilterParam       `json:",omitzero,inline"`
+	paramUnion
+}
+
+func (u BetaFileSearchToolFiltersCompoundFilterFilterUnionParam) MarshalJSON() ([]byte, error) {
+	return param.MarshalUnion(u, u.OfFileSearchToolFiltersCompound, u.OfFilter)
+}
+func (u *BetaFileSearchToolFiltersCompoundFilterFilterUnionParam) UnmarshalJSON(data []byte) error {
+	return apijson.UnmarshalRoot(data, u)
+}
+
+// Returns a pointer to the underlying variant's property, if present.
+func (u BetaFileSearchToolFiltersCompoundFilterFilterUnionParam) GetKey() *string {
+	if vt := u.OfFileSearchToolFiltersCompound; vt != nil {
+		return &vt.Key
+	}
+	return nil
+}
+
+// Returns a pointer to the underlying variant's property, if present.
+func (u BetaFileSearchToolFiltersCompoundFilterFilterUnionParam) GetValue() *BetaFileSearchToolFiltersCompoundFilterFilterValueUnionParam {
+	if vt := u.OfFileSearchToolFiltersCompound; vt != nil {
+		return &vt.Value
+	}
+	return nil
+}
+
+// Returns a pointer to the underlying variant's property, if present.
+func (u BetaFileSearchToolFiltersCompoundFilterFilterUnionParam) GetFilters() []BetaFileSearchToolFiltersCompoundFilterFilterUnionParam {
+	if vt := u.OfFilter; vt != nil {
+		return vt.Filters
+	}
+	return nil
+}
+
+// Returns a pointer to the underlying variant's property, if present.
+func (u BetaFileSearchToolFiltersCompoundFilterFilterUnionParam) GetType() *string {
+	if vt := u.OfFileSearchToolFiltersCompound; vt != nil {
+		return (*string)(&vt.Type)
+	} else if vt := u.OfFilter; vt != nil {
+		return (*string)(&vt.Type)
+	}
+	return nil
+}
+
+func init() {
+	apijson.RegisterUnion[BetaFileSearchToolFiltersCompoundFilterFilterUnionParam](
+		"type",
+		apijson.Discriminator[BetaFileSearchToolFiltersCompoundFilterFilterParam]("eq"),
+		apijson.Discriminator[BetaFileSearchToolFiltersCompoundFilterFilterParam]("ne"),
+		apijson.Discriminator[BetaFileSearchToolFiltersCompoundFilterFilterParam]("gt"),
+		apijson.Discriminator[BetaFileSearchToolFiltersCompoundFilterFilterParam]("gte"),
+		apijson.Discriminator[BetaFileSearchToolFiltersCompoundFilterFilterParam]("lt"),
+		apijson.Discriminator[BetaFileSearchToolFiltersCompoundFilterFilterParam]("lte"),
+		apijson.Discriminator[BetaFileSearchToolFiltersCompoundFilterFilterParam]("in"),
+		apijson.Discriminator[BetaFileSearchToolFiltersCompoundFilterFilterParam]("nin"),
+		apijson.Discriminator[BetaFileSearchToolFiltersCompoundFilterParam]("and"),
+		apijson.Discriminator[BetaFileSearchToolFiltersCompoundFilterParam]("or"),
 	)
 }
 
@@ -3050,19 +3106,6 @@ func (u *BetaFileSearchToolFiltersCompoundFilterFilterValueUnionParam) Unmarshal
 	return apijson.UnmarshalRoot(data, u)
 }
 
-func (u *BetaFileSearchToolFiltersCompoundFilterFilterValueUnionParam) asAny() any {
-	if !param.IsOmitted(u.OfString) {
-		return &u.OfString.Value
-	} else if !param.IsOmitted(u.OfFloat) {
-		return &u.OfFloat.Value
-	} else if !param.IsOmitted(u.OfBool) {
-		return &u.OfBool.Value
-	} else if !param.IsOmitted(u.OfBetaFileSearchToolFiltersCompoundFilterFilterValueArray) {
-		return &u.OfBetaFileSearchToolFiltersCompoundFilterFilterValueArray
-	}
-	return nil
-}
-
 // Only one field can be non-zero.
 //
 // Use [param.IsOmitted] to confirm if a field is set.
@@ -3077,15 +3120,6 @@ func (u BetaFileSearchToolFiltersCompoundFilterFilterValueArrayItemUnionParam) M
 }
 func (u *BetaFileSearchToolFiltersCompoundFilterFilterValueArrayItemUnionParam) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, u)
-}
-
-func (u *BetaFileSearchToolFiltersCompoundFilterFilterValueArrayItemUnionParam) asAny() any {
-	if !param.IsOmitted(u.OfString) {
-		return &u.OfString.Value
-	} else if !param.IsOmitted(u.OfFloat) {
-		return &u.OfFloat.Value
-	}
-	return nil
 }
 
 // Ranking options for search.
@@ -3237,17 +3271,17 @@ func (u BetaFunctionShellToolEnvironmentUnion) AsAny() anyBetaFunctionShellToolE
 }
 
 func (u BetaFunctionShellToolEnvironmentUnion) AsContainerAuto() (v BetaContainerAuto) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaFunctionShellToolEnvironmentUnion) AsLocal() (v BetaLocalEnvironment) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaFunctionShellToolEnvironmentUnion) AsContainerReference() (v BetaContainerReference) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -3725,6 +3759,300 @@ func (r *BetaLocalSkillParam) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, r)
 }
 
+// BetaMcpToolCallErrorUnion contains all possible properties and values from
+// [BetaMcpToolCallErrorMcpProtocolError],
+// [BetaMcpToolCallErrorMcpToolExecutionError], [BetaMcpToolCallErrorHTTPError].
+//
+// Use the [BetaMcpToolCallErrorUnion.AsAny] method to switch on the variant.
+//
+// Use the methods beginning with 'As' to cast the union to one of its variants.
+type BetaMcpToolCallErrorUnion struct {
+	Code    int64  `json:"code"`
+	Message string `json:"message"`
+	// Any of "mcp_protocol_error", "mcp_tool_execution_error", "http_error".
+	Type string `json:"type"`
+	// This field is from variant [BetaMcpToolCallErrorMcpToolExecutionError].
+	Content any `json:"content"`
+	JSON    struct {
+		Code    respjson.Field
+		Message respjson.Field
+		Type    respjson.Field
+		Content respjson.Field
+		raw     string
+	} `json:"-"`
+}
+
+// anyBetaMcpToolCallError is implemented by each variant of
+// [BetaMcpToolCallErrorUnion] to add type safety for the return type of
+// [BetaMcpToolCallErrorUnion.AsAny]
+type anyBetaMcpToolCallError interface {
+	implBetaMcpToolCallErrorUnion()
+}
+
+func (BetaMcpToolCallErrorMcpProtocolError) implBetaMcpToolCallErrorUnion()      {}
+func (BetaMcpToolCallErrorMcpToolExecutionError) implBetaMcpToolCallErrorUnion() {}
+func (BetaMcpToolCallErrorHTTPError) implBetaMcpToolCallErrorUnion()             {}
+
+// Use the following switch statement to find the correct variant
+//
+//	switch variant := BetaMcpToolCallErrorUnion.AsAny().(type) {
+//	case openai.BetaMcpToolCallErrorMcpProtocolError:
+//	case openai.BetaMcpToolCallErrorMcpToolExecutionError:
+//	case openai.BetaMcpToolCallErrorHTTPError:
+//	default:
+//	  fmt.Errorf("no variant present")
+//	}
+func (u BetaMcpToolCallErrorUnion) AsAny() anyBetaMcpToolCallError {
+	switch u.Type {
+	case "mcp_protocol_error":
+		return u.AsMcpProtocolError()
+	case "mcp_tool_execution_error":
+		return u.AsMcpToolExecutionError()
+	case "http_error":
+		return u.AsHTTPError()
+	}
+	return nil
+}
+
+func (u BetaMcpToolCallErrorUnion) AsMcpProtocolError() (v BetaMcpToolCallErrorMcpProtocolError) {
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	return
+}
+
+func (u BetaMcpToolCallErrorUnion) AsMcpToolExecutionError() (v BetaMcpToolCallErrorMcpToolExecutionError) {
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	return
+}
+
+func (u BetaMcpToolCallErrorUnion) AsHTTPError() (v BetaMcpToolCallErrorHTTPError) {
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	return
+}
+
+// Returns the unmodified JSON received from the API
+func (u BetaMcpToolCallErrorUnion) RawJSON() string { return u.JSON.raw }
+
+func (r *BetaMcpToolCallErrorUnion) UnmarshalJSON(data []byte) error {
+	return apijson.UnmarshalRoot(data, r)
+}
+
+// ToParam converts this BetaMcpToolCallErrorUnion to a
+// BetaMcpToolCallErrorUnionParam.
+//
+// Warning: the fields of the param type will not be present. ToParam should only
+// be used at the last possible moment before sending a request. Test for this with
+// BetaMcpToolCallErrorUnionParam.Overrides()
+func (r BetaMcpToolCallErrorUnion) ToParam() BetaMcpToolCallErrorUnionParam {
+	return param.Override[BetaMcpToolCallErrorUnionParam](json.RawMessage(r.RawJSON()))
+}
+
+type BetaMcpToolCallErrorMcpProtocolError struct {
+	Code    int64                     `json:"code" api:"required"`
+	Message string                    `json:"message" api:"required"`
+	Type    constant.McpProtocolError `json:"type" default:"mcp_protocol_error"`
+	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
+	JSON struct {
+		Code        respjson.Field
+		Message     respjson.Field
+		Type        respjson.Field
+		ExtraFields map[string]respjson.Field
+		raw         string
+	} `json:"-"`
+}
+
+// Returns the unmodified JSON received from the API
+func (r BetaMcpToolCallErrorMcpProtocolError) RawJSON() string { return r.JSON.raw }
+func (r *BetaMcpToolCallErrorMcpProtocolError) UnmarshalJSON(data []byte) error {
+	return apijson.UnmarshalRoot(data, r)
+}
+
+type BetaMcpToolCallErrorMcpToolExecutionError struct {
+	Content any                            `json:"content" api:"required"`
+	Type    constant.McpToolExecutionError `json:"type" default:"mcp_tool_execution_error"`
+	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
+	JSON struct {
+		Content     respjson.Field
+		Type        respjson.Field
+		ExtraFields map[string]respjson.Field
+		raw         string
+	} `json:"-"`
+}
+
+// Returns the unmodified JSON received from the API
+func (r BetaMcpToolCallErrorMcpToolExecutionError) RawJSON() string { return r.JSON.raw }
+func (r *BetaMcpToolCallErrorMcpToolExecutionError) UnmarshalJSON(data []byte) error {
+	return apijson.UnmarshalRoot(data, r)
+}
+
+type BetaMcpToolCallErrorHTTPError struct {
+	Code    int64              `json:"code" api:"required"`
+	Message string             `json:"message" api:"required"`
+	Type    constant.HTTPError `json:"type" default:"http_error"`
+	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
+	JSON struct {
+		Code        respjson.Field
+		Message     respjson.Field
+		Type        respjson.Field
+		ExtraFields map[string]respjson.Field
+		raw         string
+	} `json:"-"`
+}
+
+// Returns the unmodified JSON received from the API
+func (r BetaMcpToolCallErrorHTTPError) RawJSON() string { return r.JSON.raw }
+func (r *BetaMcpToolCallErrorHTTPError) UnmarshalJSON(data []byte) error {
+	return apijson.UnmarshalRoot(data, r)
+}
+
+func BetaMcpToolCallErrorParamOfMcpProtocolError(code int64, message string) BetaMcpToolCallErrorUnionParam {
+	var mcpProtocolError BetaMcpToolCallErrorMcpProtocolErrorParam
+	mcpProtocolError.Code = code
+	mcpProtocolError.Message = message
+	return BetaMcpToolCallErrorUnionParam{OfMcpProtocolError: &mcpProtocolError}
+}
+
+func BetaMcpToolCallErrorParamOfMcpToolExecutionError(content any) BetaMcpToolCallErrorUnionParam {
+	var mcpToolExecutionError BetaMcpToolCallErrorMcpToolExecutionErrorParam
+	mcpToolExecutionError.Content = content
+	return BetaMcpToolCallErrorUnionParam{OfMcpToolExecutionError: &mcpToolExecutionError}
+}
+
+func BetaMcpToolCallErrorParamOfHTTPError(code int64, message string) BetaMcpToolCallErrorUnionParam {
+	var httpError BetaMcpToolCallErrorHTTPErrorParam
+	httpError.Code = code
+	httpError.Message = message
+	return BetaMcpToolCallErrorUnionParam{OfHTTPError: &httpError}
+}
+
+// Only one field can be non-zero.
+//
+// Use [param.IsOmitted] to confirm if a field is set.
+type BetaMcpToolCallErrorUnionParam struct {
+	OfMcpProtocolError      *BetaMcpToolCallErrorMcpProtocolErrorParam      `json:",omitzero,inline"`
+	OfMcpToolExecutionError *BetaMcpToolCallErrorMcpToolExecutionErrorParam `json:",omitzero,inline"`
+	OfHTTPError             *BetaMcpToolCallErrorHTTPErrorParam             `json:",omitzero,inline"`
+	paramUnion
+}
+
+func (u BetaMcpToolCallErrorUnionParam) MarshalJSON() ([]byte, error) {
+	return param.MarshalUnion(u, u.OfMcpProtocolError, u.OfMcpToolExecutionError, u.OfHTTPError)
+}
+func (u *BetaMcpToolCallErrorUnionParam) UnmarshalJSON(data []byte) error {
+	return apijson.UnmarshalRoot(data, u)
+}
+
+func (u *BetaMcpToolCallErrorUnionParam) asAny() any {
+	if !param.IsOmitted(u.OfMcpProtocolError) {
+		return u.OfMcpProtocolError
+	} else if !param.IsOmitted(u.OfMcpToolExecutionError) {
+		return u.OfMcpToolExecutionError
+	} else if !param.IsOmitted(u.OfHTTPError) {
+		return u.OfHTTPError
+	}
+	return nil
+}
+
+// Returns a pointer to the underlying variant's property, if present.
+func (u BetaMcpToolCallErrorUnionParam) GetContent() *any {
+	if vt := u.OfMcpToolExecutionError; vt != nil {
+		return &vt.Content
+	}
+	return nil
+}
+
+// Returns a pointer to the underlying variant's property, if present.
+func (u BetaMcpToolCallErrorUnionParam) GetCode() *int64 {
+	if vt := u.OfMcpProtocolError; vt != nil {
+		return (*int64)(&vt.Code)
+	} else if vt := u.OfHTTPError; vt != nil {
+		return (*int64)(&vt.Code)
+	}
+	return nil
+}
+
+// Returns a pointer to the underlying variant's property, if present.
+func (u BetaMcpToolCallErrorUnionParam) GetMessage() *string {
+	if vt := u.OfMcpProtocolError; vt != nil {
+		return (*string)(&vt.Message)
+	} else if vt := u.OfHTTPError; vt != nil {
+		return (*string)(&vt.Message)
+	}
+	return nil
+}
+
+// Returns a pointer to the underlying variant's property, if present.
+func (u BetaMcpToolCallErrorUnionParam) GetType() *string {
+	if vt := u.OfMcpProtocolError; vt != nil {
+		return (*string)(&vt.Type)
+	} else if vt := u.OfMcpToolExecutionError; vt != nil {
+		return (*string)(&vt.Type)
+	} else if vt := u.OfHTTPError; vt != nil {
+		return (*string)(&vt.Type)
+	}
+	return nil
+}
+
+func init() {
+	apijson.RegisterUnion[BetaMcpToolCallErrorUnionParam](
+		"type",
+		apijson.Discriminator[BetaMcpToolCallErrorMcpProtocolErrorParam]("mcp_protocol_error"),
+		apijson.Discriminator[BetaMcpToolCallErrorMcpToolExecutionErrorParam]("mcp_tool_execution_error"),
+		apijson.Discriminator[BetaMcpToolCallErrorHTTPErrorParam]("http_error"),
+	)
+}
+
+// The properties Code, Message, Type are required.
+type BetaMcpToolCallErrorMcpProtocolErrorParam struct {
+	Code    int64  `json:"code" api:"required"`
+	Message string `json:"message" api:"required"`
+	// This field can be elided, and will marshal its zero value as
+	// "mcp_protocol_error".
+	Type constant.McpProtocolError `json:"type" default:"mcp_protocol_error"`
+	paramObj
+}
+
+func (r BetaMcpToolCallErrorMcpProtocolErrorParam) MarshalJSON() (data []byte, err error) {
+	type shadow BetaMcpToolCallErrorMcpProtocolErrorParam
+	return param.MarshalObject(r, (*shadow)(&r))
+}
+func (r *BetaMcpToolCallErrorMcpProtocolErrorParam) UnmarshalJSON(data []byte) error {
+	return apijson.UnmarshalRoot(data, r)
+}
+
+// The properties Content, Type are required.
+type BetaMcpToolCallErrorMcpToolExecutionErrorParam struct {
+	Content any `json:"content,omitzero" api:"required"`
+	// This field can be elided, and will marshal its zero value as
+	// "mcp_tool_execution_error".
+	Type constant.McpToolExecutionError `json:"type" default:"mcp_tool_execution_error"`
+	paramObj
+}
+
+func (r BetaMcpToolCallErrorMcpToolExecutionErrorParam) MarshalJSON() (data []byte, err error) {
+	type shadow BetaMcpToolCallErrorMcpToolExecutionErrorParam
+	return param.MarshalObject(r, (*shadow)(&r))
+}
+func (r *BetaMcpToolCallErrorMcpToolExecutionErrorParam) UnmarshalJSON(data []byte) error {
+	return apijson.UnmarshalRoot(data, r)
+}
+
+// The properties Code, Message, Type are required.
+type BetaMcpToolCallErrorHTTPErrorParam struct {
+	Code    int64  `json:"code" api:"required"`
+	Message string `json:"message" api:"required"`
+	// This field can be elided, and will marshal its zero value as "http_error".
+	Type constant.HTTPError `json:"type" default:"http_error"`
+	paramObj
+}
+
+func (r BetaMcpToolCallErrorHTTPErrorParam) MarshalJSON() (data []byte, err error) {
+	type shadow BetaMcpToolCallErrorHTTPErrorParam
+	return param.MarshalObject(r, (*shadow)(&r))
+}
+func (r *BetaMcpToolCallErrorHTTPErrorParam) UnmarshalJSON(data []byte) error {
+	return apijson.UnmarshalRoot(data, r)
+}
+
 // Groups function/custom tools under a shared namespace.
 type BetaNamespaceTool struct {
 	// A description of the namespace shown to the model.
@@ -3825,12 +4153,12 @@ func (u BetaNamespaceToolToolUnion) AsAny() anyBetaNamespaceToolTool {
 }
 
 func (u BetaNamespaceToolToolUnion) AsFunction() (v BetaNamespaceToolToolFunction) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaNamespaceToolToolUnion) AsCustom() (v BetaCustomTool) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -3919,15 +4247,6 @@ func (u BetaNamespaceToolToolUnionParam) MarshalJSON() ([]byte, error) {
 }
 func (u *BetaNamespaceToolToolUnionParam) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, u)
-}
-
-func (u *BetaNamespaceToolToolUnionParam) asAny() any {
-	if !param.IsOmitted(u.OfFunction) {
-		return u.OfFunction
-	} else if !param.IsOmitted(u.OfCustom) {
-		return u.OfCustom
-	}
-	return nil
 }
 
 // Returns a pointer to the underlying variant's property, if present.
@@ -4074,9 +4393,9 @@ type BetaResponse struct {
 	// Keys are strings with a maximum length of 64 characters. Values are strings with
 	// a maximum length of 512 characters.
 	Metadata map[string]string `json:"metadata" api:"required"`
-	// Model ID used to generate the response, like `gpt-4o` or `o3`. OpenAI offers a
-	// wide range of models with different capabilities, performance characteristics,
-	// and price points. Refer to the
+	// Model ID used to generate the response, like `gpt-5.6-sol`. OpenAI offers a wide
+	// range of models with different capabilities, performance characteristics, and
+	// price points. Refer to the
 	// [model guide](https://platform.openai.com/docs/models) to browse and compare
 	// available models.
 	Model BetaResponseModel `json:"model" api:"required"`
@@ -4185,8 +4504,6 @@ type BetaResponse struct {
 	//
 	// Deprecated: deprecated
 	PromptCacheRetention BetaResponsePromptCacheRetention `json:"prompt_cache_retention" api:"nullable"`
-	// **gpt-5 and o-series models only**
-	//
 	// Configuration options for
 	// [reasoning models](https://platform.openai.com/docs/guides/reasoning).
 	Reasoning BetaResponseReasoning `json:"reasoning" api:"nullable"`
@@ -4204,9 +4521,17 @@ type BetaResponse struct {
 	//     will use 'default'.
 	//   - If set to 'default', then the request will be processed with the standard
 	//     pricing and performance for the selected model.
-	//   - If set to '[flex](https://platform.openai.com/docs/guides/flex-processing)' or
-	//     '[priority](https://openai.com/api-priority-processing/)', then the request
-	//     will be processed with the corresponding service tier.
+	//   - If set to '[flex](https://platform.openai.com/docs/guides/flex-processing)',
+	//     then the request will be processed with the Flex Processing service tier.
+	//   - To opt-in to [Fast mode](/api/docs/guides/fast-mode) at the request level,
+	//     include the `service_tier=fast` or `service_tier=priority` parameter for
+	//     Responses or Chat Completions. The response will show `service_tier=priority`
+	//     regardless of if you specify `service_tier=fast` or `priority` in your
+	//     request.
+	//   - If set to 'ultrafast', then the request will be processed with the
+	//     access-controlled Ultrafast Processing service tier. This tier is currently
+	//     available for `gpt-5.6-sol`; a response served through it will show
+	//     `service_tier=ultrafast`.
 	//   - When not set, the default behavior is 'auto'.
 	//
 	// When the `service_tier` parameter is set, the response body will include the
@@ -4214,7 +4539,7 @@ type BetaResponse struct {
 	// request. This response value may be different from the value set in the
 	// parameter.
 	//
-	// Any of "auto", "default", "flex", "scale", "priority".
+	// Any of "auto", "default", "flex", "scale", "priority", "fast", "ultrafast".
 	ServiceTier BetaResponseServiceTier `json:"service_tier" api:"nullable"`
 	// The status of the response generation. One of `completed`, `failed`,
 	// `in_progress`, `cancelled`, `queued`, or `incomplete`.
@@ -4304,7 +4629,7 @@ func (r *BetaResponse) UnmarshalJSON(data []byte) error {
 type BetaResponseIncompleteDetails struct {
 	// The reason why the response is incomplete.
 	//
-	// Any of "max_output_tokens", "content_filter".
+	// Any of "max_output_tokens", "max_messages", "content_filter".
 	Reason string `json:"reason"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
@@ -4341,12 +4666,12 @@ type BetaResponseInstructionsUnion struct {
 }
 
 func (u BetaResponseInstructionsUnion) AsString() (v string) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInstructionsUnion) AsInputItemList() (v []BetaResponseInputItemUnion) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -4357,9 +4682,9 @@ func (r *BetaResponseInstructionsUnion) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, r)
 }
 
-// Model ID used to generate the response, like `gpt-4o` or `o3`. OpenAI offers a
-// wide range of models with different capabilities, performance characteristics,
-// and price points. Refer to the
+// Model ID used to generate the response, like `gpt-5.6-sol`. OpenAI offers a wide
+// range of models with different capabilities, performance characteristics, and
+// price points. Refer to the
 // [model guide](https://platform.openai.com/docs/models) to browse and compare
 // available models.
 type BetaResponseModel string
@@ -4368,6 +4693,8 @@ const (
 	BetaResponseModelGPT5_6Sol                        BetaResponseModel = "gpt-5.6-sol"
 	BetaResponseModelGPT5_6Terra                      BetaResponseModel = "gpt-5.6-terra"
 	BetaResponseModelGPT5_6Luna                       BetaResponseModel = "gpt-5.6-luna"
+	BetaResponseModelGPT5_5                           BetaResponseModel = "gpt-5.5"
+	BetaResponseModelGPT5_5_2026_04_23                BetaResponseModel = "gpt-5.5-2026-04-23"
 	BetaResponseModelGPT5_4                           BetaResponseModel = "gpt-5.4"
 	BetaResponseModelGPT5_4Mini                       BetaResponseModel = "gpt-5.4-mini"
 	BetaResponseModelGPT5_4Nano                       BetaResponseModel = "gpt-5.4-nano"
@@ -4456,10 +4783,15 @@ const (
 	BetaResponseModelO4MiniDeepResearch2025_06_26     BetaResponseModel = "o4-mini-deep-research-2025-06-26"
 	BetaResponseModelComputerUsePreview               BetaResponseModel = "computer-use-preview"
 	BetaResponseModelComputerUsePreview2025_03_11     BetaResponseModel = "computer-use-preview-2025-03-11"
+	BetaResponseModelGPT5_5Pro                        BetaResponseModel = "gpt-5.5-pro"
+	BetaResponseModelGPT5_5Pro2026_04_23              BetaResponseModel = "gpt-5.5-pro-2026-04-23"
 	BetaResponseModelGPT5Codex                        BetaResponseModel = "gpt-5-codex"
 	BetaResponseModelGPT5Pro                          BetaResponseModel = "gpt-5-pro"
 	BetaResponseModelGPT5Pro2025_10_06                BetaResponseModel = "gpt-5-pro-2025-10-06"
 	BetaResponseModelGPT5_1CodexMax                   BetaResponseModel = "gpt-5.1-codex-max"
+	BetaResponseModelGPTDaybreakBlueLatest            BetaResponseModel = "gpt-daybreak-blue-latest"
+	BetaResponseModelGPTDaybreakRedLatest             BetaResponseModel = "gpt-daybreak-red-latest"
+	BetaResponseModelGPT5_6Cyber                      BetaResponseModel = "gpt-5.6-cyber"
 )
 
 // BetaResponseToolChoiceUnion contains all possible properties and values from
@@ -4496,47 +4828,47 @@ type BetaResponseToolChoiceUnion struct {
 }
 
 func (u BetaResponseToolChoiceUnion) AsToolChoiceMode() (v BetaToolChoiceOptions) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseToolChoiceUnion) AsAllowedTools() (v BetaToolChoiceAllowed) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseToolChoiceUnion) AsHostedTool() (v BetaToolChoiceTypes) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseToolChoiceUnion) AsFunctionTool() (v BetaToolChoiceFunction) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseToolChoiceUnion) AsMcpTool() (v BetaToolChoiceMcp) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseToolChoiceUnion) AsCustomTool() (v BetaToolChoiceCustom) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseToolChoiceUnion) AsBetaResponseToolChoiceBetaSpecificProgrammaticToolCallingParam() (v BetaResponseToolChoiceBetaSpecificProgrammaticToolCallingParam) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseToolChoiceUnion) AsSpecificApplyPatchToolChoice() (v BetaToolChoiceApplyPatch) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseToolChoiceUnion) AsSpecificShellToolChoice() (v BetaToolChoiceShell) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -4674,12 +5006,12 @@ func (u BetaResponseModerationInputUnion) AsAny() anyBetaResponseModerationInput
 }
 
 func (u BetaResponseModerationInputUnion) AsModerationResult() (v BetaResponseModerationInputModerationResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseModerationInputUnion) AsError() (v BetaResponseModerationInputError) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -4816,12 +5148,12 @@ func (u BetaResponseModerationOutputUnion) AsAny() anyBetaResponseModerationOutp
 }
 
 func (u BetaResponseModerationOutputUnion) AsModerationResult() (v BetaResponseModerationOutputModerationResult) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseModerationOutputUnion) AsError() (v BetaResponseModerationOutputError) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -4941,8 +5273,6 @@ const (
 	BetaResponsePromptCacheRetention24h      BetaResponsePromptCacheRetention = "24h"
 )
 
-// **gpt-5 and o-series models only**
-//
 // Configuration options for
 // [reasoning models](https://platform.openai.com/docs/guides/reasoning).
 type BetaResponseReasoning struct {
@@ -5012,9 +5342,17 @@ func (r *BetaResponseReasoning) UnmarshalJSON(data []byte) error {
 //     will use 'default'.
 //   - If set to 'default', then the request will be processed with the standard
 //     pricing and performance for the selected model.
-//   - If set to '[flex](https://platform.openai.com/docs/guides/flex-processing)' or
-//     '[priority](https://openai.com/api-priority-processing/)', then the request
-//     will be processed with the corresponding service tier.
+//   - If set to '[flex](https://platform.openai.com/docs/guides/flex-processing)',
+//     then the request will be processed with the Flex Processing service tier.
+//   - To opt-in to [Fast mode](/api/docs/guides/fast-mode) at the request level,
+//     include the `service_tier=fast` or `service_tier=priority` parameter for
+//     Responses or Chat Completions. The response will show `service_tier=priority`
+//     regardless of if you specify `service_tier=fast` or `priority` in your
+//     request.
+//   - If set to 'ultrafast', then the request will be processed with the
+//     access-controlled Ultrafast Processing service tier. This tier is currently
+//     available for `gpt-5.6-sol`; a response served through it will show
+//     `service_tier=ultrafast`.
 //   - When not set, the default behavior is 'auto'.
 //
 // When the `service_tier` parameter is set, the response body will include the
@@ -5024,11 +5362,13 @@ func (r *BetaResponseReasoning) UnmarshalJSON(data []byte) error {
 type BetaResponseServiceTier string
 
 const (
-	BetaResponseServiceTierAuto     BetaResponseServiceTier = "auto"
-	BetaResponseServiceTierDefault  BetaResponseServiceTier = "default"
-	BetaResponseServiceTierFlex     BetaResponseServiceTier = "flex"
-	BetaResponseServiceTierScale    BetaResponseServiceTier = "scale"
-	BetaResponseServiceTierPriority BetaResponseServiceTier = "priority"
+	BetaResponseServiceTierAuto      BetaResponseServiceTier = "auto"
+	BetaResponseServiceTierDefault   BetaResponseServiceTier = "default"
+	BetaResponseServiceTierFlex      BetaResponseServiceTier = "flex"
+	BetaResponseServiceTierScale     BetaResponseServiceTier = "scale"
+	BetaResponseServiceTierPriority  BetaResponseServiceTier = "priority"
+	BetaResponseServiceTierFast      BetaResponseServiceTier = "fast"
+	BetaResponseServiceTierUltrafast BetaResponseServiceTier = "ultrafast"
 )
 
 // The truncation strategy to use for the model response.
@@ -5146,17 +5486,17 @@ func (u BetaResponseApplyPatchToolCallOperationUnion) AsAny() anyBetaResponseApp
 }
 
 func (u BetaResponseApplyPatchToolCallOperationUnion) AsCreateFile() (v BetaResponseApplyPatchToolCallOperationCreateFile) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseApplyPatchToolCallOperationUnion) AsDeleteFile() (v BetaResponseApplyPatchToolCallOperationDeleteFile) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseApplyPatchToolCallOperationUnion) AsUpdateFile() (v BetaResponseApplyPatchToolCallOperationUpdateFile) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -5311,12 +5651,12 @@ func (u BetaResponseApplyPatchToolCallCallerUnion) AsAny() anyBetaResponseApplyP
 }
 
 func (u BetaResponseApplyPatchToolCallCallerUnion) AsDirect() (v BetaResponseApplyPatchToolCallCallerDirect) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseApplyPatchToolCallCallerUnion) AsProgram() (v BetaResponseApplyPatchToolCallCallerProgram) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -5481,12 +5821,12 @@ func (u BetaResponseApplyPatchToolCallOutputCallerUnion) AsAny() anyBetaResponse
 }
 
 func (u BetaResponseApplyPatchToolCallOutputCallerUnion) AsDirect() (v BetaResponseApplyPatchToolCallOutputCallerDirect) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseApplyPatchToolCallOutputCallerUnion) AsProgram() (v BetaResponseApplyPatchToolCallOutputCallerProgram) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -6060,12 +6400,12 @@ func (u BetaResponseCodeInterpreterToolCallOutputUnion) AsAny() anyBetaResponseC
 }
 
 func (u BetaResponseCodeInterpreterToolCallOutputUnion) AsLogs() (v BetaResponseCodeInterpreterToolCallOutputLogs) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseCodeInterpreterToolCallOutputUnion) AsImage() (v BetaResponseCodeInterpreterToolCallOutputImage) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -6198,15 +6538,6 @@ func (u BetaResponseCodeInterpreterToolCallOutputUnionParam) MarshalJSON() ([]by
 }
 func (u *BetaResponseCodeInterpreterToolCallOutputUnionParam) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, u)
-}
-
-func (u *BetaResponseCodeInterpreterToolCallOutputUnionParam) asAny() any {
-	if !param.IsOmitted(u.OfLogs) {
-		return u.OfLogs
-	} else if !param.IsOmitted(u.OfImage) {
-		return u.OfImage
-	}
-	return nil
 }
 
 // Returns a pointer to the underlying variant's property, if present.
@@ -6963,17 +7294,17 @@ func (u BetaResponseContentPartAddedEventPartUnion) AsAny() anyBetaResponseConte
 }
 
 func (u BetaResponseContentPartAddedEventPartUnion) AsOutputText() (v BetaResponseOutputText) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseContentPartAddedEventPartUnion) AsRefusal() (v BetaResponseOutputRefusal) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseContentPartAddedEventPartUnion) AsReasoningText() (v BetaResponseContentPartAddedEventPartReasoningText) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -7121,17 +7452,17 @@ func (u BetaResponseContentPartDoneEventPartUnion) AsAny() anyBetaResponseConten
 }
 
 func (u BetaResponseContentPartDoneEventPartUnion) AsOutputText() (v BetaResponseOutputText) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseContentPartDoneEventPartUnion) AsRefusal() (v BetaResponseOutputRefusal) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseContentPartDoneEventPartUnion) AsReasoningText() (v BetaResponseContentPartDoneEventPartReasoningText) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -7359,12 +7690,12 @@ func (u BetaResponseCustomToolCallCallerUnion) AsAny() anyBetaResponseCustomTool
 }
 
 func (u BetaResponseCustomToolCallCallerUnion) AsDirect() (v BetaResponseCustomToolCallCallerDirect) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseCustomToolCallCallerUnion) AsProgram() (v BetaResponseCustomToolCallCallerProgram) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -7746,12 +8077,12 @@ type BetaResponseCustomToolCallOutputOutputUnion struct {
 }
 
 func (u BetaResponseCustomToolCallOutputOutputUnion) AsString() (v string) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseCustomToolCallOutputOutputUnion) AsOutputContentList() (v []BetaResponseCustomToolCallOutputOutputOutputContentListItemUnion) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -7839,17 +8170,17 @@ func (u BetaResponseCustomToolCallOutputOutputOutputContentListItemUnion) AsAny(
 }
 
 func (u BetaResponseCustomToolCallOutputOutputOutputContentListItemUnion) AsInputText() (v BetaResponseInputText) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseCustomToolCallOutputOutputOutputContentListItemUnion) AsInputImage() (v BetaResponseInputImage) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseCustomToolCallOutputOutputOutputContentListItemUnion) AsInputFile() (v BetaResponseInputFile) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -7952,12 +8283,12 @@ func (u BetaResponseCustomToolCallOutputCallerUnion) AsAny() anyBetaResponseCust
 }
 
 func (u BetaResponseCustomToolCallOutputCallerUnion) AsDirect() (v BetaResponseCustomToolCallOutputCallerDirect) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseCustomToolCallOutputCallerUnion) AsProgram() (v BetaResponseCustomToolCallOutputCallerProgram) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -8076,17 +8407,6 @@ func (u BetaResponseCustomToolCallOutputOutputOutputContentListItemUnionParam) M
 }
 func (u *BetaResponseCustomToolCallOutputOutputOutputContentListItemUnionParam) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, u)
-}
-
-func (u *BetaResponseCustomToolCallOutputOutputOutputContentListItemUnionParam) asAny() any {
-	if !param.IsOmitted(u.OfInputText) {
-		return u.OfInputText
-	} else if !param.IsOmitted(u.OfInputImage) {
-		return u.OfInputImage
-	} else if !param.IsOmitted(u.OfInputFile) {
-		return u.OfInputFile
-	}
-	return nil
 }
 
 // Returns a pointer to the underlying variant's property, if present.
@@ -8781,17 +9101,17 @@ type BetaResponseFileSearchToolCallResultAttributeUnion struct {
 }
 
 func (u BetaResponseFileSearchToolCallResultAttributeUnion) AsString() (v string) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseFileSearchToolCallResultAttributeUnion) AsFloat() (v float64) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseFileSearchToolCallResultAttributeUnion) AsBool() (v bool) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -8896,17 +9216,6 @@ func (u *BetaResponseFileSearchToolCallResultAttributeUnionParam) UnmarshalJSON(
 	return apijson.UnmarshalRoot(data, u)
 }
 
-func (u *BetaResponseFileSearchToolCallResultAttributeUnionParam) asAny() any {
-	if !param.IsOmitted(u.OfString) {
-		return &u.OfString.Value
-	} else if !param.IsOmitted(u.OfFloat) {
-		return &u.OfFloat.Value
-	} else if !param.IsOmitted(u.OfBool) {
-		return &u.OfBool.Value
-	}
-	return nil
-}
-
 // BetaResponseFormatTextConfigUnion contains all possible properties and values
 // from [BetaResponseFormatTextConfigText],
 // [BetaResponseFormatTextJSONSchemaConfig],
@@ -8970,17 +9279,17 @@ func (u BetaResponseFormatTextConfigUnion) AsAny() anyBetaResponseFormatTextConf
 }
 
 func (u BetaResponseFormatTextConfigUnion) AsText() (v BetaResponseFormatTextConfigText) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseFormatTextConfigUnion) AsJSONSchema() (v BetaResponseFormatTextJSONSchemaConfig) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseFormatTextConfigUnion) AsJSONObject() (v BetaResponseFormatTextConfigJSONObject) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -9061,17 +9370,6 @@ func (u BetaResponseFormatTextConfigUnionParam) MarshalJSON() ([]byte, error) {
 }
 func (u *BetaResponseFormatTextConfigUnionParam) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, u)
-}
-
-func (u *BetaResponseFormatTextConfigUnionParam) asAny() any {
-	if !param.IsOmitted(u.OfText) {
-		return u.OfText
-	} else if !param.IsOmitted(u.OfJSONSchema) {
-		return u.OfJSONSchema
-	} else if !param.IsOmitted(u.OfJSONObject) {
-		return u.OfJSONObject
-	}
-	return nil
 }
 
 // Returns a pointer to the underlying variant's property, if present.
@@ -9440,17 +9738,17 @@ func (u BetaResponseFunctionCallOutputItemUnion) AsAny() anyBetaResponseFunction
 }
 
 func (u BetaResponseFunctionCallOutputItemUnion) AsInputText() (v BetaResponseInputTextContent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseFunctionCallOutputItemUnion) AsInputImage() (v BetaResponseInputImageContent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseFunctionCallOutputItemUnion) AsInputFile() (v BetaResponseInputFileContent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -9512,17 +9810,6 @@ func (u BetaResponseFunctionCallOutputItemUnionParam) MarshalJSON() ([]byte, err
 }
 func (u *BetaResponseFunctionCallOutputItemUnionParam) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, u)
-}
-
-func (u *BetaResponseFunctionCallOutputItemUnionParam) asAny() any {
-	if !param.IsOmitted(u.OfInputText) {
-		return u.OfInputText
-	} else if !param.IsOmitted(u.OfInputImage) {
-		return u.OfInputImage
-	} else if !param.IsOmitted(u.OfInputFile) {
-		return u.OfInputFile
-	}
-	return nil
 }
 
 // Returns a pointer to the underlying variant's property, if present.
@@ -9742,12 +10029,12 @@ func (u BetaResponseFunctionShellCallOutputContentOutcomeUnion) AsAny() anyBetaR
 }
 
 func (u BetaResponseFunctionShellCallOutputContentOutcomeUnion) AsTimeout() (v BetaResponseFunctionShellCallOutputContentOutcomeTimeout) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseFunctionShellCallOutputContentOutcomeUnion) AsExit() (v BetaResponseFunctionShellCallOutputContentOutcomeExit) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -9832,15 +10119,6 @@ func (u BetaResponseFunctionShellCallOutputContentOutcomeUnionParam) MarshalJSON
 }
 func (u *BetaResponseFunctionShellCallOutputContentOutcomeUnionParam) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, u)
-}
-
-func (u *BetaResponseFunctionShellCallOutputContentOutcomeUnionParam) asAny() any {
-	if !param.IsOmitted(u.OfTimeout) {
-		return u.OfTimeout
-	} else if !param.IsOmitted(u.OfExit) {
-		return u.OfExit
-	}
-	return nil
 }
 
 // Returns a pointer to the underlying variant's property, if present.
@@ -10032,12 +10310,12 @@ func (u BetaResponseFunctionShellToolCallEnvironmentUnion) AsAny() anyBetaRespon
 }
 
 func (u BetaResponseFunctionShellToolCallEnvironmentUnion) AsLocal() (v BetaResponseLocalEnvironment) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseFunctionShellToolCallEnvironmentUnion) AsContainerReference() (v BetaResponseContainerReference) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -10127,12 +10405,12 @@ func (u BetaResponseFunctionShellToolCallCallerUnion) AsAny() anyBetaResponseFun
 }
 
 func (u BetaResponseFunctionShellToolCallCallerUnion) AsDirect() (v BetaResponseFunctionShellToolCallCallerDirect) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseFunctionShellToolCallCallerUnion) AsProgram() (v BetaResponseFunctionShellToolCallCallerProgram) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -10307,12 +10585,12 @@ func (u BetaResponseFunctionShellToolCallOutputOutputOutcomeUnion) AsAny() anyBe
 }
 
 func (u BetaResponseFunctionShellToolCallOutputOutputOutcomeUnion) AsTimeout() (v BetaResponseFunctionShellToolCallOutputOutputOutcomeTimeout) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseFunctionShellToolCallOutputOutputOutcomeUnion) AsExit() (v BetaResponseFunctionShellToolCallOutputOutputOutcomeExit) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -10447,12 +10725,12 @@ func (u BetaResponseFunctionShellToolCallOutputCallerUnion) AsAny() anyBetaRespo
 }
 
 func (u BetaResponseFunctionShellToolCallOutputCallerUnion) AsDirect() (v BetaResponseFunctionShellToolCallOutputCallerDirect) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseFunctionShellToolCallOutputCallerUnion) AsProgram() (v BetaResponseFunctionShellToolCallOutputCallerProgram) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -10622,12 +10900,12 @@ func (u BetaResponseFunctionToolCallCallerUnion) AsAny() anyBetaResponseFunction
 }
 
 func (u BetaResponseFunctionToolCallCallerUnion) AsDirect() (v BetaResponseFunctionToolCallCallerDirect) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseFunctionToolCallCallerUnion) AsProgram() (v BetaResponseFunctionToolCallCallerProgram) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -10862,8 +11140,6 @@ func (r *BetaResponseFunctionToolCallItem) UnmarshalJSON(data []byte) error {
 type BetaResponseFunctionToolCallOutputItem struct {
 	// The unique ID of the function call tool output.
 	ID string `json:"id" api:"required"`
-	// The unique ID of the function tool call generated by the model.
-	CallID string `json:"call_id" api:"required"`
 	// The output from the function call generated by your code. Can be a string or an
 	// list of output content.
 	Output BetaResponseFunctionToolCallOutputItemOutputUnion `json:"output" api:"required"`
@@ -10876,20 +11152,28 @@ type BetaResponseFunctionToolCallOutputItem struct {
 	Type constant.FunctionCallOutput `json:"type" default:"function_call_output"`
 	// The agent that produced this item.
 	Agent BetaResponseFunctionToolCallOutputItemAgent `json:"agent" api:"nullable"`
+	// The unique ID of the function tool call generated by the model.
+	CallID string `json:"call_id"`
 	// The execution context that produced this tool call.
 	Caller BetaResponseFunctionToolCallOutputItemCallerUnion `json:"caller" api:"nullable"`
 	// The identifier of the actor that created the item.
 	CreatedBy string `json:"created_by"`
+	// The name of the tool that produced the output.
+	Name string `json:"name"`
+	// The namespace of the tool that produced the output.
+	Namespace string `json:"namespace"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		ID          respjson.Field
-		CallID      respjson.Field
 		Output      respjson.Field
 		Status      respjson.Field
 		Type        respjson.Field
 		Agent       respjson.Field
+		CallID      respjson.Field
 		Caller      respjson.Field
 		CreatedBy   respjson.Field
+		Name        respjson.Field
+		Namespace   respjson.Field
 		ExtraFields map[string]respjson.Field
 		raw         string
 	} `json:"-"`
@@ -10924,12 +11208,12 @@ type BetaResponseFunctionToolCallOutputItemOutputUnion struct {
 }
 
 func (u BetaResponseFunctionToolCallOutputItemOutputUnion) AsString() (v string) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseFunctionToolCallOutputItemOutputUnion) AsOutputContentList() (v []BetaResponseFunctionToolCallOutputItemOutputOutputContentListItemUnion) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -11020,17 +11304,17 @@ func (u BetaResponseFunctionToolCallOutputItemOutputOutputContentListItemUnion) 
 }
 
 func (u BetaResponseFunctionToolCallOutputItemOutputOutputContentListItemUnion) AsInputText() (v BetaResponseInputText) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseFunctionToolCallOutputItemOutputOutputContentListItemUnion) AsInputImage() (v BetaResponseInputImage) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseFunctionToolCallOutputItemOutputOutputContentListItemUnion) AsInputFile() (v BetaResponseInputFile) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -11144,12 +11428,12 @@ func (u BetaResponseFunctionToolCallOutputItemCallerUnion) AsAny() anyBetaRespon
 }
 
 func (u BetaResponseFunctionToolCallOutputItemCallerUnion) AsDirect() (v BetaResponseFunctionToolCallOutputItemCallerDirect) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseFunctionToolCallOutputItemCallerUnion) AsProgram() (v BetaResponseFunctionToolCallOutputItemCallerProgram) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -11307,17 +11591,17 @@ func (u BetaResponseFunctionWebSearchActionUnion) AsAny() anyBetaResponseFunctio
 }
 
 func (u BetaResponseFunctionWebSearchActionUnion) AsSearch() (v BetaResponseFunctionWebSearchActionSearch) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseFunctionWebSearchActionUnion) AsOpenPage() (v BetaResponseFunctionWebSearchActionOpenPage) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseFunctionWebSearchActionUnion) AsFindInPage() (v BetaResponseFunctionWebSearchActionFindInPage) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -11846,6 +12130,14 @@ type BetaResponseImageGenCallPartialImageEvent struct {
 	Type constant.ResponseImageGenerationCallPartialImage `json:"type" default:"response.image_generation_call.partial_image"`
 	// The agent that owns this multi-agent streaming event.
 	Agent BetaResponseImageGenCallPartialImageEventAgent `json:"agent" api:"nullable"`
+	// The background setting that was used.
+	Background string `json:"background"`
+	// The output format that was used.
+	OutputFormat string `json:"output_format"`
+	// The image quality that was used.
+	Quality string `json:"quality"`
+	// The image size that was used.
+	Size string `json:"size"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		ItemID            respjson.Field
@@ -11855,6 +12147,10 @@ type BetaResponseImageGenCallPartialImageEvent struct {
 		SequenceNumber    respjson.Field
 		Type              respjson.Field
 		Agent             respjson.Field
+		Background        respjson.Field
+		OutputFormat      respjson.Field
+		Quality           respjson.Field
+		Size              respjson.Field
 		ExtraFields       map[string]respjson.Field
 		raw               string
 	} `json:"-"`
@@ -12081,17 +12377,17 @@ func (u BetaResponseInputContentUnion) AsAny() anyBetaResponseInputContent {
 }
 
 func (u BetaResponseInputContentUnion) AsInputText() (v BetaResponseInputText) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputContentUnion) AsInputImage() (v BetaResponseInputImage) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputContentUnion) AsInputFile() (v BetaResponseInputFile) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -12159,17 +12455,6 @@ func (u BetaResponseInputContentUnionParam) MarshalJSON() ([]byte, error) {
 }
 func (u *BetaResponseInputContentUnionParam) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, u)
-}
-
-func (u *BetaResponseInputContentUnionParam) asAny() any {
-	if !param.IsOmitted(u.OfInputText) {
-		return u.OfInputText
-	} else if !param.IsOmitted(u.OfInputImage) {
-		return u.OfInputImage
-	} else if !param.IsOmitted(u.OfInputFile) {
-		return u.OfInputFile
-	}
-	return nil
 }
 
 // Returns a pointer to the underlying variant's property, if present.
@@ -13010,10 +13295,11 @@ type BetaResponseInputItemUnion struct {
 	// This field is from variant [BetaResponseInputItemShellCallOutput].
 	MaxOutputLength int64 `json:"max_output_length"`
 	// This field is from variant [BetaResponseInputItemApplyPatchCall].
-	Operation         BetaResponseInputItemApplyPatchCallOperationUnion `json:"operation"`
-	ServerLabel       string                                            `json:"server_label"`
-	Error             string                                            `json:"error"`
-	ApprovalRequestID string                                            `json:"approval_request_id"`
+	Operation   BetaResponseInputItemApplyPatchCallOperationUnion `json:"operation"`
+	ServerLabel string                                            `json:"server_label"`
+	// This field is a union of [string], [BetaMcpToolCallErrorUnion]
+	Error             BetaResponseInputItemUnionError `json:"error"`
+	ApprovalRequestID string                          `json:"approval_request_id"`
 	// This field is from variant [BetaResponseInputItemMcpApprovalResponse].
 	Approve bool `json:"approve"`
 	// This field is from variant [BetaResponseInputItemMcpApprovalResponse].
@@ -13223,177 +13509,177 @@ func (u BetaResponseInputItemUnion) AsAny() anyBetaResponseInputItem {
 }
 
 func (u BetaResponseInputItemUnion) AsMessage() (v BetaEasyInputMessage) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemUnion) AsInputMessage() (v BetaResponseInputItemMessage) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemUnion) AsOutputMessage() (v BetaResponseOutputMessage) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemUnion) AsFileSearchCall() (v BetaResponseFileSearchToolCall) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemUnion) AsComputerCall() (v BetaResponseComputerToolCall) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemUnion) AsComputerCallOutput() (v BetaResponseInputItemComputerCallOutput) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemUnion) AsWebSearchCall() (v BetaResponseFunctionWebSearch) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemUnion) AsFunctionCall() (v BetaResponseFunctionToolCall) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemUnion) AsFunctionCallOutput() (v BetaResponseInputItemFunctionCallOutput) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemUnion) AsAgentMessage() (v BetaResponseInputItemAgentMessage) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemUnion) AsMultiAgentCall() (v BetaResponseInputItemMultiAgentCall) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemUnion) AsMultiAgentCallOutput() (v BetaResponseInputItemMultiAgentCallOutput) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemUnion) AsToolSearchCall() (v BetaResponseInputItemToolSearchCall) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemUnion) AsToolSearchOutput() (v BetaResponseToolSearchOutputItemParamResp) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemUnion) AsAdditionalTools() (v BetaResponseInputItemAdditionalTools) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemUnion) AsReasoning() (v BetaResponseReasoningItem) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemUnion) AsCompaction() (v BetaResponseCompactionItemParamResp) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemUnion) AsImageGenerationCall() (v BetaResponseInputItemImageGenerationCall) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemUnion) AsCodeInterpreterCall() (v BetaResponseCodeInterpreterToolCall) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemUnion) AsLocalShellCall() (v BetaResponseInputItemLocalShellCall) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemUnion) AsLocalShellCallOutput() (v BetaResponseInputItemLocalShellCallOutput) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemUnion) AsShellCall() (v BetaResponseInputItemShellCall) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemUnion) AsShellCallOutput() (v BetaResponseInputItemShellCallOutput) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemUnion) AsApplyPatchCall() (v BetaResponseInputItemApplyPatchCall) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemUnion) AsApplyPatchCallOutput() (v BetaResponseInputItemApplyPatchCallOutput) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemUnion) AsMcpListTools() (v BetaResponseInputItemMcpListTools) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemUnion) AsMcpApprovalRequest() (v BetaResponseInputItemMcpApprovalRequest) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemUnion) AsMcpApprovalResponse() (v BetaResponseInputItemMcpApprovalResponse) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemUnion) AsMcpCall() (v BetaResponseInputItemMcpCall) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemUnion) AsCustomToolCallOutput() (v BetaResponseCustomToolCallOutput) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemUnion) AsCustomToolCall() (v BetaResponseCustomToolCall) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemUnion) AsCompactionTrigger() (v BetaResponseInputItemCompactionTrigger) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemUnion) AsItemReference() (v BetaResponseInputItemItemReference) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemUnion) AsProgram() (v BetaResponseInputItemProgram) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemUnion) AsProgramOutput() (v BetaResponseInputItemProgramOutput) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -13664,6 +13950,37 @@ func (r *BetaResponseInputItemUnionTools) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, r)
 }
 
+// BetaResponseInputItemUnionError is an implicit subunion of
+// [BetaResponseInputItemUnion]. BetaResponseInputItemUnionError provides
+// convenient access to the sub-properties of the union.
+//
+// For type safety it is recommended to directly use a variant of the
+// [BetaResponseInputItemUnion].
+//
+// If the underlying value is not a json object, one of the following properties
+// will be valid: OfString]
+type BetaResponseInputItemUnionError struct {
+	// This field will be present if the value is a [string] instead of an object.
+	OfString string `json:",inline"`
+	Code     int64  `json:"code"`
+	Message  string `json:"message"`
+	Type     string `json:"type"`
+	// This field is from variant [BetaMcpToolCallErrorUnion].
+	Content any `json:"content"`
+	JSON    struct {
+		OfString respjson.Field
+		Code     respjson.Field
+		Message  respjson.Field
+		Type     respjson.Field
+		Content  respjson.Field
+		raw      string
+	} `json:"-"`
+}
+
+func (r *BetaResponseInputItemUnionError) UnmarshalJSON(data []byte) error {
+	return apijson.UnmarshalRoot(data, r)
+}
+
 // ToParam converts this BetaResponseInputItemUnion to a
 // BetaResponseInputItemUnionParam.
 //
@@ -13818,8 +14135,6 @@ func (r *BetaResponseInputItemComputerCallOutputAgent) UnmarshalJSON(data []byte
 
 // The output of a function tool call.
 type BetaResponseInputItemFunctionCallOutput struct {
-	// The unique ID of the function tool call generated by the model.
-	CallID string `json:"call_id" api:"required"`
 	// Text, image, or file output of the function tool call.
 	Output BetaResponseInputItemFunctionCallOutputOutputUnion `json:"output" api:"required"`
 	// The type of the function tool call output. Always `function_call_output`.
@@ -13829,8 +14144,14 @@ type BetaResponseInputItemFunctionCallOutput struct {
 	ID string `json:"id" api:"nullable"`
 	// The agent that produced this item.
 	Agent BetaResponseInputItemFunctionCallOutputAgent `json:"agent" api:"nullable"`
+	// The unique ID of the function tool call generated by the model.
+	CallID string `json:"call_id" api:"nullable"`
 	// The execution context that produced this tool call.
 	Caller BetaResponseInputItemFunctionCallOutputCallerUnion `json:"caller" api:"nullable"`
+	// The name of the tool that produced the output.
+	Name string `json:"name" api:"nullable"`
+	// The namespace of the tool that produced the output.
+	Namespace string `json:"namespace" api:"nullable"`
 	// The status of the item. One of `in_progress`, `completed`, or `incomplete`.
 	// Populated when items are returned via API.
 	//
@@ -13838,12 +14159,14 @@ type BetaResponseInputItemFunctionCallOutput struct {
 	Status string `json:"status" api:"nullable"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
-		CallID      respjson.Field
 		Output      respjson.Field
 		Type        respjson.Field
 		ID          respjson.Field
 		Agent       respjson.Field
+		CallID      respjson.Field
 		Caller      respjson.Field
+		Name        respjson.Field
+		Namespace   respjson.Field
 		Status      respjson.Field
 		ExtraFields map[string]respjson.Field
 		raw         string
@@ -13877,12 +14200,12 @@ type BetaResponseInputItemFunctionCallOutputOutputUnion struct {
 }
 
 func (u BetaResponseInputItemFunctionCallOutputOutputUnion) AsString() (v string) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemFunctionCallOutputOutputUnion) AsBetaResponseFunctionCallOutputItemArray() (v BetaResponseFunctionCallOutputItemList) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -13964,12 +14287,12 @@ func (u BetaResponseInputItemFunctionCallOutputCallerUnion) AsAny() anyBetaRespo
 }
 
 func (u BetaResponseInputItemFunctionCallOutputCallerUnion) AsDirect() (v BetaResponseInputItemFunctionCallOutputCallerDirect) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemFunctionCallOutputCallerUnion) AsProgram() (v BetaResponseInputItemFunctionCallOutputCallerProgram) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -14121,17 +14444,17 @@ func (u BetaResponseInputItemAgentMessageContentUnion) AsAny() anyBetaResponseIn
 }
 
 func (u BetaResponseInputItemAgentMessageContentUnion) AsInputText() (v BetaResponseInputTextContent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemAgentMessageContentUnion) AsInputImage() (v BetaResponseInputImageContent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemAgentMessageContentUnion) AsEncryptedContent() (v BetaResponseInputItemAgentMessageContentEncryptedContent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -14393,17 +14716,17 @@ func (u BetaResponseInputItemMultiAgentCallOutputOutputAnnotationUnion) AsAny() 
 }
 
 func (u BetaResponseInputItemMultiAgentCallOutputOutputAnnotationUnion) AsFileCitation() (v BetaResponseInputItemMultiAgentCallOutputOutputAnnotationFileCitation) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemMultiAgentCallOutputOutputAnnotationUnion) AsURLCitation() (v BetaResponseInputItemMultiAgentCallOutputOutputAnnotationURLCitation) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemMultiAgentCallOutputOutputAnnotationUnion) AsContainerFileCitation() (v BetaResponseInputItemMultiAgentCallOutputOutputAnnotationContainerFileCitation) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -14952,12 +15275,12 @@ func (u BetaResponseInputItemShellCallCallerUnion) AsAny() anyBetaResponseInputI
 }
 
 func (u BetaResponseInputItemShellCallCallerUnion) AsDirect() (v BetaResponseInputItemShellCallCallerDirect) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemShellCallCallerUnion) AsProgram() (v BetaResponseInputItemShellCallCallerProgram) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -15056,12 +15379,12 @@ func (u BetaResponseInputItemShellCallEnvironmentUnion) AsAny() anyBetaResponseI
 }
 
 func (u BetaResponseInputItemShellCallEnvironmentUnion) AsLocal() (v BetaLocalEnvironment) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemShellCallEnvironmentUnion) AsContainerReference() (v BetaContainerReference) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -15185,12 +15508,12 @@ func (u BetaResponseInputItemShellCallOutputCallerUnion) AsAny() anyBetaResponse
 }
 
 func (u BetaResponseInputItemShellCallOutputCallerUnion) AsDirect() (v BetaResponseInputItemShellCallOutputCallerDirect) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemShellCallOutputCallerUnion) AsProgram() (v BetaResponseInputItemShellCallOutputCallerProgram) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -15338,17 +15661,17 @@ func (u BetaResponseInputItemApplyPatchCallOperationUnion) AsAny() anyBetaRespon
 }
 
 func (u BetaResponseInputItemApplyPatchCallOperationUnion) AsCreateFile() (v BetaResponseInputItemApplyPatchCallOperationCreateFile) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemApplyPatchCallOperationUnion) AsDeleteFile() (v BetaResponseInputItemApplyPatchCallOperationDeleteFile) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemApplyPatchCallOperationUnion) AsUpdateFile() (v BetaResponseInputItemApplyPatchCallOperationUpdateFile) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -15497,12 +15820,12 @@ func (u BetaResponseInputItemApplyPatchCallCallerUnion) AsAny() anyBetaResponseI
 }
 
 func (u BetaResponseInputItemApplyPatchCallCallerUnion) AsDirect() (v BetaResponseInputItemApplyPatchCallCallerDirect) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemApplyPatchCallCallerUnion) AsProgram() (v BetaResponseInputItemApplyPatchCallCallerProgram) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -15662,12 +15985,12 @@ func (u BetaResponseInputItemApplyPatchCallOutputCallerUnion) AsAny() anyBetaRes
 }
 
 func (u BetaResponseInputItemApplyPatchCallOutputCallerUnion) AsDirect() (v BetaResponseInputItemApplyPatchCallOutputCallerDirect) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseInputItemApplyPatchCallOutputCallerUnion) AsProgram() (v BetaResponseInputItemApplyPatchCallOutputCallerProgram) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -15914,7 +16237,7 @@ type BetaResponseInputItemMcpCall struct {
 	// corresponding tool call.
 	ApprovalRequestID string `json:"approval_request_id" api:"nullable"`
 	// The error from the tool call, if any.
-	Error string `json:"error" api:"nullable"`
+	Error BetaMcpToolCallErrorUnion `json:"error" api:"nullable"`
 	// The output from the tool call.
 	Output string `json:"output" api:"nullable"`
 	// The status of the tool call. One of `in_progress`, `completed`, `incomplete`,
@@ -16219,9 +16542,8 @@ func BetaResponseInputItemParamOfFunctionCall(arguments string, callID string, n
 
 func BetaResponseInputItemParamOfFunctionCallOutput[
 	T string | BetaResponseFunctionCallOutputItemListParam,
-](callID string, output T) BetaResponseInputItemUnionParam {
+](output T) BetaResponseInputItemUnionParam {
 	var functionCallOutput BetaResponseInputItemFunctionCallOutputParam
-	functionCallOutput.CallID = callID
 	switch v := any(output).(type) {
 	case string:
 		functionCallOutput.Output.OfString = param.NewOpt(v)
@@ -16463,81 +16785,6 @@ func (u BetaResponseInputItemUnionParam) MarshalJSON() ([]byte, error) {
 }
 func (u *BetaResponseInputItemUnionParam) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, u)
-}
-
-func (u *BetaResponseInputItemUnionParam) asAny() any {
-	if !param.IsOmitted(u.OfMessage) {
-		return u.OfMessage
-	} else if !param.IsOmitted(u.OfInputMessage) {
-		return u.OfInputMessage
-	} else if !param.IsOmitted(u.OfOutputMessage) {
-		return u.OfOutputMessage
-	} else if !param.IsOmitted(u.OfFileSearchCall) {
-		return u.OfFileSearchCall
-	} else if !param.IsOmitted(u.OfComputerCall) {
-		return u.OfComputerCall
-	} else if !param.IsOmitted(u.OfComputerCallOutput) {
-		return u.OfComputerCallOutput
-	} else if !param.IsOmitted(u.OfWebSearchCall) {
-		return u.OfWebSearchCall
-	} else if !param.IsOmitted(u.OfFunctionCall) {
-		return u.OfFunctionCall
-	} else if !param.IsOmitted(u.OfFunctionCallOutput) {
-		return u.OfFunctionCallOutput
-	} else if !param.IsOmitted(u.OfAgentMessage) {
-		return u.OfAgentMessage
-	} else if !param.IsOmitted(u.OfMultiAgentCall) {
-		return u.OfMultiAgentCall
-	} else if !param.IsOmitted(u.OfMultiAgentCallOutput) {
-		return u.OfMultiAgentCallOutput
-	} else if !param.IsOmitted(u.OfToolSearchCall) {
-		return u.OfToolSearchCall
-	} else if !param.IsOmitted(u.OfToolSearchOutput) {
-		return u.OfToolSearchOutput
-	} else if !param.IsOmitted(u.OfAdditionalTools) {
-		return u.OfAdditionalTools
-	} else if !param.IsOmitted(u.OfReasoning) {
-		return u.OfReasoning
-	} else if !param.IsOmitted(u.OfCompaction) {
-		return u.OfCompaction
-	} else if !param.IsOmitted(u.OfImageGenerationCall) {
-		return u.OfImageGenerationCall
-	} else if !param.IsOmitted(u.OfCodeInterpreterCall) {
-		return u.OfCodeInterpreterCall
-	} else if !param.IsOmitted(u.OfLocalShellCall) {
-		return u.OfLocalShellCall
-	} else if !param.IsOmitted(u.OfLocalShellCallOutput) {
-		return u.OfLocalShellCallOutput
-	} else if !param.IsOmitted(u.OfShellCall) {
-		return u.OfShellCall
-	} else if !param.IsOmitted(u.OfShellCallOutput) {
-		return u.OfShellCallOutput
-	} else if !param.IsOmitted(u.OfApplyPatchCall) {
-		return u.OfApplyPatchCall
-	} else if !param.IsOmitted(u.OfApplyPatchCallOutput) {
-		return u.OfApplyPatchCallOutput
-	} else if !param.IsOmitted(u.OfMcpListTools) {
-		return u.OfMcpListTools
-	} else if !param.IsOmitted(u.OfMcpApprovalRequest) {
-		return u.OfMcpApprovalRequest
-	} else if !param.IsOmitted(u.OfMcpApprovalResponse) {
-		return u.OfMcpApprovalResponse
-	} else if !param.IsOmitted(u.OfMcpCall) {
-		return u.OfMcpCall
-	} else if !param.IsOmitted(u.OfCustomToolCallOutput) {
-		return u.OfCustomToolCallOutput
-	} else if !param.IsOmitted(u.OfCustomToolCall) {
-		return u.OfCustomToolCall
-	} else if !param.IsOmitted(u.OfCompactionTrigger) {
-		return u.OfCompactionTrigger
-	} else if !param.IsOmitted(u.OfItemReference) {
-		return u.OfItemReference
-	} else if !param.IsOmitted(u.OfProgram) {
-		return u.OfProgram
-	} else if !param.IsOmitted(u.OfProgramOutput) {
-		return u.OfProgramOutput
-	}
-	return nil
 }
 
 // Returns a pointer to the underlying variant's property, if present.
@@ -16902,8 +17149,8 @@ func (u BetaResponseInputItemUnionParam) GetCallID() *string {
 		return (*string)(&vt.CallID)
 	} else if vt := u.OfFunctionCall; vt != nil {
 		return (*string)(&vt.CallID)
-	} else if vt := u.OfFunctionCallOutput; vt != nil {
-		return (*string)(&vt.CallID)
+	} else if vt := u.OfFunctionCallOutput; vt != nil && vt.CallID.Valid() {
+		return &vt.CallID.Value
 	} else if vt := u.OfMultiAgentCall; vt != nil {
 		return (*string)(&vt.CallID)
 	} else if vt := u.OfMultiAgentCallOutput; vt != nil {
@@ -16938,6 +17185,8 @@ func (u BetaResponseInputItemUnionParam) GetCallID() *string {
 func (u BetaResponseInputItemUnionParam) GetName() *string {
 	if vt := u.OfFunctionCall; vt != nil {
 		return (*string)(&vt.Name)
+	} else if vt := u.OfFunctionCallOutput; vt != nil && vt.Name.Valid() {
+		return &vt.Name.Value
 	} else if vt := u.OfMcpApprovalRequest; vt != nil {
 		return (*string)(&vt.Name)
 	} else if vt := u.OfMcpCall; vt != nil {
@@ -16951,6 +17200,8 @@ func (u BetaResponseInputItemUnionParam) GetName() *string {
 // Returns a pointer to the underlying variant's property, if present.
 func (u BetaResponseInputItemUnionParam) GetNamespace() *string {
 	if vt := u.OfFunctionCall; vt != nil && vt.Namespace.Valid() {
+		return &vt.Namespace.Value
+	} else if vt := u.OfFunctionCallOutput; vt != nil && vt.Namespace.Valid() {
 		return &vt.Namespace.Value
 	} else if vt := u.OfCustomToolCall; vt != nil && vt.Namespace.Valid() {
 		return &vt.Namespace.Value
@@ -17006,16 +17257,6 @@ func (u BetaResponseInputItemUnionParam) GetServerLabel() *string {
 		return (*string)(&vt.ServerLabel)
 	} else if vt := u.OfMcpCall; vt != nil {
 		return (*string)(&vt.ServerLabel)
-	}
-	return nil
-}
-
-// Returns a pointer to the underlying variant's property, if present.
-func (u BetaResponseInputItemUnionParam) GetError() *string {
-	if vt := u.OfMcpListTools; vt != nil && vt.Error.Valid() {
-		return &vt.Error.Value
-	} else if vt := u.OfMcpCall; vt != nil && vt.Error.Valid() {
-		return &vt.Error.Value
 	}
 	return nil
 }
@@ -17762,6 +18003,72 @@ type betaResponseInputItemUnionParamTools struct{ any }
 //	}
 func (u betaResponseInputItemUnionParamTools) AsAny() any { return u.any }
 
+// Returns a subunion which exports methods to access subproperties
+//
+// Or use AsAny() to get the underlying value
+func (u BetaResponseInputItemUnionParam) GetError() (res betaResponseInputItemUnionParamError) {
+	if vt := u.OfMcpListTools; vt != nil && vt.Error.Valid() {
+		res.any = &vt.Error.Value
+	} else if vt := u.OfMcpCall; vt != nil {
+		res.any = vt.Error.asAny()
+	}
+	return
+}
+
+// Can have the runtime types [*string],
+// [*BetaMcpToolCallErrorMcpProtocolErrorParam],
+// [*BetaMcpToolCallErrorMcpToolExecutionErrorParam],
+// [*BetaMcpToolCallErrorHTTPErrorParam]
+type betaResponseInputItemUnionParamError struct{ any }
+
+// Use the following switch statement to get the type of the union:
+//
+//	switch u.AsAny().(type) {
+//	case *string:
+//	case *openai.BetaMcpToolCallErrorMcpProtocolErrorParam:
+//	case *openai.BetaMcpToolCallErrorMcpToolExecutionErrorParam:
+//	case *openai.BetaMcpToolCallErrorHTTPErrorParam:
+//	default:
+//	    fmt.Errorf("not present")
+//	}
+func (u betaResponseInputItemUnionParamError) AsAny() any { return u.any }
+
+// Returns a pointer to the underlying variant's property, if present.
+func (u betaResponseInputItemUnionParamError) GetCode() *int64 {
+	switch vt := u.any.(type) {
+	case *BetaMcpToolCallErrorUnionParam:
+		return vt.GetCode()
+	}
+	return nil
+}
+
+// Returns a pointer to the underlying variant's property, if present.
+func (u betaResponseInputItemUnionParamError) GetMessage() *string {
+	switch vt := u.any.(type) {
+	case *BetaMcpToolCallErrorUnionParam:
+		return vt.GetMessage()
+	}
+	return nil
+}
+
+// Returns a pointer to the underlying variant's property, if present.
+func (u betaResponseInputItemUnionParamError) GetType() *string {
+	switch vt := u.any.(type) {
+	case *BetaMcpToolCallErrorUnionParam:
+		return vt.GetType()
+	}
+	return nil
+}
+
+// Returns a pointer to the underlying variant's property, if present.
+func (u betaResponseInputItemUnionParamError) GetContent() *any {
+	switch vt := u.any.(type) {
+	case *BetaMcpToolCallErrorUnionParam:
+		return vt.GetContent()
+	}
+	return nil
+}
+
 func init() {
 	apijson.RegisterUnion[BetaResponseInputItemUnionParam](
 		"type",
@@ -17949,15 +18256,19 @@ func (r *BetaResponseInputItemComputerCallOutputAgentParam) UnmarshalJSON(data [
 
 // The output of a function tool call.
 //
-// The properties CallID, Output, Type are required.
+// The properties Output, Type are required.
 type BetaResponseInputItemFunctionCallOutputParam struct {
-	// The unique ID of the function tool call generated by the model.
-	CallID string `json:"call_id" api:"required"`
 	// Text, image, or file output of the function tool call.
 	Output BetaResponseInputItemFunctionCallOutputOutputUnionParam `json:"output,omitzero" api:"required"`
 	// The unique ID of the function tool call output. Populated when this item is
 	// returned via API.
 	ID param.Opt[string] `json:"id,omitzero"`
+	// The unique ID of the function tool call generated by the model.
+	CallID param.Opt[string] `json:"call_id,omitzero"`
+	// The name of the tool that produced the output.
+	Name param.Opt[string] `json:"name,omitzero"`
+	// The namespace of the tool that produced the output.
+	Namespace param.Opt[string] `json:"namespace,omitzero"`
 	// The agent that produced this item.
 	Agent BetaResponseInputItemFunctionCallOutputAgentParam `json:"agent,omitzero"`
 	// The execution context that produced this tool call.
@@ -18167,17 +18478,6 @@ func (u BetaResponseInputItemAgentMessageContentUnionParam) MarshalJSON() ([]byt
 }
 func (u *BetaResponseInputItemAgentMessageContentUnionParam) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, u)
-}
-
-func (u *BetaResponseInputItemAgentMessageContentUnionParam) asAny() any {
-	if !param.IsOmitted(u.OfInputText) {
-		return u.OfInputText
-	} else if !param.IsOmitted(u.OfInputImage) {
-		return u.OfInputImage
-	} else if !param.IsOmitted(u.OfEncryptedContent) {
-		return u.OfEncryptedContent
-	}
-	return nil
 }
 
 // Returns a pointer to the underlying variant's property, if present.
@@ -18447,17 +18747,6 @@ func (u BetaResponseInputItemMultiAgentCallOutputOutputAnnotationUnionParam) Mar
 }
 func (u *BetaResponseInputItemMultiAgentCallOutputOutputAnnotationUnionParam) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, u)
-}
-
-func (u *BetaResponseInputItemMultiAgentCallOutputOutputAnnotationUnionParam) asAny() any {
-	if !param.IsOmitted(u.OfFileCitation) {
-		return u.OfFileCitation
-	} else if !param.IsOmitted(u.OfURLCitation) {
-		return u.OfURLCitation
-	} else if !param.IsOmitted(u.OfContainerFileCitation) {
-		return u.OfContainerFileCitation
-	}
-	return nil
 }
 
 // Returns a pointer to the underlying variant's property, if present.
@@ -19129,15 +19418,6 @@ func (u *BetaResponseInputItemShellCallEnvironmentUnionParam) UnmarshalJSON(data
 	return apijson.UnmarshalRoot(data, u)
 }
 
-func (u *BetaResponseInputItemShellCallEnvironmentUnionParam) asAny() any {
-	if !param.IsOmitted(u.OfLocal) {
-		return u.OfLocal
-	} else if !param.IsOmitted(u.OfContainerReference) {
-		return u.OfContainerReference
-	}
-	return nil
-}
-
 // Returns a pointer to the underlying variant's property, if present.
 func (u BetaResponseInputItemShellCallEnvironmentUnionParam) GetSkills() []BetaLocalSkillParam {
 	if vt := u.OfLocal; vt != nil {
@@ -19383,17 +19663,6 @@ func (u BetaResponseInputItemApplyPatchCallOperationUnionParam) MarshalJSON() ([
 }
 func (u *BetaResponseInputItemApplyPatchCallOperationUnionParam) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, u)
-}
-
-func (u *BetaResponseInputItemApplyPatchCallOperationUnionParam) asAny() any {
-	if !param.IsOmitted(u.OfCreateFile) {
-		return u.OfCreateFile
-	} else if !param.IsOmitted(u.OfDeleteFile) {
-		return u.OfDeleteFile
-	} else if !param.IsOmitted(u.OfUpdateFile) {
-		return u.OfUpdateFile
-	}
-	return nil
 }
 
 // Returns a pointer to the underlying variant's property, if present.
@@ -19945,12 +20214,12 @@ type BetaResponseInputItemMcpCallParam struct {
 	// a subsequent `mcp_approval_response` input to approve or reject the
 	// corresponding tool call.
 	ApprovalRequestID param.Opt[string] `json:"approval_request_id,omitzero"`
-	// The error from the tool call, if any.
-	Error param.Opt[string] `json:"error,omitzero"`
 	// The output from the tool call.
 	Output param.Opt[string] `json:"output,omitzero"`
 	// The agent that produced this item.
 	Agent BetaResponseInputItemMcpCallAgentParam `json:"agent,omitzero"`
+	// The error from the tool call, if any.
+	Error BetaMcpToolCallErrorUnionParam `json:"error,omitzero"`
 	// The status of the tool call. One of `in_progress`, `completed`, `incomplete`,
 	// `calling`, or `failed`.
 	//
@@ -20592,10 +20861,11 @@ type BetaResponseItemUnion struct {
 	// This field is from variant [BetaResponseFunctionShellToolCallOutput].
 	MaxOutputLength int64 `json:"max_output_length"`
 	// This field is from variant [BetaResponseApplyPatchToolCall].
-	Operation         BetaResponseApplyPatchToolCallOperationUnion `json:"operation"`
-	ServerLabel       string                                       `json:"server_label"`
-	Error             string                                       `json:"error"`
-	ApprovalRequestID string                                       `json:"approval_request_id"`
+	Operation   BetaResponseApplyPatchToolCallOperationUnion `json:"operation"`
+	ServerLabel string                                       `json:"server_label"`
+	// This field is a union of [string], [BetaMcpToolCallErrorUnion]
+	Error             BetaResponseItemUnionError `json:"error"`
+	ApprovalRequestID string                     `json:"approval_request_id"`
 	// This field is from variant [BetaResponseItemMcpApprovalResponse].
 	Approve bool `json:"approve"`
 	// This field is from variant [BetaResponseItemMcpApprovalResponse].
@@ -20793,162 +21063,162 @@ func (u BetaResponseItemUnion) AsAny() anyBetaResponseItem {
 }
 
 func (u BetaResponseItemUnion) AsMessage() (v BetaResponseInputMessageItem) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseItemUnion) AsOutputMessage() (v BetaResponseOutputMessage) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseItemUnion) AsFileSearchCall() (v BetaResponseFileSearchToolCall) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseItemUnion) AsComputerCall() (v BetaResponseComputerToolCall) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseItemUnion) AsComputerCallOutput() (v BetaResponseComputerToolCallOutputItem) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseItemUnion) AsWebSearchCall() (v BetaResponseFunctionWebSearch) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseItemUnion) AsFunctionCall() (v BetaResponseFunctionToolCallItem) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseItemUnion) AsFunctionCallOutput() (v BetaResponseFunctionToolCallOutputItem) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseItemUnion) AsAgentMessage() (v BetaResponseItemAgentMessage) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseItemUnion) AsMultiAgentCall() (v BetaResponseItemMultiAgentCall) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseItemUnion) AsMultiAgentCallOutput() (v BetaResponseItemMultiAgentCallOutput) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseItemUnion) AsToolSearchCall() (v BetaResponseToolSearchCall) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseItemUnion) AsToolSearchOutput() (v BetaResponseToolSearchOutputItem) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseItemUnion) AsAdditionalTools() (v BetaResponseItemAdditionalTools) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseItemUnion) AsReasoning() (v BetaResponseReasoningItem) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseItemUnion) AsProgram() (v BetaResponseItemProgram) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseItemUnion) AsProgramOutput() (v BetaResponseItemProgramOutput) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseItemUnion) AsCompaction() (v BetaResponseCompactionItem) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseItemUnion) AsImageGenerationCall() (v BetaResponseItemImageGenerationCall) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseItemUnion) AsCodeInterpreterCall() (v BetaResponseCodeInterpreterToolCall) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseItemUnion) AsLocalShellCall() (v BetaResponseItemLocalShellCall) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseItemUnion) AsLocalShellCallOutput() (v BetaResponseItemLocalShellCallOutput) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseItemUnion) AsShellCall() (v BetaResponseFunctionShellToolCall) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseItemUnion) AsShellCallOutput() (v BetaResponseFunctionShellToolCallOutput) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseItemUnion) AsApplyPatchCall() (v BetaResponseApplyPatchToolCall) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseItemUnion) AsApplyPatchCallOutput() (v BetaResponseApplyPatchToolCallOutput) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseItemUnion) AsMcpListTools() (v BetaResponseItemMcpListTools) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseItemUnion) AsMcpApprovalRequest() (v BetaResponseItemMcpApprovalRequest) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseItemUnion) AsMcpApprovalResponse() (v BetaResponseItemMcpApprovalResponse) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseItemUnion) AsMcpCall() (v BetaResponseItemMcpCall) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseItemUnion) AsCustomToolCall() (v BetaResponseCustomToolCallItem) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseItemUnion) AsCustomToolCallOutput() (v BetaResponseCustomToolCallOutputItem) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -21210,6 +21480,37 @@ func (r *BetaResponseItemUnionTools) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, r)
 }
 
+// BetaResponseItemUnionError is an implicit subunion of [BetaResponseItemUnion].
+// BetaResponseItemUnionError provides convenient access to the sub-properties of
+// the union.
+//
+// For type safety it is recommended to directly use a variant of the
+// [BetaResponseItemUnion].
+//
+// If the underlying value is not a json object, one of the following properties
+// will be valid: OfString]
+type BetaResponseItemUnionError struct {
+	// This field will be present if the value is a [string] instead of an object.
+	OfString string `json:",inline"`
+	Code     int64  `json:"code"`
+	Message  string `json:"message"`
+	Type     string `json:"type"`
+	// This field is from variant [BetaMcpToolCallErrorUnion].
+	Content any `json:"content"`
+	JSON    struct {
+		OfString respjson.Field
+		Code     respjson.Field
+		Message  respjson.Field
+		Type     respjson.Field
+		Content  respjson.Field
+		raw      string
+	} `json:"-"`
+}
+
+func (r *BetaResponseItemUnionError) UnmarshalJSON(data []byte) error {
+	return apijson.UnmarshalRoot(data, r)
+}
+
 type BetaResponseItemAgentMessage struct {
 	// The unique ID of the agent message.
 	ID string `json:"id" api:"required"`
@@ -21367,52 +21668,52 @@ func (u BetaResponseItemAgentMessageContentUnion) AsAny() anyBetaResponseItemAge
 }
 
 func (u BetaResponseItemAgentMessageContentUnion) AsInputText() (v BetaResponseInputText) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseItemAgentMessageContentUnion) AsOutputText() (v BetaResponseOutputText) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseItemAgentMessageContentUnion) AsText() (v BetaResponseItemAgentMessageContentText) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseItemAgentMessageContentUnion) AsSummaryText() (v BetaResponseItemAgentMessageContentSummaryText) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseItemAgentMessageContentUnion) AsReasoningText() (v BetaResponseItemAgentMessageContentReasoningText) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseItemAgentMessageContentUnion) AsRefusal() (v BetaResponseOutputRefusal) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseItemAgentMessageContentUnion) AsInputImage() (v BetaResponseInputImage) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseItemAgentMessageContentUnion) AsComputerScreenshot() (v BetaResponseItemAgentMessageContentComputerScreenshot) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseItemAgentMessageContentUnion) AsInputFile() (v BetaResponseInputFile) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseItemAgentMessageContentUnion) AsEncryptedContent() (v BetaResponseItemAgentMessageContentEncryptedContent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -22245,7 +22546,7 @@ type BetaResponseItemMcpCall struct {
 	// corresponding tool call.
 	ApprovalRequestID string `json:"approval_request_id" api:"nullable"`
 	// The error from the tool call, if any.
-	Error string `json:"error" api:"nullable"`
+	Error BetaMcpToolCallErrorUnion `json:"error" api:"nullable"`
 	// The output from the tool call.
 	Output string `json:"output" api:"nullable"`
 	// The status of the tool call. One of `in_progress`, `completed`, `incomplete`,
@@ -22834,7 +23135,8 @@ type BetaResponseOutputItemUnion struct {
 	Operation         BetaResponseApplyPatchToolCallOperationUnion `json:"operation"`
 	ServerLabel       string                                       `json:"server_label"`
 	ApprovalRequestID string                                       `json:"approval_request_id"`
-	Error             string                                       `json:"error"`
+	// This field is a union of [BetaMcpToolCallErrorUnion], [string]
+	Error BetaResponseOutputItemUnionError `json:"error"`
 	// This field is from variant [BetaResponseOutputItemMcpApprovalResponse].
 	Approve bool `json:"approve"`
 	// This field is from variant [BetaResponseOutputItemMcpApprovalResponse].
@@ -23031,157 +23333,157 @@ func (u BetaResponseOutputItemUnion) AsAny() anyBetaResponseOutputItem {
 }
 
 func (u BetaResponseOutputItemUnion) AsMessage() (v BetaResponseOutputMessage) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputItemUnion) AsFileSearchCall() (v BetaResponseFileSearchToolCall) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputItemUnion) AsFunctionCall() (v BetaResponseFunctionToolCall) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputItemUnion) AsFunctionCallOutput() (v BetaResponseFunctionToolCallOutputItem) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputItemUnion) AsAgentMessage() (v BetaResponseOutputItemAgentMessage) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputItemUnion) AsMultiAgentCall() (v BetaResponseOutputItemMultiAgentCall) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputItemUnion) AsMultiAgentCallOutput() (v BetaResponseOutputItemMultiAgentCallOutput) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputItemUnion) AsWebSearchCall() (v BetaResponseFunctionWebSearch) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputItemUnion) AsComputerCall() (v BetaResponseComputerToolCall) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputItemUnion) AsComputerCallOutput() (v BetaResponseComputerToolCallOutputItem) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputItemUnion) AsReasoning() (v BetaResponseReasoningItem) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputItemUnion) AsProgram() (v BetaResponseOutputItemProgram) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputItemUnion) AsProgramOutput() (v BetaResponseOutputItemProgramOutput) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputItemUnion) AsToolSearchCall() (v BetaResponseToolSearchCall) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputItemUnion) AsToolSearchOutput() (v BetaResponseToolSearchOutputItem) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputItemUnion) AsAdditionalTools() (v BetaResponseOutputItemAdditionalTools) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputItemUnion) AsCompaction() (v BetaResponseCompactionItem) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputItemUnion) AsImageGenerationCall() (v BetaResponseOutputItemImageGenerationCall) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputItemUnion) AsCodeInterpreterCall() (v BetaResponseCodeInterpreterToolCall) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputItemUnion) AsLocalShellCall() (v BetaResponseOutputItemLocalShellCall) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputItemUnion) AsLocalShellCallOutput() (v BetaResponseOutputItemLocalShellCallOutput) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputItemUnion) AsShellCall() (v BetaResponseFunctionShellToolCall) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputItemUnion) AsShellCallOutput() (v BetaResponseFunctionShellToolCallOutput) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputItemUnion) AsApplyPatchCall() (v BetaResponseApplyPatchToolCall) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputItemUnion) AsApplyPatchCallOutput() (v BetaResponseApplyPatchToolCallOutput) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputItemUnion) AsMcpCall() (v BetaResponseOutputItemMcpCall) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputItemUnion) AsMcpListTools() (v BetaResponseOutputItemMcpListTools) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputItemUnion) AsMcpApprovalRequest() (v BetaResponseOutputItemMcpApprovalRequest) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputItemUnion) AsMcpApprovalResponse() (v BetaResponseOutputItemMcpApprovalResponse) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputItemUnion) AsCustomToolCall() (v BetaResponseCustomToolCall) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputItemUnion) AsCustomToolCallOutput() (v BetaResponseCustomToolCallOutputItem) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -23439,6 +23741,37 @@ func (r *BetaResponseOutputItemUnionTools) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, r)
 }
 
+// BetaResponseOutputItemUnionError is an implicit subunion of
+// [BetaResponseOutputItemUnion]. BetaResponseOutputItemUnionError provides
+// convenient access to the sub-properties of the union.
+//
+// For type safety it is recommended to directly use a variant of the
+// [BetaResponseOutputItemUnion].
+//
+// If the underlying value is not a json object, one of the following properties
+// will be valid: OfString]
+type BetaResponseOutputItemUnionError struct {
+	// This field will be present if the value is a [string] instead of an object.
+	OfString string `json:",inline"`
+	Code     int64  `json:"code"`
+	Message  string `json:"message"`
+	Type     string `json:"type"`
+	// This field is from variant [BetaMcpToolCallErrorUnion].
+	Content any `json:"content"`
+	JSON    struct {
+		OfString respjson.Field
+		Code     respjson.Field
+		Message  respjson.Field
+		Type     respjson.Field
+		Content  respjson.Field
+		raw      string
+	} `json:"-"`
+}
+
+func (r *BetaResponseOutputItemUnionError) UnmarshalJSON(data []byte) error {
+	return apijson.UnmarshalRoot(data, r)
+}
+
 type BetaResponseOutputItemAgentMessage struct {
 	// The unique ID of the agent message.
 	ID string `json:"id" api:"required"`
@@ -23598,52 +23931,52 @@ func (u BetaResponseOutputItemAgentMessageContentUnion) AsAny() anyBetaResponseO
 }
 
 func (u BetaResponseOutputItemAgentMessageContentUnion) AsInputText() (v BetaResponseInputText) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputItemAgentMessageContentUnion) AsOutputText() (v BetaResponseOutputText) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputItemAgentMessageContentUnion) AsText() (v BetaResponseOutputItemAgentMessageContentText) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputItemAgentMessageContentUnion) AsSummaryText() (v BetaResponseOutputItemAgentMessageContentSummaryText) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputItemAgentMessageContentUnion) AsReasoningText() (v BetaResponseOutputItemAgentMessageContentReasoningText) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputItemAgentMessageContentUnion) AsRefusal() (v BetaResponseOutputRefusal) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputItemAgentMessageContentUnion) AsInputImage() (v BetaResponseInputImage) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputItemAgentMessageContentUnion) AsComputerScreenshot() (v BetaResponseOutputItemAgentMessageContentComputerScreenshot) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputItemAgentMessageContentUnion) AsInputFile() (v BetaResponseInputFile) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputItemAgentMessageContentUnion) AsEncryptedContent() (v BetaResponseOutputItemAgentMessageContentEncryptedContent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -24300,7 +24633,7 @@ type BetaResponseOutputItemMcpCall struct {
 	// corresponding tool call.
 	ApprovalRequestID string `json:"approval_request_id" api:"nullable"`
 	// The error from the tool call, if any.
-	Error string `json:"error" api:"nullable"`
+	Error BetaMcpToolCallErrorUnion `json:"error" api:"nullable"`
 	// The output from the tool call.
 	Output string `json:"output" api:"nullable"`
 	// The status of the tool call. One of `in_progress`, `completed`, `incomplete`,
@@ -24531,7 +24864,10 @@ func (r *BetaResponseOutputItemMcpApprovalResponseAgent) UnmarshalJSON(data []by
 
 // Emitted when a new output item is added.
 type BetaResponseOutputItemAddedEvent struct {
-	// The output item that was added.
+	// The output item that was added. For reasoning items, `encrypted_content` may be
+	// incomplete while the item is in progress. Use the reasoning item from the
+	// corresponding `response.output_item.done` event when passing it as input to a
+	// subsequent request.
 	Item BetaResponseOutputItemUnion `json:"item" api:"required"`
 	// The index of the output item that was added.
 	OutputIndex int64 `json:"output_index" api:"required"`
@@ -24736,12 +25072,12 @@ func (u BetaResponseOutputMessageContentUnion) AsAny() anyBetaResponseOutputMess
 }
 
 func (u BetaResponseOutputMessageContentUnion) AsOutputText() (v BetaResponseOutputText) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputMessageContentUnion) AsRefusal() (v BetaResponseOutputRefusal) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -24846,15 +25182,6 @@ func (u BetaResponseOutputMessageContentUnionParam) MarshalJSON() ([]byte, error
 }
 func (u *BetaResponseOutputMessageContentUnionParam) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, u)
-}
-
-func (u *BetaResponseOutputMessageContentUnionParam) asAny() any {
-	if !param.IsOmitted(u.OfOutputText) {
-		return u.OfOutputText
-	} else if !param.IsOmitted(u.OfRefusal) {
-		return u.OfRefusal
-	}
-	return nil
 }
 
 // Returns a pointer to the underlying variant's property, if present.
@@ -25088,22 +25415,22 @@ func (u BetaResponseOutputTextAnnotationUnion) AsAny() anyBetaResponseOutputText
 }
 
 func (u BetaResponseOutputTextAnnotationUnion) AsFileCitation() (v BetaResponseOutputTextAnnotationFileCitation) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputTextAnnotationUnion) AsURLCitation() (v BetaResponseOutputTextAnnotationURLCitation) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputTextAnnotationUnion) AsContainerFileCitation() (v BetaResponseOutputTextAnnotationContainerFileCitation) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseOutputTextAnnotationUnion) AsFilePath() (v BetaResponseOutputTextAnnotationFilePath) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -25312,19 +25639,6 @@ func (u BetaResponseOutputTextAnnotationUnionParam) MarshalJSON() ([]byte, error
 }
 func (u *BetaResponseOutputTextAnnotationUnionParam) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, u)
-}
-
-func (u *BetaResponseOutputTextAnnotationUnionParam) asAny() any {
-	if !param.IsOmitted(u.OfFileCitation) {
-		return u.OfFileCitation
-	} else if !param.IsOmitted(u.OfURLCitation) {
-		return u.OfURLCitation
-	} else if !param.IsOmitted(u.OfContainerFileCitation) {
-		return u.OfContainerFileCitation
-	} else if !param.IsOmitted(u.OfFilePath) {
-		return u.OfFilePath
-	}
-	return nil
 }
 
 // Returns a pointer to the underlying variant's property, if present.
@@ -25572,8 +25886,8 @@ func (r *BetaResponseOutputTextLogprobTopLogprobParam) UnmarshalJSON(data []byte
 
 // Emitted when an annotation is added to output text content.
 type BetaResponseOutputTextAnnotationAddedEvent struct {
-	// The annotation object being added. (See annotation schema for details.)
-	Annotation any `json:"annotation" api:"required"`
+	// An annotation that applies to a span of output text.
+	Annotation BetaResponseOutputTextAnnotationAddedEventAnnotationUnion `json:"annotation" api:"required"`
 	// The index of the annotation within the content part.
 	AnnotationIndex int64 `json:"annotation_index" api:"required"`
 	// The index of the content part within the output item.
@@ -25606,6 +25920,240 @@ type BetaResponseOutputTextAnnotationAddedEvent struct {
 // Returns the unmodified JSON received from the API
 func (r BetaResponseOutputTextAnnotationAddedEvent) RawJSON() string { return r.JSON.raw }
 func (r *BetaResponseOutputTextAnnotationAddedEvent) UnmarshalJSON(data []byte) error {
+	return apijson.UnmarshalRoot(data, r)
+}
+
+// BetaResponseOutputTextAnnotationAddedEventAnnotationUnion contains all possible
+// properties and values from
+// [BetaResponseOutputTextAnnotationAddedEventAnnotationFileCitation],
+// [BetaResponseOutputTextAnnotationAddedEventAnnotationURLCitation],
+// [BetaResponseOutputTextAnnotationAddedEventAnnotationContainerFileCitation],
+// [BetaResponseOutputTextAnnotationAddedEventAnnotationFilePath].
+//
+// Use the [BetaResponseOutputTextAnnotationAddedEventAnnotationUnion.AsAny] method
+// to switch on the variant.
+//
+// Use the methods beginning with 'As' to cast the union to one of its variants.
+type BetaResponseOutputTextAnnotationAddedEventAnnotationUnion struct {
+	FileID   string `json:"file_id"`
+	Filename string `json:"filename"`
+	Index    int64  `json:"index"`
+	// Any of "file_citation", "url_citation", "container_file_citation", "file_path".
+	Type       string `json:"type"`
+	EndIndex   int64  `json:"end_index"`
+	StartIndex int64  `json:"start_index"`
+	// This field is from variant
+	// [BetaResponseOutputTextAnnotationAddedEventAnnotationURLCitation].
+	Title string `json:"title"`
+	// This field is from variant
+	// [BetaResponseOutputTextAnnotationAddedEventAnnotationURLCitation].
+	URL string `json:"url"`
+	// This field is from variant
+	// [BetaResponseOutputTextAnnotationAddedEventAnnotationContainerFileCitation].
+	ContainerID string `json:"container_id"`
+	JSON        struct {
+		FileID      respjson.Field
+		Filename    respjson.Field
+		Index       respjson.Field
+		Type        respjson.Field
+		EndIndex    respjson.Field
+		StartIndex  respjson.Field
+		Title       respjson.Field
+		URL         respjson.Field
+		ContainerID respjson.Field
+		raw         string
+	} `json:"-"`
+}
+
+// anyBetaResponseOutputTextAnnotationAddedEventAnnotation is implemented by each
+// variant of [BetaResponseOutputTextAnnotationAddedEventAnnotationUnion] to add
+// type safety for the return type of
+// [BetaResponseOutputTextAnnotationAddedEventAnnotationUnion.AsAny]
+type anyBetaResponseOutputTextAnnotationAddedEventAnnotation interface {
+	implBetaResponseOutputTextAnnotationAddedEventAnnotationUnion()
+}
+
+func (BetaResponseOutputTextAnnotationAddedEventAnnotationFileCitation) implBetaResponseOutputTextAnnotationAddedEventAnnotationUnion() {
+}
+func (BetaResponseOutputTextAnnotationAddedEventAnnotationURLCitation) implBetaResponseOutputTextAnnotationAddedEventAnnotationUnion() {
+}
+func (BetaResponseOutputTextAnnotationAddedEventAnnotationContainerFileCitation) implBetaResponseOutputTextAnnotationAddedEventAnnotationUnion() {
+}
+func (BetaResponseOutputTextAnnotationAddedEventAnnotationFilePath) implBetaResponseOutputTextAnnotationAddedEventAnnotationUnion() {
+}
+
+// Use the following switch statement to find the correct variant
+//
+//	switch variant := BetaResponseOutputTextAnnotationAddedEventAnnotationUnion.AsAny().(type) {
+//	case openai.BetaResponseOutputTextAnnotationAddedEventAnnotationFileCitation:
+//	case openai.BetaResponseOutputTextAnnotationAddedEventAnnotationURLCitation:
+//	case openai.BetaResponseOutputTextAnnotationAddedEventAnnotationContainerFileCitation:
+//	case openai.BetaResponseOutputTextAnnotationAddedEventAnnotationFilePath:
+//	default:
+//	  fmt.Errorf("no variant present")
+//	}
+func (u BetaResponseOutputTextAnnotationAddedEventAnnotationUnion) AsAny() anyBetaResponseOutputTextAnnotationAddedEventAnnotation {
+	switch u.Type {
+	case "file_citation":
+		return u.AsFileCitation()
+	case "url_citation":
+		return u.AsURLCitation()
+	case "container_file_citation":
+		return u.AsContainerFileCitation()
+	case "file_path":
+		return u.AsFilePath()
+	}
+	return nil
+}
+
+func (u BetaResponseOutputTextAnnotationAddedEventAnnotationUnion) AsFileCitation() (v BetaResponseOutputTextAnnotationAddedEventAnnotationFileCitation) {
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	return
+}
+
+func (u BetaResponseOutputTextAnnotationAddedEventAnnotationUnion) AsURLCitation() (v BetaResponseOutputTextAnnotationAddedEventAnnotationURLCitation) {
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	return
+}
+
+func (u BetaResponseOutputTextAnnotationAddedEventAnnotationUnion) AsContainerFileCitation() (v BetaResponseOutputTextAnnotationAddedEventAnnotationContainerFileCitation) {
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	return
+}
+
+func (u BetaResponseOutputTextAnnotationAddedEventAnnotationUnion) AsFilePath() (v BetaResponseOutputTextAnnotationAddedEventAnnotationFilePath) {
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	return
+}
+
+// Returns the unmodified JSON received from the API
+func (u BetaResponseOutputTextAnnotationAddedEventAnnotationUnion) RawJSON() string {
+	return u.JSON.raw
+}
+
+func (r *BetaResponseOutputTextAnnotationAddedEventAnnotationUnion) UnmarshalJSON(data []byte) error {
+	return apijson.UnmarshalRoot(data, r)
+}
+
+// A citation to a file.
+type BetaResponseOutputTextAnnotationAddedEventAnnotationFileCitation struct {
+	// The ID of the file.
+	FileID string `json:"file_id" api:"required"`
+	// The filename of the file cited.
+	Filename string `json:"filename" api:"required"`
+	// The index of the file in the list of files.
+	Index int64 `json:"index" api:"required"`
+	// The type of the file citation. Always `file_citation`.
+	Type constant.FileCitation `json:"type" default:"file_citation"`
+	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
+	JSON struct {
+		FileID      respjson.Field
+		Filename    respjson.Field
+		Index       respjson.Field
+		Type        respjson.Field
+		ExtraFields map[string]respjson.Field
+		raw         string
+	} `json:"-"`
+}
+
+// Returns the unmodified JSON received from the API
+func (r BetaResponseOutputTextAnnotationAddedEventAnnotationFileCitation) RawJSON() string {
+	return r.JSON.raw
+}
+func (r *BetaResponseOutputTextAnnotationAddedEventAnnotationFileCitation) UnmarshalJSON(data []byte) error {
+	return apijson.UnmarshalRoot(data, r)
+}
+
+// A citation for a web resource used to generate a model response.
+type BetaResponseOutputTextAnnotationAddedEventAnnotationURLCitation struct {
+	// The index of the last character of the URL citation in the message.
+	EndIndex int64 `json:"end_index" api:"required"`
+	// The index of the first character of the URL citation in the message.
+	StartIndex int64 `json:"start_index" api:"required"`
+	// The title of the web resource.
+	Title string `json:"title" api:"required"`
+	// The type of the URL citation. Always `url_citation`.
+	Type constant.URLCitation `json:"type" default:"url_citation"`
+	// The URL of the web resource.
+	URL string `json:"url" api:"required" format:"uri"`
+	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
+	JSON struct {
+		EndIndex    respjson.Field
+		StartIndex  respjson.Field
+		Title       respjson.Field
+		Type        respjson.Field
+		URL         respjson.Field
+		ExtraFields map[string]respjson.Field
+		raw         string
+	} `json:"-"`
+}
+
+// Returns the unmodified JSON received from the API
+func (r BetaResponseOutputTextAnnotationAddedEventAnnotationURLCitation) RawJSON() string {
+	return r.JSON.raw
+}
+func (r *BetaResponseOutputTextAnnotationAddedEventAnnotationURLCitation) UnmarshalJSON(data []byte) error {
+	return apijson.UnmarshalRoot(data, r)
+}
+
+// A citation for a container file used to generate a model response.
+type BetaResponseOutputTextAnnotationAddedEventAnnotationContainerFileCitation struct {
+	// The ID of the container file.
+	ContainerID string `json:"container_id" api:"required"`
+	// The index of the last character of the container file citation in the message.
+	EndIndex int64 `json:"end_index" api:"required"`
+	// The ID of the file.
+	FileID string `json:"file_id" api:"required"`
+	// The filename of the container file cited.
+	Filename string `json:"filename" api:"required"`
+	// The index of the first character of the container file citation in the message.
+	StartIndex int64 `json:"start_index" api:"required"`
+	// The type of the container file citation. Always `container_file_citation`.
+	Type constant.ContainerFileCitation `json:"type" default:"container_file_citation"`
+	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
+	JSON struct {
+		ContainerID respjson.Field
+		EndIndex    respjson.Field
+		FileID      respjson.Field
+		Filename    respjson.Field
+		StartIndex  respjson.Field
+		Type        respjson.Field
+		ExtraFields map[string]respjson.Field
+		raw         string
+	} `json:"-"`
+}
+
+// Returns the unmodified JSON received from the API
+func (r BetaResponseOutputTextAnnotationAddedEventAnnotationContainerFileCitation) RawJSON() string {
+	return r.JSON.raw
+}
+func (r *BetaResponseOutputTextAnnotationAddedEventAnnotationContainerFileCitation) UnmarshalJSON(data []byte) error {
+	return apijson.UnmarshalRoot(data, r)
+}
+
+// A path to a file.
+type BetaResponseOutputTextAnnotationAddedEventAnnotationFilePath struct {
+	// The ID of the file.
+	FileID string `json:"file_id" api:"required"`
+	// The index of the file in the list of files.
+	Index int64 `json:"index" api:"required"`
+	// The type of the file path. Always `file_path`.
+	Type constant.FilePath `json:"type" default:"file_path"`
+	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
+	JSON struct {
+		FileID      respjson.Field
+		Index       respjson.Field
+		Type        respjson.Field
+		ExtraFields map[string]respjson.Field
+		raw         string
+	} `json:"-"`
+}
+
+// Returns the unmodified JSON received from the API
+func (r BetaResponseOutputTextAnnotationAddedEventAnnotationFilePath) RawJSON() string {
+	return r.JSON.raw
+}
+func (r *BetaResponseOutputTextAnnotationAddedEventAnnotationFilePath) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, r)
 }
 
@@ -25707,22 +26255,22 @@ type BetaResponsePromptVariableUnion struct {
 }
 
 func (u BetaResponsePromptVariableUnion) AsString() (v string) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponsePromptVariableUnion) AsInputText() (v BetaResponseInputText) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponsePromptVariableUnion) AsInputImage() (v BetaResponseInputImage) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponsePromptVariableUnion) AsInputFile() (v BetaResponseInputFile) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -25793,19 +26341,6 @@ func (u BetaResponsePromptVariableUnionParam) MarshalJSON() ([]byte, error) {
 }
 func (u *BetaResponsePromptVariableUnionParam) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, u)
-}
-
-func (u *BetaResponsePromptVariableUnionParam) asAny() any {
-	if !param.IsOmitted(u.OfString) {
-		return &u.OfString.Value
-	} else if !param.IsOmitted(u.OfInputText) {
-		return u.OfInputText
-	} else if !param.IsOmitted(u.OfInputImage) {
-		return u.OfInputImage
-	} else if !param.IsOmitted(u.OfInputFile) {
-		return u.OfInputFile
-	}
-	return nil
 }
 
 // Returns a pointer to the underlying variant's property, if present.
@@ -25986,6 +26521,11 @@ type BetaResponseReasoningItem struct {
 	// The encrypted content of the reasoning item. This is populated by default for
 	// reasoning items returned by `POST /v1/responses` and WebSocket `response.create`
 	// requests.
+	//
+	// When streaming, use the completed reasoning item and its `encrypted_content`
+	// from the `response.output_item.done` event in subsequent requests. The
+	// `encrypted_content` in `response.output_item.added` may be incomplete. This is
+	// especially important when `store` is `false` or when using Zero Data Retention.
 	EncryptedContent string `json:"encrypted_content" api:"nullable"`
 	// The status of the item. One of `in_progress`, `completed`, or `incomplete`.
 	// Populated when items are returned via API.
@@ -26106,6 +26646,11 @@ type BetaResponseReasoningItemParam struct {
 	// The encrypted content of the reasoning item. This is populated by default for
 	// reasoning items returned by `POST /v1/responses` and WebSocket `response.create`
 	// requests.
+	//
+	// When streaming, use the completed reasoning item and its `encrypted_content`
+	// from the `response.output_item.done` event in subsequent requests. The
+	// `encrypted_content` in `response.output_item.added` may be incomplete. This is
+	// especially important when `store` is `false` or when using Zero Data Retention.
 	EncryptedContent param.Opt[string] `json:"encrypted_content,omitzero"`
 	// The agent that produced this item.
 	Agent BetaResponseReasoningItemAgentParam `json:"agent,omitzero"`
@@ -26678,6 +27223,434 @@ func (r *BetaResponseRefusalDoneEventAgent) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, r)
 }
 
+// A streaming event that indicated a shell command was added to a tool call.
+type BetaResponseShellCallCommandAddedEvent struct {
+	// The shell command that was added.
+	Command string `json:"command" api:"required"`
+	// The index of the shell command that was added.
+	CommandIndex int64 `json:"command_index" api:"required"`
+	// The index of the output item that was updated.
+	OutputIndex int64 `json:"output_index" api:"required"`
+	// The sequence number of the event that was emitted.
+	SequenceNumber int64 `json:"sequence_number" api:"required"`
+	// The type of the event, always `response.shell_call_command.added`.
+	Type constant.ResponseShellCallCommandAdded `json:"type" default:"response.shell_call_command.added"`
+	// The agent that owns this multi-agent streaming event.
+	Agent BetaResponseShellCallCommandAddedEventAgent `json:"agent"`
+	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
+	JSON struct {
+		Command        respjson.Field
+		CommandIndex   respjson.Field
+		OutputIndex    respjson.Field
+		SequenceNumber respjson.Field
+		Type           respjson.Field
+		Agent          respjson.Field
+		ExtraFields    map[string]respjson.Field
+		raw            string
+	} `json:"-"`
+}
+
+// Returns the unmodified JSON received from the API
+func (r BetaResponseShellCallCommandAddedEvent) RawJSON() string { return r.JSON.raw }
+func (r *BetaResponseShellCallCommandAddedEvent) UnmarshalJSON(data []byte) error {
+	return apijson.UnmarshalRoot(data, r)
+}
+
+// The agent that owns this multi-agent streaming event.
+type BetaResponseShellCallCommandAddedEventAgent struct {
+	// The canonical name of the agent that produced this item.
+	AgentName string `json:"agent_name" api:"required"`
+	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
+	JSON struct {
+		AgentName   respjson.Field
+		ExtraFields map[string]respjson.Field
+		raw         string
+	} `json:"-"`
+}
+
+// Returns the unmodified JSON received from the API
+func (r BetaResponseShellCallCommandAddedEventAgent) RawJSON() string { return r.JSON.raw }
+func (r *BetaResponseShellCallCommandAddedEventAgent) UnmarshalJSON(data []byte) error {
+	return apijson.UnmarshalRoot(data, r)
+}
+
+// A streaming event that indicated a shell command was incrementally updated.
+type BetaResponseShellCallCommandDeltaEvent struct {
+	// The index of the shell command that was updated.
+	CommandIndex int64 `json:"command_index" api:"required"`
+	// The shell command delta that was appended.
+	Delta string `json:"delta" api:"required"`
+	// The index of the output item that was updated.
+	OutputIndex int64 `json:"output_index" api:"required"`
+	// The sequence number of the event that was emitted.
+	SequenceNumber int64 `json:"sequence_number" api:"required"`
+	// The type of the event, always `response.shell_call_command.delta`.
+	Type constant.ResponseShellCallCommandDelta `json:"type" default:"response.shell_call_command.delta"`
+	// The agent that owns this multi-agent streaming event.
+	Agent BetaResponseShellCallCommandDeltaEventAgent `json:"agent"`
+	// An obfuscation string that was added to pad the event payload.
+	Obfuscation string `json:"obfuscation"`
+	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
+	JSON struct {
+		CommandIndex   respjson.Field
+		Delta          respjson.Field
+		OutputIndex    respjson.Field
+		SequenceNumber respjson.Field
+		Type           respjson.Field
+		Agent          respjson.Field
+		Obfuscation    respjson.Field
+		ExtraFields    map[string]respjson.Field
+		raw            string
+	} `json:"-"`
+}
+
+// Returns the unmodified JSON received from the API
+func (r BetaResponseShellCallCommandDeltaEvent) RawJSON() string { return r.JSON.raw }
+func (r *BetaResponseShellCallCommandDeltaEvent) UnmarshalJSON(data []byte) error {
+	return apijson.UnmarshalRoot(data, r)
+}
+
+// The agent that owns this multi-agent streaming event.
+type BetaResponseShellCallCommandDeltaEventAgent struct {
+	// The canonical name of the agent that produced this item.
+	AgentName string `json:"agent_name" api:"required"`
+	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
+	JSON struct {
+		AgentName   respjson.Field
+		ExtraFields map[string]respjson.Field
+		raw         string
+	} `json:"-"`
+}
+
+// Returns the unmodified JSON received from the API
+func (r BetaResponseShellCallCommandDeltaEventAgent) RawJSON() string { return r.JSON.raw }
+func (r *BetaResponseShellCallCommandDeltaEventAgent) UnmarshalJSON(data []byte) error {
+	return apijson.UnmarshalRoot(data, r)
+}
+
+// A streaming event that indicated a shell command was completed.
+type BetaResponseShellCallCommandDoneEvent struct {
+	// The final shell command that was emitted.
+	Command string `json:"command" api:"required"`
+	// The index of the shell command that was completed.
+	CommandIndex int64 `json:"command_index" api:"required"`
+	// The index of the output item that was updated.
+	OutputIndex int64 `json:"output_index" api:"required"`
+	// The sequence number of the event that was emitted.
+	SequenceNumber int64 `json:"sequence_number" api:"required"`
+	// The type of the event, always `response.shell_call_command.done`.
+	Type constant.ResponseShellCallCommandDone `json:"type" default:"response.shell_call_command.done"`
+	// The agent that owns this multi-agent streaming event.
+	Agent BetaResponseShellCallCommandDoneEventAgent `json:"agent"`
+	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
+	JSON struct {
+		Command        respjson.Field
+		CommandIndex   respjson.Field
+		OutputIndex    respjson.Field
+		SequenceNumber respjson.Field
+		Type           respjson.Field
+		Agent          respjson.Field
+		ExtraFields    map[string]respjson.Field
+		raw            string
+	} `json:"-"`
+}
+
+// Returns the unmodified JSON received from the API
+func (r BetaResponseShellCallCommandDoneEvent) RawJSON() string { return r.JSON.raw }
+func (r *BetaResponseShellCallCommandDoneEvent) UnmarshalJSON(data []byte) error {
+	return apijson.UnmarshalRoot(data, r)
+}
+
+// The agent that owns this multi-agent streaming event.
+type BetaResponseShellCallCommandDoneEventAgent struct {
+	// The canonical name of the agent that produced this item.
+	AgentName string `json:"agent_name" api:"required"`
+	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
+	JSON struct {
+		AgentName   respjson.Field
+		ExtraFields map[string]respjson.Field
+		raw         string
+	} `json:"-"`
+}
+
+// Returns the unmodified JSON received from the API
+func (r BetaResponseShellCallCommandDoneEventAgent) RawJSON() string { return r.JSON.raw }
+func (r *BetaResponseShellCallCommandDoneEventAgent) UnmarshalJSON(data []byte) error {
+	return apijson.UnmarshalRoot(data, r)
+}
+
+// A streaming event that indicated shell call output was incrementally added.
+type BetaResponseShellCallOutputContentDeltaEvent struct {
+	// The index of the shell command that produced output.
+	CommandIndex int64 `json:"command_index" api:"required"`
+	// The stdout/stderr delta that was emitted.
+	Delta BetaResponseShellCallOutputContentDeltaEventDelta `json:"delta" api:"required"`
+	// The ID of the output item that was updated.
+	ItemID string `json:"item_id" api:"required"`
+	// The index of the output item that was updated.
+	OutputIndex int64 `json:"output_index" api:"required"`
+	// The sequence number of the event that was emitted.
+	SequenceNumber int64 `json:"sequence_number" api:"required"`
+	// The type of the event, always `response.shell_call_output_content.delta`.
+	Type constant.ResponseShellCallOutputContentDelta `json:"type" default:"response.shell_call_output_content.delta"`
+	// The agent that owns this multi-agent streaming event.
+	Agent BetaResponseShellCallOutputContentDeltaEventAgent `json:"agent"`
+	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
+	JSON struct {
+		CommandIndex   respjson.Field
+		Delta          respjson.Field
+		ItemID         respjson.Field
+		OutputIndex    respjson.Field
+		SequenceNumber respjson.Field
+		Type           respjson.Field
+		Agent          respjson.Field
+		ExtraFields    map[string]respjson.Field
+		raw            string
+	} `json:"-"`
+}
+
+// Returns the unmodified JSON received from the API
+func (r BetaResponseShellCallOutputContentDeltaEvent) RawJSON() string { return r.JSON.raw }
+func (r *BetaResponseShellCallOutputContentDeltaEvent) UnmarshalJSON(data []byte) error {
+	return apijson.UnmarshalRoot(data, r)
+}
+
+// The stdout/stderr delta that was emitted.
+type BetaResponseShellCallOutputContentDeltaEventDelta struct {
+	// The stderr delta that was emitted.
+	Stderr string `json:"stderr"`
+	// The stdout delta that was emitted.
+	Stdout string `json:"stdout"`
+	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
+	JSON struct {
+		Stderr      respjson.Field
+		Stdout      respjson.Field
+		ExtraFields map[string]respjson.Field
+		raw         string
+	} `json:"-"`
+}
+
+// Returns the unmodified JSON received from the API
+func (r BetaResponseShellCallOutputContentDeltaEventDelta) RawJSON() string { return r.JSON.raw }
+func (r *BetaResponseShellCallOutputContentDeltaEventDelta) UnmarshalJSON(data []byte) error {
+	return apijson.UnmarshalRoot(data, r)
+}
+
+// The agent that owns this multi-agent streaming event.
+type BetaResponseShellCallOutputContentDeltaEventAgent struct {
+	// The canonical name of the agent that produced this item.
+	AgentName string `json:"agent_name" api:"required"`
+	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
+	JSON struct {
+		AgentName   respjson.Field
+		ExtraFields map[string]respjson.Field
+		raw         string
+	} `json:"-"`
+}
+
+// Returns the unmodified JSON received from the API
+func (r BetaResponseShellCallOutputContentDeltaEventAgent) RawJSON() string { return r.JSON.raw }
+func (r *BetaResponseShellCallOutputContentDeltaEventAgent) UnmarshalJSON(data []byte) error {
+	return apijson.UnmarshalRoot(data, r)
+}
+
+// A streaming event that indicated shell call output was completed.
+type BetaResponseShellCallOutputContentDoneEvent struct {
+	// The index of the shell command that produced output.
+	CommandIndex int64 `json:"command_index" api:"required"`
+	// The ID of the output item that was updated.
+	ItemID string `json:"item_id" api:"required"`
+	// The output contents emitted for the shell command.
+	Output []BetaResponseShellCallOutputContentDoneEventOutput `json:"output" api:"required"`
+	// The index of the output item that was updated.
+	OutputIndex int64 `json:"output_index" api:"required"`
+	// The sequence number of the event that was emitted.
+	SequenceNumber int64 `json:"sequence_number" api:"required"`
+	// The type of the event, always `response.shell_call_output_content.done`.
+	Type constant.ResponseShellCallOutputContentDone `json:"type" default:"response.shell_call_output_content.done"`
+	// The agent that owns this multi-agent streaming event.
+	Agent BetaResponseShellCallOutputContentDoneEventAgent `json:"agent"`
+	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
+	JSON struct {
+		CommandIndex   respjson.Field
+		ItemID         respjson.Field
+		Output         respjson.Field
+		OutputIndex    respjson.Field
+		SequenceNumber respjson.Field
+		Type           respjson.Field
+		Agent          respjson.Field
+		ExtraFields    map[string]respjson.Field
+		raw            string
+	} `json:"-"`
+}
+
+// Returns the unmodified JSON received from the API
+func (r BetaResponseShellCallOutputContentDoneEvent) RawJSON() string { return r.JSON.raw }
+func (r *BetaResponseShellCallOutputContentDoneEvent) UnmarshalJSON(data []byte) error {
+	return apijson.UnmarshalRoot(data, r)
+}
+
+// The content of a shell tool call output that was emitted.
+type BetaResponseShellCallOutputContentDoneEventOutput struct {
+	// Represents either an exit outcome (with an exit code) or a timeout outcome for a
+	// shell call output chunk.
+	Outcome BetaResponseShellCallOutputContentDoneEventOutputOutcomeUnion `json:"outcome" api:"required"`
+	// The standard error output that was captured.
+	Stderr string `json:"stderr" api:"required"`
+	// The standard output that was captured.
+	Stdout string `json:"stdout" api:"required"`
+	// The identifier of the actor that created the item.
+	CreatedBy string `json:"created_by"`
+	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
+	JSON struct {
+		Outcome     respjson.Field
+		Stderr      respjson.Field
+		Stdout      respjson.Field
+		CreatedBy   respjson.Field
+		ExtraFields map[string]respjson.Field
+		raw         string
+	} `json:"-"`
+}
+
+// Returns the unmodified JSON received from the API
+func (r BetaResponseShellCallOutputContentDoneEventOutput) RawJSON() string { return r.JSON.raw }
+func (r *BetaResponseShellCallOutputContentDoneEventOutput) UnmarshalJSON(data []byte) error {
+	return apijson.UnmarshalRoot(data, r)
+}
+
+// BetaResponseShellCallOutputContentDoneEventOutputOutcomeUnion contains all
+// possible properties and values from
+// [BetaResponseShellCallOutputContentDoneEventOutputOutcomeTimeout],
+// [BetaResponseShellCallOutputContentDoneEventOutputOutcomeExit].
+//
+// Use the [BetaResponseShellCallOutputContentDoneEventOutputOutcomeUnion.AsAny]
+// method to switch on the variant.
+//
+// Use the methods beginning with 'As' to cast the union to one of its variants.
+type BetaResponseShellCallOutputContentDoneEventOutputOutcomeUnion struct {
+	// Any of "timeout", "exit".
+	Type string `json:"type"`
+	// This field is from variant
+	// [BetaResponseShellCallOutputContentDoneEventOutputOutcomeExit].
+	ExitCode int64 `json:"exit_code"`
+	JSON     struct {
+		Type     respjson.Field
+		ExitCode respjson.Field
+		raw      string
+	} `json:"-"`
+}
+
+// anyBetaResponseShellCallOutputContentDoneEventOutputOutcome is implemented by
+// each variant of [BetaResponseShellCallOutputContentDoneEventOutputOutcomeUnion]
+// to add type safety for the return type of
+// [BetaResponseShellCallOutputContentDoneEventOutputOutcomeUnion.AsAny]
+type anyBetaResponseShellCallOutputContentDoneEventOutputOutcome interface {
+	implBetaResponseShellCallOutputContentDoneEventOutputOutcomeUnion()
+}
+
+func (BetaResponseShellCallOutputContentDoneEventOutputOutcomeTimeout) implBetaResponseShellCallOutputContentDoneEventOutputOutcomeUnion() {
+}
+func (BetaResponseShellCallOutputContentDoneEventOutputOutcomeExit) implBetaResponseShellCallOutputContentDoneEventOutputOutcomeUnion() {
+}
+
+// Use the following switch statement to find the correct variant
+//
+//	switch variant := BetaResponseShellCallOutputContentDoneEventOutputOutcomeUnion.AsAny().(type) {
+//	case openai.BetaResponseShellCallOutputContentDoneEventOutputOutcomeTimeout:
+//	case openai.BetaResponseShellCallOutputContentDoneEventOutputOutcomeExit:
+//	default:
+//	  fmt.Errorf("no variant present")
+//	}
+func (u BetaResponseShellCallOutputContentDoneEventOutputOutcomeUnion) AsAny() anyBetaResponseShellCallOutputContentDoneEventOutputOutcome {
+	switch u.Type {
+	case "timeout":
+		return u.AsTimeout()
+	case "exit":
+		return u.AsExit()
+	}
+	return nil
+}
+
+func (u BetaResponseShellCallOutputContentDoneEventOutputOutcomeUnion) AsTimeout() (v BetaResponseShellCallOutputContentDoneEventOutputOutcomeTimeout) {
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	return
+}
+
+func (u BetaResponseShellCallOutputContentDoneEventOutputOutcomeUnion) AsExit() (v BetaResponseShellCallOutputContentDoneEventOutputOutcomeExit) {
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	return
+}
+
+// Returns the unmodified JSON received from the API
+func (u BetaResponseShellCallOutputContentDoneEventOutputOutcomeUnion) RawJSON() string {
+	return u.JSON.raw
+}
+
+func (r *BetaResponseShellCallOutputContentDoneEventOutputOutcomeUnion) UnmarshalJSON(data []byte) error {
+	return apijson.UnmarshalRoot(data, r)
+}
+
+// Indicates that the shell call exceeded its configured time limit.
+type BetaResponseShellCallOutputContentDoneEventOutputOutcomeTimeout struct {
+	// The outcome type. Always `timeout`.
+	Type constant.Timeout `json:"type" default:"timeout"`
+	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
+	JSON struct {
+		Type        respjson.Field
+		ExtraFields map[string]respjson.Field
+		raw         string
+	} `json:"-"`
+}
+
+// Returns the unmodified JSON received from the API
+func (r BetaResponseShellCallOutputContentDoneEventOutputOutcomeTimeout) RawJSON() string {
+	return r.JSON.raw
+}
+func (r *BetaResponseShellCallOutputContentDoneEventOutputOutcomeTimeout) UnmarshalJSON(data []byte) error {
+	return apijson.UnmarshalRoot(data, r)
+}
+
+// Indicates that the shell commands finished and returned an exit code.
+type BetaResponseShellCallOutputContentDoneEventOutputOutcomeExit struct {
+	// Exit code from the shell process.
+	ExitCode int64 `json:"exit_code" api:"required"`
+	// The outcome type. Always `exit`.
+	Type constant.Exit `json:"type" default:"exit"`
+	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
+	JSON struct {
+		ExitCode    respjson.Field
+		Type        respjson.Field
+		ExtraFields map[string]respjson.Field
+		raw         string
+	} `json:"-"`
+}
+
+// Returns the unmodified JSON received from the API
+func (r BetaResponseShellCallOutputContentDoneEventOutputOutcomeExit) RawJSON() string {
+	return r.JSON.raw
+}
+func (r *BetaResponseShellCallOutputContentDoneEventOutputOutcomeExit) UnmarshalJSON(data []byte) error {
+	return apijson.UnmarshalRoot(data, r)
+}
+
+// The agent that owns this multi-agent streaming event.
+type BetaResponseShellCallOutputContentDoneEventAgent struct {
+	// The canonical name of the agent that produced this item.
+	AgentName string `json:"agent_name" api:"required"`
+	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
+	JSON struct {
+		AgentName   respjson.Field
+		ExtraFields map[string]respjson.Field
+		raw         string
+	} `json:"-"`
+}
+
+// Returns the unmodified JSON received from the API
+func (r BetaResponseShellCallOutputContentDoneEventAgent) RawJSON() string { return r.JSON.raw }
+func (r *BetaResponseShellCallOutputContentDoneEventAgent) UnmarshalJSON(data []byte) error {
+	return apijson.UnmarshalRoot(data, r)
+}
+
 // The status of the response generation. One of `completed`, `failed`,
 // `in_progress`, `cancelled`, `queued`, or `incomplete`.
 type BetaResponseStatus string
@@ -26705,7 +27678,12 @@ const (
 // [BetaResponseFileSearchCallInProgressEvent],
 // [BetaResponseFileSearchCallSearchingEvent],
 // [BetaResponseFunctionCallArgumentsDeltaEvent],
-// [BetaResponseFunctionCallArgumentsDoneEvent], [BetaResponseInProgressEvent],
+// [BetaResponseFunctionCallArgumentsDoneEvent],
+// [BetaResponseShellCallCommandAddedEvent],
+// [BetaResponseShellCallCommandDeltaEvent],
+// [BetaResponseShellCallCommandDoneEvent],
+// [BetaResponseShellCallOutputContentDeltaEvent],
+// [BetaResponseShellCallOutputContentDoneEvent], [BetaResponseInProgressEvent],
 // [BetaResponseFailedEvent], [BetaResponseIncompleteEvent],
 // [BetaResponseOutputItemAddedEvent], [BetaResponseOutputItemDoneEvent],
 // [BetaResponseReasoningSummaryPartAddedEvent],
@@ -26748,7 +27726,9 @@ type BetaResponseStreamEventUnion struct {
 	// "error", "response.file_search_call.completed",
 	// "response.file_search_call.in_progress", "response.file_search_call.searching",
 	// "response.function_call_arguments.delta",
-	// "response.function_call_arguments.done", "response.in_progress",
+	// "response.function_call_arguments.done", "response.shell_call_command.added",
+	// "response.shell_call_command.delta", "response.shell_call_command.done",
+	// "response.shell_call_output_content.done", "response.in_progress",
 	// "response.failed", "response.incomplete", "response.output_item.added",
 	// "response.output_item.done", "response.reasoning_summary_part.added",
 	// "response.reasoning_summary_part.done", "response.reasoning_summary_text.delta",
@@ -26783,6 +27763,10 @@ type BetaResponseStreamEventUnion struct {
 	// [BetaResponseFileSearchCallSearchingEventAgent],
 	// [BetaResponseFunctionCallArgumentsDeltaEventAgent],
 	// [BetaResponseFunctionCallArgumentsDoneEventAgent],
+	// [BetaResponseShellCallCommandAddedEventAgent],
+	// [BetaResponseShellCallCommandDeltaEventAgent],
+	// [BetaResponseShellCallCommandDoneEventAgent],
+	// [BetaResponseShellCallOutputContentDoneEventAgent],
 	// [BetaResponseInProgressEventAgent], [BetaResponseFailedEventAgent],
 	// [BetaResponseIncompleteEventAgent], [BetaResponseOutputItemAddedEventAgent],
 	// [BetaResponseOutputItemDoneEventAgent],
@@ -26830,7 +27814,13 @@ type BetaResponseStreamEventUnion struct {
 	Param     string `json:"param"`
 	Arguments string `json:"arguments"`
 	// This field is from variant [BetaResponseFunctionCallArgumentsDoneEvent].
-	Name string `json:"name"`
+	Name         string `json:"name"`
+	Command      string `json:"command"`
+	CommandIndex int64  `json:"command_index"`
+	// This field is from variant [BetaResponseShellCallCommandDeltaEvent].
+	Obfuscation string `json:"obfuscation"`
+	// This field is from variant [BetaResponseShellCallOutputContentDoneEvent].
+	Output []BetaResponseShellCallOutputContentDoneEventOutput `json:"output"`
 	// This field is from variant [BetaResponseOutputItemAddedEvent].
 	Item         BetaResponseOutputItemUnion `json:"item"`
 	SummaryIndex int64                       `json:"summary_index"`
@@ -26846,8 +27836,16 @@ type BetaResponseStreamEventUnion struct {
 	PartialImageB64 string `json:"partial_image_b64"`
 	// This field is from variant [BetaResponseImageGenCallPartialImageEvent].
 	PartialImageIndex int64 `json:"partial_image_index"`
+	// This field is from variant [BetaResponseImageGenCallPartialImageEvent].
+	Background string `json:"background"`
+	// This field is from variant [BetaResponseImageGenCallPartialImageEvent].
+	OutputFormat string `json:"output_format"`
+	// This field is from variant [BetaResponseImageGenCallPartialImageEvent].
+	Quality string `json:"quality"`
+	// This field is from variant [BetaResponseImageGenCallPartialImageEvent].
+	Size string `json:"size"`
 	// This field is from variant [BetaResponseOutputTextAnnotationAddedEvent].
-	Annotation any `json:"annotation"`
+	Annotation BetaResponseOutputTextAnnotationAddedEventAnnotationUnion `json:"annotation"`
 	// This field is from variant [BetaResponseOutputTextAnnotationAddedEvent].
 	AnnotationIndex int64 `json:"annotation_index"`
 	// This field is from variant [BetaResponseCustomToolCallInputDoneEvent].
@@ -26867,6 +27865,10 @@ type BetaResponseStreamEventUnion struct {
 		Param             respjson.Field
 		Arguments         respjson.Field
 		Name              respjson.Field
+		Command           respjson.Field
+		CommandIndex      respjson.Field
+		Obfuscation       respjson.Field
+		Output            respjson.Field
 		Item              respjson.Field
 		SummaryIndex      respjson.Field
 		Status            respjson.Field
@@ -26875,6 +27877,10 @@ type BetaResponseStreamEventUnion struct {
 		Logprobs          respjson.Field
 		PartialImageB64   respjson.Field
 		PartialImageIndex respjson.Field
+		Background        respjson.Field
+		OutputFormat      respjson.Field
+		Quality           respjson.Field
+		Size              respjson.Field
 		Annotation        respjson.Field
 		AnnotationIndex   respjson.Field
 		Input             respjson.Field
@@ -26908,6 +27914,11 @@ func (BetaResponseFileSearchCallInProgressEvent) implBetaResponseStreamEventUnio
 func (BetaResponseFileSearchCallSearchingEvent) implBetaResponseStreamEventUnion()         {}
 func (BetaResponseFunctionCallArgumentsDeltaEvent) implBetaResponseStreamEventUnion()      {}
 func (BetaResponseFunctionCallArgumentsDoneEvent) implBetaResponseStreamEventUnion()       {}
+func (BetaResponseShellCallCommandAddedEvent) implBetaResponseStreamEventUnion()           {}
+func (BetaResponseShellCallCommandDeltaEvent) implBetaResponseStreamEventUnion()           {}
+func (BetaResponseShellCallCommandDoneEvent) implBetaResponseStreamEventUnion()            {}
+func (BetaResponseShellCallOutputContentDeltaEvent) implBetaResponseStreamEventUnion()     {}
+func (BetaResponseShellCallOutputContentDoneEvent) implBetaResponseStreamEventUnion()      {}
 func (BetaResponseInProgressEvent) implBetaResponseStreamEventUnion()                      {}
 func (BetaResponseFailedEvent) implBetaResponseStreamEventUnion()                          {}
 func (BetaResponseIncompleteEvent) implBetaResponseStreamEventUnion()                      {}
@@ -26965,6 +27976,11 @@ func (BetaResponseCustomToolCallInputDoneEvent) implBetaResponseStreamEventUnion
 //	case openai.BetaResponseFileSearchCallSearchingEvent:
 //	case openai.BetaResponseFunctionCallArgumentsDeltaEvent:
 //	case openai.BetaResponseFunctionCallArgumentsDoneEvent:
+//	case openai.BetaResponseShellCallCommandAddedEvent:
+//	case openai.BetaResponseShellCallCommandDeltaEvent:
+//	case openai.BetaResponseShellCallCommandDoneEvent:
+//	case openai.BetaResponseShellCallOutputContentDeltaEvent:
+//	case openai.BetaResponseShellCallOutputContentDoneEvent:
 //	case openai.BetaResponseInProgressEvent:
 //	case openai.BetaResponseFailedEvent:
 //	case openai.BetaResponseIncompleteEvent:
@@ -27042,6 +28058,16 @@ func (u BetaResponseStreamEventUnion) AsAny() anyBetaResponseStreamEvent {
 		return u.AsResponseFunctionCallArgumentsDelta()
 	case "response.function_call_arguments.done":
 		return u.AsResponseFunctionCallArgumentsDone()
+	case "response.shell_call_command.added":
+		return u.AsResponseShellCallCommandAdded()
+	case "response.shell_call_command.delta":
+		return u.AsResponseShellCallCommandDelta()
+	case "response.shell_call_command.done":
+		return u.AsResponseShellCallCommandDone()
+	case "response.shell_call_output_content.delta":
+		return u.AsResponseShellCallOutputContentDelta()
+	case "response.shell_call_output_content.done":
+		return u.AsResponseShellCallOutputContentDone()
 	case "response.in_progress":
 		return u.AsResponseInProgress()
 	case "response.failed":
@@ -27115,267 +28141,292 @@ func (u BetaResponseStreamEventUnion) AsAny() anyBetaResponseStreamEvent {
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseAudioDelta() (v BetaResponseAudioDeltaEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseAudioDone() (v BetaResponseAudioDoneEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseAudioTranscriptDelta() (v BetaResponseAudioTranscriptDeltaEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseAudioTranscriptDone() (v BetaResponseAudioTranscriptDoneEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseCodeInterpreterCallCodeDelta() (v BetaResponseCodeInterpreterCallCodeDeltaEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseCodeInterpreterCallCodeDone() (v BetaResponseCodeInterpreterCallCodeDoneEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseCodeInterpreterCallCompleted() (v BetaResponseCodeInterpreterCallCompletedEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseCodeInterpreterCallInProgress() (v BetaResponseCodeInterpreterCallInProgressEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseCodeInterpreterCallInterpreting() (v BetaResponseCodeInterpreterCallInterpretingEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseCompleted() (v BetaResponseCompletedEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseContentPartAdded() (v BetaResponseContentPartAddedEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseContentPartDone() (v BetaResponseContentPartDoneEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseCreated() (v BetaResponseCreatedEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsError() (v BetaResponseErrorEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseFileSearchCallCompleted() (v BetaResponseFileSearchCallCompletedEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseFileSearchCallInProgress() (v BetaResponseFileSearchCallInProgressEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseFileSearchCallSearching() (v BetaResponseFileSearchCallSearchingEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseFunctionCallArgumentsDelta() (v BetaResponseFunctionCallArgumentsDeltaEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseFunctionCallArgumentsDone() (v BetaResponseFunctionCallArgumentsDoneEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	return
+}
+
+func (u BetaResponseStreamEventUnion) AsResponseShellCallCommandAdded() (v BetaResponseShellCallCommandAddedEvent) {
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	return
+}
+
+func (u BetaResponseStreamEventUnion) AsResponseShellCallCommandDelta() (v BetaResponseShellCallCommandDeltaEvent) {
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	return
+}
+
+func (u BetaResponseStreamEventUnion) AsResponseShellCallCommandDone() (v BetaResponseShellCallCommandDoneEvent) {
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	return
+}
+
+func (u BetaResponseStreamEventUnion) AsResponseShellCallOutputContentDelta() (v BetaResponseShellCallOutputContentDeltaEvent) {
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	return
+}
+
+func (u BetaResponseStreamEventUnion) AsResponseShellCallOutputContentDone() (v BetaResponseShellCallOutputContentDoneEvent) {
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseInProgress() (v BetaResponseInProgressEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseFailed() (v BetaResponseFailedEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseIncomplete() (v BetaResponseIncompleteEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseOutputItemAdded() (v BetaResponseOutputItemAddedEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseOutputItemDone() (v BetaResponseOutputItemDoneEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseReasoningSummaryPartAdded() (v BetaResponseReasoningSummaryPartAddedEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseReasoningSummaryPartDone() (v BetaResponseReasoningSummaryPartDoneEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseReasoningSummaryTextDelta() (v BetaResponseReasoningSummaryTextDeltaEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseReasoningSummaryTextDone() (v BetaResponseReasoningSummaryTextDoneEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseReasoningTextDelta() (v BetaResponseReasoningTextDeltaEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseReasoningTextDone() (v BetaResponseReasoningTextDoneEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseRefusalDelta() (v BetaResponseRefusalDeltaEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseRefusalDone() (v BetaResponseRefusalDoneEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseOutputTextDelta() (v BetaResponseTextDeltaEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseOutputTextDone() (v BetaResponseTextDoneEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseWebSearchCallCompleted() (v BetaResponseWebSearchCallCompletedEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseWebSearchCallInProgress() (v BetaResponseWebSearchCallInProgressEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseWebSearchCallSearching() (v BetaResponseWebSearchCallSearchingEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseImageGenerationCallCompleted() (v BetaResponseImageGenCallCompletedEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseImageGenerationCallGenerating() (v BetaResponseImageGenCallGeneratingEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseImageGenerationCallInProgress() (v BetaResponseImageGenCallInProgressEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseImageGenerationCallPartialImage() (v BetaResponseImageGenCallPartialImageEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseMcpCallArgumentsDelta() (v BetaResponseMcpCallArgumentsDeltaEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseMcpCallArgumentsDone() (v BetaResponseMcpCallArgumentsDoneEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseMcpCallCompleted() (v BetaResponseMcpCallCompletedEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseMcpCallFailed() (v BetaResponseMcpCallFailedEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseMcpCallInProgress() (v BetaResponseMcpCallInProgressEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseMcpListToolsCompleted() (v BetaResponseMcpListToolsCompletedEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseMcpListToolsFailed() (v BetaResponseMcpListToolsFailedEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseMcpListToolsInProgress() (v BetaResponseMcpListToolsInProgressEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseOutputTextAnnotationAdded() (v BetaResponseOutputTextAnnotationAddedEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseQueued() (v BetaResponseQueuedEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseCustomToolCallInputDelta() (v BetaResponseCustomToolCallInputDeltaEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaResponseStreamEventUnion) AsResponseCustomToolCallInputDone() (v BetaResponseCustomToolCallInputDoneEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -28369,8 +29420,10 @@ type BetaToolUnion struct {
 	DisplayWidth int64 `json:"display_width"`
 	// This field is a union of [BetaComputerUsePreviewToolEnvironment],
 	// [BetaFunctionShellToolEnvironmentUnion]
-	Environment       BetaToolUnionEnvironment `json:"environment"`
-	SearchContextSize string                   `json:"search_context_size"`
+	Environment BetaToolUnionEnvironment `json:"environment"`
+	// This field is from variant [BetaWebSearchTool].
+	ExternalWebAccess bool   `json:"external_web_access"`
+	SearchContextSize string `json:"search_context_size"`
 	// This field is a union of [BetaWebSearchToolUserLocation],
 	// [BetaWebSearchPreviewToolUserLocation]
 	UserLocation BetaToolUnionUserLocation `json:"user_location"`
@@ -28440,6 +29493,7 @@ type BetaToolUnion struct {
 		DisplayHeight      respjson.Field
 		DisplayWidth       respjson.Field
 		Environment        respjson.Field
+		ExternalWebAccess  respjson.Field
 		SearchContextSize  respjson.Field
 		UserLocation       respjson.Field
 		ServerLabel        respjson.Field
@@ -28472,82 +29526,82 @@ type BetaToolUnion struct {
 }
 
 func (u BetaToolUnion) AsFunction() (v BetaFunctionTool) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaToolUnion) AsFileSearch() (v BetaFileSearchTool) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaToolUnion) AsComputer() (v BetaComputerTool) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaToolUnion) AsComputerUsePreview() (v BetaComputerUsePreviewTool) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaToolUnion) AsWebSearch() (v BetaWebSearchTool) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaToolUnion) AsMcp() (v BetaToolMcp) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaToolUnion) AsCodeInterpreter() (v BetaToolCodeInterpreter) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaToolUnion) AsProgrammaticToolCalling() (v BetaToolProgrammaticToolCalling) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaToolUnion) AsImageGeneration() (v BetaToolImageGeneration) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaToolUnion) AsLocalShell() (v BetaToolLocalShell) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaToolUnion) AsShell() (v BetaFunctionShellTool) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaToolUnion) AsCustom() (v BetaCustomTool) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaToolUnion) AsNamespace() (v BetaNamespaceTool) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaToolUnion) AsToolSearch() (v BetaToolSearchTool) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaToolUnion) AsWebSearchPreview() (v BetaWebSearchPreviewTool) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaToolUnion) AsApplyPatch() (v BetaApplyPatchTool) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -28571,7 +29625,7 @@ type BetaToolUnionFilters struct {
 	// This field is from variant [BetaFileSearchToolFiltersUnion].
 	Value BetaFileSearchToolFiltersComparisonFilterValueUnion `json:"value"`
 	// This field is from variant [BetaFileSearchToolFiltersUnion].
-	Filters []BetaFileSearchToolFiltersCompoundFilterFilter `json:"filters"`
+	Filters []BetaFileSearchToolFiltersCompoundFilterFilterUnion `json:"filters"`
 	// This field is from variant [BetaWebSearchToolFilters].
 	AllowedDomains []string `json:"allowed_domains"`
 	JSON           struct {
@@ -28791,12 +29845,12 @@ type BetaToolMcpAllowedToolsUnion struct {
 }
 
 func (u BetaToolMcpAllowedToolsUnion) AsMcpAllowedTools() (v []string) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaToolMcpAllowedToolsUnion) AsMcpToolFilter() (v BetaToolMcpAllowedToolsMcpToolFilter) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -28854,12 +29908,12 @@ type BetaToolMcpRequireApprovalUnion struct {
 }
 
 func (u BetaToolMcpRequireApprovalUnion) AsMcpToolApprovalFilter() (v BetaToolMcpRequireApprovalMcpToolApprovalFilter) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaToolMcpRequireApprovalUnion) AsMcpToolApprovalSetting() (v string) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -29011,12 +30065,12 @@ type BetaToolCodeInterpreterContainerUnion struct {
 }
 
 func (u BetaToolCodeInterpreterContainerUnion) AsString() (v string) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaToolCodeInterpreterContainerUnion) AsCodeInterpreterToolAuto() (v BetaToolCodeInterpreterContainerCodeInterpreterToolAuto) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -29114,12 +30168,12 @@ func (u BetaToolCodeInterpreterContainerCodeInterpreterToolAutoNetworkPolicyUnio
 }
 
 func (u BetaToolCodeInterpreterContainerCodeInterpreterToolAutoNetworkPolicyUnion) AsDisabled() (v BetaContainerNetworkPolicyDisabled) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u BetaToolCodeInterpreterContainerCodeInterpreterToolAutoNetworkPolicyUnion) AsAllowlist() (v BetaContainerNetworkPolicyAllowlist) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -29157,18 +30211,13 @@ type BetaToolImageGeneration struct {
 	//
 	// Any of "generate", "edit", "auto".
 	Action string `json:"action"`
-	// Allows to set transparency for the background of the generated image(s). This
-	// parameter is only supported for GPT image models that support transparent
-	// backgrounds. Must be one of `transparent`, `opaque`, or `auto` (default value).
-	// When `auto` is used, the model will automatically determine the best background
-	// for the image.
+	// Allows to set transparency for the background of the generated image(s). Must be
+	// one of `transparent`, `opaque`, or `auto` (default value). When `auto` is used,
+	// the model will automatically determine the best background for the image.
 	//
-	// `gpt-image-2` and `gpt-image-2-2026-04-21` do not support transparent
-	// backgrounds. Requests with `background` set to `transparent` will return an
-	// error for these models; use `opaque` or `auto` instead.
-	//
-	// If `transparent`, the output format needs to support transparency, so it should
-	// be set to either `png` (default value) or `webp`.
+	// Transparent backgrounds are available for supported GPT Image models. For
+	// `gpt-image-2` and `gpt-image-2-2026-04-21`, this support is in preview. When
+	// using `transparent`, set the output format to `png` or `webp`.
 	//
 	// Any of "transparent", "opaque", "auto".
 	Background string `json:"background"`
@@ -29182,7 +30231,9 @@ type BetaToolImageGeneration struct {
 	// Optional mask for inpainting. Contains `image_url` (string, optional) and
 	// `file_id` (string, optional).
 	InputImageMask BetaToolImageGenerationInputImageMask `json:"input_image_mask"`
-	// The image generation model to use. Default: `gpt-image-1`.
+	// The image generation model to use. One of `gpt-image-1`, `gpt-image-1-mini`,
+	// `gpt-image-1.5`, `gpt-image-2`, `gpt-image-2-2026-04-21`, or
+	// `chatgpt-image-latest`. Default: `gpt-image-1`.
 	Model string `json:"model"`
 	// Moderation level for the generated image. Default: `auto`.
 	//
@@ -29392,43 +30443,6 @@ func (u *BetaToolUnionParam) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, u)
 }
 
-func (u *BetaToolUnionParam) asAny() any {
-	if !param.IsOmitted(u.OfFunction) {
-		return u.OfFunction
-	} else if !param.IsOmitted(u.OfFileSearch) {
-		return u.OfFileSearch
-	} else if !param.IsOmitted(u.OfComputer) {
-		return u.OfComputer
-	} else if !param.IsOmitted(u.OfComputerUsePreview) {
-		return u.OfComputerUsePreview
-	} else if !param.IsOmitted(u.OfWebSearch) {
-		return u.OfWebSearch
-	} else if !param.IsOmitted(u.OfMcp) {
-		return u.OfMcp
-	} else if !param.IsOmitted(u.OfCodeInterpreter) {
-		return u.OfCodeInterpreter
-	} else if !param.IsOmitted(u.OfProgrammaticToolCalling) {
-		return u.OfProgrammaticToolCalling
-	} else if !param.IsOmitted(u.OfImageGeneration) {
-		return u.OfImageGeneration
-	} else if !param.IsOmitted(u.OfLocalShell) {
-		return u.OfLocalShell
-	} else if !param.IsOmitted(u.OfShell) {
-		return u.OfShell
-	} else if !param.IsOmitted(u.OfCustom) {
-		return u.OfCustom
-	} else if !param.IsOmitted(u.OfNamespace) {
-		return u.OfNamespace
-	} else if !param.IsOmitted(u.OfToolSearch) {
-		return u.OfToolSearch
-	} else if !param.IsOmitted(u.OfWebSearchPreview) {
-		return u.OfWebSearchPreview
-	} else if !param.IsOmitted(u.OfApplyPatch) {
-		return u.OfApplyPatch
-	}
-	return nil
-}
-
 // Returns a pointer to the underlying variant's property, if present.
 func (u BetaToolUnionParam) GetStrict() *bool {
 	if vt := u.OfFunction; vt != nil && vt.Strict.Valid() {
@@ -29481,6 +30495,14 @@ func (u BetaToolUnionParam) GetDisplayHeight() *int64 {
 func (u BetaToolUnionParam) GetDisplayWidth() *int64 {
 	if vt := u.OfComputerUsePreview; vt != nil {
 		return &vt.DisplayWidth
+	}
+	return nil
+}
+
+// Returns a pointer to the underlying variant's property, if present.
+func (u BetaToolUnionParam) GetExternalWebAccess() *bool {
+	if vt := u.OfWebSearch; vt != nil && vt.ExternalWebAccess.Valid() {
+		return &vt.ExternalWebAccess.Value
 	}
 	return nil
 }
@@ -29862,7 +30884,7 @@ func (u betaToolUnionParamFilters) GetValue() *BetaFileSearchToolFiltersComparis
 }
 
 // Returns a pointer to the underlying variant's property, if present.
-func (u betaToolUnionParamFilters) GetFilters() []BetaFileSearchToolFiltersCompoundFilterFilterParam {
+func (u betaToolUnionParamFilters) GetFilters() []BetaFileSearchToolFiltersCompoundFilterFilterUnionParam {
 	switch vt := u.any.(type) {
 	case *BetaFileSearchToolFiltersUnionParam:
 		return vt.GetFilters()
@@ -30181,15 +31203,6 @@ func (u *BetaToolMcpAllowedToolsUnionParam) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, u)
 }
 
-func (u *BetaToolMcpAllowedToolsUnionParam) asAny() any {
-	if !param.IsOmitted(u.OfMcpAllowedTools) {
-		return &u.OfMcpAllowedTools
-	} else if !param.IsOmitted(u.OfMcpToolFilter) {
-		return u.OfMcpToolFilter
-	}
-	return nil
-}
-
 // A filter object to specify which tools are allowed.
 type BetaToolMcpAllowedToolsMcpToolFilterParam struct {
 	// Indicates whether or not a tool modifies data or is read-only. If an MCP server
@@ -30226,15 +31239,6 @@ func (u BetaToolMcpRequireApprovalUnionParam) MarshalJSON() ([]byte, error) {
 }
 func (u *BetaToolMcpRequireApprovalUnionParam) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, u)
-}
-
-func (u *BetaToolMcpRequireApprovalUnionParam) asAny() any {
-	if !param.IsOmitted(u.OfMcpToolApprovalFilter) {
-		return u.OfMcpToolApprovalFilter
-	} else if !param.IsOmitted(u.OfMcpToolApprovalSetting) {
-		return &u.OfMcpToolApprovalSetting
-	}
-	return nil
 }
 
 // Specify which of the MCP server's tools require approval. Can be `always`,
@@ -30338,15 +31342,6 @@ func (u *BetaToolCodeInterpreterContainerUnionParam) UnmarshalJSON(data []byte) 
 	return apijson.UnmarshalRoot(data, u)
 }
 
-func (u *BetaToolCodeInterpreterContainerUnionParam) asAny() any {
-	if !param.IsOmitted(u.OfString) {
-		return &u.OfString.Value
-	} else if !param.IsOmitted(u.OfCodeInterpreterToolAuto) {
-		return u.OfCodeInterpreterToolAuto
-	}
-	return nil
-}
-
 // Configuration for a code interpreter container. Optionally specify the IDs of
 // the files to run the code on.
 //
@@ -30395,15 +31390,6 @@ func (u BetaToolCodeInterpreterContainerCodeInterpreterToolAutoNetworkPolicyUnio
 }
 func (u *BetaToolCodeInterpreterContainerCodeInterpreterToolAutoNetworkPolicyUnionParam) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, u)
-}
-
-func (u *BetaToolCodeInterpreterContainerCodeInterpreterToolAutoNetworkPolicyUnionParam) asAny() any {
-	if !param.IsOmitted(u.OfDisabled) {
-		return u.OfDisabled
-	} else if !param.IsOmitted(u.OfAllowlist) {
-		return u.OfAllowlist
-	}
-	return nil
 }
 
 // Returns a pointer to the underlying variant's property, if present.
@@ -30482,25 +31468,22 @@ type BetaToolImageGenerationParam struct {
 	//
 	// Any of "generate", "edit", "auto".
 	Action string `json:"action,omitzero"`
-	// Allows to set transparency for the background of the generated image(s). This
-	// parameter is only supported for GPT image models that support transparent
-	// backgrounds. Must be one of `transparent`, `opaque`, or `auto` (default value).
-	// When `auto` is used, the model will automatically determine the best background
-	// for the image.
+	// Allows to set transparency for the background of the generated image(s). Must be
+	// one of `transparent`, `opaque`, or `auto` (default value). When `auto` is used,
+	// the model will automatically determine the best background for the image.
 	//
-	// `gpt-image-2` and `gpt-image-2-2026-04-21` do not support transparent
-	// backgrounds. Requests with `background` set to `transparent` will return an
-	// error for these models; use `opaque` or `auto` instead.
-	//
-	// If `transparent`, the output format needs to support transparency, so it should
-	// be set to either `png` (default value) or `webp`.
+	// Transparent backgrounds are available for supported GPT Image models. For
+	// `gpt-image-2` and `gpt-image-2-2026-04-21`, this support is in preview. When
+	// using `transparent`, set the output format to `png` or `webp`.
 	//
 	// Any of "transparent", "opaque", "auto".
 	Background string `json:"background,omitzero"`
 	// Optional mask for inpainting. Contains `image_url` (string, optional) and
 	// `file_id` (string, optional).
 	InputImageMask BetaToolImageGenerationInputImageMaskParam `json:"input_image_mask,omitzero"`
-	// The image generation model to use. Default: `gpt-image-1`.
+	// The image generation model to use. One of `gpt-image-1`, `gpt-image-1-mini`,
+	// `gpt-image-1.5`, `gpt-image-2`, `gpt-image-2-2026-04-21`, or
+	// `chatgpt-image-latest`. Default: `gpt-image-1`.
 	Model string `json:"model,omitzero"`
 	// Moderation level for the generated image. Default: `auto`.
 	//
@@ -31329,6 +32312,10 @@ type BetaWebSearchTool struct {
 	//
 	// Any of "web_search", "web_search_2025_08_26".
 	Type BetaWebSearchToolType `json:"type" api:"required"`
+	// Allow live internet access for web search. Defaults to true when omitted. When
+	// false, the web search tool runs in offline/cache-only mode and will not fetch
+	// new external content.
+	ExternalWebAccess bool `json:"external_web_access"`
 	// Filters for the search.
 	Filters BetaWebSearchToolFilters `json:"filters" api:"nullable"`
 	// High level guidance for the amount of context window space to use for the
@@ -31341,6 +32328,7 @@ type BetaWebSearchTool struct {
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		Type              respjson.Field
+		ExternalWebAccess respjson.Field
 		Filters           respjson.Field
 		SearchContextSize respjson.Field
 		UserLocation      respjson.Field
@@ -31446,6 +32434,10 @@ type BetaWebSearchToolParam struct {
 	//
 	// Any of "web_search", "web_search_2025_08_26".
 	Type BetaWebSearchToolType `json:"type,omitzero" api:"required"`
+	// Allow live internet access for web search. Defaults to true when omitted. When
+	// false, the web search tool runs in offline/cache-only mode and will not fetch
+	// new external content.
+	ExternalWebAccess param.Opt[bool] `json:"external_web_access,omitzero"`
 	// Filters for the search.
 	Filters BetaWebSearchToolFiltersParam `json:"filters,omitzero"`
 	// The approximate location of the user.
@@ -31637,8 +32629,6 @@ type BetaResponseNewParams struct {
 	//
 	// Any of "in_memory", "24h".
 	PromptCacheRetention BetaResponseNewParamsPromptCacheRetention `json:"prompt_cache_retention,omitzero"`
-	// **gpt-5 and o-series models only**
-	//
 	// Configuration options for
 	// [reasoning models](https://platform.openai.com/docs/guides/reasoning).
 	Reasoning BetaResponseNewParamsReasoning `json:"reasoning,omitzero"`
@@ -31649,9 +32639,17 @@ type BetaResponseNewParams struct {
 	//     will use 'default'.
 	//   - If set to 'default', then the request will be processed with the standard
 	//     pricing and performance for the selected model.
-	//   - If set to '[flex](https://platform.openai.com/docs/guides/flex-processing)' or
-	//     '[priority](https://openai.com/api-priority-processing/)', then the request
-	//     will be processed with the corresponding service tier.
+	//   - If set to '[flex](https://platform.openai.com/docs/guides/flex-processing)',
+	//     then the request will be processed with the Flex Processing service tier.
+	//   - To opt-in to [Fast mode](/api/docs/guides/fast-mode) at the request level,
+	//     include the `service_tier=fast` or `service_tier=priority` parameter for
+	//     Responses or Chat Completions. The response will show `service_tier=priority`
+	//     regardless of if you specify `service_tier=fast` or `priority` in your
+	//     request.
+	//   - If set to 'ultrafast', then the request will be processed with the
+	//     access-controlled Ultrafast Processing service tier. This tier is currently
+	//     available for `gpt-5.6-sol`; a response served through it will show
+	//     `service_tier=ultrafast`.
 	//   - When not set, the default behavior is 'auto'.
 	//
 	// When the `service_tier` parameter is set, the response body will include the
@@ -31659,7 +32657,7 @@ type BetaResponseNewParams struct {
 	// request. This response value may be different from the value set in the
 	// parameter.
 	//
-	// Any of "auto", "default", "flex", "scale", "priority".
+	// Any of "auto", "default", "flex", "scale", "priority", "fast", "ultrafast".
 	ServiceTier BetaResponseNewParamsServiceTier `json:"service_tier,omitzero"`
 	// Options for streaming responses. Only set this when you set `stream: true`.
 	StreamOptions BetaResponseNewParamsStreamOptions `json:"stream_options,omitzero"`
@@ -31683,9 +32681,9 @@ type BetaResponseNewParams struct {
 	// - [Conversation state](https://platform.openai.com/docs/guides/conversation-state)
 	// - [Function calling](https://platform.openai.com/docs/guides/function-calling)
 	Input BetaResponseNewParamsInputUnion `json:"input,omitzero"`
-	// Model ID used to generate the response, like `gpt-4o` or `o3`. OpenAI offers a
-	// wide range of models with different capabilities, performance characteristics,
-	// and price points. Refer to the
+	// Model ID used to generate the response, like `gpt-5.6-sol`. OpenAI offers a wide
+	// range of models with different capabilities, performance characteristics, and
+	// price points. Refer to the
 	// [model guide](https://platform.openai.com/docs/models) to browse and compare
 	// available models.
 	Model BetaResponseNewParamsModel `json:"model,omitzero"`
@@ -31775,15 +32773,6 @@ func (u *BetaResponseNewParamsConversationUnion) UnmarshalJSON(data []byte) erro
 	return apijson.UnmarshalRoot(data, u)
 }
 
-func (u *BetaResponseNewParamsConversationUnion) asAny() any {
-	if !param.IsOmitted(u.OfString) {
-		return &u.OfString.Value
-	} else if !param.IsOmitted(u.OfConversationObject) {
-		return u.OfConversationObject
-	}
-	return nil
-}
-
 // Only one field can be non-zero.
 //
 // Use [param.IsOmitted] to confirm if a field is set.
@@ -31800,18 +32789,9 @@ func (u *BetaResponseNewParamsInputUnion) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, u)
 }
 
-func (u *BetaResponseNewParamsInputUnion) asAny() any {
-	if !param.IsOmitted(u.OfString) {
-		return &u.OfString.Value
-	} else if !param.IsOmitted(u.OfInputItemList) {
-		return &u.OfInputItemList
-	}
-	return nil
-}
-
-// Model ID used to generate the response, like `gpt-4o` or `o3`. OpenAI offers a
-// wide range of models with different capabilities, performance characteristics,
-// and price points. Refer to the
+// Model ID used to generate the response, like `gpt-5.6-sol`. OpenAI offers a wide
+// range of models with different capabilities, performance characteristics, and
+// price points. Refer to the
 // [model guide](https://platform.openai.com/docs/models) to browse and compare
 // available models.
 type BetaResponseNewParamsModel string
@@ -31820,6 +32800,8 @@ const (
 	BetaResponseNewParamsModelGPT5_6Sol                        BetaResponseNewParamsModel = "gpt-5.6-sol"
 	BetaResponseNewParamsModelGPT5_6Terra                      BetaResponseNewParamsModel = "gpt-5.6-terra"
 	BetaResponseNewParamsModelGPT5_6Luna                       BetaResponseNewParamsModel = "gpt-5.6-luna"
+	BetaResponseNewParamsModelGPT5_5                           BetaResponseNewParamsModel = "gpt-5.5"
+	BetaResponseNewParamsModelGPT5_5_2026_04_23                BetaResponseNewParamsModel = "gpt-5.5-2026-04-23"
 	BetaResponseNewParamsModelGPT5_4                           BetaResponseNewParamsModel = "gpt-5.4"
 	BetaResponseNewParamsModelGPT5_4Mini                       BetaResponseNewParamsModel = "gpt-5.4-mini"
 	BetaResponseNewParamsModelGPT5_4Nano                       BetaResponseNewParamsModel = "gpt-5.4-nano"
@@ -31908,10 +32890,15 @@ const (
 	BetaResponseNewParamsModelO4MiniDeepResearch2025_06_26     BetaResponseNewParamsModel = "o4-mini-deep-research-2025-06-26"
 	BetaResponseNewParamsModelComputerUsePreview               BetaResponseNewParamsModel = "computer-use-preview"
 	BetaResponseNewParamsModelComputerUsePreview2025_03_11     BetaResponseNewParamsModel = "computer-use-preview-2025-03-11"
+	BetaResponseNewParamsModelGPT5_5Pro                        BetaResponseNewParamsModel = "gpt-5.5-pro"
+	BetaResponseNewParamsModelGPT5_5Pro2026_04_23              BetaResponseNewParamsModel = "gpt-5.5-pro-2026-04-23"
 	BetaResponseNewParamsModelGPT5Codex                        BetaResponseNewParamsModel = "gpt-5-codex"
 	BetaResponseNewParamsModelGPT5Pro                          BetaResponseNewParamsModel = "gpt-5-pro"
 	BetaResponseNewParamsModelGPT5Pro2025_10_06                BetaResponseNewParamsModel = "gpt-5-pro-2025-10-06"
 	BetaResponseNewParamsModelGPT5_1CodexMax                   BetaResponseNewParamsModel = "gpt-5.1-codex-max"
+	BetaResponseNewParamsModelGPTDaybreakBlueLatest            BetaResponseNewParamsModel = "gpt-daybreak-blue-latest"
+	BetaResponseNewParamsModelGPTDaybreakRedLatest             BetaResponseNewParamsModel = "gpt-daybreak-red-latest"
+	BetaResponseNewParamsModelGPT5_6Cyber                      BetaResponseNewParamsModel = "gpt-5.6-cyber"
 )
 
 // Configuration for running moderation on the input and output of this response.
@@ -32090,8 +33077,6 @@ const (
 	BetaResponseNewParamsPromptCacheRetention24h      BetaResponseNewParamsPromptCacheRetention = "24h"
 )
 
-// **gpt-5 and o-series models only**
-//
 // Configuration options for
 // [reasoning models](https://platform.openai.com/docs/guides/reasoning).
 type BetaResponseNewParamsReasoning struct {
@@ -32169,9 +33154,17 @@ func init() {
 //     will use 'default'.
 //   - If set to 'default', then the request will be processed with the standard
 //     pricing and performance for the selected model.
-//   - If set to '[flex](https://platform.openai.com/docs/guides/flex-processing)' or
-//     '[priority](https://openai.com/api-priority-processing/)', then the request
-//     will be processed with the corresponding service tier.
+//   - If set to '[flex](https://platform.openai.com/docs/guides/flex-processing)',
+//     then the request will be processed with the Flex Processing service tier.
+//   - To opt-in to [Fast mode](/api/docs/guides/fast-mode) at the request level,
+//     include the `service_tier=fast` or `service_tier=priority` parameter for
+//     Responses or Chat Completions. The response will show `service_tier=priority`
+//     regardless of if you specify `service_tier=fast` or `priority` in your
+//     request.
+//   - If set to 'ultrafast', then the request will be processed with the
+//     access-controlled Ultrafast Processing service tier. This tier is currently
+//     available for `gpt-5.6-sol`; a response served through it will show
+//     `service_tier=ultrafast`.
 //   - When not set, the default behavior is 'auto'.
 //
 // When the `service_tier` parameter is set, the response body will include the
@@ -32181,11 +33174,13 @@ func init() {
 type BetaResponseNewParamsServiceTier string
 
 const (
-	BetaResponseNewParamsServiceTierAuto     BetaResponseNewParamsServiceTier = "auto"
-	BetaResponseNewParamsServiceTierDefault  BetaResponseNewParamsServiceTier = "default"
-	BetaResponseNewParamsServiceTierFlex     BetaResponseNewParamsServiceTier = "flex"
-	BetaResponseNewParamsServiceTierScale    BetaResponseNewParamsServiceTier = "scale"
-	BetaResponseNewParamsServiceTierPriority BetaResponseNewParamsServiceTier = "priority"
+	BetaResponseNewParamsServiceTierAuto      BetaResponseNewParamsServiceTier = "auto"
+	BetaResponseNewParamsServiceTierDefault   BetaResponseNewParamsServiceTier = "default"
+	BetaResponseNewParamsServiceTierFlex      BetaResponseNewParamsServiceTier = "flex"
+	BetaResponseNewParamsServiceTierScale     BetaResponseNewParamsServiceTier = "scale"
+	BetaResponseNewParamsServiceTierPriority  BetaResponseNewParamsServiceTier = "priority"
+	BetaResponseNewParamsServiceTierFast      BetaResponseNewParamsServiceTier = "fast"
+	BetaResponseNewParamsServiceTierUltrafast BetaResponseNewParamsServiceTier = "ultrafast"
 )
 
 // Options for streaming responses. Only set this when you set `stream: true`.
@@ -32238,29 +33233,6 @@ func (u BetaResponseNewParamsToolChoiceUnion) MarshalJSON() ([]byte, error) {
 }
 func (u *BetaResponseNewParamsToolChoiceUnion) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, u)
-}
-
-func (u *BetaResponseNewParamsToolChoiceUnion) asAny() any {
-	if !param.IsOmitted(u.OfToolChoiceMode) {
-		return &u.OfToolChoiceMode
-	} else if !param.IsOmitted(u.OfAllowedTools) {
-		return u.OfAllowedTools
-	} else if !param.IsOmitted(u.OfHostedTool) {
-		return u.OfHostedTool
-	} else if !param.IsOmitted(u.OfFunctionTool) {
-		return u.OfFunctionTool
-	} else if !param.IsOmitted(u.OfMcpTool) {
-		return u.OfMcpTool
-	} else if !param.IsOmitted(u.OfCustomTool) {
-		return u.OfCustomTool
-	} else if !param.IsOmitted(u.OfBetaResponseNewsToolChoiceBetaSpecificProgrammaticToolCallingParam) {
-		return u.OfBetaResponseNewsToolChoiceBetaSpecificProgrammaticToolCallingParam
-	} else if !param.IsOmitted(u.OfSpecificApplyPatchToolChoice) {
-		return u.OfSpecificApplyPatchToolChoice
-	} else if !param.IsOmitted(u.OfSpecificShellToolChoice) {
-		return u.OfSpecificShellToolChoice
-	}
-	return nil
 }
 
 // Returns a pointer to the underlying variant's property, if present.
@@ -32396,9 +33368,9 @@ type BetaResponseCancelParams struct {
 }
 
 type BetaResponseCompactParams struct {
-	// Model ID used to generate the response, like `gpt-5` or `o3`. OpenAI offers a
-	// wide range of models with different capabilities, performance characteristics,
-	// and price points. Refer to the
+	// Model ID used to generate the response, like `gpt-5.6-sol`. OpenAI offers a wide
+	// range of models with different capabilities, performance characteristics, and
+	// price points. Refer to the
 	// [model guide](https://platform.openai.com/docs/models) to browse and compare
 	// available models.
 	Model BetaResponseCompactParamsModel `json:"model,omitzero" api:"required"`
@@ -32430,9 +33402,23 @@ type BetaResponseCompactParams struct {
 	//
 	// Any of "in_memory", "24h".
 	PromptCacheRetention BetaResponseCompactParamsPromptCacheRetention `json:"prompt_cache_retention,omitzero"`
-	// The service tier to use for this request.
+	// Specifies the processing type used for serving the request. - If set to 'auto',
+	// then the request will be processed with the service tier configured in the
+	// Project settings. Unless otherwise configured, the Project will use 'default'. -
+	// If set to 'default', then the request will be processed with the standard
+	// pricing and performance for the selected model. - If set to
+	// '[flex](https://platform.openai.com/docs/guides/flex-processing)', then the
+	// request will be processed with the Flex Processing service tier. - To opt-in to
+	// [Fast mode](/api/docs/guides/fast-mode) at the request level, include the
+	// `service_tier=fast` or `service_tier=priority` parameter for Responses or Chat
+	// Completions. The response will show `service_tier=priority` regardless of if you
+	// specify `service_tier=fast` or `priority` in your request. - When not set, the
+	// default behavior is 'auto'. When the `service_tier` parameter is set, the
+	// response body will include the `service_tier` value based on the processing mode
+	// actually used to serve the request. This response value may be different from
+	// the value set in the parameter.
 	//
-	// Any of "auto", "default", "flex", "priority".
+	// Any of "auto", "default", "fast", "flex", "priority".
 	ServiceTier BetaResponseCompactParamsServiceTier `json:"service_tier,omitzero"`
 	// Any of "responses_multi_agent=v1".
 	Betas []string `header:"openai-beta,omitzero" json:"-"`
@@ -32447,9 +33433,9 @@ func (r *BetaResponseCompactParams) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, r)
 }
 
-// Model ID used to generate the response, like `gpt-5` or `o3`. OpenAI offers a
-// wide range of models with different capabilities, performance characteristics,
-// and price points. Refer to the
+// Model ID used to generate the response, like `gpt-5.6-sol`. OpenAI offers a wide
+// range of models with different capabilities, performance characteristics, and
+// price points. Refer to the
 // [model guide](https://platform.openai.com/docs/models) to browse and compare
 // available models.
 type BetaResponseCompactParamsModel string
@@ -32458,6 +33444,8 @@ const (
 	BetaResponseCompactParamsModelGPT5_6Sol                        BetaResponseCompactParamsModel = "gpt-5.6-sol"
 	BetaResponseCompactParamsModelGPT5_6Terra                      BetaResponseCompactParamsModel = "gpt-5.6-terra"
 	BetaResponseCompactParamsModelGPT5_6Luna                       BetaResponseCompactParamsModel = "gpt-5.6-luna"
+	BetaResponseCompactParamsModelGPT5_5                           BetaResponseCompactParamsModel = "gpt-5.5"
+	BetaResponseCompactParamsModelGPT5_5_2026_04_23                BetaResponseCompactParamsModel = "gpt-5.5-2026-04-23"
 	BetaResponseCompactParamsModelGPT5_4                           BetaResponseCompactParamsModel = "gpt-5.4"
 	BetaResponseCompactParamsModelGPT5_4Mini                       BetaResponseCompactParamsModel = "gpt-5.4-mini"
 	BetaResponseCompactParamsModelGPT5_4Nano                       BetaResponseCompactParamsModel = "gpt-5.4-nano"
@@ -32546,10 +33534,15 @@ const (
 	BetaResponseCompactParamsModelO4MiniDeepResearch2025_06_26     BetaResponseCompactParamsModel = "o4-mini-deep-research-2025-06-26"
 	BetaResponseCompactParamsModelComputerUsePreview               BetaResponseCompactParamsModel = "computer-use-preview"
 	BetaResponseCompactParamsModelComputerUsePreview2025_03_11     BetaResponseCompactParamsModel = "computer-use-preview-2025-03-11"
+	BetaResponseCompactParamsModelGPT5_5Pro                        BetaResponseCompactParamsModel = "gpt-5.5-pro"
+	BetaResponseCompactParamsModelGPT5_5Pro2026_04_23              BetaResponseCompactParamsModel = "gpt-5.5-pro-2026-04-23"
 	BetaResponseCompactParamsModelGPT5Codex                        BetaResponseCompactParamsModel = "gpt-5-codex"
 	BetaResponseCompactParamsModelGPT5Pro                          BetaResponseCompactParamsModel = "gpt-5-pro"
 	BetaResponseCompactParamsModelGPT5Pro2025_10_06                BetaResponseCompactParamsModel = "gpt-5-pro-2025-10-06"
 	BetaResponseCompactParamsModelGPT5_1CodexMax                   BetaResponseCompactParamsModel = "gpt-5.1-codex-max"
+	BetaResponseCompactParamsModelGPTDaybreakBlueLatest            BetaResponseCompactParamsModel = "gpt-daybreak-blue-latest"
+	BetaResponseCompactParamsModelGPTDaybreakRedLatest             BetaResponseCompactParamsModel = "gpt-daybreak-red-latest"
+	BetaResponseCompactParamsModelGPT5_6Cyber                      BetaResponseCompactParamsModel = "gpt-5.6-cyber"
 )
 
 // Only one field can be non-zero.
@@ -32566,15 +33559,6 @@ func (u BetaResponseCompactParamsInputUnion) MarshalJSON() ([]byte, error) {
 }
 func (u *BetaResponseCompactParamsInputUnion) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, u)
-}
-
-func (u *BetaResponseCompactParamsInputUnion) asAny() any {
-	if !param.IsOmitted(u.OfString) {
-		return &u.OfString.Value
-	} else if !param.IsOmitted(u.OfBetaResponseInputItemArray) {
-		return &u.OfBetaResponseInputItemArray
-	}
-	return nil
 }
 
 // Options for prompt caching. Supported for `gpt-5.6` and later models. By
@@ -32630,12 +33614,27 @@ const (
 	BetaResponseCompactParamsPromptCacheRetention24h      BetaResponseCompactParamsPromptCacheRetention = "24h"
 )
 
-// The service tier to use for this request.
+// Specifies the processing type used for serving the request. - If set to 'auto',
+// then the request will be processed with the service tier configured in the
+// Project settings. Unless otherwise configured, the Project will use 'default'. -
+// If set to 'default', then the request will be processed with the standard
+// pricing and performance for the selected model. - If set to
+// '[flex](https://platform.openai.com/docs/guides/flex-processing)', then the
+// request will be processed with the Flex Processing service tier. - To opt-in to
+// [Fast mode](/api/docs/guides/fast-mode) at the request level, include the
+// `service_tier=fast` or `service_tier=priority` parameter for Responses or Chat
+// Completions. The response will show `service_tier=priority` regardless of if you
+// specify `service_tier=fast` or `priority` in your request. - When not set, the
+// default behavior is 'auto'. When the `service_tier` parameter is set, the
+// response body will include the `service_tier` value based on the processing mode
+// actually used to serve the request. This response value may be different from
+// the value set in the parameter.
 type BetaResponseCompactParamsServiceTier string
 
 const (
 	BetaResponseCompactParamsServiceTierAuto     BetaResponseCompactParamsServiceTier = "auto"
 	BetaResponseCompactParamsServiceTierDefault  BetaResponseCompactParamsServiceTier = "default"
+	BetaResponseCompactParamsServiceTierFast     BetaResponseCompactParamsServiceTier = "fast"
 	BetaResponseCompactParamsServiceTierFlex     BetaResponseCompactParamsServiceTier = "flex"
 	BetaResponseCompactParamsServiceTierPriority BetaResponseCompactParamsServiceTier = "priority"
 )

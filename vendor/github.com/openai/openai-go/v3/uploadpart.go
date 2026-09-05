@@ -1,4 +1,4 @@
-// File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+// File generated from our OpenAPI spec by Castiron. See CONTRIBUTING.md for details.
 
 package openai
 
@@ -36,7 +36,7 @@ type UploadPartService struct {
 // there is one), and before any request-specific options.
 func NewUploadPartService(opts ...option.RequestOption) (r UploadPartService) {
 	r = UploadPartService{}
-	r.Options = opts
+	r.Options = requestconfig.InheritedOptions(opts...)
 	return
 }
 
@@ -104,7 +104,7 @@ func (r UploadPartNewParams) MarshalMultipart() (data []byte, contentType string
 		err = apiform.WriteExtras(writer, r.ExtraFields())
 	}
 	if err != nil {
-		writer.Close()
+		_ = writer.Close()
 		return nil, "", err
 	}
 	err = writer.Close()

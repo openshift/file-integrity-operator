@@ -1,5 +1,3 @@
-// File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
-
 package internal
 
-const PackageVersion = "3.45.0" // x-release-please-version
+const PackageVersion = "3.55.0" // x-release-please-version

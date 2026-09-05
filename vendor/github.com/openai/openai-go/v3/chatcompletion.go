@@ -1,4 +1,4 @@
-// File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+// File generated from our OpenAPI spec by Castiron. See CONTRIBUTING.md for details.
 
 package openai
 
@@ -43,7 +43,7 @@ type ChatCompletionService struct {
 // there is one), and before any request-specific options.
 func NewChatCompletionService(opts ...option.RequestOption) (r ChatCompletionService) {
 	r = ChatCompletionService{}
-	r.Options = opts
+	r.Options = requestconfig.InheritedOptions(opts...)
 	r.Messages = NewChatCompletionMessageService(opts...)
 	return
 }
@@ -192,6 +192,13 @@ type ChatCompletion struct {
 	Model string `json:"model" api:"required"`
 	// The object type, which is always `chat.completion`.
 	Object constant.ChatCompletion `json:"object" default:"chat.completion"`
+	// Set of 16 key-value pairs that can be attached to an object. This can be useful
+	// for storing additional information about the object in a structured format, and
+	// querying for objects via API or the dashboard.
+	//
+	// Keys are strings with a maximum length of 64 characters. Values are strings with
+	// a maximum length of 512 characters.
+	Metadata shared.Metadata `json:"metadata" api:"nullable"`
 	// Moderation results for the request input and generated output, if moderated
 	// completions were requested.
 	Moderation ChatCompletionModeration `json:"moderation" api:"nullable"`
@@ -202,9 +209,13 @@ type ChatCompletion struct {
 	//     will use 'default'.
 	//   - If set to 'default', then the request will be processed with the standard
 	//     pricing and performance for the selected model.
-	//   - If set to '[flex](https://platform.openai.com/docs/guides/flex-processing)' or
-	//     '[priority](https://openai.com/api-priority-processing/)', then the request
-	//     will be processed with the corresponding service tier.
+	//   - If set to '[flex](https://platform.openai.com/docs/guides/flex-processing)',
+	//     then the request will be processed with the Flex Processing service tier.
+	//   - To opt-in to [Fast mode](/api/docs/guides/fast-mode) at the request level,
+	//     include the `service_tier=fast` or `service_tier=priority` parameter for
+	//     Responses or Chat Completions. The response will show `service_tier=priority`
+	//     regardless of if you specify `service_tier=fast` or `priority` in your
+	//     request.
 	//   - When not set, the default behavior is 'auto'.
 	//
 	// When the `service_tier` parameter is set, the response body will include the
@@ -212,7 +223,7 @@ type ChatCompletion struct {
 	// request. This response value may be different from the value set in the
 	// parameter.
 	//
-	// Any of "auto", "default", "flex", "scale", "priority".
+	// Any of "auto", "default", "flex", "scale", "priority", "fast".
 	ServiceTier ChatCompletionServiceTier `json:"service_tier" api:"nullable"`
 	// This fingerprint represents the backend configuration that the model runs with.
 	//
@@ -230,6 +241,7 @@ type ChatCompletion struct {
 		Created           respjson.Field
 		Model             respjson.Field
 		Object            respjson.Field
+		Metadata          respjson.Field
 		Moderation        respjson.Field
 		ServiceTier       respjson.Field
 		SystemFingerprint respjson.Field
@@ -380,12 +392,12 @@ func (u ChatCompletionModerationInputUnion) AsAny() anyChatCompletionModerationI
 }
 
 func (u ChatCompletionModerationInputUnion) AsModerationResults() (v ChatCompletionModerationInputModerationResults) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u ChatCompletionModerationInputUnion) AsError() (v ChatCompletionModerationInputError) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -537,12 +549,12 @@ func (u ChatCompletionModerationOutputUnion) AsAny() anyChatCompletionModeration
 }
 
 func (u ChatCompletionModerationOutputUnion) AsModerationResults() (v ChatCompletionModerationOutputModerationResults) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u ChatCompletionModerationOutputUnion) AsError() (v ChatCompletionModerationOutputError) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -643,9 +655,13 @@ func (r *ChatCompletionModerationOutputError) UnmarshalJSON(data []byte) error {
 //     will use 'default'.
 //   - If set to 'default', then the request will be processed with the standard
 //     pricing and performance for the selected model.
-//   - If set to '[flex](https://platform.openai.com/docs/guides/flex-processing)' or
-//     '[priority](https://openai.com/api-priority-processing/)', then the request
-//     will be processed with the corresponding service tier.
+//   - If set to '[flex](https://platform.openai.com/docs/guides/flex-processing)',
+//     then the request will be processed with the Flex Processing service tier.
+//   - To opt-in to [Fast mode](/api/docs/guides/fast-mode) at the request level,
+//     include the `service_tier=fast` or `service_tier=priority` parameter for
+//     Responses or Chat Completions. The response will show `service_tier=priority`
+//     regardless of if you specify `service_tier=fast` or `priority` in your
+//     request.
 //   - When not set, the default behavior is 'auto'.
 //
 // When the `service_tier` parameter is set, the response body will include the
@@ -660,6 +676,7 @@ const (
 	ChatCompletionServiceTierFlex     ChatCompletionServiceTier = "flex"
 	ChatCompletionServiceTierScale    ChatCompletionServiceTier = "scale"
 	ChatCompletionServiceTierPriority ChatCompletionServiceTier = "priority"
+	ChatCompletionServiceTierFast     ChatCompletionServiceTier = "fast"
 )
 
 // Constrains the tools available to the model to a pre-defined set.
@@ -777,15 +794,6 @@ func (u ChatCompletionAssistantMessageParamContentArrayOfContentPartUnion) Marsh
 }
 func (u *ChatCompletionAssistantMessageParamContentArrayOfContentPartUnion) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, u)
-}
-
-func (u *ChatCompletionAssistantMessageParamContentArrayOfContentPartUnion) asAny() any {
-	if !param.IsOmitted(u.OfText) {
-		return u.OfText
-	} else if !param.IsOmitted(u.OfRefusal) {
-		return u.OfRefusal
-	}
-	return nil
 }
 
 // Returns a pointer to the underlying variant's property, if present.
@@ -945,17 +953,6 @@ func (u *ChatCompletionAudioParamVoiceUnion) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, u)
 }
 
-func (u *ChatCompletionAudioParamVoiceUnion) asAny() any {
-	if !param.IsOmitted(u.OfString) {
-		return &u.OfString.Value
-	} else if !param.IsOmitted(u.OfChatCompletionAudioVoiceString2) {
-		return &u.OfChatCompletionAudioVoiceString2
-	} else if !param.IsOmitted(u.OfChatCompletionAudioVoiceID) {
-		return u.OfChatCompletionAudioVoiceID
-	}
-	return nil
-}
-
 type ChatCompletionAudioParamVoiceString2 string
 
 const (
@@ -1008,6 +1005,10 @@ type ChatCompletionChunk struct {
 	// Moderation results for the request input and generated output. Present on the
 	// moderation chunk when moderated completions are requested.
 	Moderation ChatCompletionChunkModeration `json:"moderation" api:"nullable"`
+	// An obfuscation string added to normalize the size of streamed chunks as a
+	// mitigation to certain side-channel attacks. The field is included by default and
+	// omitted when `stream_options.include_obfuscation` is `false`.
+	Obfuscation string `json:"obfuscation"`
 	// Specifies the processing type used for serving the request.
 	//
 	//   - If set to 'auto', then the request will be processed with the service tier
@@ -1015,9 +1016,13 @@ type ChatCompletionChunk struct {
 	//     will use 'default'.
 	//   - If set to 'default', then the request will be processed with the standard
 	//     pricing and performance for the selected model.
-	//   - If set to '[flex](https://platform.openai.com/docs/guides/flex-processing)' or
-	//     '[priority](https://openai.com/api-priority-processing/)', then the request
-	//     will be processed with the corresponding service tier.
+	//   - If set to '[flex](https://platform.openai.com/docs/guides/flex-processing)',
+	//     then the request will be processed with the Flex Processing service tier.
+	//   - To opt-in to [Fast mode](/api/docs/guides/fast-mode) at the request level,
+	//     include the `service_tier=fast` or `service_tier=priority` parameter for
+	//     Responses or Chat Completions. The response will show `service_tier=priority`
+	//     regardless of if you specify `service_tier=fast` or `priority` in your
+	//     request.
 	//   - When not set, the default behavior is 'auto'.
 	//
 	// When the `service_tier` parameter is set, the response body will include the
@@ -1025,7 +1030,7 @@ type ChatCompletionChunk struct {
 	// request. This response value may be different from the value set in the
 	// parameter.
 	//
-	// Any of "auto", "default", "flex", "scale", "priority".
+	// Any of "auto", "default", "flex", "scale", "priority", "fast".
 	ServiceTier ChatCompletionChunkServiceTier `json:"service_tier" api:"nullable"`
 	// This fingerprint represents the backend configuration that the model runs with.
 	// Can be used in conjunction with the `seed` request parameter to understand when
@@ -1049,6 +1054,7 @@ type ChatCompletionChunk struct {
 		Model             respjson.Field
 		Object            respjson.Field
 		Moderation        respjson.Field
+		Obfuscation       respjson.Field
 		ServiceTier       respjson.Field
 		SystemFingerprint respjson.Field
 		Usage             respjson.Field
@@ -1310,12 +1316,12 @@ func (u ChatCompletionChunkModerationInputUnion) AsAny() anyChatCompletionChunkM
 }
 
 func (u ChatCompletionChunkModerationInputUnion) AsModerationResults() (v ChatCompletionChunkModerationInputModerationResults) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u ChatCompletionChunkModerationInputUnion) AsError() (v ChatCompletionChunkModerationInputError) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -1472,12 +1478,12 @@ func (u ChatCompletionChunkModerationOutputUnion) AsAny() anyChatCompletionChunk
 }
 
 func (u ChatCompletionChunkModerationOutputUnion) AsModerationResults() (v ChatCompletionChunkModerationOutputModerationResults) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u ChatCompletionChunkModerationOutputUnion) AsError() (v ChatCompletionChunkModerationOutputError) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -1580,9 +1586,13 @@ func (r *ChatCompletionChunkModerationOutputError) UnmarshalJSON(data []byte) er
 //     will use 'default'.
 //   - If set to 'default', then the request will be processed with the standard
 //     pricing and performance for the selected model.
-//   - If set to '[flex](https://platform.openai.com/docs/guides/flex-processing)' or
-//     '[priority](https://openai.com/api-priority-processing/)', then the request
-//     will be processed with the corresponding service tier.
+//   - If set to '[flex](https://platform.openai.com/docs/guides/flex-processing)',
+//     then the request will be processed with the Flex Processing service tier.
+//   - To opt-in to [Fast mode](/api/docs/guides/fast-mode) at the request level,
+//     include the `service_tier=fast` or `service_tier=priority` parameter for
+//     Responses or Chat Completions. The response will show `service_tier=priority`
+//     regardless of if you specify `service_tier=fast` or `priority` in your
+//     request.
 //   - When not set, the default behavior is 'auto'.
 //
 // When the `service_tier` parameter is set, the response body will include the
@@ -1597,6 +1607,7 @@ const (
 	ChatCompletionChunkServiceTierFlex     ChatCompletionChunkServiceTier = "flex"
 	ChatCompletionChunkServiceTierScale    ChatCompletionChunkServiceTier = "scale"
 	ChatCompletionChunkServiceTierPriority ChatCompletionChunkServiceTier = "priority"
+	ChatCompletionChunkServiceTierFast     ChatCompletionChunkServiceTier = "fast"
 )
 
 func TextContentPart(text string) ChatCompletionContentPartUnionParam {
@@ -1639,19 +1650,6 @@ func (u ChatCompletionContentPartUnionParam) MarshalJSON() ([]byte, error) {
 }
 func (u *ChatCompletionContentPartUnionParam) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, u)
-}
-
-func (u *ChatCompletionContentPartUnionParam) asAny() any {
-	if !param.IsOmitted(u.OfText) {
-		return u.OfText
-	} else if !param.IsOmitted(u.OfImageURL) {
-		return u.OfImageURL
-	} else if !param.IsOmitted(u.OfInputAudio) {
-		return u.OfInputAudio
-	} else if !param.IsOmitted(u.OfFile) {
-		return u.OfFile
-	}
-	return nil
 }
 
 // Returns a pointer to the underlying variant's property, if present.
@@ -2245,15 +2243,6 @@ func (u *ChatCompletionCustomToolCustomFormatUnionParam) UnmarshalJSON(data []by
 	return apijson.UnmarshalRoot(data, u)
 }
 
-func (u *ChatCompletionCustomToolCustomFormatUnionParam) asAny() any {
-	if !param.IsOmitted(u.OfText) {
-		return u.OfText
-	} else if !param.IsOmitted(u.OfGrammar) {
-		return u.OfGrammar
-	}
-	return nil
-}
-
 // Returns a pointer to the underlying variant's property, if present.
 func (u ChatCompletionCustomToolCustomFormatUnionParam) GetGrammar() *ChatCompletionCustomToolCustomFormatGrammarGrammarParam {
 	if vt := u.OfGrammar; vt != nil {
@@ -2535,51 +2524,7 @@ func (r ChatCompletionMessage) ToParam() ChatCompletionMessageParamUnion {
 }
 
 func (r ChatCompletionMessage) ToAssistantMessageParam() ChatCompletionAssistantMessageParam {
-	var p ChatCompletionAssistantMessageParam
-
-	// It is important to not rely on the JSON metadata property
-	// here, it may be unset if the receiver was generated via a
-	// [ChatCompletionAccumulator].
-	//
-	// Explicit null is intentionally elided from the response.
-	if r.Content != "" {
-		p.Content.OfString = String(r.Content)
-	}
-	if r.Refusal != "" {
-		p.Refusal = String(r.Refusal)
-	}
-
-	p.Audio.ID = r.Audio.ID
-	p.Role = r.Role
-	p.FunctionCall.Arguments = r.FunctionCall.Arguments
-	p.FunctionCall.Name = r.FunctionCall.Name
-
-	if len(r.ToolCalls) > 0 {
-		for _, v := range r.ToolCalls {
-			u := ChatCompletionMessageToolCallUnionParam{}
-			switch v.AsAny().(type) {
-			case ChatCompletionMessageFunctionToolCall:
-				u.OfFunction = &ChatCompletionMessageFunctionToolCallParam{
-					ID: v.ID,
-					Function: ChatCompletionMessageFunctionToolCallFunctionParam{
-						Arguments: v.Function.Arguments,
-						Name:      v.Function.Name,
-					},
-				}
-			case ChatCompletionMessageCustomToolCall:
-				u.OfCustom = &ChatCompletionMessageCustomToolCallParam{
-					ID: v.ID,
-					Custom: ChatCompletionMessageCustomToolCallCustomParam{
-						Input: v.Custom.Input,
-						Name:  v.Custom.Name,
-					},
-				}
-			}
-
-			p.ToolCalls = append(p.ToolCalls, u)
-		}
-	}
-	return p
+	return chatCompletionMessageToAssistantParam(r)
 }
 
 // A URL citation when using web search.
@@ -2858,14 +2803,7 @@ func (r *ChatCompletionMessageFunctionToolCallFunctionParam) UnmarshalJSON(data 
 }
 
 func AssistantMessage[T string | []ChatCompletionAssistantMessageParamContentArrayOfContentPartUnion](content T) ChatCompletionMessageParamUnion {
-	var assistant ChatCompletionAssistantMessageParam
-	switch v := any(content).(type) {
-	case string:
-		assistant.Content.OfString = param.NewOpt(v)
-	case []ChatCompletionAssistantMessageParamContentArrayOfContentPartUnion:
-		assistant.Content.OfArrayOfContentParts = v
-	}
-	return ChatCompletionMessageParamUnion{OfAssistant: &assistant}
+	return ChatCompletionMessageParamOfAssistant(content)
 }
 
 func DeveloperMessage[T string | []ChatCompletionContentPartTextParam](content T) ChatCompletionMessageParamUnion {
@@ -2956,23 +2894,6 @@ func (u ChatCompletionMessageParamUnion) MarshalJSON() ([]byte, error) {
 }
 func (u *ChatCompletionMessageParamUnion) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, u)
-}
-
-func (u *ChatCompletionMessageParamUnion) asAny() any {
-	if !param.IsOmitted(u.OfDeveloper) {
-		return u.OfDeveloper
-	} else if !param.IsOmitted(u.OfSystem) {
-		return u.OfSystem
-	} else if !param.IsOmitted(u.OfUser) {
-		return u.OfUser
-	} else if !param.IsOmitted(u.OfAssistant) {
-		return u.OfAssistant
-	} else if !param.IsOmitted(u.OfTool) {
-		return u.OfTool
-	} else if !param.IsOmitted(u.OfFunction) {
-		return u.OfFunction
-	}
-	return nil
 }
 
 // Returns a pointer to the underlying variant's property, if present.
@@ -3152,12 +3073,12 @@ func (u ChatCompletionMessageToolCallUnion) AsAny() anyChatCompletionMessageTool
 }
 
 func (u ChatCompletionMessageToolCallUnion) AsFunction() (v ChatCompletionMessageFunctionToolCall) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u ChatCompletionMessageToolCallUnion) AsCustom() (v ChatCompletionMessageCustomToolCall) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -3192,15 +3113,6 @@ func (u ChatCompletionMessageToolCallUnionParam) MarshalJSON() ([]byte, error) {
 }
 func (u *ChatCompletionMessageToolCallUnionParam) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, u)
-}
-
-func (u *ChatCompletionMessageToolCallUnionParam) asAny() any {
-	if !param.IsOmitted(u.OfFunction) {
-		return u.OfFunction
-	} else if !param.IsOmitted(u.OfCustom) {
-		return u.OfCustom
-	}
-	return nil
 }
 
 // Returns a pointer to the underlying variant's property, if present.
@@ -3360,15 +3272,6 @@ func (u *ChatCompletionPredictionContentContentUnionParam) UnmarshalJSON(data []
 	return apijson.UnmarshalRoot(data, u)
 }
 
-func (u *ChatCompletionPredictionContentContentUnionParam) asAny() any {
-	if !param.IsOmitted(u.OfString) {
-		return &u.OfString.Value
-	} else if !param.IsOmitted(u.OfArrayOfContentParts) {
-		return &u.OfArrayOfContentParts
-	}
-	return nil
-}
-
 // A chat completion message generated by the model.
 type ChatCompletionStoreMessage struct {
 	// The identifier of the chat message.
@@ -3415,12 +3318,12 @@ type ChatCompletionStoreMessageContentPartUnion struct {
 }
 
 func (u ChatCompletionStoreMessageContentPartUnion) AsTextContentPart() (v ChatCompletionContentPartText) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u ChatCompletionStoreMessageContentPartUnion) AsImageContentPart() (v ChatCompletionContentPartImage) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -3618,15 +3521,6 @@ func (u *ChatCompletionToolUnionParam) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, u)
 }
 
-func (u *ChatCompletionToolUnionParam) asAny() any {
-	if !param.IsOmitted(u.OfFunction) {
-		return u.OfFunction
-	} else if !param.IsOmitted(u.OfCustom) {
-		return u.OfCustom
-	}
-	return nil
-}
-
 // Returns a pointer to the underlying variant's property, if present.
 func (u ChatCompletionToolUnionParam) GetFunction() *shared.FunctionDefinitionParam {
 	if vt := u.OfFunction; vt != nil {
@@ -3696,19 +3590,6 @@ func (u ChatCompletionToolChoiceOptionUnionParam) MarshalJSON() ([]byte, error) 
 }
 func (u *ChatCompletionToolChoiceOptionUnionParam) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, u)
-}
-
-func (u *ChatCompletionToolChoiceOptionUnionParam) asAny() any {
-	if !param.IsOmitted(u.OfAuto) {
-		return &u.OfAuto
-	} else if !param.IsOmitted(u.OfAllowedTools) {
-		return u.OfAllowedTools
-	} else if !param.IsOmitted(u.OfFunctionToolChoice) {
-		return u.OfFunctionToolChoice
-	} else if !param.IsOmitted(u.OfCustomToolChoice) {
-		return u.OfCustomToolChoice
-	}
-	return nil
 }
 
 // Returns a pointer to the underlying variant's property, if present.
@@ -3912,9 +3793,9 @@ type ChatCompletionNewParams struct {
 	// [images](https://platform.openai.com/docs/guides/vision), and
 	// [audio](https://platform.openai.com/docs/guides/audio).
 	Messages []ChatCompletionMessageParamUnion `json:"messages,omitzero" api:"required"`
-	// Model ID used to generate the response, like `gpt-4o` or `o3`. OpenAI offers a
-	// wide range of models with different capabilities, performance characteristics,
-	// and price points. Refer to the
+	// Model ID used to generate the response, like `gpt-5.6-sol` or `o3`. OpenAI
+	// offers a wide range of models with different capabilities, performance
+	// characteristics, and price points. Refer to the
 	// [model guide](https://platform.openai.com/docs/models) to browse and compare
 	// available models.
 	Model shared.ChatModel `json:"model,omitzero" api:"required"`
@@ -4066,9 +3947,13 @@ type ChatCompletionNewParams struct {
 	//     will use 'default'.
 	//   - If set to 'default', then the request will be processed with the standard
 	//     pricing and performance for the selected model.
-	//   - If set to '[flex](https://platform.openai.com/docs/guides/flex-processing)' or
-	//     '[priority](https://openai.com/api-priority-processing/)', then the request
-	//     will be processed with the corresponding service tier.
+	//   - If set to '[flex](https://platform.openai.com/docs/guides/flex-processing)',
+	//     then the request will be processed with the Flex Processing service tier.
+	//   - To opt-in to [Fast mode](/api/docs/guides/fast-mode) at the request level,
+	//     include the `service_tier=fast` or `service_tier=priority` parameter for
+	//     Responses or Chat Completions. The response will show `service_tier=priority`
+	//     regardless of if you specify `service_tier=fast` or `priority` in your
+	//     request.
 	//   - When not set, the default behavior is 'auto'.
 	//
 	// When the `service_tier` parameter is set, the response body will include the
@@ -4076,7 +3961,7 @@ type ChatCompletionNewParams struct {
 	// request. This response value may be different from the value set in the
 	// parameter.
 	//
-	// Any of "auto", "default", "flex", "scale", "priority".
+	// Any of "auto", "default", "flex", "scale", "priority", "fast".
 	ServiceTier ChatCompletionNewParamsServiceTier `json:"service_tier,omitzero"`
 	// Not supported with latest reasoning models `o3` and `o4-mini`.
 	//
@@ -4179,15 +4064,6 @@ func (u ChatCompletionNewParamsFunctionCallUnion) MarshalJSON() ([]byte, error) 
 }
 func (u *ChatCompletionNewParamsFunctionCallUnion) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, u)
-}
-
-func (u *ChatCompletionNewParamsFunctionCallUnion) asAny() any {
-	if !param.IsOmitted(u.OfFunctionCallMode) {
-		return &u.OfFunctionCallMode
-	} else if !param.IsOmitted(u.OfFunctionCallOption) {
-		return u.OfFunctionCallOption
-	}
-	return nil
 }
 
 // `none` means the model will not call a function and instead generates a message.
@@ -4398,17 +4274,6 @@ func (u *ChatCompletionNewParamsResponseFormatUnion) UnmarshalJSON(data []byte) 
 	return apijson.UnmarshalRoot(data, u)
 }
 
-func (u *ChatCompletionNewParamsResponseFormatUnion) asAny() any {
-	if !param.IsOmitted(u.OfText) {
-		return u.OfText
-	} else if !param.IsOmitted(u.OfJSONSchema) {
-		return u.OfJSONSchema
-	} else if !param.IsOmitted(u.OfJSONObject) {
-		return u.OfJSONObject
-	}
-	return nil
-}
-
 // Returns a pointer to the underlying variant's property, if present.
 func (u ChatCompletionNewParamsResponseFormatUnion) GetJSONSchema() *shared.ResponseFormatJSONSchemaJSONSchemaParam {
 	if vt := u.OfJSONSchema; vt != nil {
@@ -4445,9 +4310,13 @@ func init() {
 //     will use 'default'.
 //   - If set to 'default', then the request will be processed with the standard
 //     pricing and performance for the selected model.
-//   - If set to '[flex](https://platform.openai.com/docs/guides/flex-processing)' or
-//     '[priority](https://openai.com/api-priority-processing/)', then the request
-//     will be processed with the corresponding service tier.
+//   - If set to '[flex](https://platform.openai.com/docs/guides/flex-processing)',
+//     then the request will be processed with the Flex Processing service tier.
+//   - To opt-in to [Fast mode](/api/docs/guides/fast-mode) at the request level,
+//     include the `service_tier=fast` or `service_tier=priority` parameter for
+//     Responses or Chat Completions. The response will show `service_tier=priority`
+//     regardless of if you specify `service_tier=fast` or `priority` in your
+//     request.
 //   - When not set, the default behavior is 'auto'.
 //
 // When the `service_tier` parameter is set, the response body will include the
@@ -4462,6 +4331,7 @@ const (
 	ChatCompletionNewParamsServiceTierFlex     ChatCompletionNewParamsServiceTier = "flex"
 	ChatCompletionNewParamsServiceTierScale    ChatCompletionNewParamsServiceTier = "scale"
 	ChatCompletionNewParamsServiceTierPriority ChatCompletionNewParamsServiceTier = "priority"
+	ChatCompletionNewParamsServiceTierFast     ChatCompletionNewParamsServiceTier = "fast"
 )
 
 // Only one field can be non-zero.
@@ -4478,15 +4348,6 @@ func (u ChatCompletionNewParamsStopUnion) MarshalJSON() ([]byte, error) {
 }
 func (u *ChatCompletionNewParamsStopUnion) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, u)
-}
-
-func (u *ChatCompletionNewParamsStopUnion) asAny() any {
-	if !param.IsOmitted(u.OfString) {
-		return &u.OfString.Value
-	} else if !param.IsOmitted(u.OfStringArray) {
-		return &u.OfStringArray
-	}
-	return nil
 }
 
 // Constrains the verbosity of the model's response. Lower values will result in
