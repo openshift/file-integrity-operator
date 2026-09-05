@@ -45,13 +45,13 @@ func NewBetaFileService(opts ...option.RequestOption) (r BetaFileService) {
 }
 
 // List Files
-func (r *BetaFileService) List(ctx context.Context, params BetaFileListParams, opts ...option.RequestOption) (res *pagination.Page[FileMetadata], err error) {
+func (r *BetaFileService) List(ctx context.Context, params BetaFileListParams, opts ...option.RequestOption) (res *pagination.PageCursor[BetaFileMetadata], err error) {
 	var raw *http.Response
 	for _, v := range params.Betas {
 		opts = append(opts, option.WithHeaderAdd("anthropic-beta", fmt.Sprintf("%v", v)))
 	}
 	opts = slices.Concat(r.Options, opts)
-	opts = append([]option.RequestOption{option.WithHeader("anthropic-beta", "files-api-2025-04-14"), option.WithResponseInto(&raw)}, opts...)
+	opts = append([]option.RequestOption{option.WithResponseInto(&raw)}, opts...)
 	path := "v1/files?beta=true"
 	cfg, err := requestconfig.NewRequestConfig(ctx, http.MethodGet, path, params, &res, opts...)
 	if err != nil {
@@ -66,17 +66,16 @@ func (r *BetaFileService) List(ctx context.Context, params BetaFileListParams, o
 }
 
 // List Files
-func (r *BetaFileService) ListAutoPaging(ctx context.Context, params BetaFileListParams, opts ...option.RequestOption) *pagination.PageAutoPager[FileMetadata] {
-	return pagination.NewPageAutoPager(r.List(ctx, params, opts...))
+func (r *BetaFileService) ListAutoPaging(ctx context.Context, params BetaFileListParams, opts ...option.RequestOption) *pagination.PageCursorAutoPager[BetaFileMetadata] {
+	return pagination.NewPageCursorAutoPager(r.List(ctx, params, opts...))
 }
 
 // Delete File
-func (r *BetaFileService) Delete(ctx context.Context, fileID string, body BetaFileDeleteParams, opts ...option.RequestOption) (res *DeletedFile, err error) {
+func (r *BetaFileService) Delete(ctx context.Context, fileID string, body BetaFileDeleteParams, opts ...option.RequestOption) (res *BetaDeletedFile, err error) {
 	for _, v := range body.Betas {
 		opts = append(opts, option.WithHeaderAdd("anthropic-beta", fmt.Sprintf("%v", v)))
 	}
 	opts = slices.Concat(r.Options, opts)
-	opts = append([]option.RequestOption{option.WithHeader("anthropic-beta", "files-api-2025-04-14")}, opts...)
 	if fileID == "" {
 		err = errors.New("missing required file_id parameter")
 		return nil, err
@@ -92,7 +91,7 @@ func (r *BetaFileService) Download(ctx context.Context, fileID string, query Bet
 		opts = append(opts, option.WithHeaderAdd("anthropic-beta", fmt.Sprintf("%v", v)))
 	}
 	opts = slices.Concat(r.Options, opts)
-	opts = append([]option.RequestOption{option.WithHeader("anthropic-beta", "files-api-2025-04-14"), option.WithHeader("Accept", "application/binary")}, opts...)
+	opts = append([]option.RequestOption{option.WithHeader("Accept", "application/binary")}, opts...)
 	if fileID == "" {
 		err = errors.New("missing required file_id parameter")
 		return nil, err
@@ -103,12 +102,11 @@ func (r *BetaFileService) Download(ctx context.Context, fileID string, query Bet
 }
 
 // Get File Metadata
-func (r *BetaFileService) GetMetadata(ctx context.Context, fileID string, query BetaFileGetMetadataParams, opts ...option.RequestOption) (res *FileMetadata, err error) {
+func (r *BetaFileService) GetMetadata(ctx context.Context, fileID string, query BetaFileGetMetadataParams, opts ...option.RequestOption) (res *BetaFileMetadata, err error) {
 	for _, v := range query.Betas {
 		opts = append(opts, option.WithHeaderAdd("anthropic-beta", fmt.Sprintf("%v", v)))
 	}
 	opts = slices.Concat(r.Options, opts)
-	opts = append([]option.RequestOption{option.WithHeader("anthropic-beta", "files-api-2025-04-14")}, opts...)
 	if fileID == "" {
 		err = errors.New("missing required file_id parameter")
 		return nil, err
@@ -119,15 +117,95 @@ func (r *BetaFileService) GetMetadata(ctx context.Context, fileID string, query 
 }
 
 // Upload File
-func (r *BetaFileService) Upload(ctx context.Context, params BetaFileUploadParams, opts ...option.RequestOption) (res *FileMetadata, err error) {
+func (r *BetaFileService) Upload(ctx context.Context, params BetaFileUploadParams, opts ...option.RequestOption) (res *BetaFileMetadata, err error) {
 	for _, v := range params.Betas {
 		opts = append(opts, option.WithHeaderAdd("anthropic-beta", fmt.Sprintf("%v", v)))
 	}
 	opts = slices.Concat(r.Options, opts)
-	opts = append([]option.RequestOption{option.WithHeader("anthropic-beta", "files-api-2025-04-14")}, opts...)
 	path := "v1/files?beta=true"
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodPost, path, params, &res, opts...)
 	return res, err
+}
+
+type BetaDeletedFile struct {
+	// ID of the deleted file.
+	ID string `json:"id" api:"required"`
+	// Deleted object type.
+	//
+	// For file deletion, this is always `"file_deleted"`.
+	//
+	// Any of "file_deleted".
+	Type BetaDeletedFileType `json:"type"`
+	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
+	JSON struct {
+		ID          respjson.Field
+		Type        respjson.Field
+		ExtraFields map[string]respjson.Field
+		raw         string
+	} `json:"-"`
+}
+
+// Returns the unmodified JSON received from the API
+func (r BetaDeletedFile) RawJSON() string { return r.JSON.raw }
+func (r *BetaDeletedFile) UnmarshalJSON(data []byte) error {
+	return apijson.UnmarshalRoot(data, r)
+}
+
+// Deleted object type.
+//
+// For file deletion, this is always `"file_deleted"`.
+type BetaDeletedFileType string
+
+const (
+	BetaDeletedFileTypeFileDeleted BetaDeletedFileType = "file_deleted"
+)
+
+type BetaFileMetadata struct {
+	// Unique object identifier.
+	//
+	// The format and length of IDs may change over time.
+	ID string `json:"id" api:"required"`
+	// RFC 3339 datetime string representing when the file was created.
+	CreatedAt time.Time `json:"created_at" api:"required" format:"date-time"`
+	// Original filename of the uploaded file.
+	Filename string `json:"filename" api:"required"`
+	// MIME type of the file.
+	MimeType string `json:"mime_type" api:"required"`
+	// Size of the file in bytes.
+	SizeBytes int64 `json:"size_bytes" api:"required"`
+	// Object type.
+	//
+	// For files, this is always `"file"`.
+	Type constant.File `json:"type" default:"file"`
+	// Whether the file can be downloaded.
+	Downloadable bool `json:"downloadable"`
+	// RFC 3339 datetime string representing when the file will expire and become
+	// unavailable for download. Null if the file does not expire. For files uploaded
+	// with `expires_in_seconds`, this is the upload time plus that value.
+	ExpiresAt time.Time `json:"expires_at" api:"nullable" format:"date-time"`
+	// The scope of this file, indicating the context in which it was created (e.g., a
+	// session).
+	Scope BetaFileScope `json:"scope" api:"nullable"`
+	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
+	JSON struct {
+		ID           respjson.Field
+		CreatedAt    respjson.Field
+		Filename     respjson.Field
+		MimeType     respjson.Field
+		SizeBytes    respjson.Field
+		Type         respjson.Field
+		Downloadable respjson.Field
+		ExpiresAt    respjson.Field
+		Scope        respjson.Field
+		ExtraFields  map[string]respjson.Field
+		raw          string
+	} `json:"-"`
+}
+
+// Returns the unmodified JSON received from the API
+func (r BetaFileMetadata) RawJSON() string { return r.JSON.raw }
+func (r *BetaFileMetadata) UnmarshalJSON(data []byte) error {
+	return apijson.UnmarshalRoot(data, r)
 }
 
 type BetaFileScope struct {
@@ -150,89 +228,10 @@ func (r *BetaFileScope) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, r)
 }
 
-type DeletedFile struct {
-	// ID of the deleted file.
-	ID string `json:"id" api:"required"`
-	// Deleted object type.
-	//
-	// For file deletion, this is always `"file_deleted"`.
-	//
-	// Any of "file_deleted".
-	Type DeletedFileType `json:"type"`
-	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
-	JSON struct {
-		ID          respjson.Field
-		Type        respjson.Field
-		ExtraFields map[string]respjson.Field
-		raw         string
-	} `json:"-"`
-}
-
-// Returns the unmodified JSON received from the API
-func (r DeletedFile) RawJSON() string { return r.JSON.raw }
-func (r *DeletedFile) UnmarshalJSON(data []byte) error {
-	return apijson.UnmarshalRoot(data, r)
-}
-
-// Deleted object type.
-//
-// For file deletion, this is always `"file_deleted"`.
-type DeletedFileType string
-
-const (
-	DeletedFileTypeFileDeleted DeletedFileType = "file_deleted"
-)
-
-type FileMetadata struct {
-	// Unique object identifier.
-	//
-	// The format and length of IDs may change over time.
-	ID string `json:"id" api:"required"`
-	// RFC 3339 datetime string representing when the file was created.
-	CreatedAt time.Time `json:"created_at" api:"required" format:"date-time"`
-	// Original filename of the uploaded file.
-	Filename string `json:"filename" api:"required"`
-	// MIME type of the file.
-	MimeType string `json:"mime_type" api:"required"`
-	// Size of the file in bytes.
-	SizeBytes int64 `json:"size_bytes" api:"required"`
-	// Object type.
-	//
-	// For files, this is always `"file"`.
-	Type constant.File `json:"type" default:"file"`
-	// Whether the file can be downloaded.
-	Downloadable bool `json:"downloadable"`
-	// The scope of this file, indicating the context in which it was created (e.g., a
-	// session).
-	Scope BetaFileScope `json:"scope" api:"nullable"`
-	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
-	JSON struct {
-		ID           respjson.Field
-		CreatedAt    respjson.Field
-		Filename     respjson.Field
-		MimeType     respjson.Field
-		SizeBytes    respjson.Field
-		Type         respjson.Field
-		Downloadable respjson.Field
-		Scope        respjson.Field
-		ExtraFields  map[string]respjson.Field
-		raw          string
-	} `json:"-"`
-}
-
-// Returns the unmodified JSON received from the API
-func (r FileMetadata) RawJSON() string { return r.JSON.raw }
-func (r *FileMetadata) UnmarshalJSON(data []byte) error {
-	return apijson.UnmarshalRoot(data, r)
-}
-
 type BetaFileListParams struct {
-	// ID of the object to use as a cursor for pagination. When provided, returns the
-	// page of results immediately after this object.
-	AfterID param.Opt[string] `query:"after_id,omitzero" json:"-"`
-	// ID of the object to use as a cursor for pagination. When provided, returns the
-	// page of results immediately before this object.
-	BeforeID param.Opt[string] `query:"before_id,omitzero" json:"-"`
+	// Opaque page cursor returned in a prior list response's `next_page`. Prefixed
+	// `page_`.
+	Page param.Opt[string] `query:"page,omitzero" json:"-"`
 	// Number of items to return per page.
 	//
 	// Defaults to `20`. Ranges from `1` to `1000`.
@@ -240,6 +239,12 @@ type BetaFileListParams struct {
 	// Filter by scope ID. Only returns files associated with the specified scope
 	// (e.g., a session ID).
 	ScopeID param.Opt[string] `query:"scope_id,omitzero" json:"-"`
+	// Restrict the result set to Files whose `id` is in this list. At most 100 entries
+	// (after de-duplication). Mutually exclusive with `page` and `limit`. When
+	// supplied, the response is always a single page (`next_page` is null). IDs that
+	// do not resolve to a visible File — including deleted Files — are silently
+	// omitted.
+	IDs []string `query:"ids,omitzero" json:"-"`
 	// Optional header to specify the beta version(s) you want to use.
 	Betas []AnthropicBeta `header:"anthropic-beta,omitzero" json:"-"`
 	paramObj
@@ -248,7 +253,7 @@ type BetaFileListParams struct {
 // URLQuery serializes [BetaFileListParams]'s query parameters as `url.Values`.
 func (r BetaFileListParams) URLQuery() (v url.Values, err error) {
 	return apiquery.MarshalWithSettings(r, apiquery.QuerySettings{
-		ArrayFormat:  apiquery.ArrayQueryFormatComma,
+		ArrayFormat:  apiquery.ArrayQueryFormatBrackets,
 		NestedFormat: apiquery.NestedQueryFormatBrackets,
 	})
 }
@@ -274,6 +279,9 @@ type BetaFileGetMetadataParams struct {
 type BetaFileUploadParams struct {
 	// The file to upload
 	File io.Reader `json:"file,omitzero" api:"required" format:"binary"`
+	// Seconds from upload until the file expires and its bytes become permanently
+	// unavailable. Must be between 3600 (one hour) and 7776000 (ninety days).
+	ExpiresInSeconds param.Opt[int64] `json:"expires_in_seconds,omitzero"`
 	// Optional header to specify the beta version(s) you want to use.
 	Betas []AnthropicBeta `header:"anthropic-beta,omitzero" json:"-"`
 	paramObj
