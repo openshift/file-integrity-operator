@@ -424,6 +424,14 @@ func (r *FileIntegrityReconciler) FileIntegrityControllerReconcile(request recon
 		return reconcile.Result{}, err
 	}
 
+	// Ensure the operand NetworkPolicies exist before creating any operand pods,
+	// so operands start with their network access already governed. Fail closed:
+	// if reconciliation fails, requeue rather than launch operands ungoverned.
+	if err := r.reconcileNetworkPolicies(context.TODO(), reqLogger); err != nil {
+		reqLogger.Error(err, "Cannot reconcile operand NetworkPolicies")
+		return reconcile.Result{}, err
+	}
+
 	// Validate PriorityClass if specified. If invalid or not found, it will be ignored.
 	if instance.Spec.PriorityClassName != "" {
 		if !r.validatePriorityClass(context.TODO(), instance.Spec.PriorityClassName, reqLogger) {
@@ -789,6 +797,10 @@ func reinitAideDaemonset(reinitDaemonSetName string, fi *v1alpha1.FileIntegrity,
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
 						"app": reinitDaemonSetName,
+						// Marks the pod as an operand so the operand
+						// NetworkPolicies select it. The DaemonSet selector is
+						// left untouched.
+						common.IntegrityPodLabelKey: "",
 					},
 				},
 				Spec: corev1.PodSpec{
