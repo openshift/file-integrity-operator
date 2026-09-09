@@ -12,7 +12,7 @@ COPY . .
 
 RUN make build
 
-FROM registry.redhat.io/rhel9-4-els/rhel-minimal:latest
+FROM registry.redhat.io/ubi9/ubi-minimal-pqc:latest
 
 # We need tar for the bundle build process to work since it pulls the operator
 # manifests from the operator image using `oc cp`, which will fail if `tar`
