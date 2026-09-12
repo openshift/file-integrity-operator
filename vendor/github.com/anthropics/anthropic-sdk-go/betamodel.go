@@ -48,6 +48,9 @@ func (r *BetaModelService) Get(ctx context.Context, modelID string, query BetaMo
 	for _, v := range query.Betas {
 		opts = append(opts, option.WithHeaderAdd("anthropic-beta", fmt.Sprintf("%v", v)))
 	}
+	if !param.IsOmitted(query.WorkspaceID) {
+		opts = append(opts, option.WithHeader("anthropic-workspace-id", fmt.Sprintf("%v", query.WorkspaceID.Value)))
+	}
 	opts = slices.Concat(r.Options, opts)
 	if modelID == "" {
 		err = errors.New("missing required model_id parameter")
@@ -66,6 +69,9 @@ func (r *BetaModelService) List(ctx context.Context, params BetaModelListParams,
 	var raw *http.Response
 	for _, v := range params.Betas {
 		opts = append(opts, option.WithHeaderAdd("anthropic-beta", fmt.Sprintf("%v", v)))
+	}
+	if !param.IsOmitted(params.WorkspaceID) {
+		opts = append(opts, option.WithHeader("anthropic-workspace-id", fmt.Sprintf("%v", params.WorkspaceID.Value)))
 	}
 	opts = slices.Concat(r.Options, opts)
 	opts = append([]option.RequestOption{option.WithResponseInto(&raw)}, opts...)
@@ -213,6 +219,10 @@ func (r *BetaModelCapabilities) UnmarshalJSON(data []byte) error {
 type BetaModelInfo struct {
 	// Unique model identifier.
 	ID string `json:"id" api:"required"`
+	// Model IDs this model accepts as `fallbacks[i].model` on the Messages API. An
+	// empty list means the `fallbacks` parameter is not supported for this model as
+	// primary.
+	AllowedFallbackModels []string `json:"allowed_fallback_models" api:"required"`
 	// Model capability information.
 	Capabilities BetaModelCapabilities `json:"capabilities" api:"required"`
 	// RFC 3339 datetime string representing the time at which the model was released.
@@ -230,15 +240,16 @@ type BetaModelInfo struct {
 	Type constant.Model `json:"type" default:"model"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
-		ID             respjson.Field
-		Capabilities   respjson.Field
-		CreatedAt      respjson.Field
-		DisplayName    respjson.Field
-		MaxInputTokens respjson.Field
-		MaxTokens      respjson.Field
-		Type           respjson.Field
-		ExtraFields    map[string]respjson.Field
-		raw            string
+		ID                    respjson.Field
+		AllowedFallbackModels respjson.Field
+		Capabilities          respjson.Field
+		CreatedAt             respjson.Field
+		DisplayName           respjson.Field
+		MaxInputTokens        respjson.Field
+		MaxTokens             respjson.Field
+		Type                  respjson.Field
+		ExtraFields           map[string]respjson.Field
+		raw                   string
 	} `json:"-"`
 }
 
@@ -291,6 +302,7 @@ func (r *BetaThinkingTypes) UnmarshalJSON(data []byte) error {
 }
 
 type BetaModelGetParams struct {
+	WorkspaceID param.Opt[string] `header:"anthropic-workspace-id,omitzero" json:"-"`
 	// Optional header to specify the beta version(s) you want to use.
 	Betas []AnthropicBeta `header:"anthropic-beta,omitzero" json:"-"`
 	paramObj
@@ -306,7 +318,8 @@ type BetaModelListParams struct {
 	// Number of items to return per page.
 	//
 	// Defaults to `20`. Ranges from `1` to `1000`.
-	Limit param.Opt[int64] `query:"limit,omitzero" json:"-"`
+	Limit       param.Opt[int64]  `query:"limit,omitzero" json:"-"`
+	WorkspaceID param.Opt[string] `header:"anthropic-workspace-id,omitzero" json:"-"`
 	// Optional header to specify the beta version(s) you want to use.
 	Betas []AnthropicBeta `header:"anthropic-beta,omitzero" json:"-"`
 	paramObj
@@ -315,7 +328,7 @@ type BetaModelListParams struct {
 // URLQuery serializes [BetaModelListParams]'s query parameters as `url.Values`.
 func (r BetaModelListParams) URLQuery() (v url.Values, err error) {
 	return apiquery.MarshalWithSettings(r, apiquery.QuerySettings{
-		ArrayFormat:  apiquery.ArrayQueryFormatComma,
+		ArrayFormat:  apiquery.ArrayQueryFormatBrackets,
 		NestedFormat: apiquery.NestedQueryFormatBrackets,
 	})
 }
