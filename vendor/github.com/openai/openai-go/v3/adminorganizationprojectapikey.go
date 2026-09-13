@@ -1,4 +1,4 @@
-// File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+// File generated from our OpenAPI spec by Castiron. See CONTRIBUTING.md for details.
 
 package openai
 
@@ -34,7 +34,7 @@ type AdminOrganizationProjectAPIKeyService struct {
 // client's options (if there is one), and before any request-specific options.
 func NewAdminOrganizationProjectAPIKeyService(opts ...option.RequestOption) (r AdminOrganizationProjectAPIKeyService) {
 	r = AdminOrganizationProjectAPIKeyService{}
-	r.Options = opts
+	r.Options = requestconfig.InheritedOptions(opts...)
 	return
 }
 
@@ -122,6 +122,9 @@ type ProjectAPIKey struct {
 	OwnerProjectAccess ProjectAPIKeyOwnerProjectAccess `json:"owner_project_access" api:"required"`
 	// The redacted value of the API key
 	RedactedValue string `json:"redacted_value" api:"required"`
+	// The Unix timestamp (in seconds) when the API key expires, or null if it does not
+	// expire.
+	ExpiresAt int64 `json:"expires_at" api:"nullable" format:"unixtime"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
 		ID                 respjson.Field
@@ -132,6 +135,7 @@ type ProjectAPIKey struct {
 		Owner              respjson.Field
 		OwnerProjectAccess respjson.Field
 		RedactedValue      respjson.Field
+		ExpiresAt          respjson.Field
 		ExtraFields        map[string]respjson.Field
 		raw                string
 	} `json:"-"`
