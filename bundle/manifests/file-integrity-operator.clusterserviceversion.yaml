@@ -19,15 +19,15 @@ metadata:
       ]
     capabilities: Seamless Upgrades
     categories: Monitoring,Security
-    createdAt: "2026-05-04T11:14:39Z"
+    createdAt: "2026-09-15T14:42:22Z"
     olm.skipRange: '>=1.0.0 <1.4.0'
     operatorframework.io/cluster-monitoring: "true"
     operatorframework.io/suggested-namespace: openshift-file-integrity
     operators.openshift.io/infrastructure-features: '["disconnected", "fips"]'
     operators.openshift.io/valid-subscription: '["OpenShift Kubernetes Engine", "OpenShift
       Container Platform", "OpenShift Platform Plus"]'
-    operators.operatorframework.io/builder: operator-sdk-v1.42.2
-    operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
+    operators.operatorframework.io/builder: operator-sdk-v1.27.0
+    operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/openshift/file-integrity-operator
   labels:
     operatorframework.io/arch.amd64: supported
@@ -71,6 +71,14 @@ spec:
           - scheduling.k8s.io
           resources:
           - priorityclasses
+          verbs:
+          - get
+          - list
+          - watch
+        - apiGroups:
+          - config.openshift.io
+          resources:
+          - apiservers
           verbs:
           - get
           - list
@@ -337,4 +345,3 @@ spec:
   - image: quay.io/file-integrity-operator/file-integrity-operator:latest
     name: operator
   version: 1.4.0
-  replaces: file-integrity-operator.v1.3.8
