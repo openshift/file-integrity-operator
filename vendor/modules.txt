@@ -309,6 +309,7 @@ github.com/fxamacker/cbor/v2
 github.com/go-logr/logr
 github.com/go-logr/logr/funcr
 github.com/go-logr/logr/slogr
+github.com/go-logr/logr/testr
 # github.com/go-logr/stdr v1.2.2
 ## explicit; go 1.16
 github.com/go-logr/stdr
@@ -649,6 +650,9 @@ github.com/openshift/api/config/v1
 github.com/openshift/api/machine/v1beta1
 github.com/openshift/api/machineconfiguration
 github.com/openshift/api/machineconfiguration/v1
+# github.com/openshift/controller-runtime-common v0.0.0-20260813135806-e1187ec555fc
+## explicit; go 1.26.0
+github.com/openshift/controller-runtime-common/pkg/tls
 # github.com/openshift/library-go v0.0.0-20260807194649-ee0a87843dda
 ## explicit; go 1.26.0
 github.com/openshift/library-go/pkg/crypto
