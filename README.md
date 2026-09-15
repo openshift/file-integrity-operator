@@ -50,6 +50,13 @@ spec:
     operator: "Exists"
     effect: "NoSchedule"
   priorityClassName: "system-cluster-critical"
+  resources:
+    requests:
+      memory: "40Mi"
+      cpu: "40m"
+    limits:
+      memory: "600Mi"
+      cpu: "300m"
   config:
     name: "myconfig"
     namespace: "openshift-file-integrity"
@@ -64,6 +71,7 @@ In the `spec`:
 * **nodeSelector**: Selector for nodes to schedule the scan instances on.
 * **tolerations**: Specify tolerations to schedule on nodes with custom taints. When not specified, a default toleration allowing running on master and infra nodes is applied.
 * **priorityClassName**: (Optional) Specifies the `PriorityClass` for the pods created by the operator. If the PriorityClass is invalid or not found, it will be ignored and cleared from the spec.
+* **resources**: (Optional) Specifies the resource requests and limits for the AIDE daemon container. When omitted, the operator applies its built-in defaults (requests: 40Mi memory / 40m CPU, limits: 600Mi memory / 300m CPU).
 * **config**: Point to a ConfigMap containing an AIDE configuration to use instead of the CoreOS optimized default. See "Applying an AIDE config" below.
 * **config.gracePeriod**: The number of seconds to pause in between AIDE integrity checks. Frequent AIDE checks on a node may be resource intensive, so it can be useful to specify a longer interval. Defaults to 900 (15 mins).
 * **config.maxBackups**: The maximum number of AIDE database and log backups (leftover from the re-init process) to keep on a node. Older backups beyond this number are automatically pruned by the daemon. Defaults to 5.
