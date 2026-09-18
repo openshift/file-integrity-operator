@@ -75,6 +75,14 @@ spec:
           - get
           - list
           - watch
+        - apiGroups:
+          - config.openshift.io
+          resources:
+          - apiservers
+          verbs:
+          - get
+          - list
+          - watch
         serviceAccountName: file-integrity-operator
       deployments:
       - name: file-integrity-operator

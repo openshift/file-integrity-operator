@@ -52,6 +52,8 @@ import (
 	monitoring "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	monclientv1 "github.com/prometheus-operator/prometheus-operator/pkg/client/versioned/typed/monitoring/v1"
 
+	configv1 "github.com/openshift/api/config/v1"
+	tlspkg "github.com/openshift/controller-runtime-common/pkg/tls"
 	"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
 	"github.com/openshift/file-integrity-operator/pkg/common"
 	"github.com/openshift/file-integrity-operator/pkg/controller/configmap"
@@ -59,6 +61,7 @@ import (
 	"github.com/openshift/file-integrity-operator/pkg/controller/metrics"
 	"github.com/openshift/file-integrity-operator/pkg/controller/node"
 	"github.com/openshift/file-integrity-operator/pkg/controller/status"
+	libgocrypto "github.com/openshift/library-go/pkg/crypto"
 )
 
 var OperatorCmd = &cobra.Command{
@@ -83,6 +86,7 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
 	utilruntime.Must(v1alpha1.AddToScheme(scheme))
+	utilruntime.Must(configv1.Install(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -127,9 +131,36 @@ func RunOperator(cmd *cobra.Command, args []string) {
 	kubeClient := kubernetes.NewForConfigOrDie(cfg)
 	monitoringClient := monclientv1.NewForConfigOrDie(cfg)
 
-	ctx := context.TODO()
+	// ctx is cancelled either by an OS shutdown signal or by the TLS security
+	// profile watcher below when the cluster-wide TLS configuration changes,
+	// so the manager shuts down gracefully and the pod restarts with the new
+	// TLS settings applied.
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
 
 	log.Info("Registering Components.")
+
+	// Fetch the cluster-wide TLS profile and adherence policy up front so all
+	// TLS servers (webhook, metrics) can be configured accordingly at startup.
+	preStartClient, err := client.New(cfg, client.Options{Scheme: scheme})
+	if err != nil {
+		log.Error(err, "unable to create client for TLS profile lookup")
+		os.Exit(1)
+	}
+	initialTLSProfile, err := tlspkg.FetchAPIServerTLSProfile(ctx, preStartClient)
+	if err != nil {
+		log.Info("could not fetch cluster APIServer TLS profile, using defaults", "error", err)
+		initialTLSProfile = configv1.TLSProfileSpec{
+			Ciphers:       tlspkg.DefaultTLSCiphers,
+			MinTLSVersion: tlspkg.DefaultMinTLSVersion,
+		}
+	}
+	initialTLSAdherencePolicy, err := tlspkg.FetchAPIServerTLSAdherencePolicy(ctx, preStartClient)
+	if err != nil {
+		log.Info("could not fetch cluster APIServer TLS adherence policy, using defaults", "error", err)
+		initialTLSAdherencePolicy = configv1.TLSAdherencePolicyNoOpinion
+	}
+	honorClusterTLSProfile := libgocrypto.ShouldHonorClusterTLSProfile(initialTLSAdherencePolicy)
 
 	disableHTTP2 := func(c *tls.Config) {
 		if enableHTTP2 {
@@ -137,6 +168,15 @@ func RunOperator(cmd *cobra.Command, args []string) {
 		}
 		c.NextProtos = []string{"http/1.1"}
 	}
+	webhookTLSOpts := []func(config *tls.Config){disableHTTP2}
+	if honorClusterTLSProfile {
+		applyClusterTLSProfile, unsupported := tlspkg.NewTLSConfigFromProfile(initialTLSProfile)
+		if len(unsupported) > 0 {
+			log.Info("cluster TLS profile contains ciphers unsupported by Go", "unsupported", unsupported)
+		}
+		webhookTLSOpts = append(webhookTLSOpts, applyClusterTLSProfile)
+	}
+
 	c := cache.Options{DefaultNamespaces: map[string]cache.Config{namespace: {}}}
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Cache: c,
@@ -152,7 +192,7 @@ func RunOperator(cmd *cobra.Command, args []string) {
 		Scheme:                 scheme,
 		Metrics:                metricsserver.Options{BindAddress: fmt.Sprintf("%s:%d", metricsHost, metricsPort)},
 		HealthProbeBindAddress: ":8081",
-		WebhookServer:          webhook.NewServer(webhook.Options{Port: 9443, TLSOpts: []func(config *tls.Config){disableHTTP2}}),
+		WebhookServer:          webhook.NewServer(webhook.Options{Port: 9443, TLSOpts: webhookTLSOpts}),
 		LeaderElection:         true,
 		LeaderElectionID:       leaderElectionID,
 	})
@@ -162,8 +202,34 @@ func RunOperator(cmd *cobra.Command, args []string) {
 	}
 
 	met := metrics.NewControllerMetrics()
+	if honorClusterTLSProfile {
+		met.SetTLSProfileSpec(initialTLSProfile)
+	}
 	if err := met.Register(); err != nil {
 		log.Error(err, "Error registering metrics")
+		os.Exit(1)
+	}
+
+	// Watch the cluster APIServer resource for TLS profile/adherence policy
+	// changes and trigger a graceful restart to pick them up, per the
+	// documented cluster-wide TLS maintenance window expectations.
+	securityProfileWatcher := &tlspkg.SecurityProfileWatcher{
+		Client:                    mgr.GetClient(),
+		InitialTLSProfileSpec:     initialTLSProfile,
+		InitialTLSAdherencePolicy: initialTLSAdherencePolicy,
+		OnProfileChange: func(_ context.Context, oldProfile, newProfile configv1.TLSProfileSpec) {
+			log.Info("cluster TLS profile changed, restarting to apply new configuration",
+				"oldMinTLSVersion", oldProfile.MinTLSVersion, "newMinTLSVersion", newProfile.MinTLSVersion)
+			cancel()
+		},
+		OnAdherencePolicyChange: func(_ context.Context, oldPolicy, newPolicy configv1.TLSAdherencePolicy) {
+			log.Info("cluster TLS adherence policy changed, restarting to apply new configuration",
+				"oldPolicy", oldPolicy, "newPolicy", newPolicy)
+			cancel()
+		},
+	}
+	if err := securityProfileWatcher.SetupWithManager(mgr); err != nil {
+		log.Error(err, "unable to set up TLS security profile watcher")
 		os.Exit(1)
 	}
 
@@ -222,8 +288,14 @@ func RunOperator(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
+	sigCtx := ctrl.SetupSignalHandler()
+	go func() {
+		<-sigCtx.Done()
+		cancel()
+	}()
+
 	log.Info("Starting manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+	if err := mgr.Start(ctx); err != nil {
 		log.Error(err, "Manager exited non-zero")
 		os.Exit(1)
 	}
