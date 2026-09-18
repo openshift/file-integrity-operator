@@ -22,8 +22,6 @@ rules:
   - apiGroups:
       - config.openshift.io
     resources:
-      - apiservers  # to watch the cluster-wide TLS security profile
+      - apiservers  # to poll the cluster-wide TLS security profile
     verbs:
       - get
-      - list
-      - watch

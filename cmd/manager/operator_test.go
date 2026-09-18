@@ -14,7 +14,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	kubefake "k8s.io/client-go/kubernetes/fake"
 	ktesting "k8s.io/client-go/testing"
+	ctrlfake "sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	configv1 "github.com/openshift/api/config/v1"
+	tlspkg "github.com/openshift/controller-runtime-common/pkg/tls"
 	"github.com/openshift/file-integrity-operator/pkg/common"
 	"github.com/openshift/file-integrity-operator/pkg/controller/metrics"
 )
@@ -310,6 +313,66 @@ var _ = Describe("Operator startup tests", func() {
 
 			err = ensureMetricsSecretsWithRetry(ctx, fakeClient, ns)
 			Expect(err).To(BeNil())
+		})
+	})
+
+	Context("fetchTLSConfig", func() {
+		var ctx context.Context
+
+		BeforeEach(func() {
+			ctx = context.Background()
+		})
+
+		It("errors when the cluster APIServer object doesn't exist", func() {
+			cl := ctrlfake.NewClientBuilder().WithScheme(scheme).Build()
+			_, _, err := fetchTLSConfig(ctx, cl)
+			Expect(err).To(HaveOccurred())
+		})
+
+		It("returns the configured profile and adherence policy from a valid APIServer", func() {
+			apiServer := &configv1.APIServer{
+				ObjectMeta: v1.ObjectMeta{Name: tlspkg.APIServerName},
+				Spec: configv1.APIServerSpec{
+					TLSSecurityProfile: &configv1.TLSSecurityProfile{Type: configv1.TLSProfileIntermediateType},
+					TLSAdherence:       configv1.TLSAdherencePolicyStrictAllComponents,
+				},
+			}
+			cl := ctrlfake.NewClientBuilder().WithScheme(scheme).WithObjects(apiServer).Build()
+
+			profile, policy, err := fetchTLSConfig(ctx, cl)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(policy).To(Equal(configv1.TLSAdherencePolicyStrictAllComponents))
+			Expect(profile).To(Equal(*configv1.TLSProfiles[configv1.TLSProfileIntermediateType]))
+		})
+
+		// Regression test: a Custom profile with a malformed minTLSVersion
+		// must not reach libgocrypto.TLSVersionOrDie (which panics on any
+		// value outside VersionTLS10/11/12/13) - it must surface as a plain
+		// error instead, so the caller can fall back to defaults instead of
+		// crash-looping the whole operator.
+		It("errors instead of panicking on a Custom profile with an invalid minTLSVersion", func() {
+			apiServer := &configv1.APIServer{
+				ObjectMeta: v1.ObjectMeta{Name: tlspkg.APIServerName},
+				Spec: configv1.APIServerSpec{
+					TLSSecurityProfile: &configv1.TLSSecurityProfile{
+						Type: configv1.TLSProfileCustomType,
+						Custom: &configv1.CustomTLSProfile{
+							TLSProfileSpec: configv1.TLSProfileSpec{
+								MinTLSVersion: "NotARealTLSVersion",
+								Ciphers:       []string{"TLS_AES_128_GCM_SHA256"},
+							},
+						},
+					},
+				},
+			}
+			cl := ctrlfake.NewClientBuilder().WithScheme(scheme).WithObjects(apiServer).Build()
+
+			var err error
+			Expect(func() {
+				_, _, err = fetchTLSConfig(ctx, cl)
+			}).ToNot(Panic())
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("invalid minTLSVersion"))
 		})
 	})
 })

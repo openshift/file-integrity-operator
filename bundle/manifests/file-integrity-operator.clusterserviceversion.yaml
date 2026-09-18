@@ -81,8 +81,6 @@ spec:
           - apiservers
           verbs:
           - get
-          - list
-          - watch
         serviceAccountName: file-integrity-operator
       deployments:
       - name: file-integrity-operator
