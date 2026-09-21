@@ -228,11 +228,21 @@ vet: ## Run go vet against code.
 	$(GO) vet ./...
 
 .PHONY: verify
-verify: vet gosec ## Run vet and gosec checks.
+verify: vet gosec verify-vendor ## Run vet, gosec, and vendor-consistency checks.
 
 .PHONY: gosec
 gosec: ## Run gosec against code.
 	@$(GO) run github.com/securego/gosec/v2/cmd/gosec -severity medium -confidence medium -quiet $(PKGS)
+
+.PHONY: update-go-mod
+update-go-mod: ## Cleanup, vendor and verify go modules.
+	GOFLAGS=-mod=mod GO111MODULE=on go mod tidy
+	GOFLAGS=-mod=mod GO111MODULE=on go mod vendor
+	GOFLAGS=-mod=mod GO111MODULE=on go mod verify
+
+.PHONY: verify-vendor
+verify-vendor: update-go-mod ## Verify go.mod, go.sum and vendor/ are consistent.
+	hack/tree-status
 
 CONTROLLER_GEN = $(shell pwd)/build/controller-gen
 controller-gen: ## Build controller-gen from what's in vendor.
