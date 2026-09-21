@@ -40,6 +40,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -274,7 +275,9 @@ func RunOperator(cmd *cobra.Command, args []string) {
 	// be a best-effort hardening feature (e.g. if the new apiservers RBAC
 	// hasn't propagated yet during an OLM upgrade). fetchTLSConfig errors
 	// here are therefore only logged/counted, never returned.
-	if err := mgr.Add(newTLSProfileWatcher(preStartClient, met, cancel, initialTLSProfile, initialTLSAdherencePolicy, tlsProfilePollInterval)); err != nil {
+	tlsProfileWatcherRecorder := mgr.GetEventRecorderFor("tlsprofilewatcher")
+	if err := mgr.Add(newTLSProfileWatcher(preStartClient, met, tlsProfileWatcherRecorder, cancel,
+		initialTLSProfile, initialTLSAdherencePolicy, tlsProfilePollInterval)); err != nil {
 		log.Error(err, "unable to add TLS profile watcher")
 		os.Exit(1)
 	}
@@ -352,6 +355,22 @@ func fetchTLSConfig(ctx context.Context, cl client.Client) (configv1.TLSProfileS
 // invariant is ever broken (e.g. by a future edit that "cleans up" the
 // poll error branch into a return statement).
 //
+// Because failures are never returned, they are also easy to miss: they
+// only show up as a log line and an error_total metric bump, neither of
+// which anyone is likely to be watching for an intentionally-quiet
+// background poller. A persistent failure (e.g. RBAC that never recovers)
+// would otherwise mean the operator silently keeps serving a stale TLS
+// profile until its next unrelated restart with no visible signal. So, in
+// addition to the log/metric, each failed poll also records a Warning
+// Event against the cluster APIServer object - consistent with how other
+// controllers in this repo surface user-facing failures (see
+// createNodeStatusEvent, status_controller.go, PriorityClass in
+// fileintegrity_controller.go), all visible via `oc get events`/`oc
+// describe`. Repeated identical-reason events against the same object are
+// aggregated by the API server into a single Event with an increasing
+// count rather than spamming one object per failed poll (see
+// client-go's EventAggregatorByReasonFunc).
+//
 // pollInterval is a parameter (rather than always using the
 // tlsProfilePollInterval constant) purely so tests can use a short
 // interval instead of waiting a full minute per iteration; production
@@ -360,8 +379,11 @@ func fetchTLSConfig(ctx context.Context, cl client.Client) (configv1.TLSProfileS
 // Its mutable fields (on the embedded SecurityProfileWatcher) are only
 // ever touched from this single goroutine, so no synchronization is
 // needed.
-func newTLSProfileWatcher(cl client.Client, met *metrics.Metrics, cancel context.CancelFunc,
+func newTLSProfileWatcher(cl client.Client, met *metrics.Metrics, recorder record.EventRecorder, cancel context.CancelFunc,
 	initialProfile configv1.TLSProfileSpec, initialPolicy configv1.TLSAdherencePolicy, pollInterval time.Duration) manager.RunnableFunc {
+	// Only used as an event reference: names the singleton object each poll
+	// reads, so `oc describe apiserver cluster` surfaces poll failures.
+	apiServerRef := &configv1.APIServer{ObjectMeta: metav1.ObjectMeta{Name: tlspkg.APIServerName}}
 	watcher := &tlspkg.SecurityProfileWatcher{
 		Client:                    cl,
 		InitialTLSProfileSpec:     initialProfile,
@@ -393,6 +415,8 @@ func newTLSProfileWatcher(cl client.Client, met *metrics.Metrics, cancel context
 				if err != nil {
 					log.Info("could not poll cluster TLS profile, will retry", "error", err)
 					met.IncFileIntegrityError("cluster_tls_profile_poll_failed")
+					recorder.Eventf(apiServerRef, v1.EventTypeWarning, "ClusterTLSProfile",
+						"could not poll cluster TLS profile/adherence policy, keeping previous configuration: %s", err)
 				}
 			}
 		}

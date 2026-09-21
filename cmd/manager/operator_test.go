@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	kubefake "k8s.io/client-go/kubernetes/fake"
 	ktesting "k8s.io/client-go/testing"
+	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlfake "sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
@@ -402,12 +403,13 @@ var _ = Describe("Operator startup tests", func() {
 				},
 			)
 			met := metrics.NewControllerMetrics()
+			recorder := record.NewFakeRecorder(10)
 
 			runCtx, runCancel := context.WithCancel(context.Background())
 			cancelCalled := make(chan struct{})
 			watcherCancel := func() { close(cancelCalled) }
 
-			watcher := newTLSProfileWatcher(failingClient, met, watcherCancel,
+			watcher := newTLSProfileWatcher(failingClient, met, recorder, watcherCancel,
 				configv1.TLSProfileSpec{}, configv1.TLSAdherencePolicyNoOpinion, 5*time.Millisecond)
 
 			errCh := make(chan error, 1)
@@ -426,6 +428,14 @@ var _ = Describe("Operator startup tests", func() {
 			// The watcher's own cancel callback must never have fired: the
 			// simulated failure is a fetch error, not a real profile change.
 			Consistently(cancelCalled, 50*time.Millisecond).ShouldNot(BeClosed())
+
+			// A failed poll must still be visible to a cluster admin beyond
+			// just the log/metric (see the doc comment on
+			// newTLSProfileWatcher): a Warning Event should have fired.
+			var recordedEvent string
+			Eventually(recorder.Events, time.Second).Should(Receive(&recordedEvent))
+			Expect(recordedEvent).To(HavePrefix(corev1.EventTypeWarning + " ClusterTLSProfile "))
+			Expect(recordedEvent).To(ContainSubstring("simulated: RBAC not yet propagated"))
 		})
 	})
 })
