@@ -2,7 +2,9 @@ package manager
 
 import (
 	"context"
+	"errors"
 	"sync/atomic"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -14,7 +16,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	kubefake "k8s.io/client-go/kubernetes/fake"
 	ktesting "k8s.io/client-go/testing"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlfake "sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	configv1 "github.com/openshift/api/config/v1"
 	tlspkg "github.com/openshift/controller-runtime-common/pkg/tls"
@@ -373,6 +377,55 @@ var _ = Describe("Operator startup tests", func() {
 			}).ToNot(Panic())
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("invalid minTLSVersion"))
+		})
+	})
+
+	Context("newTLSProfileWatcher", func() {
+		// This is a regression test, not just a behavioral one: it exists
+		// specifically to fail if a future edit changes the poll loop to
+		// propagate a fetch/reconcile error instead of swallowing it, which
+		// would silently reintroduce the "any Runnable error kills the
+		// whole manager" bug this design fixed. See the doc comment on
+		// newTLSProfileWatcher.
+		It("never returns an error from Start, even when every poll fails", func() {
+			var attempts int32
+			// Reconcile treats a NotFound Get as a no-op (not an error), so
+			// force a different failure (e.g. as RBAC-not-yet-propagated
+			// during an upgrade would) to actually exercise the error path.
+			failingClient := interceptor.NewClient(
+				ctrlfake.NewClientBuilder().WithScheme(scheme).Build(),
+				interceptor.Funcs{
+					Get: func(_ context.Context, _ client.WithWatch, _ client.ObjectKey, _ client.Object, _ ...client.GetOption) error {
+						atomic.AddInt32(&attempts, 1)
+						return errors.New("simulated: RBAC not yet propagated")
+					},
+				},
+			)
+			met := metrics.NewControllerMetrics()
+
+			runCtx, runCancel := context.WithCancel(context.Background())
+			cancelCalled := make(chan struct{})
+			watcherCancel := func() { close(cancelCalled) }
+
+			watcher := newTLSProfileWatcher(failingClient, met, watcherCancel,
+				configv1.TLSProfileSpec{}, configv1.TLSAdherencePolicyNoOpinion, 5*time.Millisecond)
+
+			errCh := make(chan error, 1)
+			go func() { errCh <- watcher(runCtx) }()
+
+			// Let several poll ticks fail, then stop the watcher the normal
+			// way (context cancellation) and confirm it still returns nil.
+			Eventually(func() int32 { return atomic.LoadInt32(&attempts) }, time.Second, 5*time.Millisecond).
+				Should(BeNumerically(">=", 3))
+			runCancel()
+
+			var startErr error
+			Eventually(errCh, time.Second).Should(Receive(&startErr))
+			Expect(startErr).To(BeNil())
+
+			// The watcher's own cancel callback must never have fired: the
+			// simulated failure is a fetch error, not a real profile change.
+			Consistently(cancelCalled, 50*time.Millisecond).ShouldNot(BeClosed())
 		})
 	})
 })

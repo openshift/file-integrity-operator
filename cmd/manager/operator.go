@@ -274,7 +274,7 @@ func RunOperator(cmd *cobra.Command, args []string) {
 	// be a best-effort hardening feature (e.g. if the new apiservers RBAC
 	// hasn't propagated yet during an OLM upgrade). fetchTLSConfig errors
 	// here are therefore only logged/counted, never returned.
-	if err := mgr.Add(newTLSProfileWatcher(preStartClient, met, cancel, initialTLSProfile, initialTLSAdherencePolicy)); err != nil {
+	if err := mgr.Add(newTLSProfileWatcher(preStartClient, met, cancel, initialTLSProfile, initialTLSAdherencePolicy, tlsProfilePollInterval)); err != nil {
 		log.Error(err, "unable to add TLS profile watcher")
 		os.Exit(1)
 	}
@@ -343,12 +343,25 @@ func fetchTLSConfig(ctx context.Context, cl client.Client) (configv1.TLSProfileS
 // It reuses tlspkg.SecurityProfileWatcher's diff/callback logic via direct,
 // polled Reconcile calls against an uncached client instead of registering
 // it as a controller-runtime watch/informer, so there is no cache-sync
-// dependency and no blocking startup path; its Start never returns an error
-// (see the comment at its call site for why), and its mutable fields are
-// only ever touched from this single goroutine, so no synchronization is
+// dependency and no blocking startup path.
+//
+// Its Start must never return a non-nil error: any error returned by a
+// Runnable added via mgr.Add aborts every other runnable in the manager
+// (see the comment at its call site). This is deliberately load-bearing -
+// see TestNewTLSProfileWatcherNeverReturnsError, which fails if this
+// invariant is ever broken (e.g. by a future edit that "cleans up" the
+// poll error branch into a return statement).
+//
+// pollInterval is a parameter (rather than always using the
+// tlsProfilePollInterval constant) purely so tests can use a short
+// interval instead of waiting a full minute per iteration; production
+// code should always pass tlsProfilePollInterval.
+//
+// Its mutable fields (on the embedded SecurityProfileWatcher) are only
+// ever touched from this single goroutine, so no synchronization is
 // needed.
 func newTLSProfileWatcher(cl client.Client, met *metrics.Metrics, cancel context.CancelFunc,
-	initialProfile configv1.TLSProfileSpec, initialPolicy configv1.TLSAdherencePolicy) manager.RunnableFunc {
+	initialProfile configv1.TLSProfileSpec, initialPolicy configv1.TLSAdherencePolicy, pollInterval time.Duration) manager.RunnableFunc {
 	watcher := &tlspkg.SecurityProfileWatcher{
 		Client:                    cl,
 		InitialTLSProfileSpec:     initialProfile,
@@ -367,7 +380,7 @@ func newTLSProfileWatcher(cl client.Client, met *metrics.Metrics, cancel context
 	req := ctrl.Request{NamespacedName: client.ObjectKey{Name: tlspkg.APIServerName}}
 
 	return func(ctx context.Context) error {
-		ticker := time.NewTicker(tlsProfilePollInterval)
+		ticker := time.NewTicker(pollInterval)
 		defer ticker.Stop()
 		for {
 			select {
