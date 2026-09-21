@@ -437,5 +437,57 @@ var _ = Describe("Operator startup tests", func() {
 			Expect(recordedEvent).To(HavePrefix(corev1.EventTypeWarning + " ClusterTLSProfile "))
 			Expect(recordedEvent).To(ContainSubstring("simulated: RBAC not yet propagated"))
 		})
+
+		// Regression test: a persistently invalid Custom minTLSVersion must
+		// not restart the operator on every single poll tick forever.
+		// fetchTLSConfig falls back to safe defaults for what's actually
+		// *applied* to the TLS servers, but the watcher must be seeded with
+		// the raw (unvalidated) profile/policy fetchTLSConfig also returns -
+		// GetTLSProfileSpec, which Reconcile calls on every tick, does not
+		// validate minTLSVersion, so it recomputes that same raw spec from
+		// the cluster every time. Seeding the watcher with anything else
+		// (e.g. the substituted defaults) would make every tick see a
+		// mismatch and restart, forever, since fetchTLSConfig hits the same
+		// invalid-minTLSVersion branch again after each restart.
+		It("does not restart on every poll when a Custom profile has a persistently invalid minTLSVersion", func() {
+			apiServer := &configv1.APIServer{
+				ObjectMeta: v1.ObjectMeta{Name: tlspkg.APIServerName},
+				Spec: configv1.APIServerSpec{
+					TLSSecurityProfile: &configv1.TLSSecurityProfile{
+						Type: configv1.TLSProfileCustomType,
+						Custom: &configv1.CustomTLSProfile{
+							TLSProfileSpec: configv1.TLSProfileSpec{
+								MinTLSVersion: "NotARealTLSVersion",
+								Ciphers:       []string{"TLS_AES_128_GCM_SHA256"},
+							},
+						},
+					},
+				},
+			}
+			cl := ctrlfake.NewClientBuilder().WithScheme(scheme).WithObjects(apiServer).Build()
+
+			// Mirror exactly what RunOperator does: seed the watcher with
+			// whatever fetchTLSConfig returns, even on error.
+			seedProfile, seedPolicy, err := fetchTLSConfig(context.Background(), cl)
+			Expect(err).To(HaveOccurred())
+
+			met := metrics.NewControllerMetrics()
+			recorder := record.NewFakeRecorder(10)
+			cancelCalled := make(chan struct{})
+			watcherCancel := func() { close(cancelCalled) }
+
+			watcher := newTLSProfileWatcher(cl, met, recorder, watcherCancel, seedProfile, seedPolicy, 5*time.Millisecond)
+
+			runCtx, runCancel := context.WithCancel(context.Background())
+			errCh := make(chan error, 1)
+			go func() { errCh <- watcher(runCtx) }()
+
+			// Let several poll ticks run against the still-invalid, unchanged
+			// cluster object, then confirm cancel was never triggered.
+			time.Sleep(50 * time.Millisecond)
+			runCancel()
+			Eventually(errCh, time.Second).Should(Receive(BeNil()))
+			Expect(cancelCalled).ToNot(BeClosed())
+		})
 	})
 })

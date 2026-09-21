@@ -174,17 +174,27 @@ func RunOperator(cmd *cobra.Command, args []string) {
 		log.Error(err, "unable to create client for TLS profile lookup")
 		os.Exit(1)
 	}
+	// initialTLSProfile/initialTLSAdherencePolicy are exactly what fetchTLSConfig
+	// read from the cluster (even if invalid) and are what seed the poll loop
+	// below: SecurityProfileWatcher.Reconcile recomputes the same raw values
+	// on every tick via the same, non-validating GetTLSProfileSpec, so the
+	// seed must match that computation or every tick would see a spurious
+	// "change" and restart forever. appliedTLSProfile/appliedTLSAdherencePolicy
+	// are what's actually applied to the webhook/metrics TLS config, and fall
+	// back to safe defaults on any error so an invalid profile can't panic
+	// NewTLSConfigFromProfile.
 	initialTLSProfile, initialTLSAdherencePolicy, err := fetchTLSConfig(ctx, preStartClient)
+	appliedTLSProfile, appliedTLSAdherencePolicy := initialTLSProfile, initialTLSAdherencePolicy
 	if err != nil {
 		log.Info("could not fetch cluster APIServer TLS profile, using defaults", "error", err)
 		met.IncFileIntegrityError("cluster_tls_profile_fetch_failed")
-		initialTLSProfile = configv1.TLSProfileSpec{
+		appliedTLSProfile = configv1.TLSProfileSpec{
 			Ciphers:       tlspkg.DefaultTLSCiphers,
 			MinTLSVersion: tlspkg.DefaultMinTLSVersion,
 		}
-		initialTLSAdherencePolicy = configv1.TLSAdherencePolicyNoOpinion
+		appliedTLSAdherencePolicy = configv1.TLSAdherencePolicyNoOpinion
 	}
-	honorClusterTLSProfile := libgocrypto.ShouldHonorClusterTLSProfile(initialTLSAdherencePolicy)
+	honorClusterTLSProfile := libgocrypto.ShouldHonorClusterTLSProfile(appliedTLSAdherencePolicy)
 
 	disableHTTP2 := func(c *tls.Config) {
 		if enableHTTP2 {
@@ -194,7 +204,7 @@ func RunOperator(cmd *cobra.Command, args []string) {
 	}
 	webhookTLSOpts := []func(config *tls.Config){disableHTTP2}
 	if honorClusterTLSProfile {
-		applyClusterTLSProfile, unsupported := tlspkg.NewTLSConfigFromProfile(initialTLSProfile)
+		applyClusterTLSProfile, unsupported := tlspkg.NewTLSConfigFromProfile(appliedTLSProfile)
 		if len(unsupported) > 0 {
 			log.Info("cluster TLS profile contains ciphers unsupported by Go", "unsupported", unsupported)
 		}
@@ -332,7 +342,15 @@ func fetchTLSConfig(ctx context.Context, cl client.Client) (configv1.TLSProfileS
 		return configv1.TLSProfileSpec{}, configv1.TLSAdherencePolicyNoOpinion, fmt.Errorf("invalid TLS profile: %w", err)
 	}
 	if _, err := libgocrypto.TLSVersion(string(profile.MinTLSVersion)); err != nil {
-		return configv1.TLSProfileSpec{}, configv1.TLSAdherencePolicyNoOpinion, fmt.Errorf("invalid minTLSVersion %q: %w", profile.MinTLSVersion, err)
+		// Return the raw profile alongside the error, not a zero value:
+		// SecurityProfileWatcher.Reconcile calls this same GetTLSProfileSpec
+		// without this validation, so it will keep recomputing this exact
+		// raw spec from the cluster on every poll tick. A caller that seeds
+		// the watcher with anything else (e.g. a substituted default)
+		// instead of this raw value would see a mismatch on every tick and
+		// restart forever, since fetchTLSConfig hits this same branch again
+		// after each restart.
+		return profile, apiServer.Spec.TLSAdherence, fmt.Errorf("invalid minTLSVersion %q: %w", profile.MinTLSVersion, err)
 	}
 
 	return profile, apiServer.Spec.TLSAdherence, nil

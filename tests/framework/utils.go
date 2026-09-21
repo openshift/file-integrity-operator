@@ -2,7 +2,6 @@ package framework
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"log"
 	"os/exec"
@@ -99,7 +98,7 @@ func (f *Framework) AssertMetricsEndpointMinTLSVersion(expectedMinTLSVersion str
 		cmd := exec.Command(ocPath,
 			"run", "--rm", "-i", "--restart=Never",
 			"--image=registry.fedoraproject.org/fedora-minimal:latest",
-			"-n", f.OperatorNamespace, "tls-version-test",
+			"-n", f.OperatorNamespace, fmt.Sprintf("tls-version-test-%d", time.Now().UnixNano()),
 			"--", "bash", "-c", curlCMD,
 		)
 		out, err := cmd.CombinedOutput()
@@ -133,83 +132,18 @@ func (f *Framework) AssertMetricsEndpointMinTLSVersion(expectedMinTLSVersion str
 	return nil
 }
 
-// AssertResultServerMinTLSVersion verifies that the result server created for
-// the given scan uses the expected minimum TLS version. It fetches client
-// certificates from the scan's Kubernetes secret and uses curl with mTLS to
-// connect to the result server endpoint.
-func (f *Framework) AssertResultServerMinTLSVersion(scanName, expectedMinTLSVersion string) error {
-	ocPath, err := exec.LookPath("oc")
-	if err != nil {
-		return fmt.Errorf("oc not found: %w", err)
-	}
-
-	var lastErr error
-	timeouterr := wait.Poll(RetryInterval, Timeout, func() (bool, error) {
-		clientCertSecret, err := f.KubeClient.CoreV1().Secrets(f.OperatorNamespace).Get(
-			context.TODO(), "result-client-cert-"+scanName, metav1.GetOptions{},
-		)
-		if err != nil {
-			lastErr = fmt.Errorf("failed to get client cert secret: %v", err)
-			log.Printf("%v... retrying\n", lastErr)
-			return false, nil
-		}
-
-		certB64 := base64.StdEncoding.EncodeToString(clientCertSecret.Data["tls.crt"])
-		keyB64 := base64.StdEncoding.EncodeToString(clientCertSecret.Data["tls.key"])
-
-		endpoint := fmt.Sprintf("https://%s-rs:8443/", scanName)
-		curlCMD := fmt.Sprintf(
-			"echo '%s' | base64 -d > /tmp/client.crt && "+
-				"echo '%s' | base64 -d > /tmp/client.key && "+
-				"curl -vks --cert /tmp/client.crt --key /tmp/client.key %s 2>&1 | grep 'SSL connection'",
-			certB64, keyB64, endpoint,
-		)
-
-		// #nosec G204
-		cmd := exec.Command(ocPath,
-			"run", "--rm", "-i", "--restart=Never",
-			"--image=registry.fedoraproject.org/fedora-minimal:latest",
-			"-n", f.OperatorNamespace, "rs-tls-version-test",
-			"--", "bash", "-c", curlCMD,
-		)
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			lastErr = fmt.Errorf("curl command failed: %v, output: %s", err, string(out))
-			log.Printf("%v... retrying\n", lastErr)
-			return false, nil
-		}
-
-		output := string(out)
-		actual := parseTLSVersionFromCurlOutput(output)
-		if actual == "" {
-			lastErr = fmt.Errorf("could not parse TLS version from result server output: %s", output)
-			log.Printf("%v... retrying\n", lastErr)
-			return false, nil
-		}
-		if !tlsVersionAtLeast(actual, expectedMinTLSVersion) {
-			lastErr = fmt.Errorf("result server negotiated TLS version %s is below minimum %s", actual, expectedMinTLSVersion)
-			log.Printf("%v... retrying\n", lastErr)
-			return false, nil
-		}
-		log.Printf("result server using %s (minimum: %s)\n", actual, expectedMinTLSVersion)
-		return true, nil
-	})
-	if timeouterr != nil {
-		if lastErr != nil {
-			return lastErr
-		}
-		return timeouterr
-	}
-	return nil
-}
-
 // AssertMetricsEndpointRejectsTLSVersion verifies that the metrics endpoint
 // rejects connections limited to the given TLS version. This is the inverse of
 // AssertMetricsEndpointMinTLSVersion: it proves the server's floor is actually
 // above the given version by confirming the handshake fails.
 func (f *Framework) AssertMetricsEndpointRejectsTLSVersion(rejectedTLSVersion string) error {
 	endpoint := fmt.Sprintf("https://metrics.%s.svc:8585/metrics-co", f.OperatorNamespace)
-	curlCMD := fmt.Sprintf("curl -vks --tls-max %s %s 2>&1", rejectedTLSVersion, endpoint)
+	// The exit code is the source of truth, not the presence of "SSL"/"alert"
+	// in verbose output: curl -v prints "SSL connection using TLSvX.Y" on a
+	// *successful* handshake too, so text-matching those substrings can't
+	// tell a rejection from an acceptance. Exit 0 means curl completed the
+	// request at the capped version, i.e. the server wrongly accepted it.
+	curlCMD := fmt.Sprintf("curl -vks --tls-max %s -o /dev/null %s; echo REJECT_TEST_EXIT:$?", rejectedTLSVersion, endpoint)
 
 	ocPath, err := exec.LookPath("oc")
 	if err != nil {
@@ -222,18 +156,27 @@ func (f *Framework) AssertMetricsEndpointRejectsTLSVersion(rejectedTLSVersion st
 		cmd := exec.Command(ocPath,
 			"run", "--rm", "-i", "--restart=Never",
 			"--image=registry.fedoraproject.org/fedora-minimal:latest",
-			"-n", f.OperatorNamespace, "tls-reject-test",
+			"-n", f.OperatorNamespace, fmt.Sprintf("tls-reject-test-%d", time.Now().UnixNano()),
 			"--", "bash", "-c", curlCMD,
 		)
-		out, err := cmd.CombinedOutput()
+		out, _ := cmd.CombinedOutput()
 		output := string(out)
 
-		if err == nil && !strings.Contains(output, "SSL") && !strings.Contains(output, "alert") {
-			lastErr = fmt.Errorf("expected connection with --tls-max %s to be rejected, but it succeeded: %s", rejectedTLSVersion, output)
+		exitCode, ok := parseRejectTestExitCode(output)
+		if !ok {
+			// oc run/exec never got far enough to run curl at all (image
+			// pull, pod scheduling issue, etc.) - retry; this is not a TLS
+			// result either way.
+			lastErr = fmt.Errorf("could not determine curl exit code, possible infra issue: %s", output)
 			log.Printf("%v... retrying\n", lastErr)
 			return false, nil
 		}
-		log.Printf("metrics endpoint correctly rejected connection capped at %s\n", rejectedTLSVersion)
+		if exitCode == "0" {
+			lastErr = fmt.Errorf("expected connection with --tls-max %s to be rejected, but curl succeeded: %s", rejectedTLSVersion, output)
+			log.Printf("%v... retrying\n", lastErr)
+			return false, nil
+		}
+		log.Printf("metrics endpoint correctly rejected connection capped at %s (curl exit %s)\n", rejectedTLSVersion, exitCode)
 		return true, nil
 	})
 	if timeouterr != nil {
@@ -245,63 +188,19 @@ func (f *Framework) AssertMetricsEndpointRejectsTLSVersion(rejectedTLSVersion st
 	return nil
 }
 
-// AssertResultServerRejectsTLSVersion verifies that the result server for the
-// given scan rejects connections limited to the given TLS version. This proves
-// the server's TLS floor is above the capped version by confirming the
-// handshake fails.
-func (f *Framework) AssertResultServerRejectsTLSVersion(scanName, rejectedTLSVersion string) error {
-	ocPath, err := exec.LookPath("oc")
-	if err != nil {
-		return fmt.Errorf("oc not found: %w", err)
+var rejectTestExitCodeRE = regexp.MustCompile(`REJECT_TEST_EXIT:(\d+)`)
+
+// parseRejectTestExitCode extracts the curl exit code appended by
+// AssertMetricsEndpointRejectsTLSVersion's shell command. ok is false if the
+// marker is missing, which happens when the command never actually ran
+// (e.g. the pod failed to start), as opposed to curl running and exiting
+// non-zero.
+func parseRejectTestExitCode(output string) (code string, ok bool) {
+	m := rejectTestExitCodeRE.FindStringSubmatch(output)
+	if m == nil {
+		return "", false
 	}
-
-	var lastErr error
-	timeouterr := wait.Poll(RetryInterval, Timeout, func() (bool, error) {
-		clientCertSecret, err := f.KubeClient.CoreV1().Secrets(f.OperatorNamespace).Get(
-			context.TODO(), "result-client-cert-"+scanName, metav1.GetOptions{},
-		)
-		if err != nil {
-			lastErr = fmt.Errorf("failed to get client cert secret: %v", err)
-			log.Printf("%v... retrying\n", lastErr)
-			return false, nil
-		}
-
-		certB64 := base64.StdEncoding.EncodeToString(clientCertSecret.Data["tls.crt"])
-		keyB64 := base64.StdEncoding.EncodeToString(clientCertSecret.Data["tls.key"])
-
-		endpoint := fmt.Sprintf("https://%s-rs:8443/", scanName)
-		curlCMD := fmt.Sprintf(
-			"echo '%s' | base64 -d > /tmp/client.crt && "+
-				"echo '%s' | base64 -d > /tmp/client.key && "+
-				"curl -vks --tls-max %s --cert /tmp/client.crt --key /tmp/client.key %s 2>&1",
-			certB64, keyB64, rejectedTLSVersion, endpoint,
-		)
-
-		// #nosec G204
-		cmd := exec.Command(ocPath,
-			"run", "--rm", "-i", "--restart=Never",
-			"--image=registry.fedoraproject.org/fedora-minimal:latest",
-			"-n", f.OperatorNamespace, "rs-tls-reject-test",
-			"--", "bash", "-c", curlCMD,
-		)
-		out, err := cmd.CombinedOutput()
-		output := string(out)
-
-		if err == nil && !strings.Contains(output, "SSL") && !strings.Contains(output, "alert") {
-			lastErr = fmt.Errorf("expected result server connection with --tls-max %s to be rejected, but it succeeded: %s", rejectedTLSVersion, output)
-			log.Printf("%v... retrying\n", lastErr)
-			return false, nil
-		}
-		log.Printf("result server correctly rejected connection capped at %s\n", rejectedTLSVersion)
-		return true, nil
-	})
-	if timeouterr != nil {
-		if lastErr != nil {
-			return lastErr
-		}
-		return timeouterr
-	}
-	return nil
+	return m[1], true
 }
 
 // WaitForNodesToBeSchedulable waits until all nodes in the cluster are
@@ -348,19 +247,25 @@ func (f *Framework) WaitForNodesToBeSchedulable() error {
 }
 
 // extractTLSProfileForTest mirrors the operator's logic for determining
-// which TLS profile to use based on the APIServer adherence policy.
+// which TLS profile to use based on the APIServer adherence policy: like
+// libgocrypto.ShouldHonorClusterTLSProfile, only NoOpinion and
+// LegacyAdheringComponentsOnly fall back to secure defaults, so an
+// unknown/future adherence value is treated the same as StrictAllComponents
+// (forward compatibility, per the APIServer API's own doc comment on
+// TLSAdherence).
 func extractTLSProfileForTest(apiServer *configv1.APIServer) *configv1.TLSSecurityProfile {
 	switch apiServer.Spec.TLSAdherence {
-	case configv1.TLSAdherencePolicyStrictAllComponents:
-		if apiServer.Spec.TLSSecurityProfile != nil {
-			return apiServer.Spec.TLSSecurityProfile
-		}
+	case configv1.TLSAdherencePolicyNoOpinion, configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly:
+		// The operator uses secure defaults (Intermediate profile from
+		// library-go's SecureTLSConfig) when it doesn't honor the cluster
+		// profile.
 		return &configv1.TLSSecurityProfile{
 			Type: configv1.TLSProfileIntermediateType,
 		}
 	default:
-		// When adherence is not strict, the operator uses secure defaults
-		// (Intermediate profile from library-go's SecureTLSConfig).
+		if apiServer.Spec.TLSSecurityProfile != nil {
+			return apiServer.Spec.TLSSecurityProfile
+		}
 		return &configv1.TLSSecurityProfile{
 			Type: configv1.TLSProfileIntermediateType,
 		}
@@ -425,19 +330,24 @@ func totalContainerRestarts(pod corev1.Pod) int32 {
 
 // IsOCPVersionAtLeast checks whether the cluster is running at least the
 // specified OCP version (e.g. 4, 22 for OCP 4.22). Returns false if the
-// ClusterVersion resource cannot be fetched or has no history.
+// ClusterVersion resource cannot be fetched or has no Completed history
+// entry. History[0] is not used directly: mid-upgrade it can be a
+// still-Partial entry for a version the cluster hasn't actually finished
+// rolling out to yet.
 func (f *Framework) IsOCPVersionAtLeast(major, minor int) (bool, error) {
 	clusterVersion := &configv1.ClusterVersion{}
 	key := types.NamespacedName{Name: "version"}
 	if err := f.Client.Get(context.TODO(), key, clusterVersion); err != nil {
 		return false, fmt.Errorf("failed to get ClusterVersion: %w", err)
 	}
-	if len(clusterVersion.Status.History) == 0 {
-		return false, fmt.Errorf("ClusterVersion has no history entries")
+	for _, entry := range clusterVersion.Status.History {
+		if entry.State != configv1.CompletedUpdate {
+			continue
+		}
+		if !semver.IsValid("v" + entry.Version) {
+			return false, fmt.Errorf("unexpected version format: %s", entry.Version)
+		}
+		return semver.Compare("v"+entry.Version, fmt.Sprintf("v%d.%d.0", major, minor)) >= 0, nil
 	}
-	version := clusterVersion.Status.History[0].Version
-	if !semver.IsValid("v" + version) {
-		return false, fmt.Errorf("unexpected version format: %s", version)
-	}
-	return semver.Compare("v"+version, fmt.Sprintf("v%d.%d.0", major, minor)) >= 0, nil
+	return false, fmt.Errorf("ClusterVersion has no Completed history entries")
 }
