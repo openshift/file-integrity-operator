@@ -14,6 +14,17 @@ func TestMain(m *testing.M) {
 func TestOperatorHonorsClusterTLSProfile(t *testing.T) {
 	f := framework.Global
 
+	// Register configv1 types on the framework's dynamic client scheme.
+	// Unlike the other e2e tests, this one doesn't go through
+	// setupTestRequirements (which registers configv1 as a side effect for
+	// the whole shared framework.Global.Scheme), so it must do so itself to
+	// be runnable standalone (e.g. via `-run TestOperatorHonorsClusterTLSProfile`)
+	// instead of only working when it happens to execute after a test that
+	// already registered configv1.
+	if err := framework.AddToFrameworkScheme(configv1.Install, &configv1.APIServerList{}); err != nil {
+		t.Fatalf("failed to add configv1 scheme: %s", err)
+	}
+
 	// Fetch the cluster APIServer resource.
 	apiServer, err := f.GetClusterAPIServer()
 	if err != nil {
@@ -46,8 +57,8 @@ func TestOperatorHonorsClusterTLSProfile(t *testing.T) {
 	if len(operatorPods) == 0 {
 		t.Fatal("no operator pods found")
 	}
-	originalPodUID := operatorPods[0].UID
-	t.Logf("Original operator pod UID: %s", originalPodUID)
+	originalPod := operatorPods[0]
+	t.Logf("Original operator pod UID: %s", originalPod.UID)
 
 	// Change the APIServer TLS configuration to strict adherence with the
 	// Modern profile (TLS 1.3) so we can verify the operator enforces a
@@ -69,7 +80,7 @@ func TestOperatorHonorsClusterTLSProfile(t *testing.T) {
 	// Wait for the operator pod to restart. The TLS profile poll loop
 	// should detect the change and trigger a graceful shutdown.
 	t.Log("Waiting for operator pod to restart after TLS profile change")
-	if err := f.WaitForOperatorPodRestart(originalPodUID); err != nil {
+	if err := f.WaitForOperatorPodRestart(originalPod); err != nil {
 		t.Fatalf("operator pod did not restart after TLS profile change: %s", err)
 	}
 

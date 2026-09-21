@@ -382,9 +382,15 @@ func (f *Framework) GetOperatorPods() ([]corev1.Pod, error) {
 	return operatorPods, nil
 }
 
-// WaitForOperatorPodRestart waits until the operator pod has a different UID
-// than the one provided, indicating the pod has been restarted.
-func (f *Framework) WaitForOperatorPodRestart(originalPodUID types.UID) error {
+// WaitForOperatorPodRestart waits until the operator has restarted since
+// original was captured. A graceful `mgr.Start(ctx)` exit (triggered by the
+// TLS profile change detector) causes kubelet to restart the container
+// in place under restartPolicy: Always - the Pod object and its UID do NOT
+// change in that case, only the container's restart count does. This also
+// detects a full pod replacement (different UID), in case that ever becomes
+// the restart mechanism instead.
+func (f *Framework) WaitForOperatorPodRestart(original corev1.Pod) error {
+	originalRestarts := totalContainerRestarts(original)
 	return wait.Poll(RetryInterval, Timeout, func() (bool, error) {
 		pods, err := f.GetOperatorPods()
 		if err != nil {
@@ -392,14 +398,29 @@ func (f *Framework) WaitForOperatorPodRestart(originalPodUID types.UID) error {
 			return false, nil
 		}
 		for _, pod := range pods {
-			if pod.UID != originalPodUID && pod.Status.Phase == corev1.PodRunning {
-				log.Printf("Operator pod restarted: new UID %s\n", pod.UID)
+			if pod.Status.Phase != corev1.PodRunning {
+				continue
+			}
+			if pod.UID != original.UID {
+				log.Printf("Operator pod restarted: new pod UID %s\n", pod.UID)
+				return true, nil
+			}
+			if restarts := totalContainerRestarts(pod); restarts > originalRestarts {
+				log.Printf("Operator pod restarted: container restart count %d -> %d\n", originalRestarts, restarts)
 				return true, nil
 			}
 		}
 		log.Println("Waiting for operator pod to restart...")
 		return false, nil
 	})
+}
+
+func totalContainerRestarts(pod corev1.Pod) int32 {
+	var total int32
+	for _, cs := range pod.Status.ContainerStatuses {
+		total += cs.RestartCount
+	}
+	return total
 }
 
 // IsOCPVersionAtLeast checks whether the cluster is running at least the
