@@ -12,15 +12,25 @@ func TestMain(m *testing.M) {
 }
 
 func TestOperatorHonorsClusterTLSProfile(t *testing.T) {
-	f := framework.Global
+	// Deploy the operator like every other e2e test does. setupTest creates a
+	// fresh namespace and deploys the operator (plus its metrics Service) into
+	// it, registering cleanup. Skipping this - as an earlier version of this
+	// test did - left f.OperatorNamespace pointing at the kubeconfig default
+	// namespace ("default"), where no operator or metrics Service exists, so
+	// every metrics-endpoint assertion below curled a nonexistent
+	// metrics.default.svc and looped until the suite's global timeout.
+	f, testctx, namespace := setupTest(t)
+	defer testctx.Cleanup()
 
-	// Register configv1 types on the framework's dynamic client scheme.
-	// Unlike the other e2e tests, this one doesn't go through
-	// setupTestRequirements (which registers configv1 as a side effect for
-	// the whole shared framework.Global.Scheme), so it must do so itself to
-	// be runnable standalone (e.g. via `-run TestOperatorHonorsClusterTLSProfile`)
-	// instead of only working when it happens to execute after a test that
-	// already registered configv1.
+	// Point the framework at the namespace the operator was actually deployed
+	// into. Every helper below (AssertMetricsEndpoint*, GetOperatorPods,
+	// WaitForDeployment) reads f.OperatorNamespace; without TEST_OPERATOR_NAMESPACE
+	// set (the CI case) it otherwise stays as the kubeconfig default.
+	f.OperatorNamespace = namespace
+
+	// Register the APIServer type on the framework's dynamic client scheme.
+	// setupTestRequirements registers configv1.ClusterOperator but not
+	// APIServer, which this test reads/updates, so register it explicitly.
 	if err := framework.AddToFrameworkScheme(configv1.Install, &configv1.APIServerList{}); err != nil {
 		t.Fatalf("failed to add configv1 scheme: %s", err)
 	}
