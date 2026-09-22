@@ -11,6 +11,7 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	tlspkg "github.com/openshift/controller-runtime-common/pkg/tls"
+	libgocrypto "github.com/openshift/library-go/pkg/crypto"
 	"golang.org/x/mod/semver"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -213,6 +214,78 @@ func parseRejectTestExitCode(output string) (code string, ok bool) {
 	return m[1], true
 }
 
+// AssertMetricsEndpointAcceptsTLSVersion verifies that the metrics endpoint
+// accepts connections capped at the given TLS version. This is the inverse
+// of AssertMetricsEndpointRejectsTLSVersion: it proves the server's floor
+// has NOT been raised above the given version, by confirming the capped
+// handshake succeeds. AssertMetricsEndpointMinTLSVersion alone can't prove
+// this - an uncapped connection negotiates the highest mutually supported
+// version regardless of whether the floor was wrongly raised (e.g. both an
+// Intermediate and a Modern server negotiate TLS 1.3 uncapped), so it
+// cannot distinguish "correctly still at the lower floor" from
+// "incorrectly raised".
+func (f *Framework) AssertMetricsEndpointAcceptsTLSVersion(maxTLSVersion string) error {
+	endpoint := fmt.Sprintf("https://metrics.%s.svc:8585/metrics-fio", f.OperatorNamespace)
+	curlCMD := fmt.Sprintf("curl -vks --tls-max %s -o /dev/null %s; echo ACCEPT_TEST_EXIT:$?", maxTLSVersion, endpoint)
+
+	ocPath, err := exec.LookPath("oc")
+	if err != nil {
+		return fmt.Errorf("oc not found: %w", err)
+	}
+
+	var lastErr error
+	timeouterr := wait.Poll(RetryInterval, Timeout, func() (bool, error) {
+		// #nosec G204
+		cmd := exec.Command(ocPath,
+			"run", "--rm", "-i", "--restart=Never",
+			"--image=registry.fedoraproject.org/fedora-minimal:latest",
+			"-n", f.OperatorNamespace, testPodSecurityOverrides, fmt.Sprintf("tls-accept-test-%d", time.Now().UnixNano()),
+			"--", "bash", "-c", curlCMD,
+		)
+		out, _ := cmd.CombinedOutput()
+		output := string(out)
+
+		exitCode, ok := parseAcceptTestExitCode(output)
+		if !ok {
+			// oc run/exec never got far enough to run curl at all - retry;
+			// this is not a TLS result either way.
+			lastErr = fmt.Errorf("could not determine curl exit code, possible infra issue: %s", output)
+			log.Printf("%v... retrying\n", lastErr)
+			return false, nil
+		}
+		if exitCode != "0" {
+			lastErr = fmt.Errorf("expected connection with --tls-max %s to succeed, but curl failed with exit %s: %s", maxTLSVersion, exitCode, output)
+			log.Printf("%v... retrying\n", lastErr)
+			return false, nil
+		}
+		log.Printf("metrics endpoint correctly accepted connection capped at %s\n", maxTLSVersion)
+		return true, nil
+	})
+	if timeouterr != nil {
+		if lastErr != nil {
+			return lastErr
+		}
+		return timeouterr
+	}
+	return nil
+}
+
+var acceptTestExitCodeRE = regexp.MustCompile(`ACCEPT_TEST_EXIT:(\d+)`)
+
+// parseAcceptTestExitCode extracts the curl exit code appended by
+// AssertMetricsEndpointAcceptsTLSVersion's shell command. Mirrors
+// parseRejectTestExitCode but kept separate (not shared) since the two
+// functions' exit-code marker and success condition are inverted, and
+// AssertMetricsEndpointRejectsTLSVersion is already proven/tested - not
+// worth the risk of a shared-helper refactor touching it.
+func parseAcceptTestExitCode(output string) (code string, ok bool) {
+	m := acceptTestExitCodeRE.FindStringSubmatch(output)
+	if m == nil {
+		return "", false
+	}
+	return m[1], true
+}
+
 // WaitForNodesToBeSchedulable waits until all nodes in the cluster are
 // schedulable and ready. This is useful after changing the APIServer TLS
 // profile, which triggers a kube-apiserver rollout that temporarily cordons
@@ -256,29 +329,21 @@ func (f *Framework) WaitForNodesToBeSchedulable() error {
 	return nil
 }
 
-// extractTLSProfileForTest mirrors the operator's logic for determining
-// which TLS profile to use based on the APIServer adherence policy: like
-// libgocrypto.ShouldHonorClusterTLSProfile, only NoOpinion and
-// LegacyAdheringComponentsOnly fall back to secure defaults, so an
-// unknown/future adherence value is treated the same as StrictAllComponents
-// (forward compatibility, per the APIServer API's own doc comment on
-// TLSAdherence).
+// extractTLSProfileForTest determines which TLS profile the operator should
+// actually be using, based on the APIServer adherence policy. Delegates the
+// honor/don't-honor decision to the real production function
+// (libgocrypto.ShouldHonorClusterTLSProfile) rather than re-implementing its
+// switch here, so this test expectation can never silently drift out of
+// sync with the actual gating logic in cmd/manager/operator.go.
 func extractTLSProfileForTest(apiServer *configv1.APIServer) *configv1.TLSSecurityProfile {
-	switch apiServer.Spec.TLSAdherence {
-	case configv1.TLSAdherencePolicyNoOpinion, configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly:
-		// The operator uses secure defaults (Intermediate profile from
-		// library-go's SecureTLSConfig) when it doesn't honor the cluster
-		// profile.
-		return &configv1.TLSSecurityProfile{
-			Type: configv1.TLSProfileIntermediateType,
-		}
-	default:
-		if apiServer.Spec.TLSSecurityProfile != nil {
-			return apiServer.Spec.TLSSecurityProfile
-		}
-		return &configv1.TLSSecurityProfile{
-			Type: configv1.TLSProfileIntermediateType,
-		}
+	if libgocrypto.ShouldHonorClusterTLSProfile(apiServer.Spec.TLSAdherence) && apiServer.Spec.TLSSecurityProfile != nil {
+		return apiServer.Spec.TLSSecurityProfile
+	}
+	// Not honoring the cluster profile (or none configured): the operator
+	// uses its own secure defaults (Intermediate profile from
+	// library-go's SecureTLSConfig).
+	return &configv1.TLSSecurityProfile{
+		Type: configv1.TLSProfileIntermediateType,
 	}
 }
 
@@ -360,4 +425,29 @@ func (f *Framework) IsOCPVersionAtLeast(major, minor int) (bool, error) {
 		return semver.Compare("v"+entry.Version, fmt.Sprintf("v%d.%d.0", major, minor)) >= 0, nil
 	}
 	return false, fmt.Errorf("ClusterVersion has no Completed history entries")
+}
+
+// IsTLSAdherenceFeatureGateEnabled checks whether the TLSAdherence feature
+// gate is enabled on the cluster. TLSAdherence is Tech Preview as of OCP
+// 4.22 (requires an explicit opt-in, e.g. featureSet: CustomNoUpgrade, to
+// the FeatureGate cluster resource); without it, apiserver.spec.tlsAdherence
+// is entirely absent from the CRD schema, so any write to it is silently
+// dropped and apiServer.Spec.TLSAdherence always reads back as the zero
+// value ("", equal to TLSAdherencePolicyNoOpinion) - meaning
+// StrictAllComponents, the only value that makes a component honor the
+// cluster-wide TLS profile, is structurally unreachable.
+func (f *Framework) IsTLSAdherenceFeatureGateEnabled() (bool, error) {
+	featureGate := &configv1.FeatureGate{}
+	key := types.NamespacedName{Name: "cluster"}
+	if err := f.Client.Get(context.TODO(), key, featureGate); err != nil {
+		return false, fmt.Errorf("failed to get FeatureGate cluster resource: %w", err)
+	}
+	for _, versionGates := range featureGate.Status.FeatureGates {
+		for _, enabled := range versionGates.Enabled {
+			if enabled.Name == "TLSAdherence" {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
 }
