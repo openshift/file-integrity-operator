@@ -95,6 +95,33 @@ const (
 	// the CMP-4504 epic's own "plan a maintenance window" guidance), so a
 	// coarse interval is fine.
 	tlsProfilePollInterval = time.Minute
+
+	// tlsProfileFetchMaxRetries bounds how many extra attempts
+	// fetchTLSConfigWithRetry makes, after an initial failed fetchTLSConfig
+	// call, before giving up and falling back to defaults. Unlike the
+	// recurring poll loop, this boot-time read only ever happens once per
+	// pod lifetime, so a single bad-luck transient failure here (e.g. the
+	// API server being briefly overloaded - which realistically happens,
+	// since applying a cluster-wide TLS profile change itself triggers a
+	// full control-plane rollout of etcd/kube-apiserver/openshift-apiserver)
+	// would otherwise silently and permanently strand this pod on the weak
+	// hardcoded defaults until some unrelated future restart.
+	tlsProfileFetchMaxRetries = 2
+	// tlsProfileFetchRetryInterval is the fixed delay between retries of a
+	// failed boot-time TLS profile fetch. Kept short and constant (not
+	// exponential) because this blocks manager startup on the critical path
+	// of every pod start: with tlsProfileFetchMaxRetries retries, the
+	// worst-case latency this adds (in the failure case; the common case of
+	// an immediately-successful first attempt adds none) is bounded to
+	// tlsProfileFetchMaxRetries*tlsProfileFetchRetryInterval = 4s.
+	// ponytail: each retried attempt still independently inherits
+	// fetchTLSConfig's own tlsProfileFetchTimeout (30s) - that per-attempt
+	// ceiling already existed for the single pre-existing attempt and is
+	// unchanged here, so a pathological run where every attempt hangs for
+	// the full timeout is not bounded by this constant. If that compounding
+	// needs its own tighter bound too, give fetchTLSConfig a
+	// shorter/separate timeout for retried attempts.
+	tlsProfileFetchRetryInterval = 2 * time.Second
 )
 
 func init() {
@@ -169,24 +196,31 @@ func RunOperator(cmd *cobra.Command, args []string) {
 	// startup. Any failure - including a Custom profile with an invalid
 	// minTLSVersion, which would otherwise panic when applied - falls back
 	// to the pre-existing hardcoded defaults instead of blocking startup.
+	// fetchTLSConfigWithRetry retries a small, bounded number of times first
+	// (see its and tlsProfileFetchMaxRetries's doc comments) so a single
+	// transient failure at this exact moment - this only ever runs once per
+	// pod lifetime - doesn't silently and permanently strand this pod on
+	// the weak defaults for its entire lifetime.
 	preStartClient, err := client.New(cfg, client.Options{Scheme: scheme})
 	if err != nil {
 		log.Error(err, "unable to create client for TLS profile lookup")
 		os.Exit(1)
 	}
-	// initialTLSProfile/initialTLSAdherencePolicy are exactly what fetchTLSConfig
-	// read from the cluster (even if invalid) and are what seed the poll loop
-	// below: SecurityProfileWatcher.Reconcile recomputes the same raw values
-	// on every tick via the same, non-validating GetTLSProfileSpec, so the
-	// seed must match that computation or every tick would see a spurious
+	// initialTLSProfile/initialTLSAdherencePolicy are exactly what the last
+	// fetchTLSConfig attempt inside fetchTLSConfigWithRetry read from the
+	// cluster (even if invalid) and are what seed the poll loop below:
+	// SecurityProfileWatcher.Reconcile recomputes the same raw values on
+	// every tick via the same, non-validating GetTLSProfileSpec, so the seed
+	// must match that computation or every tick would see a spurious
 	// "change" and restart forever. appliedTLSProfile/appliedTLSAdherencePolicy
 	// are what's actually applied to the webhook/metrics TLS config, and fall
 	// back to safe defaults on any error so an invalid profile can't panic
 	// NewTLSConfigFromProfile.
-	initialTLSProfile, initialTLSAdherencePolicy, err := fetchTLSConfig(ctx, preStartClient)
+	initialTLSProfile, initialTLSAdherencePolicy, err := fetchTLSConfigWithRetry(
+		ctx, preStartClient, tlsProfileFetchMaxRetries, tlsProfileFetchRetryInterval)
 	appliedTLSProfile, appliedTLSAdherencePolicy := initialTLSProfile, initialTLSAdherencePolicy
 	if err != nil {
-		log.Info("could not fetch cluster APIServer TLS profile, using defaults", "error", err)
+		log.Info("could not fetch cluster APIServer TLS profile after retrying, using defaults", "error", err)
 		met.IncFileIntegrityError("cluster_tls_profile_fetch_failed")
 		appliedTLSProfile = configv1.TLSProfileSpec{
 			Ciphers:       tlspkg.DefaultTLSCiphers,
@@ -354,6 +388,43 @@ func fetchTLSConfig(ctx context.Context, cl client.Client) (configv1.TLSProfileS
 	}
 
 	return profile, apiServer.Spec.TLSAdherence, nil
+}
+
+// fetchTLSConfigWithRetry wraps fetchTLSConfig with a short, bounded number
+// of retries on failure, so a single transient failure (e.g. the API server
+// being briefly overloaded right as this boot-time, once-per-pod-lifetime
+// read happens) doesn't permanently strand the pod on the hardcoded TLS
+// defaults for its entire lifetime just because the one attempt hit bad
+// luck. The common case (first attempt succeeds) adds zero latency, and a
+// caller that exhausts every attempt gets back exactly the last attempt's
+// (profile, policy, error) - including, for a persistently invalid
+// Custom profile's minTLSVersion, the same raw profile/policy fetchTLSConfig
+// itself would return on that error path - so the fallback-to-defaults and
+// poll-watcher-seeding logic at the call site behaves exactly as if retries
+// didn't exist, just later.
+//
+// maxRetries/retryInterval are parameters (rather than always using the
+// tlsProfileFetchMaxRetries/tlsProfileFetchRetryInterval constants), the
+// same way newTLSProfileWatcher's pollInterval is, purely so tests can use a
+// short interval instead of waiting for production durations; production
+// code should always pass those constants.
+func fetchTLSConfigWithRetry(ctx context.Context, cl client.Client, maxRetries uint64, retryInterval time.Duration) (
+	configv1.TLSProfileSpec, configv1.TLSAdherencePolicy, error) {
+	type fetchResult struct {
+		profile configv1.TLSProfileSpec
+		policy  configv1.TLSAdherencePolicy
+	}
+
+	res, err := backoff.RetryNotifyWithData(func() (fetchResult, error) {
+		profile, policy, err := fetchTLSConfig(ctx, cl)
+		return fetchResult{profile: profile, policy: policy}, err
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(retryInterval), maxRetries),
+		func(err error, wait time.Duration) {
+			log.Info("transient failure fetching cluster APIServer TLS profile, retrying",
+				"error", err, "wait", wait)
+		})
+
+	return res.profile, res.policy, err
 }
 
 // newTLSProfileWatcher returns a manager.Runnable that periodically checks

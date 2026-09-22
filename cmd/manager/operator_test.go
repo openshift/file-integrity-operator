@@ -381,6 +381,85 @@ var _ = Describe("Operator startup tests", func() {
 		})
 	})
 
+	Context("fetchTLSConfigWithRetry", func() {
+		var ctx context.Context
+
+		BeforeEach(func() {
+			ctx = context.Background()
+		})
+
+		// Regression test: proves a bounded number of transient Get
+		// failures (e.g. the API server being briefly overloaded, which
+		// realistically happens since applying a cluster-wide TLS profile
+		// change itself triggers a full control-plane rollout) no longer
+		// permanently discards the real cluster profile in favor of
+		// defaults - the retry must pay off, and the eventually-successful
+		// attempt's data must come through completely unchanged.
+		It("retries past a bounded number of transient Get failures and returns exactly what an immediate successful fetch would", func() {
+			apiServer := &configv1.APIServer{
+				ObjectMeta: v1.ObjectMeta{Name: tlspkg.APIServerName},
+				Spec: configv1.APIServerSpec{
+					TLSSecurityProfile: &configv1.TLSSecurityProfile{Type: configv1.TLSProfileModernType},
+					TLSAdherence:       configv1.TLSAdherencePolicyStrictAllComponents,
+				},
+			}
+			baseClient := ctrlfake.NewClientBuilder().WithScheme(scheme).WithObjects(apiServer).Build()
+
+			const inducedFailures = 2
+			var attempts int32
+			flakyClient := interceptor.NewClient(baseClient, interceptor.Funcs{
+				Get: func(getCtx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+					if atomic.AddInt32(&attempts, 1) <= inducedFailures {
+						return errors.New("simulated: apiserver briefly overloaded")
+					}
+					return c.Get(getCtx, key, obj, opts...)
+				},
+			})
+
+			// maxRetries == inducedFailures gives exactly enough attempts
+			// (inducedFailures failures + 1 success) to succeed.
+			profile, policy, err := fetchTLSConfigWithRetry(ctx, flakyClient, inducedFailures, time.Millisecond)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(atomic.LoadInt32(&attempts)).To(Equal(int32(inducedFailures + 1)))
+
+			wantProfile, wantPolicy, err := fetchTLSConfig(ctx, baseClient)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(profile).To(Equal(wantProfile))
+			Expect(policy).To(Equal(wantPolicy))
+		})
+
+		// Regression test: proves the pre-existing safety net (fall back to
+		// defaults, never panic or block indefinitely) still holds once
+		// every attempt fails, and that exhausting retries is bounded and
+		// fast in tests (using a millisecond-scale retryInterval, not a
+		// production-duration wait).
+		It("exhausts retries quickly and returns the documented fallback when every attempt fails", func() {
+			var attempts int32
+			alwaysFailingClient := interceptor.NewClient(
+				ctrlfake.NewClientBuilder().WithScheme(scheme).Build(),
+				interceptor.Funcs{
+					Get: func(context.Context, client.WithWatch, client.ObjectKey, client.Object, ...client.GetOption) error {
+						atomic.AddInt32(&attempts, 1)
+						return errors.New("simulated: apiserver persistently unavailable")
+					},
+				},
+			)
+
+			start := time.Now()
+			profile, policy, err := fetchTLSConfigWithRetry(ctx, alwaysFailingClient, 2, time.Millisecond)
+			elapsed := time.Since(start)
+
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("failed to get APIServer"))
+			Expect(profile).To(Equal(configv1.TLSProfileSpec{}))
+			Expect(policy).To(Equal(configv1.TLSAdherencePolicyNoOpinion))
+			// Exactly 1 initial attempt + 2 retries - not more (retries are
+			// bounded) and not fewer (the retries actually ran).
+			Expect(atomic.LoadInt32(&attempts)).To(Equal(int32(3)))
+			Expect(elapsed).To(BeNumerically("<", time.Second))
+		})
+	})
+
 	Context("newTLSProfileWatcher", func() {
 		// This is a regression test, not just a behavioral one: it exists
 		// specifically to fail if a future edit changes the poll loop to
