@@ -94,7 +94,7 @@ const testPodSecurityOverrides = `--overrides={"spec":{"securityContext":{"runAs
 // minimum. The server may negotiate a higher version than the minimum (e.g.
 // TLS 1.3 when the minimum is 1.2), which is correct behavior.
 func (f *Framework) AssertMetricsEndpointMinTLSVersion(expectedMinTLSVersion string) error {
-	endpoint := fmt.Sprintf("https://metrics.%s.svc:8585/metrics-co", f.OperatorNamespace)
+	endpoint := fmt.Sprintf("https://metrics.%s.svc:8585/metrics-fio", f.OperatorNamespace)
 	curlCMD := fmt.Sprintf("curl -vks %s 2>&1 | grep 'SSL connection'", endpoint)
 
 	ocPath, err := exec.LookPath("oc")
@@ -147,7 +147,7 @@ func (f *Framework) AssertMetricsEndpointMinTLSVersion(expectedMinTLSVersion str
 // AssertMetricsEndpointMinTLSVersion: it proves the server's floor is actually
 // above the given version by confirming the handshake fails.
 func (f *Framework) AssertMetricsEndpointRejectsTLSVersion(rejectedTLSVersion string) error {
-	endpoint := fmt.Sprintf("https://metrics.%s.svc:8585/metrics-co", f.OperatorNamespace)
+	endpoint := fmt.Sprintf("https://metrics.%s.svc:8585/metrics-fio", f.OperatorNamespace)
 	// The exit code is the source of truth, not the presence of "SSL"/"alert"
 	// in verbose output: curl -v prints "SSL connection using TLSvX.Y" on a
 	// *successful* handshake too, so text-matching those substrings can't
