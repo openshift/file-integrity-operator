@@ -79,6 +79,16 @@ func tlsVersionAtLeast(actual, minimum string) bool {
 	return a >= m
 }
 
+// testPodSecurityOverrides is the `oc run --overrides` securityContext
+// required for the ephemeral curl pods below to be admitted under the
+// cluster's restricted PodSecurity/SCC; without it the pod is admitted and
+// immediately terminated as Error before curl ever runs, so every poll
+// attempt fails identically and the caller retries until Timeout. Kept
+// identical to the pre-existing, proven metricsTestPodOverrides in
+// tests/e2e/helpers.go - duplicated here (not imported) because package
+// e2e imports package framework, not the other way around.
+const testPodSecurityOverrides = `--overrides={"spec":{"securityContext":{"runAsNonRoot":true,"runAsUser":65534,"seccompProfile":{"type":"RuntimeDefault"}}}}`
+
 // AssertMetricsEndpointMinTLSVersion uses curl to connect to the metrics
 // endpoint and verifies the negotiated TLS version is at least the expected
 // minimum. The server may negotiate a higher version than the minimum (e.g.
@@ -98,7 +108,7 @@ func (f *Framework) AssertMetricsEndpointMinTLSVersion(expectedMinTLSVersion str
 		cmd := exec.Command(ocPath,
 			"run", "--rm", "-i", "--restart=Never",
 			"--image=registry.fedoraproject.org/fedora-minimal:latest",
-			"-n", f.OperatorNamespace, fmt.Sprintf("tls-version-test-%d", time.Now().UnixNano()),
+			"-n", f.OperatorNamespace, testPodSecurityOverrides, fmt.Sprintf("tls-version-test-%d", time.Now().UnixNano()),
 			"--", "bash", "-c", curlCMD,
 		)
 		out, err := cmd.CombinedOutput()
@@ -156,7 +166,7 @@ func (f *Framework) AssertMetricsEndpointRejectsTLSVersion(rejectedTLSVersion st
 		cmd := exec.Command(ocPath,
 			"run", "--rm", "-i", "--restart=Never",
 			"--image=registry.fedoraproject.org/fedora-minimal:latest",
-			"-n", f.OperatorNamespace, fmt.Sprintf("tls-reject-test-%d", time.Now().UnixNano()),
+			"-n", f.OperatorNamespace, testPodSecurityOverrides, fmt.Sprintf("tls-reject-test-%d", time.Now().UnixNano()),
 			"--", "bash", "-c", curlCMD,
 		)
 		out, _ := cmd.CombinedOutput()
