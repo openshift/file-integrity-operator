@@ -586,6 +586,8 @@ func (r *FileIntegrityReconciler) FileIntegrityControllerReconcile(request recon
 
 		createErr := r.Client.Create(context.TODO(), ds)
 		if createErr != nil && !kerr.IsAlreadyExists(createErr) {
+			r.Recorder.Event(instance, corev1.EventTypeWarning, "DaemonSetCreateFailed",
+				fmt.Sprintf("Failed to create DaemonSet: %v", createErr))
 			reqLogger.Error(createErr, "error creating daemonSet")
 			return reconcile.Result{}, createErr
 		}
@@ -600,22 +602,37 @@ func (r *FileIntegrityReconciler) FileIntegrityControllerReconcile(request recon
 		tolsNeedsUpdate := updateDSTolerations(dsCopy, instance, reqLogger)
 		pcNeedsUpdate := updateDSPriorityClassName(dsCopy, instance, reqLogger)
 		volsNeedUpdate := updateDSContainerVolumes(dsCopy, instance, operatorImage, reqLogger)
+		labelsNeedUpdate := updateDSLabels(dsCopy, instance, reqLogger)
+		annotationsNeedUpdate := updateDSAnnotations(dsCopy, instance, reqLogger)
 
-		if argsNeedUpdate || imgNeedsUpdate || nsNeedsUpdate || tolsNeedsUpdate || pcNeedsUpdate || volsNeedUpdate || scriptsUpdated {
+		if argsNeedUpdate || imgNeedsUpdate || nsNeedsUpdate || tolsNeedsUpdate || pcNeedsUpdate ||
+			volsNeedUpdate || labelsNeedUpdate || annotationsNeedUpdate || scriptsUpdated {
 			if err := r.Client.Update(context.TODO(), dsCopy); err != nil {
+				r.Recorder.Event(instance, corev1.EventTypeWarning, "DaemonSetUpdateFailed",
+					fmt.Sprintf("Failed to update DaemonSet: %v", err))
+				reqLogger.Error(err, "Failed to update DaemonSet")
 				return reconcile.Result{}, err
 			}
 
 			r.Metrics.IncFileIntegrityDaemonsetUpdate()
 
-			// TODO: We might want to change this to something that signals to the daemonSet pods that they need to
-			// gracefully exit, and let them restart that way.
-			err := common.RestartFileIntegrityDs(r.Client, common.DaemonSetName(instance.Name))
-			if err != nil {
-				return reconcile.Result{}, err
+			// For metadata-only changes (labels/annotations), the DaemonSet's RollingUpdate is
+			// sufficient (maxUnavailable: 1, node-by-node). Only force-restart all pods when the
+			// change requires it (args, config, volumes, scripts, node scheduling changes).
+			needsRestart := argsNeedUpdate || imgNeedsUpdate || nsNeedsUpdate || tolsNeedsUpdate ||
+				pcNeedsUpdate || volsNeedUpdate || scriptsUpdated
+			if needsRestart {
+				// TODO: We might want to change this to something that signals to the daemonSet pods that they need to
+				// gracefully exit, and let them restart that way.
+				err := common.RestartFileIntegrityDs(r.Client, common.DaemonSetName(instance.Name))
+				if err != nil {
+					return reconcile.Result{}, err
+				}
+				reqLogger.Info("FileIntegrity daemon configuration changed - pods restarted.")
+				r.Metrics.IncFileIntegrityDaemonsetPodKill()
+			} else {
+				reqLogger.Info("FileIntegrity daemon metadata updated - rolling restart in progress.")
 			}
-			reqLogger.Info("FileIntegrity daemon configuration changed - pods restarted.")
-			r.Metrics.IncFileIntegrityDaemonsetPodKill()
 		}
 	}
 	return reconcile.Result{}, nil
@@ -659,6 +676,28 @@ func updateDSTolerations(currentDS *appsv1.DaemonSet, fi *v1alpha1.FileIntegrity
 	if needsUpdate {
 		logger.Info("FileIntegrity needed tolerations update")
 		*tRef = expectedTolerations
+	}
+	return needsUpdate
+}
+
+func updateDSLabels(currentDS *appsv1.DaemonSet, fi *v1alpha1.FileIntegrity, logger logr.Logger) bool {
+	lRef := &currentDS.Spec.Template.ObjectMeta.Labels
+	expectedLabels := podTemplateLabels(currentDS.Name, fi)
+	needsUpdate := !reflect.DeepEqual(*lRef, expectedLabels)
+	if needsUpdate {
+		logger.Info("FileIntegrity needed pod labels update")
+		*lRef = expectedLabels
+	}
+	return needsUpdate
+}
+
+func updateDSAnnotations(currentDS *appsv1.DaemonSet, fi *v1alpha1.FileIntegrity, logger logr.Logger) bool {
+	aRef := &currentDS.Spec.Template.ObjectMeta.Annotations
+	expectedAnnotations := podTemplateAnnotations(fi)
+	needsUpdate := !reflect.DeepEqual(*aRef, expectedAnnotations)
+	if needsUpdate {
+		logger.Info("FileIntegrity needed pod annotations update")
+		*aRef = expectedAnnotations
 	}
 	return needsUpdate
 }
@@ -902,6 +941,35 @@ func reinitAideDaemonset(reinitDaemonSetName string, fi *v1alpha1.FileIntegrity,
 	}
 }
 
+// podTemplateLabels returns the labels for the AIDE daemonSet pod template: the user-supplied
+// labels from the FileIntegrity spec, plus the labels the operator manages. The
+// operator-managed keys always win. The CRD rejects objects that try to set them, so this is
+// only a safety net.
+func podTemplateLabels(dsName string, fi *v1alpha1.FileIntegrity) map[string]string {
+	podLabels := make(map[string]string, len(fi.Spec.Labels)+3)
+	for k, v := range fi.Spec.Labels {
+		podLabels[k] = v
+	}
+	podLabels["app"] = dsName
+	podLabels[common.IntegrityPodLabelKey] = ""
+	podLabels[common.IntegrityOwnerLabelKey] = fi.Name
+	return podLabels
+}
+
+// podTemplateAnnotations returns the user-supplied annotations for the AIDE daemonSet pod
+// template. It returns nil when none are set, so that the pod template matches what the API
+// server stores and the comparison in updateDSAnnotations stays stable.
+func podTemplateAnnotations(fi *v1alpha1.FileIntegrity) map[string]string {
+	if len(fi.Spec.Annotations) == 0 {
+		return nil
+	}
+	podAnnotations := make(map[string]string, len(fi.Spec.Annotations))
+	for k, v := range fi.Spec.Annotations {
+		podAnnotations[k] = v
+	}
+	return podAnnotations
+}
+
 func aideDaemonset(dsName string, fi *v1alpha1.FileIntegrity, operatorImage string) *appsv1.DaemonSet {
 	priv := true
 	runAs := int64(0)
@@ -923,11 +991,8 @@ func aideDaemonset(dsName string, fi *v1alpha1.FileIntegrity, operatorImage stri
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{
-						"app":                         dsName,
-						common.IntegrityPodLabelKey:   "",
-						common.IntegrityOwnerLabelKey: fi.Name,
-					},
+					Labels:      podTemplateLabels(dsName, fi),
+					Annotations: podTemplateAnnotations(fi),
 				},
 				Spec: corev1.PodSpec{
 					NodeSelector:       fi.Spec.NodeSelector,

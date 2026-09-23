@@ -1071,6 +1071,78 @@ func TestFileIntegrityPriorityClassName(t *testing.T) {
 	}
 }
 
+func TestFileIntegrityPodLabelsAndAnnotations(t *testing.T) {
+	integrityName := testIntegrityNamePrefix + "-podmeta"
+	initialLabels := map[string]string{
+		"example.com/team":       "security",
+		"example.com/monitoring": "enabled",
+	}
+	initialAnnotations := map[string]string{
+		"example.com/scrape": "true",
+	}
+
+	f, testctx, namespace := setupPodMetadataTest(t, integrityName, initialLabels, initialAnnotations)
+	defer testctx.Cleanup()
+	defer func() {
+		if err := cleanNodes(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+		if err := resetBundleTestMetrics(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+	}()
+	defer logContainerOutput(t, f, namespace, integrityName)
+
+	// wait to go active.
+	err := waitForScanStatus(t, f, namespace, integrityName, v1alpha1.PhaseActive)
+	if err != nil {
+		t.Errorf("Timeout waiting for scan status")
+	}
+
+	dsName := common.DaemonSetName(integrityName)
+
+	t.Log("Verifying that the DaemonSet pod template has the custom labels and annotations")
+	if err := verifyDaemonSetPodMetadata(t, f, namespace, dsName, integrityName,
+		initialLabels, initialAnnotations, nil); err != nil {
+		t.Errorf("Failed to verify pod labels and annotations: %v", err)
+	}
+
+	t.Log("Verifying that the running pods carry the custom labels and annotations")
+	if err := verifyRunningPodsMetadata(t, f, namespace, dsName, initialLabels, initialAnnotations); err != nil {
+		t.Errorf("Failed to verify running pods metadata: %v", err)
+	}
+
+	// Updating an existing FileIntegrity goes through the reconciler's drift-correction path,
+	// which is separate from the code that builds the DaemonSet on first creation.
+	t.Log("Updating the FileIntegrity to add, change, and remove pod metadata")
+	updatedLabels := map[string]string{
+		"example.com/team": "compliance",
+		"example.com/tier": "platform",
+	}
+	updatedAnnotations := map[string]string{
+		"example.com/scrape": "false",
+	}
+	updateFileIntegrityPodMetadata(t, f, integrityName, namespace, updatedLabels, updatedAnnotations,
+		retryInterval, timeout)
+
+	t.Log("Verifying that the DaemonSet pod template converged on the updated metadata")
+	if err := verifyDaemonSetPodMetadata(t, f, namespace, dsName, integrityName,
+		updatedLabels, updatedAnnotations, []string{"example.com/monitoring"}); err != nil {
+		t.Errorf("Failed to verify updated pod labels and annotations: %v", err)
+	}
+
+	t.Log("Verifying that the running pods carry the updated labels and annotations")
+	if err := verifyRunningPodsMetadata(t, f, namespace, dsName, updatedLabels, updatedAnnotations); err != nil {
+		t.Errorf("Failed to verify updated running pods metadata: %v", err)
+	}
+
+	// The operand must still work after the pod template churn.
+	t.Log("Verifying that scans are still active after the pod metadata update")
+	if err := waitForScanStatus(t, f, namespace, integrityName, v1alpha1.PhaseActive); err != nil {
+		t.Errorf("Timeout waiting for scan status after pod metadata update")
+	}
+}
+
 func TestFileIntegrityInvalidPriorityClassName(t *testing.T) {
 	f, testctx, namespace := setupInvalidPriorityClassTest(t, testIntegrityNamePrefix+"-invalidpc")
 	defer testctx.Cleanup()

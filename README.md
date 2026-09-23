@@ -50,6 +50,10 @@ spec:
     operator: "Exists"
     effect: "NoSchedule"
   priorityClassName: "system-cluster-critical"
+  labels:
+    example.com/team: "security"
+  annotations:
+    example.com/scrape: "true"
   config:
     name: "myconfig"
     namespace: "openshift-file-integrity"
@@ -64,6 +68,8 @@ In the `spec`:
 * **nodeSelector**: Selector for nodes to schedule the scan instances on.
 * **tolerations**: Specify tolerations to schedule on nodes with custom taints. When not specified, a default toleration allowing running on master and infra nodes is applied.
 * **priorityClassName**: (Optional) Specifies the `PriorityClass` for the pods created by the operator. If the PriorityClass is invalid or not found, it will be ignored and cleared from the spec.
+* **labels**: (Optional) Custom labels to add to the AIDE daemon pods (re-init pods are excluded), useful for label-based autodiscovery by monitoring and log collection systems. The key `app` and the `file-integrity.openshift.io/` prefix are reserved for the operator and are rejected. The entire map replaces (does not merge with) the pod template labels. Changing labels triggers a rolling restart of the AIDE daemon pods.
+* **annotations**: (Optional) Custom annotations to add to the AIDE daemon pods (re-init pods are excluded), intended for observability metadata. The `file-integrity.openshift.io/` prefix is reserved, and runtime-affecting prefixes (`k8s.v1.cni.cncf.io/`, `io.kubernetes.cri-o.`, `container.apparmor.security.beta.kubernetes.io/`, `seccomp.security.alpha.kubernetes.io/`) are blocked to prevent breaking the privileged DaemonSet. The entire map replaces (does not merge with) the pod template annotations. Changing annotations triggers a rolling restart of the AIDE daemon pods.
 * **config**: Point to a ConfigMap containing an AIDE configuration to use instead of the CoreOS optimized default. See "Applying an AIDE config" below.
 * **config.gracePeriod**: The number of seconds to pause in between AIDE integrity checks. Frequent AIDE checks on a node may be resource intensive, so it can be useful to specify a longer interval. Defaults to 900 (15 mins).
 * **config.maxBackups**: The maximum number of AIDE database and log backups (leftover from the re-init process) to keep on a node. Older backups beyond this number are automatically pruned by the daemon. Defaults to 5.
