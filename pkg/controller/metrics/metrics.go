@@ -75,8 +75,15 @@ var (
 
 // Metrics is the main structure of this package.
 type Metrics struct {
-	impl                                     impl
-	log                                      logr.Logger
+	impl impl
+	log  logr.Logger
+	// tlsConfigFn, if set, further customizes the metrics server's tls.Config
+	// (e.g. to honor a cluster-wide TLS security profile) on top of the
+	// default MinVersion/CipherSuites in Start. Set via SetTLSConfigFn before
+	// Start is called (typically once, from the main goroutine, before the
+	// manager starts the Metrics runnable) - not safe to set concurrently
+	// with Start.
+	tlsConfigFn                              func(*tls.Config)
 	metricFileIntegrityPhase                 *prometheus.CounterVec
 	metricFileIntegrityError                 *prometheus.CounterVec
 	metricFileIntegrityPause                 *prometheus.CounterVec
@@ -172,6 +179,14 @@ func NewControllerMetrics() *Metrics {
 	}
 }
 
+// SetTLSConfigFn configures a function that further customizes the metrics
+// server's tls.Config (e.g. to honor a cluster-wide TLS security profile),
+// applied on top of the default MinVersion/CipherSuites in Start. Must be
+// called before Start.
+func (m *Metrics) SetTLSConfigFn(fn func(*tls.Config)) {
+	m.tlsConfigFn = fn
+}
+
 // Register iterates over all available Metrics and registers them.
 func (m *Metrics) Register() error {
 	for name, collector := range map[string]prometheus.Collector{
@@ -204,6 +219,9 @@ func (m *Metrics) Start(ctx context.Context) error {
 		NextProtos: []string{"http/1.1"},
 	}
 	tlsConfig = libgocrypto.SecureTLSConfig(tlsConfig)
+	if m.tlsConfigFn != nil {
+		m.tlsConfigFn(tlsConfig)
+	}
 	server := &http.Server{
 		Addr:      ":8585",
 		TLSConfig: tlsConfig,

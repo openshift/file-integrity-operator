@@ -649,6 +649,9 @@ github.com/openshift/api/config/v1
 github.com/openshift/api/machine/v1beta1
 github.com/openshift/api/machineconfiguration
 github.com/openshift/api/machineconfiguration/v1
+# github.com/openshift/controller-runtime-common v0.0.0-20260318085703-1812aed6dbd2
+## explicit; go 1.25.0
+github.com/openshift/controller-runtime-common/pkg/tls
 # github.com/openshift/library-go v0.0.0-20260807194649-ee0a87843dda
 ## explicit; go 1.26.0
 github.com/openshift/library-go/pkg/crypto

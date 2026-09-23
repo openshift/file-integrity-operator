@@ -18,6 +18,8 @@ import (
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 	log "github.com/sirupsen/logrus"
 	extscheme "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	cached "k8s.io/client-go/discovery/cached"
@@ -320,4 +322,31 @@ func (f *Framework) setupLocalCommand() (*exec.Cmd, error) {
 	}
 	localCmd.Env = append(localCmd.Env, fmt.Sprintf("%v=%v", WatchNamespaceEnvVar, watchNamespace))
 	return localCmd, nil
+}
+
+// WaitForDeployment waits until the named Deployment reports at least
+// `replicas` available replicas, polling at retryInterval up to timeout.
+func (f *Framework) WaitForDeployment(name string, replicas int, retryInterval, timeout time.Duration) error {
+	err := wait.Poll(retryInterval, timeout, func() (done bool, err error) {
+		deployment, err := f.KubeClient.AppsV1().Deployments(f.OperatorNamespace).Get(goctx.TODO(), name, metav1.GetOptions{})
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				log.Printf("Waiting for availability of Deployment: %s in Namespace: %s \n", name, f.OperatorNamespace)
+				return false, nil
+			}
+			return false, err
+		}
+
+		if int(deployment.Status.AvailableReplicas) >= replicas {
+			return true, nil
+		}
+		log.Printf("Waiting for full availability of %s deployment (%d/%d)\n", name,
+			deployment.Status.AvailableReplicas, replicas)
+		return false, nil
+	})
+	if err != nil {
+		return err
+	}
+	log.Printf("Deployment available (%d/%d)\n", replicas, replicas)
+	return nil
 }

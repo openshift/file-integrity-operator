@@ -17,6 +17,7 @@ limitations under the License.
 package metrics
 
 import (
+	"crypto/tls"
 	"errors"
 	"testing"
 
@@ -59,6 +60,25 @@ func TestRegisterMetrics(t *testing.T) {
 			require.Nil(t, err)
 		}
 	}
+}
+
+func TestSetTLSConfigFn(t *testing.T) {
+	t.Parallel()
+
+	sut := NewControllerMetrics()
+	require.Nil(t, sut.tlsConfigFn)
+
+	sut.SetTLSConfigFn(func(c *tls.Config) {
+		c.MinVersion = tls.VersionTLS13
+	})
+	require.NotNil(t, sut.tlsConfigFn)
+
+	// Start() applies tlsConfigFn on top of its own base config exactly like
+	// this; verify it actually mutates the config instead of just being
+	// stored.
+	cfg := &tls.Config{MinVersion: tls.VersionTLS12}
+	sut.tlsConfigFn(cfg)
+	require.Equal(t, uint16(tls.VersionTLS13), cfg.MinVersion)
 }
 
 func TestFileIntegrityMetrics(t *testing.T) {
