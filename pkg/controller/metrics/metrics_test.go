@@ -73,9 +73,7 @@ func TestSetTLSConfigFn(t *testing.T) {
 	})
 	require.NotNil(t, sut.tlsConfigFn)
 
-	// Start() applies tlsConfigFn on top of its own base config exactly like
-	// this; verify it actually mutates the config instead of just being
-	// stored.
+	// Verify it actually mutates the config, not just gets stored.
 	cfg := &tls.Config{MinVersion: tls.VersionTLS12}
 	sut.tlsConfigFn(cfg)
 	require.Equal(t, uint16(tls.VersionTLS13), cfg.MinVersion)
