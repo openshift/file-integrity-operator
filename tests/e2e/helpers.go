@@ -1086,6 +1086,188 @@ func setupPriorityClassTest(t *testing.T, integrityName string) (*framework.Fram
 	return f, testctx, namespace
 }
 
+// verifyDaemonSetPodMetadata polls the DaemonSet until its pod template carries every label and
+// annotation in expectedLabels/expectedAnnotations, carries none of the keys in absentLabels, and
+// still carries the labels the operator manages. Polling is needed because the operator
+// reconciles the DaemonSet asynchronously after the FileIntegrity is updated.
+func verifyDaemonSetPodMetadata(t *testing.T, f *framework.Framework, namespace, dsName, integrityName string,
+	expectedLabels, expectedAnnotations map[string]string, absentLabels []string) error {
+	var lastErr error
+	pollErr := wait.PollImmediate(pollInterval, 5*time.Minute, func() (bool, error) {
+		ds, err := f.KubeClient.AppsV1().DaemonSets(namespace).Get(goctx.TODO(), dsName, metav1.GetOptions{})
+		if err != nil {
+			lastErr = err
+			return false, nil
+		}
+		podMeta := ds.Spec.Template.ObjectMeta
+
+		for key, want := range expectedLabels {
+			if got, ok := podMeta.Labels[key]; !ok || got != want {
+				lastErr = errors.Errorf("expected pod label %s=%s, got labels %v", key, want, podMeta.Labels)
+				return false, nil
+			}
+		}
+		for key, want := range expectedAnnotations {
+			if got, ok := podMeta.Annotations[key]; !ok || got != want {
+				lastErr = errors.Errorf("expected pod annotation %s=%s, got annotations %v", key, want,
+					podMeta.Annotations)
+				return false, nil
+			}
+		}
+		for _, key := range absentLabels {
+			if _, ok := podMeta.Labels[key]; ok {
+				lastErr = errors.Errorf("expected pod label %s to be removed, got labels %v", key, podMeta.Labels)
+				return false, nil
+			}
+		}
+
+		// The operator-managed labels must survive alongside the custom ones. Losing "app"
+		// breaks the pod restart logic, and losing the pod marker breaks the NetworkPolicies.
+		operatorLabels := map[string]string{
+			"app":                         dsName,
+			common.IntegrityPodLabelKey:   "",
+			common.IntegrityOwnerLabelKey: integrityName,
+		}
+		for key, want := range operatorLabels {
+			if got, ok := podMeta.Labels[key]; !ok || got != want {
+				lastErr = errors.Errorf("operator-managed label %s=%s missing, got labels %v", key, want,
+					podMeta.Labels)
+				return false, nil
+			}
+		}
+		return true, nil
+	})
+	if pollErr != nil {
+		return errors.Errorf("error verifying DaemonSet pod metadata: (%v) (%v)", pollErr, lastErr)
+	}
+
+	t.Logf("DaemonSet %s pod template has the expected labels and annotations", dsName)
+	return nil
+}
+
+// verifyRunningPodsMetadata verifies that the actual running pods created by the DaemonSet
+// carry the expected labels and annotations. This closes the loop from the pod template
+// to the actual pods, which is the point of the feature (label-based autodiscovery).
+func verifyRunningPodsMetadata(t *testing.T, f *framework.Framework, namespace, dsName string,
+	expectedLabels, expectedAnnotations map[string]string) error {
+	var lastErr error
+	pollErr := wait.PollImmediate(pollInterval, 2*time.Minute, func() (bool, error) {
+		// Get pods owned by this DaemonSet using the app label (the immutable selector)
+		pods, err := f.KubeClient.CoreV1().Pods(namespace).List(goctx.TODO(), metav1.ListOptions{
+			LabelSelector: "app=" + dsName,
+		})
+		if err != nil {
+			lastErr = err
+			return false, nil
+		}
+		if len(pods.Items) == 0 {
+			lastErr = errors.Errorf("no running pods found for DaemonSet %s", dsName)
+			return false, nil
+		}
+
+		// Every pod must carry the expected labels and annotations
+		for _, pod := range pods.Items {
+			for key, want := range expectedLabels {
+				if got, ok := pod.Labels[key]; !ok || got != want {
+					lastErr = errors.Errorf("pod %s missing expected label %s=%s, got labels %v",
+						pod.Name, key, want, pod.Labels)
+					return false, nil
+				}
+			}
+			for key, want := range expectedAnnotations {
+				if got, ok := pod.Annotations[key]; !ok || got != want {
+					lastErr = errors.Errorf("pod %s missing expected annotation %s=%s, got annotations %v",
+						pod.Name, key, want, pod.Annotations)
+					return false, nil
+				}
+			}
+		}
+		return true, nil
+	})
+	if pollErr != nil {
+		return errors.Errorf("error verifying running pods metadata: (%v) (%v)", pollErr, lastErr)
+	}
+
+	t.Logf("All running pods for DaemonSet %s have the expected labels and annotations", dsName)
+	return nil
+}
+
+// updateFileIntegrityPodMetadata replaces the labels and annotations on an existing FileIntegrity,
+// exercising the reconciler's drift-correction path rather than the initial creation path.
+func updateFileIntegrityPodMetadata(t *testing.T, f *framework.Framework, integrityName, namespace string,
+	labels, annotations map[string]string, interval, timeout time.Duration) {
+	var lastErr error
+	pollErr := wait.PollImmediate(interval, timeout, func() (bool, error) {
+		fileIntegrity := &v1alpha1.FileIntegrity{}
+		err := f.Client.Get(goctx.TODO(), types.NamespacedName{Name: integrityName, Namespace: namespace}, fileIntegrity)
+		if err != nil {
+			lastErr = err
+			return false, nil
+		}
+
+		fileIntegrityCopy := fileIntegrity.DeepCopy()
+		fileIntegrityCopy.Spec.Labels = labels
+		fileIntegrityCopy.Spec.Annotations = annotations
+
+		err = f.Client.Update(goctx.TODO(), fileIntegrityCopy)
+		if err != nil {
+			lastErr = err
+			return false, nil
+		}
+		return true, nil
+	})
+	if pollErr != nil {
+		t.Errorf("Error updating FileIntegrity pod labels and annotations: (%s) (%s)", pollErr, lastErr)
+	}
+}
+
+func setupPodMetadataTest(t *testing.T, integrityName string, labels, annotations map[string]string) (*framework.Framework, *framework.Context, string) {
+	testctx := setupTestRequirements(t)
+	namespace, err := testctx.GetOperatorNamespace()
+	if err != nil {
+		t.Errorf("could not get namespace: %v", err)
+	}
+	f := framework.Global
+
+	testctx.AddCleanupFn(cleanUp(t, namespace))
+	setupFileIntegrityOperatorCluster(t, testctx)
+
+	t.Log("Creating FileIntegrity object for pod labels and annotations tests")
+	testIntegrityCheck := &v1alpha1.FileIntegrity{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      integrityName,
+			Namespace: namespace,
+		},
+		Spec: v1alpha1.FileIntegritySpec{
+			NodeSelector: map[string]string{
+				"node-role.kubernetes.io/worker": "",
+			},
+			Config: v1alpha1.FileIntegrityConfig{
+				GracePeriod: defaultTestGracePeriod,
+			},
+			Labels:      labels,
+			Annotations: annotations,
+		},
+	}
+	cleanupOptions := framework.CleanupOptions{
+		TestContext:   testctx,
+		Timeout:       cleanupTimeout,
+		RetryInterval: cleanupRetryInterval,
+	}
+	err = f.Client.Create(goctx.TODO(), testIntegrityCheck, &cleanupOptions)
+	if err != nil {
+		t.Errorf("could not create fileintegrity object: %v", err)
+	}
+
+	dsName := common.DaemonSetName(testIntegrityCheck.Name)
+	err = waitForDaemonSet(daemonSetIsReady(f.KubeClient, dsName, namespace))
+	if err != nil {
+		t.Errorf("Timed out waiting for DaemonSet %s", dsName)
+	}
+
+	return f, testctx, namespace
+}
+
 func setupInvalidPriorityClassTest(t *testing.T, integrityName string) (*framework.Framework, *framework.Context, string) {
 	testctx := setupTestRequirements(t)
 	namespace, err := testctx.GetOperatorNamespace()

@@ -53,6 +53,34 @@ type FileIntegritySpec struct {
 	// This is an optional field. If PriorityClass is invalid or not found,
 	// it will be ignored and cleared from the spec.
 	PriorityClassName string `json:"priorityClassName,omitempty"`
+	// Labels to add to the AIDE daemon pods. Keys must not use the reserved key "app"
+	// or the reserved "file-integrity.openshift.io/" prefix, which are managed by the
+	// operator. Format validation: admission catches common errors (first character, size limits)
+	// as a best-effort fast-fail; the DaemonSet API is authoritative and performs full validation,
+	// with failures surfaced as Warning Events. Re-init pods are excluded. The entire map replaces
+	// (does not merge with) the pod template labels, and changing labels triggers a rolling restart
+	// of the AIDE daemon pods.
+	// +kubebuilder:validation:MaxProperties=64
+	// +kubebuilder:validation:XValidation:rule="self.all(k, k != 'app' && !k.startsWith('file-integrity.openshift.io/'))",message="labels must not use the reserved key 'app' or the reserved prefix 'file-integrity.openshift.io/'"
+	// +kubebuilder:validation:XValidation:rule="self.all(k, size(k) >= 1 && size(k) <= 253 && size(self[k]) <= 63)",message="label keys must be 1-253 characters and values must be at most 63 characters"
+	// +kubebuilder:validation:XValidation:rule="self.all(k, !k.startsWith(' ') && !k.startsWith('-') && !self[k].startsWith(' ') && !self[k].startsWith('-') && (self[k] == '' || !self[k].startsWith('!')))",message="label keys and values must start with an alphanumeric character, not space, '-', or '!'"
+	Labels map[string]string `json:"labels,omitempty"`
+	// Annotations to add to the AIDE daemon pods. Keys must not use the reserved
+	// "file-integrity.openshift.io/" prefix, which is managed by the operator, and must
+	// not use runtime-affecting prefixes (k8s.v1.cni.cncf.io/, io.kubernetes.cri-o.,
+	// container.apparmor.security.beta.kubernetes.io/, seccomp.security.alpha.kubernetes.io/)
+	// which can break the privileged DaemonSet. Format validation: admission catches common errors
+	// (first character, size limits) as a best-effort fast-fail; the DaemonSet API is authoritative
+	// and performs full validation, with failures surfaced as Warning Events. Re-init pods are
+	// excluded. This field is for observability metadata. The entire map replaces (does not merge
+	// with) the pod template annotations, and changing annotations triggers a rolling restart of
+	// the AIDE daemon pods.
+	// +kubebuilder:validation:MaxProperties=64
+	// +kubebuilder:validation:XValidation:rule="self.all(k, !k.startsWith('file-integrity.openshift.io/'))",message="annotations must not use the reserved prefix 'file-integrity.openshift.io/'"
+	// +kubebuilder:validation:XValidation:rule="self.all(k, !k.startsWith('k8s.v1.cni.cncf.io/') && !k.startsWith('io.kubernetes.cri-o.') && !k.startsWith('container.apparmor.security.beta.kubernetes.io/') && !k.startsWith('seccomp.security.alpha.kubernetes.io/'))",message="annotations must not use runtime-affecting prefixes (k8s.v1.cni.cncf.io/, io.kubernetes.cri-o., container.apparmor.security.beta.kubernetes.io/, seccomp.security.alpha.kubernetes.io/)"
+	// +kubebuilder:validation:XValidation:rule="self.all(k, size(k) >= 1 && size(k) <= 253)",message="annotation keys must be 1-253 characters"
+	// +kubebuilder:validation:XValidation:rule="self.all(k, !k.startsWith(' ') && !k.startsWith('-'))",message="annotation keys must start with an alphanumeric character, not space or '-'"
+	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
 // FileIntegrityConfig defines the name, namespace, and data key for an AIDE config to use for integrity checking.
