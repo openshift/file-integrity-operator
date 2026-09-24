@@ -77,12 +77,7 @@ var (
 type Metrics struct {
 	impl impl
 	log  logr.Logger
-	// tlsConfigFn, if set, further customizes the metrics server's tls.Config
-	// (e.g. to honor a cluster-wide TLS security profile) on top of the
-	// default MinVersion/CipherSuites in Start. Set via SetTLSConfigFn before
-	// Start is called (typically once, from the main goroutine, before the
-	// manager starts the Metrics runnable) - not safe to set concurrently
-	// with Start.
+	// Set via SetTLSConfigFn before Start; not safe to set concurrently with it.
 	tlsConfigFn                              func(*tls.Config)
 	metricFileIntegrityPhase                 *prometheus.CounterVec
 	metricFileIntegrityError                 *prometheus.CounterVec
@@ -179,10 +174,9 @@ func NewControllerMetrics() *Metrics {
 	}
 }
 
-// SetTLSConfigFn configures a function that further customizes the metrics
-// server's tls.Config (e.g. to honor a cluster-wide TLS security profile),
-// applied on top of the default MinVersion/CipherSuites in Start. Must be
-// called before Start.
+// SetTLSConfigFn sets a function applied on top of the default TLS config in
+// Start (e.g. to honor a cluster-wide TLS security profile). Must be called
+// before Start.
 func (m *Metrics) SetTLSConfigFn(fn func(*tls.Config)) {
 	m.tlsConfigFn = fn
 }

@@ -2,14 +2,9 @@ package framework
 
 import "testing"
 
-// parseRejectTestExitCode is the load-bearing logic behind
-// AssertMetricsEndpointRejectsTLSVersion's pass/fail decision (curl exit 0 =
-// the capped handshake wrongly succeeded = fail; non-zero = genuine
-// rejection; no marker at all = an infra issue that occurred before curl
-// ever ran, not a TLS result). Not wired into `make test-unit` (which
-// excludes /tests), but exercised here as a plain `go test` target since a
-// wrong regex/parse here would silently turn the assertion back into a
-// vacuous pass.
+// Not wired into `make test-unit` (which excludes /tests), so exercised as
+// a plain `go test` target: a wrong parse here would silently turn
+// AssertMetricsEndpointRejectsTLSVersion into a vacuous pass.
 func TestParseRejectTestExitCode(t *testing.T) {
 	cases := []struct {
 		name       string

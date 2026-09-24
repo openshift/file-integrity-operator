@@ -84,43 +84,14 @@ const (
 	operatorMetricsSecretName = "file-integrity-operator-metrics-token"
 	maxSecretRetries          = 10
 
-	// tlsProfileFetchTimeout bounds each read of the cluster APIServer
-	// singleton used to resolve the TLS profile/adherence policy, so a slow
-	// or unreachable API server can't block startup (or a poll tick)
-	// indefinitely.
 	tlsProfileFetchTimeout = 30 * time.Second
-	// tlsProfilePollInterval controls how frequently the operator polls the
-	// cluster APIServer for TLS profile/adherence policy changes. Such
-	// changes are expected to be rare, deliberate cluster-admin actions (see
-	// the CMP-4504 epic's own "plan a maintenance window" guidance), so a
-	// coarse interval is fine.
+	// TLS profile changes are rare, deliberate admin actions, so a coarse
+	// poll interval is fine.
 	tlsProfilePollInterval = time.Minute
 
-	// tlsProfileFetchMaxRetries bounds how many extra attempts
-	// fetchTLSConfigWithRetry makes, after an initial failed fetchTLSConfig
-	// call, before giving up and falling back to defaults. Unlike the
-	// recurring poll loop, this boot-time read only ever happens once per
-	// pod lifetime, so a single bad-luck transient failure here (e.g. the
-	// API server being briefly overloaded - which realistically happens,
-	// since applying a cluster-wide TLS profile change itself triggers a
-	// full control-plane rollout of etcd/kube-apiserver/openshift-apiserver)
-	// would otherwise silently and permanently strand this pod on the weak
-	// hardcoded defaults until some unrelated future restart.
-	tlsProfileFetchMaxRetries = 2
-	// tlsProfileFetchRetryInterval is the fixed delay between retries of a
-	// failed boot-time TLS profile fetch. Kept short and constant (not
-	// exponential) because this blocks manager startup on the critical path
-	// of every pod start: with tlsProfileFetchMaxRetries retries, the
-	// worst-case latency this adds (in the failure case; the common case of
-	// an immediately-successful first attempt adds none) is bounded to
-	// tlsProfileFetchMaxRetries*tlsProfileFetchRetryInterval = 4s.
-	// ponytail: each retried attempt still independently inherits
-	// fetchTLSConfig's own tlsProfileFetchTimeout (30s) - that per-attempt
-	// ceiling already existed for the single pre-existing attempt and is
-	// unchanged here, so a pathological run where every attempt hangs for
-	// the full timeout is not bounded by this constant. If that compounding
-	// needs its own tighter bound too, give fetchTLSConfig a
-	// shorter/separate timeout for retried attempts.
+	// Retries only the one-time boot fetch, so a transient API failure
+	// doesn't strand the pod on default TLS settings for its whole lifetime.
+	tlsProfileFetchMaxRetries    = 2
 	tlsProfileFetchRetryInterval = 2 * time.Second
 )
 
@@ -173,49 +144,31 @@ func RunOperator(cmd *cobra.Command, args []string) {
 	kubeClient := kubernetes.NewForConfigOrDie(cfg)
 	monitoringClient := monclientv1.NewForConfigOrDie(cfg)
 
-	// ctx is cancelled either by an OS shutdown signal or by the TLS profile
-	// watcher below when the cluster-wide TLS configuration changes, so the
-	// manager shuts down gracefully and the pod restarts with the new TLS
-	// settings applied.
+	// Also cancelled by the TLS profile watcher below on a cluster-wide TLS
+	// config change, so the pod restarts with the new settings.
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
 
 	log.Info("Registering Components.")
 
-	// Metrics has no manager dependency, so create and register it before
-	// the TLS profile lookup below: that lets fetch/parse failures be
-	// recorded as an observable error metric, not just a log line.
+	// Register before the TLS profile fetch below so a fetch failure there
+	// can be recorded as a metric.
 	met := metrics.NewControllerMetrics()
 	if err := met.Register(); err != nil {
 		log.Error(err, "Error registering metrics")
 		os.Exit(1)
 	}
 
-	// Fetch the cluster-wide TLS profile and adherence policy up front so all
-	// TLS servers (webhook, metrics) can be configured accordingly at
-	// startup. Any failure - including a Custom profile with an invalid
-	// minTLSVersion, which would otherwise panic when applied - falls back
-	// to the pre-existing hardcoded defaults instead of blocking startup.
-	// fetchTLSConfigWithRetry retries a small, bounded number of times first
-	// (see its and tlsProfileFetchMaxRetries's doc comments) so a single
-	// transient failure at this exact moment - this only ever runs once per
-	// pod lifetime - doesn't silently and permanently strand this pod on
-	// the weak defaults for its entire lifetime.
 	preStartClient, err := client.New(cfg, client.Options{Scheme: scheme})
 	if err != nil {
 		log.Error(err, "unable to create client for TLS profile lookup")
 		os.Exit(1)
 	}
-	// initialTLSProfile/initialTLSAdherencePolicy are exactly what the last
-	// fetchTLSConfig attempt inside fetchTLSConfigWithRetry read from the
-	// cluster (even if invalid) and are what seed the poll loop below:
-	// SecurityProfileWatcher.Reconcile recomputes the same raw values on
-	// every tick via the same, non-validating GetTLSProfileSpec, so the seed
-	// must match that computation or every tick would see a spurious
-	// "change" and restart forever. appliedTLSProfile/appliedTLSAdherencePolicy
-	// are what's actually applied to the webhook/metrics TLS config, and fall
-	// back to safe defaults on any error so an invalid profile can't panic
-	// NewTLSConfigFromProfile.
+	// initial* is the raw, possibly-invalid value used to seed the poll
+	// watcher below, which must match what it would itself recompute on the
+	// first tick to avoid a spurious "change" on startup. applied* falls
+	// back to safe defaults on any error instead, since an invalid profile
+	// would otherwise panic NewTLSConfigFromProfile.
 	initialTLSProfile, initialTLSAdherencePolicy, err := fetchTLSConfigWithRetry(
 		ctx, preStartClient, tlsProfileFetchMaxRetries, tlsProfileFetchRetryInterval)
 	appliedTLSProfile, appliedTLSAdherencePolicy := initialTLSProfile, initialTLSAdherencePolicy
@@ -308,17 +261,9 @@ func RunOperator(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	// Poll for cluster TLS profile/adherence policy changes and trigger a
-	// graceful restart to pick them up, per the documented cluster-wide TLS
-	// maintenance window expectations. This deliberately uses a plain poll
-	// loop (added as a best-effort Runnable) rather than a controller-runtime
-	// watch/informer: an error returned by any Runnable added via mgr.Add
-	// aborts every other runnable in the manager - including the core
-	// FileIntegrity/Node/Status/Configmap controllers and the metrics server
-	// - which would be a disproportionate blast radius for what is meant to
-	// be a best-effort hardening feature (e.g. if the new apiservers RBAC
-	// hasn't propagated yet during an OLM upgrade). fetchTLSConfig errors
-	// here are therefore only logged/counted, never returned.
+	// Errors from this Runnable are only logged/counted, never returned: an
+	// error from mgr.Add would abort every other runnable in the manager,
+	// too large a blast radius for this best-effort hardening feature.
 	tlsProfileWatcherRecorder := mgr.GetEventRecorderFor("tlsprofilewatcher")
 	if err := mgr.Add(newTLSProfileWatcher(preStartClient, met, tlsProfileWatcherRecorder, cancel,
 		initialTLSProfile, initialTLSAdherencePolicy, tlsProfilePollInterval)); err != nil {
@@ -356,12 +301,10 @@ func RunOperator(cmd *cobra.Command, args []string) {
 	}
 }
 
-// fetchTLSConfig reads the cluster APIServer singleton once and derives both
-// the TLS profile and the adherence policy from that single read, so the two
-// values can never disagree with each other the way they could if fetched
-// independently. A Custom profile with an invalid minTLSVersion is treated
-// as a fetch error, since applying it as-is would panic library-go's TLS
-// version/cipher resolution.
+// fetchTLSConfig reads both the profile and adherence policy from a single
+// APIServer read so they can't disagree. A Custom profile with an invalid
+// minTLSVersion is treated as an error, since applying it would panic
+// library-go's TLS version/cipher resolution.
 func fetchTLSConfig(ctx context.Context, cl client.Client) (configv1.TLSProfileSpec, configv1.TLSAdherencePolicy, error) {
 	fetchCtx, fetchCancel := context.WithTimeout(ctx, tlsProfileFetchTimeout)
 	defer fetchCancel()
@@ -376,38 +319,21 @@ func fetchTLSConfig(ctx context.Context, cl client.Client) (configv1.TLSProfileS
 		return configv1.TLSProfileSpec{}, configv1.TLSAdherencePolicyNoOpinion, fmt.Errorf("invalid TLS profile: %w", err)
 	}
 	if _, err := libgocrypto.TLSVersion(string(profile.MinTLSVersion)); err != nil {
-		// Return the raw profile alongside the error, not a zero value:
-		// SecurityProfileWatcher.Reconcile calls this same GetTLSProfileSpec
-		// without this validation, so it will keep recomputing this exact
-		// raw spec from the cluster on every poll tick. A caller that seeds
-		// the watcher with anything else (e.g. a substituted default)
-		// instead of this raw value would see a mismatch on every tick and
-		// restart forever, since fetchTLSConfig hits this same branch again
-		// after each restart.
+		// Return the raw profile, not a zero value: the poll watcher's
+		// Reconcile recomputes this same unvalidated spec every tick, and
+		// seeding it with anything else would cause a spurious diff.
 		return profile, apiServer.Spec.TLSAdherence, fmt.Errorf("invalid minTLSVersion %q: %w", profile.MinTLSVersion, err)
 	}
 
 	return profile, apiServer.Spec.TLSAdherence, nil
 }
 
-// fetchTLSConfigWithRetry wraps fetchTLSConfig with a short, bounded number
-// of retries on failure, so a single transient failure (e.g. the API server
-// being briefly overloaded right as this boot-time, once-per-pod-lifetime
-// read happens) doesn't permanently strand the pod on the hardcoded TLS
-// defaults for its entire lifetime just because the one attempt hit bad
-// luck. The common case (first attempt succeeds) adds zero latency, and a
-// caller that exhausts every attempt gets back exactly the last attempt's
-// (profile, policy, error) - including, for a persistently invalid
-// Custom profile's minTLSVersion, the same raw profile/policy fetchTLSConfig
-// itself would return on that error path - so the fallback-to-defaults and
-// poll-watcher-seeding logic at the call site behaves exactly as if retries
-// didn't exist, just later.
+// fetchTLSConfigWithRetry retries fetchTLSConfig a bounded number of times,
+// so a transient failure during this one-time boot read doesn't strand the
+// pod on defaults for its whole lifetime.
 //
-// maxRetries/retryInterval are parameters (rather than always using the
-// tlsProfileFetchMaxRetries/tlsProfileFetchRetryInterval constants), the
-// same way newTLSProfileWatcher's pollInterval is, purely so tests can use a
-// short interval instead of waiting for production durations; production
-// code should always pass those constants.
+// maxRetries/retryInterval are parameters purely so tests can use a short
+// interval; production code always passes the tlsProfileFetch* constants.
 func fetchTLSConfigWithRetry(ctx context.Context, cl client.Client, maxRetries uint64, retryInterval time.Duration) (
 	configv1.TLSProfileSpec, configv1.TLSAdherencePolicy, error) {
 	type fetchResult struct {
@@ -427,51 +353,24 @@ func fetchTLSConfigWithRetry(ctx context.Context, cl client.Client, maxRetries u
 	return res.profile, res.policy, err
 }
 
-// newTLSProfileWatcher returns a manager.Runnable that periodically checks
-// whether the cluster's TLS profile or adherence policy has changed since
-// startup, calling cancel to trigger a graceful shutdown (so the pod
-// restarts and re-reads the new configuration) when it has.
+// newTLSProfileWatcher returns a Runnable that polls for cluster TLS
+// profile/adherence changes and calls cancel to restart the pod when they
+// change, per the "plan a maintenance window" TLS profile guidance. It
+// polls tlspkg.SecurityProfileWatcher.Reconcile directly instead of
+// registering a controller-runtime watch, avoiding a cache-sync dependency
+// on the startup path.
 //
-// It reuses tlspkg.SecurityProfileWatcher's diff/callback logic via direct,
-// polled Reconcile calls against an uncached client instead of registering
-// it as a controller-runtime watch/informer, so there is no cache-sync
-// dependency and no blocking startup path.
+// Its Start must never return an error: any error from a Runnable added via
+// mgr.Add aborts every other runnable in the manager (see the call site).
+// TestNewTLSProfileWatcherNeverReturnsError enforces this. Poll failures are
+// only logged/counted, plus recorded as a Warning Event on the APIServer
+// object so a persistent failure (e.g. stale RBAC) stays visible via `oc
+// get events` instead of silently serving a stale profile.
 //
-// Its Start must never return a non-nil error: any error returned by a
-// Runnable added via mgr.Add aborts every other runnable in the manager
-// (see the comment at its call site). This is deliberately load-bearing -
-// see TestNewTLSProfileWatcherNeverReturnsError, which fails if this
-// invariant is ever broken (e.g. by a future edit that "cleans up" the
-// poll error branch into a return statement).
-//
-// Because failures are never returned, they are also easy to miss: they
-// only show up as a log line and an error_total metric bump, neither of
-// which anyone is likely to be watching for an intentionally-quiet
-// background poller. A persistent failure (e.g. RBAC that never recovers)
-// would otherwise mean the operator silently keeps serving a stale TLS
-// profile until its next unrelated restart with no visible signal. So, in
-// addition to the log/metric, each failed poll also records a Warning
-// Event against the cluster APIServer object - consistent with how other
-// controllers in this repo surface user-facing failures (see
-// createNodeStatusEvent, status_controller.go, PriorityClass in
-// fileintegrity_controller.go), all visible via `oc get events`/`oc
-// describe`. Repeated identical-reason events against the same object are
-// aggregated by the API server into a single Event with an increasing
-// count rather than spamming one object per failed poll (see
-// client-go's EventAggregatorByReasonFunc).
-//
-// pollInterval is a parameter (rather than always using the
-// tlsProfilePollInterval constant) purely so tests can use a short
-// interval instead of waiting a full minute per iteration; production
-// code should always pass tlsProfilePollInterval.
-//
-// Its mutable fields (on the embedded SecurityProfileWatcher) are only
-// ever touched from this single goroutine, so no synchronization is
-// needed.
+// pollInterval is a parameter purely so tests can use a short interval;
+// production code always passes tlsProfilePollInterval.
 func newTLSProfileWatcher(cl client.Client, met *metrics.Metrics, recorder record.EventRecorder, cancel context.CancelFunc,
 	initialProfile configv1.TLSProfileSpec, initialPolicy configv1.TLSAdherencePolicy, pollInterval time.Duration) manager.RunnableFunc {
-	// Only used as an event reference: names the singleton object each poll
-	// reads, so `oc describe apiserver cluster` surfaces poll failures.
 	apiServerRef := &configv1.APIServer{ObjectMeta: metav1.ObjectMeta{Name: tlspkg.APIServerName}}
 	watcher := &tlspkg.SecurityProfileWatcher{
 		Client:                    cl,

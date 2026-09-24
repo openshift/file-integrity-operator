@@ -324,8 +324,6 @@ func (f *Framework) setupLocalCommand() (*exec.Cmd, error) {
 	return localCmd, nil
 }
 
-// WaitForDeployment waits until the named Deployment reports at least
-// `replicas` available replicas, polling at retryInterval up to timeout.
 func (f *Framework) WaitForDeployment(name string, replicas int, retryInterval, timeout time.Duration) error {
 	err := wait.Poll(retryInterval, timeout, func() (done bool, err error) {
 		deployment, err := f.KubeClient.AppsV1().Deployments(f.OperatorNamespace).Get(goctx.TODO(), name, metav1.GetOptions{})
