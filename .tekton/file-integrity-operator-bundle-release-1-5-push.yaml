@@ -4,17 +4,16 @@ metadata:
   annotations:
     build.appstudio.openshift.io/repo: https://github.com/openshift/file-integrity-operator?rev={{revision}}
     build.appstudio.redhat.com/commit_sha: '{{revision}}'
-    build.appstudio.redhat.com/pull_request_number: '{{pull_request_number}}'
     build.appstudio.redhat.com/target_branch: '{{target_branch}}'
-    pipelinesascode.tekton.dev/cancel-in-progress: "true"
+    pipelinesascode.tekton.dev/cancel-in-progress: "false"
     pipelinesascode.tekton.dev/max-keep-runs: "3"
-    pipelinesascode.tekton.dev/on-cel-expression: event == "pull_request" && target_branch == "master" && files.all.exists(x, x.matches('^bundle/') || x.matches('^bundle-hack/') || x.matches('^bundle\\.openshift\\.Dockerfile') || x.matches('^\\.tekton/file-integrity-operator-bundle-dev-.*\\.yaml'))
+    pipelinesascode.tekton.dev/on-cel-expression: event == "push" && target_branch == "release-1.5" && files.all.exists(x, x.matches('^bundle/') || x.matches('^bundle-hack/') || x.matches('^bundle\\.openshift\\.Dockerfile') || x.matches('^\\.tekton/file-integrity-operator-bundle-release-1-5-.*\\.yaml'))
   creationTimestamp:
   labels:
-    appstudio.openshift.io/application: file-integrity-operator-dev
-    appstudio.openshift.io/component: file-integrity-operator-bundle-dev
+    appstudio.openshift.io/application: file-integrity-operator-release-1-5
+    appstudio.openshift.io/component: file-integrity-operator-bundle-release-1-5
     pipelines.appstudio.openshift.io/type: build
-  name: file-integrity-operator-bundle-dev-on-pull-request
+  name: file-integrity-operator-bundle-release-1-5-on-push
   namespace: ocp-isc-tenant
 spec:
   params:
@@ -23,9 +22,7 @@ spec:
   - name: revision
     value: '{{revision}}'
   - name: output-image
-    value: quay.io/redhat-user-workloads/ocp-isc-tenant/file-integrity-operator-bundle-dev:on-pr-{{revision}}
-  - name: image-expires-after
-    value: 5d
+    value: quay.io/redhat-user-workloads/ocp-isc-tenant/file-integrity-operator-bundle-release:{{revision}}
   - name: dockerfile
     value: bundle.openshift.Dockerfile
   - name: hermetic
@@ -99,10 +96,6 @@ spec:
       default: docker
       type: string
       description: The format for the resulting image's mediaType. Valid values are oci or docker.
-    - name: enable-cache-proxy
-      default: 'false'
-      description: Enable cache proxy configuration
-      type: string
     - name: enable-package-registry-proxy
       default: 'true'
       description: Use the package registry proxy when prefetching dependencies
@@ -134,9 +127,6 @@ spec:
       value: $(tasks.clone-repository.results.commit)
     tasks:
     - name: init
-      params:
-      - name: enable-cache-proxy
-        value: $(params.enable-cache-proxy)
       taskRef:
         params:
         - name: name
@@ -229,10 +219,6 @@ spec:
         value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
       - name: BUILDAH_FORMAT
         value: $(params.buildah-format)
-      - name: HTTP_PROXY
-        value: $(tasks.init.results.http-proxy)
-      - name: NO_PROXY
-        value: $(tasks.init.results.no-proxy)
       - name: SOURCE_DATE_EPOCH
         value: $(params.source-date-epoch)
       - name: REWRITE_TIMESTAMP
@@ -536,6 +522,9 @@ spec:
         value: $(tasks.build-image-index.results.IMAGE_URL)
       - name: IMAGE_DIGEST
         value: $(tasks.build-image-index.results.IMAGE_DIGEST)
+      - name: ADDITIONAL_TAGS
+        value:
+        - '{{ target_branch }}'
       runAfter:
       - build-image-index
       taskRef:
@@ -598,7 +587,7 @@ spec:
     - name: netrc
       optional: true
   taskRunTemplate:
-    serviceAccountName: build-pipeline-file-integrity-operator-bundle-dev
+    serviceAccountName: build-pipeline-file-integrity-operator-bundle-release-1-5
   workspaces:
   - name: git-auth
     secret:
