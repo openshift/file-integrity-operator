@@ -658,13 +658,13 @@ github.com/openshift/library-go/pkg/crypto
 # github.com/openshift/machine-config-operator v0.0.1-0.20260410020757-449e78f7ec94
 ## explicit; go 1.25.3
 github.com/openshift/machine-config-operator/pkg/daemon/constants
-# github.com/pb33f/jsonpath v0.8.2
+# github.com/pb33f/jsonpath v0.8.3
 ## explicit; go 1.24
 github.com/pb33f/jsonpath/pkg/jsonpath
 github.com/pb33f/jsonpath/pkg/jsonpath/config
 github.com/pb33f/jsonpath/pkg/jsonpath/token
-# github.com/pb33f/libopenapi v0.38.7
-## explicit; go 1.25.7
+# github.com/pb33f/libopenapi v0.40.0
+## explicit; go 1.26.0
 github.com/pb33f/libopenapi
 github.com/pb33f/libopenapi/datamodel
 github.com/pb33f/libopenapi/datamodel/high
@@ -1081,8 +1081,8 @@ golang.org/x/oauth2/google/internal/stsexchange
 golang.org/x/oauth2/internal
 golang.org/x/oauth2/jws
 golang.org/x/oauth2/jwt
-# golang.org/x/sync v0.22.0
-## explicit; go 1.25.0
+# golang.org/x/sync v0.23.0
+## explicit; go 1.26.0
 golang.org/x/sync/errgroup
 golang.org/x/sync/semaphore
 golang.org/x/sync/singleflight
