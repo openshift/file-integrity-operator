@@ -1,4 +1,4 @@
-// File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+// File generated from our OpenAPI spec by Castiron. See CONTRIBUTING.md for details.
 
 package shared
 
@@ -29,10 +29,15 @@ const (
 	AllModelsO4MiniDeepResearch2025_06_26 AllModels = "o4-mini-deep-research-2025-06-26"
 	AllModelsComputerUsePreview           AllModels = "computer-use-preview"
 	AllModelsComputerUsePreview2025_03_11 AllModels = "computer-use-preview-2025-03-11"
+	AllModelsGPT5_5Pro                    AllModels = "gpt-5.5-pro"
+	AllModelsGPT5_5Pro2026_04_23          AllModels = "gpt-5.5-pro-2026-04-23"
 	AllModelsGPT5Codex                    AllModels = "gpt-5-codex"
 	AllModelsGPT5Pro                      AllModels = "gpt-5-pro"
 	AllModelsGPT5Pro2025_10_06            AllModels = "gpt-5-pro-2025-10-06"
 	AllModelsGPT5_1CodexMax               AllModels = "gpt-5.1-codex-max"
+	AllModelsGPTDaybreakBlueLatest        AllModels = "gpt-daybreak-blue-latest"
+	AllModelsGPTDaybreakRedLatest         AllModels = "gpt-daybreak-red-latest"
+	AllModelsGPT5_6Cyber                  AllModels = "gpt-5.6-cyber"
 	// Or some ...[ChatModel]
 )
 
@@ -45,6 +50,8 @@ const (
 	ChatModelGPT5_6Sol                        ChatModel = "gpt-5.6-sol"
 	ChatModelGPT5_6Terra                      ChatModel = "gpt-5.6-terra"
 	ChatModelGPT5_6Luna                       ChatModel = "gpt-5.6-luna"
+	ChatModelGPT5_5                           ChatModel = "gpt-5.5"
+	ChatModelGPT5_5_2026_04_23                ChatModel = "gpt-5.5-2026-04-23"
 	ChatModelGPT5_4                           ChatModel = "gpt-5.4"
 	ChatModelGPT5_4Mini                       ChatModel = "gpt-5.4-mini"
 	ChatModelGPT5_4Nano                       ChatModel = "gpt-5.4-nano"
@@ -223,22 +230,22 @@ type ComparisonFilterValueUnion struct {
 }
 
 func (u ComparisonFilterValueUnion) AsString() (v string) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u ComparisonFilterValueUnion) AsFloat() (v float64) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u ComparisonFilterValueUnion) AsBool() (v bool) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u ComparisonFilterValueUnion) AsComparisonFilterValueArray() (v []ComparisonFilterValueArrayItemUnion) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -269,12 +276,12 @@ type ComparisonFilterValueArrayItemUnion struct {
 }
 
 func (u ComparisonFilterValueArrayItemUnion) AsString() (v string) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u ComparisonFilterValueArrayItemUnion) AsFloat() (v float64) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -486,12 +493,12 @@ func (u CustomToolInputFormatUnion) AsAny() anyCustomToolInputFormat {
 }
 
 func (u CustomToolInputFormatUnion) AsText() (v CustomToolInputFormatText) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u CustomToolInputFormatUnion) AsGrammar() (v CustomToolInputFormatGrammar) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -1237,9 +1244,14 @@ const (
 	ResponsesModelO4MiniDeepResearch2025_06_26 ResponsesModel = "o4-mini-deep-research-2025-06-26"
 	ResponsesModelComputerUsePreview           ResponsesModel = "computer-use-preview"
 	ResponsesModelComputerUsePreview2025_03_11 ResponsesModel = "computer-use-preview-2025-03-11"
+	ResponsesModelGPT5_5Pro                    ResponsesModel = "gpt-5.5-pro"
+	ResponsesModelGPT5_5Pro2026_04_23          ResponsesModel = "gpt-5.5-pro-2026-04-23"
 	ResponsesModelGPT5Codex                    ResponsesModel = "gpt-5-codex"
 	ResponsesModelGPT5Pro                      ResponsesModel = "gpt-5-pro"
 	ResponsesModelGPT5Pro2025_10_06            ResponsesModel = "gpt-5-pro-2025-10-06"
 	ResponsesModelGPT5_1CodexMax               ResponsesModel = "gpt-5.1-codex-max"
+	ResponsesModelGPTDaybreakBlueLatest        ResponsesModel = "gpt-daybreak-blue-latest"
+	ResponsesModelGPTDaybreakRedLatest         ResponsesModel = "gpt-daybreak-red-latest"
+	ResponsesModelGPT5_6Cyber                  ResponsesModel = "gpt-5.6-cyber"
 	// Or some ...[ChatModel]
 )

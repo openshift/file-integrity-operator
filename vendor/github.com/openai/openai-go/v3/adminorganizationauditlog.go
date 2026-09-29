@@ -1,4 +1,4 @@
-// File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+// File generated from our OpenAPI spec by Castiron. See CONTRIBUTING.md for details.
 
 package openai
 
@@ -101,10 +101,10 @@ type AdminOrganizationAuditLogListResponse struct {
 	// "tenant.workload_identity.mapping.archived",
 	// "tenant.workload_identity.binding.created",
 	// "tenant.workload_identity.principal.provisioned",
-	// "tenant.admin_api_key.created", "tenant.admin_api_key.updated",
-	// "tenant.admin_api_key.deleted", "tenant.project_api_key.created",
-	// "tenant.chatgpt_access_token.revoked", "tenant.migration.completed",
-	// "tenant.sso.migrated", "tenant.domains.migrated",
+	// "tenant.workload_identity.access_token.issued", "tenant.admin_api_key.created",
+	// "tenant.admin_api_key.updated", "tenant.admin_api_key.deleted",
+	// "tenant.project_api_key.created", "tenant.chatgpt_access_token.revoked",
+	// "tenant.migration.completed", "tenant.sso.migrated", "tenant.domains.migrated",
 	// "tenant.sso_connection.created", "tenant.sso_connection.updated",
 	// "tenant.sso_connection.deleted", "tenant.sso_connection.setup.started",
 	// "tenant.policy.created", "tenant.policy.updated", "tenant.policy.deleted",
@@ -128,11 +128,12 @@ type AdminOrganizationAuditLogListResponse struct {
 	// "tenant.custom_role.deleted", "tenant.role_assignment.created",
 	// "tenant.role_assignment.deleted", "tenant.resource_role_assignment.created",
 	// "tenant.resource_role_assignment.deleted", "tenant.resource_access.updated",
-	// "tenant.resource_access.deleted", "tenant.session_policy.created",
-	// "tenant.session_policy.updated", "tenant.session_policy.deleted",
-	// "tenant.session_revocation.started", "tenant.third_party_app_policy.updated",
-	// "tenant.user.added", "tenant.user.updated", "tenant.user.removed",
-	// "tenant.user.looked_up", "tenant.user.invited", "tenant.membership.revoked",
+	// "tenant.resource_access.deleted", "tenant.ads_account.onboarding.redemption",
+	// "tenant.session_policy.created", "tenant.session_policy.updated",
+	// "tenant.session_policy.deleted", "tenant.session_revocation.started",
+	// "tenant.third_party_app_policy.updated", "tenant.user.added",
+	// "tenant.user.updated", "tenant.user.removed", "tenant.user.looked_up",
+	// "tenant.user.invited", "tenant.membership.revoked",
 	// "tenant.api_organization_invite.upserted",
 	// "tenant.api_organization_invite.deleted",
 	// "tenant.chatgpt_workspace_invite.upserted", "tenant.membership.accepted",
@@ -402,6 +403,7 @@ const (
 	AdminOrganizationAuditLogListResponseTypeTenantWorkloadIdentityMappingArchived       AdminOrganizationAuditLogListResponseType = "tenant.workload_identity.mapping.archived"
 	AdminOrganizationAuditLogListResponseTypeTenantWorkloadIdentityBindingCreated        AdminOrganizationAuditLogListResponseType = "tenant.workload_identity.binding.created"
 	AdminOrganizationAuditLogListResponseTypeTenantWorkloadIdentityPrincipalProvisioned  AdminOrganizationAuditLogListResponseType = "tenant.workload_identity.principal.provisioned"
+	AdminOrganizationAuditLogListResponseTypeTenantWorkloadIdentityAccessTokenIssued     AdminOrganizationAuditLogListResponseType = "tenant.workload_identity.access_token.issued"
 	AdminOrganizationAuditLogListResponseTypeTenantAdminAPIKeyCreated                    AdminOrganizationAuditLogListResponseType = "tenant.admin_api_key.created"
 	AdminOrganizationAuditLogListResponseTypeTenantAdminAPIKeyUpdated                    AdminOrganizationAuditLogListResponseType = "tenant.admin_api_key.updated"
 	AdminOrganizationAuditLogListResponseTypeTenantAdminAPIKeyDeleted                    AdminOrganizationAuditLogListResponseType = "tenant.admin_api_key.deleted"
@@ -458,6 +460,7 @@ const (
 	AdminOrganizationAuditLogListResponseTypeTenantResourceRoleAssignmentDeleted         AdminOrganizationAuditLogListResponseType = "tenant.resource_role_assignment.deleted"
 	AdminOrganizationAuditLogListResponseTypeTenantResourceAccessUpdated                 AdminOrganizationAuditLogListResponseType = "tenant.resource_access.updated"
 	AdminOrganizationAuditLogListResponseTypeTenantResourceAccessDeleted                 AdminOrganizationAuditLogListResponseType = "tenant.resource_access.deleted"
+	AdminOrganizationAuditLogListResponseTypeTenantAdsAccountOnboardingRedemption        AdminOrganizationAuditLogListResponseType = "tenant.ads_account.onboarding.redemption"
 	AdminOrganizationAuditLogListResponseTypeTenantSessionPolicyCreated                  AdminOrganizationAuditLogListResponseType = "tenant.session_policy.created"
 	AdminOrganizationAuditLogListResponseTypeTenantSessionPolicyUpdated                  AdminOrganizationAuditLogListResponseType = "tenant.session_policy.updated"
 	AdminOrganizationAuditLogListResponseTypeTenantSessionPolicyDeleted                  AdminOrganizationAuditLogListResponseType = "tenant.session_policy.deleted"
@@ -2344,10 +2347,10 @@ type AdminOrganizationAuditLogListParams struct {
 	// "tenant.workload_identity.mapping.archived",
 	// "tenant.workload_identity.binding.created",
 	// "tenant.workload_identity.principal.provisioned",
-	// "tenant.admin_api_key.created", "tenant.admin_api_key.updated",
-	// "tenant.admin_api_key.deleted", "tenant.project_api_key.created",
-	// "tenant.chatgpt_access_token.revoked", "tenant.migration.completed",
-	// "tenant.sso.migrated", "tenant.domains.migrated",
+	// "tenant.workload_identity.access_token.issued", "tenant.admin_api_key.created",
+	// "tenant.admin_api_key.updated", "tenant.admin_api_key.deleted",
+	// "tenant.project_api_key.created", "tenant.chatgpt_access_token.revoked",
+	// "tenant.migration.completed", "tenant.sso.migrated", "tenant.domains.migrated",
 	// "tenant.sso_connection.created", "tenant.sso_connection.updated",
 	// "tenant.sso_connection.deleted", "tenant.sso_connection.setup.started",
 	// "tenant.policy.created", "tenant.policy.updated", "tenant.policy.deleted",
@@ -2371,11 +2374,12 @@ type AdminOrganizationAuditLogListParams struct {
 	// "tenant.custom_role.deleted", "tenant.role_assignment.created",
 	// "tenant.role_assignment.deleted", "tenant.resource_role_assignment.created",
 	// "tenant.resource_role_assignment.deleted", "tenant.resource_access.updated",
-	// "tenant.resource_access.deleted", "tenant.session_policy.created",
-	// "tenant.session_policy.updated", "tenant.session_policy.deleted",
-	// "tenant.session_revocation.started", "tenant.third_party_app_policy.updated",
-	// "tenant.user.added", "tenant.user.updated", "tenant.user.removed",
-	// "tenant.user.looked_up", "tenant.user.invited", "tenant.membership.revoked",
+	// "tenant.resource_access.deleted", "tenant.ads_account.onboarding.redemption",
+	// "tenant.session_policy.created", "tenant.session_policy.updated",
+	// "tenant.session_policy.deleted", "tenant.session_revocation.started",
+	// "tenant.third_party_app_policy.updated", "tenant.user.added",
+	// "tenant.user.updated", "tenant.user.removed", "tenant.user.looked_up",
+	// "tenant.user.invited", "tenant.membership.revoked",
 	// "tenant.api_organization_invite.upserted",
 	// "tenant.api_organization_invite.deleted",
 	// "tenant.chatgpt_workspace_invite.upserted", "tenant.membership.accepted",

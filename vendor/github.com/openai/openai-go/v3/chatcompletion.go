@@ -1,4 +1,4 @@
-// File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+// File generated from our OpenAPI spec by Castiron. See CONTRIBUTING.md for details.
 
 package openai
 
@@ -192,6 +192,13 @@ type ChatCompletion struct {
 	Model string `json:"model" api:"required"`
 	// The object type, which is always `chat.completion`.
 	Object constant.ChatCompletion `json:"object" default:"chat.completion"`
+	// Set of 16 key-value pairs that can be attached to an object. This can be useful
+	// for storing additional information about the object in a structured format, and
+	// querying for objects via API or the dashboard.
+	//
+	// Keys are strings with a maximum length of 64 characters. Values are strings with
+	// a maximum length of 512 characters.
+	Metadata shared.Metadata `json:"metadata" api:"nullable"`
 	// Moderation results for the request input and generated output, if moderated
 	// completions were requested.
 	Moderation ChatCompletionModeration `json:"moderation" api:"nullable"`
@@ -202,9 +209,13 @@ type ChatCompletion struct {
 	//     will use 'default'.
 	//   - If set to 'default', then the request will be processed with the standard
 	//     pricing and performance for the selected model.
-	//   - If set to '[flex](https://platform.openai.com/docs/guides/flex-processing)' or
-	//     '[priority](https://openai.com/api-priority-processing/)', then the request
-	//     will be processed with the corresponding service tier.
+	//   - If set to '[flex](https://platform.openai.com/docs/guides/flex-processing)',
+	//     then the request will be processed with the Flex Processing service tier.
+	//   - To opt-in to [Fast mode](/api/docs/guides/fast-mode) at the request level,
+	//     include the `service_tier=fast` or `service_tier=priority` parameter for
+	//     Responses or Chat Completions. The response will show `service_tier=priority`
+	//     regardless of if you specify `service_tier=fast` or `priority` in your
+	//     request.
 	//   - When not set, the default behavior is 'auto'.
 	//
 	// When the `service_tier` parameter is set, the response body will include the
@@ -212,7 +223,7 @@ type ChatCompletion struct {
 	// request. This response value may be different from the value set in the
 	// parameter.
 	//
-	// Any of "auto", "default", "flex", "scale", "priority".
+	// Any of "auto", "default", "flex", "scale", "priority", "fast".
 	ServiceTier ChatCompletionServiceTier `json:"service_tier" api:"nullable"`
 	// This fingerprint represents the backend configuration that the model runs with.
 	//
@@ -230,6 +241,7 @@ type ChatCompletion struct {
 		Created           respjson.Field
 		Model             respjson.Field
 		Object            respjson.Field
+		Metadata          respjson.Field
 		Moderation        respjson.Field
 		ServiceTier       respjson.Field
 		SystemFingerprint respjson.Field
@@ -380,12 +392,12 @@ func (u ChatCompletionModerationInputUnion) AsAny() anyChatCompletionModerationI
 }
 
 func (u ChatCompletionModerationInputUnion) AsModerationResults() (v ChatCompletionModerationInputModerationResults) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u ChatCompletionModerationInputUnion) AsError() (v ChatCompletionModerationInputError) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -537,12 +549,12 @@ func (u ChatCompletionModerationOutputUnion) AsAny() anyChatCompletionModeration
 }
 
 func (u ChatCompletionModerationOutputUnion) AsModerationResults() (v ChatCompletionModerationOutputModerationResults) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u ChatCompletionModerationOutputUnion) AsError() (v ChatCompletionModerationOutputError) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -643,9 +655,13 @@ func (r *ChatCompletionModerationOutputError) UnmarshalJSON(data []byte) error {
 //     will use 'default'.
 //   - If set to 'default', then the request will be processed with the standard
 //     pricing and performance for the selected model.
-//   - If set to '[flex](https://platform.openai.com/docs/guides/flex-processing)' or
-//     '[priority](https://openai.com/api-priority-processing/)', then the request
-//     will be processed with the corresponding service tier.
+//   - If set to '[flex](https://platform.openai.com/docs/guides/flex-processing)',
+//     then the request will be processed with the Flex Processing service tier.
+//   - To opt-in to [Fast mode](/api/docs/guides/fast-mode) at the request level,
+//     include the `service_tier=fast` or `service_tier=priority` parameter for
+//     Responses or Chat Completions. The response will show `service_tier=priority`
+//     regardless of if you specify `service_tier=fast` or `priority` in your
+//     request.
 //   - When not set, the default behavior is 'auto'.
 //
 // When the `service_tier` parameter is set, the response body will include the
@@ -660,6 +676,7 @@ const (
 	ChatCompletionServiceTierFlex     ChatCompletionServiceTier = "flex"
 	ChatCompletionServiceTierScale    ChatCompletionServiceTier = "scale"
 	ChatCompletionServiceTierPriority ChatCompletionServiceTier = "priority"
+	ChatCompletionServiceTierFast     ChatCompletionServiceTier = "fast"
 )
 
 // Constrains the tools available to the model to a pre-defined set.
@@ -1015,9 +1032,13 @@ type ChatCompletionChunk struct {
 	//     will use 'default'.
 	//   - If set to 'default', then the request will be processed with the standard
 	//     pricing and performance for the selected model.
-	//   - If set to '[flex](https://platform.openai.com/docs/guides/flex-processing)' or
-	//     '[priority](https://openai.com/api-priority-processing/)', then the request
-	//     will be processed with the corresponding service tier.
+	//   - If set to '[flex](https://platform.openai.com/docs/guides/flex-processing)',
+	//     then the request will be processed with the Flex Processing service tier.
+	//   - To opt-in to [Fast mode](/api/docs/guides/fast-mode) at the request level,
+	//     include the `service_tier=fast` or `service_tier=priority` parameter for
+	//     Responses or Chat Completions. The response will show `service_tier=priority`
+	//     regardless of if you specify `service_tier=fast` or `priority` in your
+	//     request.
 	//   - When not set, the default behavior is 'auto'.
 	//
 	// When the `service_tier` parameter is set, the response body will include the
@@ -1025,7 +1046,7 @@ type ChatCompletionChunk struct {
 	// request. This response value may be different from the value set in the
 	// parameter.
 	//
-	// Any of "auto", "default", "flex", "scale", "priority".
+	// Any of "auto", "default", "flex", "scale", "priority", "fast".
 	ServiceTier ChatCompletionChunkServiceTier `json:"service_tier" api:"nullable"`
 	// This fingerprint represents the backend configuration that the model runs with.
 	// Can be used in conjunction with the `seed` request parameter to understand when
@@ -1310,12 +1331,12 @@ func (u ChatCompletionChunkModerationInputUnion) AsAny() anyChatCompletionChunkM
 }
 
 func (u ChatCompletionChunkModerationInputUnion) AsModerationResults() (v ChatCompletionChunkModerationInputModerationResults) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u ChatCompletionChunkModerationInputUnion) AsError() (v ChatCompletionChunkModerationInputError) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -1472,12 +1493,12 @@ func (u ChatCompletionChunkModerationOutputUnion) AsAny() anyChatCompletionChunk
 }
 
 func (u ChatCompletionChunkModerationOutputUnion) AsModerationResults() (v ChatCompletionChunkModerationOutputModerationResults) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u ChatCompletionChunkModerationOutputUnion) AsError() (v ChatCompletionChunkModerationOutputError) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -1580,9 +1601,13 @@ func (r *ChatCompletionChunkModerationOutputError) UnmarshalJSON(data []byte) er
 //     will use 'default'.
 //   - If set to 'default', then the request will be processed with the standard
 //     pricing and performance for the selected model.
-//   - If set to '[flex](https://platform.openai.com/docs/guides/flex-processing)' or
-//     '[priority](https://openai.com/api-priority-processing/)', then the request
-//     will be processed with the corresponding service tier.
+//   - If set to '[flex](https://platform.openai.com/docs/guides/flex-processing)',
+//     then the request will be processed with the Flex Processing service tier.
+//   - To opt-in to [Fast mode](/api/docs/guides/fast-mode) at the request level,
+//     include the `service_tier=fast` or `service_tier=priority` parameter for
+//     Responses or Chat Completions. The response will show `service_tier=priority`
+//     regardless of if you specify `service_tier=fast` or `priority` in your
+//     request.
 //   - When not set, the default behavior is 'auto'.
 //
 // When the `service_tier` parameter is set, the response body will include the
@@ -1597,6 +1622,7 @@ const (
 	ChatCompletionChunkServiceTierFlex     ChatCompletionChunkServiceTier = "flex"
 	ChatCompletionChunkServiceTierScale    ChatCompletionChunkServiceTier = "scale"
 	ChatCompletionChunkServiceTierPriority ChatCompletionChunkServiceTier = "priority"
+	ChatCompletionChunkServiceTierFast     ChatCompletionChunkServiceTier = "fast"
 )
 
 func TextContentPart(text string) ChatCompletionContentPartUnionParam {
@@ -3152,12 +3178,12 @@ func (u ChatCompletionMessageToolCallUnion) AsAny() anyChatCompletionMessageTool
 }
 
 func (u ChatCompletionMessageToolCallUnion) AsFunction() (v ChatCompletionMessageFunctionToolCall) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u ChatCompletionMessageToolCallUnion) AsCustom() (v ChatCompletionMessageCustomToolCall) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -3415,12 +3441,12 @@ type ChatCompletionStoreMessageContentPartUnion struct {
 }
 
 func (u ChatCompletionStoreMessageContentPartUnion) AsTextContentPart() (v ChatCompletionContentPartText) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u ChatCompletionStoreMessageContentPartUnion) AsImageContentPart() (v ChatCompletionContentPartImage) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -4066,9 +4092,13 @@ type ChatCompletionNewParams struct {
 	//     will use 'default'.
 	//   - If set to 'default', then the request will be processed with the standard
 	//     pricing and performance for the selected model.
-	//   - If set to '[flex](https://platform.openai.com/docs/guides/flex-processing)' or
-	//     '[priority](https://openai.com/api-priority-processing/)', then the request
-	//     will be processed with the corresponding service tier.
+	//   - If set to '[flex](https://platform.openai.com/docs/guides/flex-processing)',
+	//     then the request will be processed with the Flex Processing service tier.
+	//   - To opt-in to [Fast mode](/api/docs/guides/fast-mode) at the request level,
+	//     include the `service_tier=fast` or `service_tier=priority` parameter for
+	//     Responses or Chat Completions. The response will show `service_tier=priority`
+	//     regardless of if you specify `service_tier=fast` or `priority` in your
+	//     request.
 	//   - When not set, the default behavior is 'auto'.
 	//
 	// When the `service_tier` parameter is set, the response body will include the
@@ -4076,7 +4106,7 @@ type ChatCompletionNewParams struct {
 	// request. This response value may be different from the value set in the
 	// parameter.
 	//
-	// Any of "auto", "default", "flex", "scale", "priority".
+	// Any of "auto", "default", "flex", "scale", "priority", "fast".
 	ServiceTier ChatCompletionNewParamsServiceTier `json:"service_tier,omitzero"`
 	// Not supported with latest reasoning models `o3` and `o4-mini`.
 	//
@@ -4445,9 +4475,13 @@ func init() {
 //     will use 'default'.
 //   - If set to 'default', then the request will be processed with the standard
 //     pricing and performance for the selected model.
-//   - If set to '[flex](https://platform.openai.com/docs/guides/flex-processing)' or
-//     '[priority](https://openai.com/api-priority-processing/)', then the request
-//     will be processed with the corresponding service tier.
+//   - If set to '[flex](https://platform.openai.com/docs/guides/flex-processing)',
+//     then the request will be processed with the Flex Processing service tier.
+//   - To opt-in to [Fast mode](/api/docs/guides/fast-mode) at the request level,
+//     include the `service_tier=fast` or `service_tier=priority` parameter for
+//     Responses or Chat Completions. The response will show `service_tier=priority`
+//     regardless of if you specify `service_tier=fast` or `priority` in your
+//     request.
 //   - When not set, the default behavior is 'auto'.
 //
 // When the `service_tier` parameter is set, the response body will include the
@@ -4462,6 +4496,7 @@ const (
 	ChatCompletionNewParamsServiceTierFlex     ChatCompletionNewParamsServiceTier = "flex"
 	ChatCompletionNewParamsServiceTierScale    ChatCompletionNewParamsServiceTier = "scale"
 	ChatCompletionNewParamsServiceTierPriority ChatCompletionNewParamsServiceTier = "priority"
+	ChatCompletionNewParamsServiceTierFast     ChatCompletionNewParamsServiceTier = "fast"
 )
 
 // Only one field can be non-zero.

@@ -1,5 +1,3 @@
-// File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
-
 package requestconfig
 
 import (
@@ -53,14 +51,18 @@ func FormatPath(format string, params ...string) string {
 }
 
 func getNormalizedOS() string {
-	switch runtime.GOOS {
+	return normalizeOS(runtime.GOOS)
+}
+
+func normalizeOS(goos string) string {
+	switch goos {
 	case "ios":
 		return "iOS"
 	case "android":
 		return "Android"
 	case "darwin":
 		return "MacOS"
-	case "window":
+	case "windows":
 		return "Windows"
 	case "freebsd":
 		return "FreeBSD"
@@ -69,7 +71,7 @@ func getNormalizedOS() string {
 	case "linux":
 		return "Linux"
 	default:
-		return fmt.Sprintf("Other:%s", runtime.GOOS)
+		return fmt.Sprintf("Other:%s", goos)
 	}
 }
 
@@ -540,8 +542,8 @@ func (cfg *RequestConfig) Execute() (err error) {
 		case *bytes.Reader:
 			cfg.Request.ContentLength = int64(body.Len())
 			cfg.Request.GetBody = func() (io.ReadCloser, error) {
-				_, err := body.Seek(0, 0)
-				return io.NopCloser(body), err
+				_, seekErr := body.Seek(0, 0)
+				return io.NopCloser(body), seekErr
 			}
 			cfg.Request.Body, _ = cfg.Request.GetBody()
 		default:
@@ -639,10 +641,10 @@ func (cfg *RequestConfig) Execute() (err error) {
 	}
 
 	if res.StatusCode >= 400 {
-		contents, err := io.ReadAll(res.Body)
+		contents, readErr := io.ReadAll(res.Body)
 		_ = res.Body.Close()
-		if err != nil {
-			return err
+		if readErr != nil {
+			return readErr
 		}
 
 		// If there is an APIError, re-populate the response body so that debugging
