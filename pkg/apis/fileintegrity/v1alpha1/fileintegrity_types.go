@@ -53,6 +53,14 @@ type FileIntegritySpec struct {
 	// This is an optional field. If PriorityClass is invalid or not found,
 	// it will be ignored and cleared from the spec.
 	PriorityClassName string `json:"priorityClassName,omitempty"`
+	// Resources allows specifying the resource requests and limits for the AIDE
+	// daemon container. When omitted, the built-in defaults below are applied.
+	// When only some values are set, the unset memory and CPU requests and limits
+	// are filled in from the built-in defaults (a default is skipped if it would
+	// conflict with a value you set, e.g. a request larger than the limit).
+	// Changing resources triggers a rolling restart of the AIDE daemon pods.
+	// +kubebuilder:default={requests: {memory: "40Mi", cpu: "40m"}, limits: {memory: "600Mi", cpu: "300m"}}
+	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
 	// Labels to add to the AIDE daemon pods. Keys must not use the reserved key "app"
 	// or the reserved "file-integrity.openshift.io/" prefix, which are managed by the
 	// operator. Format validation: admission catches common errors (first character, size limits)

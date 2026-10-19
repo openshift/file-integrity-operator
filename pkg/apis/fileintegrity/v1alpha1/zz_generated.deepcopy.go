@@ -198,6 +198,11 @@ func (in *FileIntegritySpec) DeepCopyInto(out *FileIntegritySpec) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
+	if in.Resources != nil {
+		in, out := &in.Resources, &out.Resources
+		*out = new(v1.ResourceRequirements)
+		(*in).DeepCopyInto(*out)
+	}
 	if in.Labels != nil {
 		in, out := &in.Labels, &out.Labels
 		*out = make(map[string]string, len(*in))
