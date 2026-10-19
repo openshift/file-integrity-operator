@@ -1,4 +1,4 @@
-// File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
+// File generated from our OpenAPI spec by Castiron. See CONTRIBUTING.md for details.
 
 package openai
 
@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/url"
 	"slices"
@@ -47,7 +46,8 @@ func NewBetaAssistantService(opts ...option.RequestOption) (r BetaAssistantServi
 //
 // Deprecated: deprecated
 func (r *BetaAssistantService) New(ctx context.Context, body BetaAssistantNewParams, opts ...option.RequestOption) (res *Assistant, err error) {
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	opts = append([]option.RequestOption{option.WithHeader("OpenAI-Beta", "assistants=v2")}, opts...)
 	path := "assistants"
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodPost, path, body, &res, opts...)
@@ -58,13 +58,14 @@ func (r *BetaAssistantService) New(ctx context.Context, body BetaAssistantNewPar
 //
 // Deprecated: deprecated
 func (r *BetaAssistantService) Get(ctx context.Context, assistantID string, opts ...option.RequestOption) (res *Assistant, err error) {
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	opts = append([]option.RequestOption{option.WithHeader("OpenAI-Beta", "assistants=v2")}, opts...)
 	if assistantID == "" {
 		err = errors.New("missing required assistant_id parameter")
 		return nil, err
 	}
-	path := fmt.Sprintf("assistants/%s", assistantID)
+	path := requestconfig.FormatPath("assistants/%s", assistantID)
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodGet, path, nil, &res, opts...)
 	return res, err
 }
@@ -73,13 +74,14 @@ func (r *BetaAssistantService) Get(ctx context.Context, assistantID string, opts
 //
 // Deprecated: deprecated
 func (r *BetaAssistantService) Update(ctx context.Context, assistantID string, body BetaAssistantUpdateParams, opts ...option.RequestOption) (res *Assistant, err error) {
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	opts = append([]option.RequestOption{option.WithHeader("OpenAI-Beta", "assistants=v2")}, opts...)
 	if assistantID == "" {
 		err = errors.New("missing required assistant_id parameter")
 		return nil, err
 	}
-	path := fmt.Sprintf("assistants/%s", assistantID)
+	path := requestconfig.FormatPath("assistants/%s", assistantID)
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodPost, path, body, &res, opts...)
 	return res, err
 }
@@ -89,7 +91,8 @@ func (r *BetaAssistantService) Update(ctx context.Context, assistantID string, b
 // Deprecated: deprecated
 func (r *BetaAssistantService) List(ctx context.Context, query BetaAssistantListParams, opts ...option.RequestOption) (res *pagination.CursorPage[Assistant], err error) {
 	var raw *http.Response
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	opts = append([]option.RequestOption{option.WithHeader("OpenAI-Beta", "assistants=v2"), option.WithResponseInto(&raw)}, opts...)
 	path := "assistants"
 	cfg, err := requestconfig.NewRequestConfig(ctx, http.MethodGet, path, query, &res, opts...)
@@ -115,13 +118,14 @@ func (r *BetaAssistantService) ListAutoPaging(ctx context.Context, query BetaAss
 //
 // Deprecated: deprecated
 func (r *BetaAssistantService) Delete(ctx context.Context, assistantID string, opts ...option.RequestOption) (res *AssistantDeleted, err error) {
-	opts = slices.Concat(r.Options, opts)
+	var preClientOpts = []option.RequestOption{requestconfig.WithBearerAuthSecurity()}
+	opts = slices.Concat(preClientOpts, r.Options, opts)
 	opts = append([]option.RequestOption{option.WithHeader("OpenAI-Beta", "assistants=v2")}, opts...)
 	if assistantID == "" {
 		err = errors.New("missing required assistant_id parameter")
 		return nil, err
 	}
-	path := fmt.Sprintf("assistants/%s", assistantID)
+	path := requestconfig.FormatPath("assistants/%s", assistantID)
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodDelete, path, nil, &res, opts...)
 	return res, err
 }
@@ -133,7 +137,7 @@ type Assistant struct {
 	// The identifier, which can be referenced in API endpoints.
 	ID string `json:"id" api:"required"`
 	// The Unix timestamp (in seconds) for when the assistant was created.
-	CreatedAt int64 `json:"created_at" api:"required"`
+	CreatedAt int64 `json:"created_at" api:"required" format:"unixtime"`
 	// The description of the assistant. The maximum length is 512 characters.
 	Description string `json:"description" api:"required"`
 	// The system instructions that the assistant uses. The maximum length is 256,000
@@ -471,122 +475,122 @@ func (u AssistantStreamEventUnion) AsAny() anyAssistantStreamEvent {
 }
 
 func (u AssistantStreamEventUnion) AsThreadCreated() (v AssistantStreamEventThreadCreated) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AssistantStreamEventUnion) AsThreadRunCreated() (v AssistantStreamEventThreadRunCreated) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AssistantStreamEventUnion) AsThreadRunQueued() (v AssistantStreamEventThreadRunQueued) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AssistantStreamEventUnion) AsThreadRunInProgress() (v AssistantStreamEventThreadRunInProgress) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AssistantStreamEventUnion) AsThreadRunRequiresAction() (v AssistantStreamEventThreadRunRequiresAction) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AssistantStreamEventUnion) AsThreadRunCompleted() (v AssistantStreamEventThreadRunCompleted) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AssistantStreamEventUnion) AsThreadRunIncomplete() (v AssistantStreamEventThreadRunIncomplete) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AssistantStreamEventUnion) AsThreadRunFailed() (v AssistantStreamEventThreadRunFailed) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AssistantStreamEventUnion) AsThreadRunCancelling() (v AssistantStreamEventThreadRunCancelling) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AssistantStreamEventUnion) AsThreadRunCancelled() (v AssistantStreamEventThreadRunCancelled) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AssistantStreamEventUnion) AsThreadRunExpired() (v AssistantStreamEventThreadRunExpired) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AssistantStreamEventUnion) AsThreadRunStepCreated() (v AssistantStreamEventThreadRunStepCreated) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AssistantStreamEventUnion) AsThreadRunStepInProgress() (v AssistantStreamEventThreadRunStepInProgress) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AssistantStreamEventUnion) AsThreadRunStepDelta() (v AssistantStreamEventThreadRunStepDelta) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AssistantStreamEventUnion) AsThreadRunStepCompleted() (v AssistantStreamEventThreadRunStepCompleted) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AssistantStreamEventUnion) AsThreadRunStepFailed() (v AssistantStreamEventThreadRunStepFailed) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AssistantStreamEventUnion) AsThreadRunStepCancelled() (v AssistantStreamEventThreadRunStepCancelled) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AssistantStreamEventUnion) AsThreadRunStepExpired() (v AssistantStreamEventThreadRunStepExpired) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AssistantStreamEventUnion) AsThreadMessageCreated() (v AssistantStreamEventThreadMessageCreated) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AssistantStreamEventUnion) AsThreadMessageInProgress() (v AssistantStreamEventThreadMessageInProgress) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AssistantStreamEventUnion) AsThreadMessageDelta() (v AssistantStreamEventThreadMessageDelta) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AssistantStreamEventUnion) AsThreadMessageCompleted() (v AssistantStreamEventThreadMessageCompleted) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AssistantStreamEventUnion) AsThreadMessageIncomplete() (v AssistantStreamEventThreadMessageIncomplete) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AssistantStreamEventUnion) AsErrorEvent() (v AssistantStreamEventErrorEvent) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -1397,17 +1401,17 @@ func (u AssistantToolUnion) AsAny() anyAssistantTool {
 }
 
 func (u AssistantToolUnion) AsCodeInterpreter() (v CodeInterpreterTool) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AssistantToolUnion) AsFileSearch() (v FileSearchTool) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
 func (u AssistantToolUnion) AsFunction() (v FunctionTool) {
-	apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
+	_ = apijson.UnmarshalRoot(json.RawMessage(u.JSON.raw), &v)
 	return
 }
 
@@ -1797,21 +1801,14 @@ type BetaAssistantNewParams struct {
 	// Keys are strings with a maximum length of 64 characters. Values are strings with
 	// a maximum length of 512 characters.
 	Metadata shared.Metadata `json:"metadata,omitzero"`
-	// Constrains effort on reasoning for
-	// [reasoning models](https://platform.openai.com/docs/guides/reasoning). Currently
-	// supported values are `none`, `minimal`, `low`, `medium`, `high`, and `xhigh`.
-	// Reducing reasoning effort can result in faster responses and fewer tokens used
-	// on reasoning in a response.
+	// Constrains effort on reasoning for reasoning models. Currently supported values
+	// are `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, and `max`. Reducing
+	// reasoning effort can result in faster responses and fewer tokens used on
+	// reasoning in a response. Not all reasoning models support every value. See the
+	// [reasoning guide](https://platform.openai.com/docs/guides/reasoning) for
+	// model-specific support.
 	//
-	//   - `gpt-5.1` defaults to `none`, which does not perform reasoning. The supported
-	//     reasoning values for `gpt-5.1` are `none`, `low`, `medium`, and `high`. Tool
-	//     calls are supported for all reasoning values in gpt-5.1.
-	//   - All models before `gpt-5.1` default to `medium` reasoning effort, and do not
-	//     support `none`.
-	//   - The `gpt-5-pro` model defaults to (and only supports) `high` reasoning effort.
-	//   - `xhigh` is supported for all models after `gpt-5.1-codex-max`.
-	//
-	// Any of "none", "minimal", "low", "medium", "high", "xhigh".
+	// Any of "none", "minimal", "low", "medium", "high", "xhigh", "max".
 	ReasoningEffort shared.ReasoningEffort `json:"reasoning_effort,omitzero"`
 	// A set of resources that are used by the assistant's tools. The resources are
 	// specific to the type of tool. For example, the `code_interpreter` tool requires
@@ -2076,21 +2073,14 @@ type BetaAssistantUpdateParams struct {
 	// Keys are strings with a maximum length of 64 characters. Values are strings with
 	// a maximum length of 512 characters.
 	Metadata shared.Metadata `json:"metadata,omitzero"`
-	// Constrains effort on reasoning for
-	// [reasoning models](https://platform.openai.com/docs/guides/reasoning). Currently
-	// supported values are `none`, `minimal`, `low`, `medium`, `high`, and `xhigh`.
-	// Reducing reasoning effort can result in faster responses and fewer tokens used
-	// on reasoning in a response.
+	// Constrains effort on reasoning for reasoning models. Currently supported values
+	// are `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, and `max`. Reducing
+	// reasoning effort can result in faster responses and fewer tokens used on
+	// reasoning in a response. Not all reasoning models support every value. See the
+	// [reasoning guide](https://platform.openai.com/docs/guides/reasoning) for
+	// model-specific support.
 	//
-	//   - `gpt-5.1` defaults to `none`, which does not perform reasoning. The supported
-	//     reasoning values for `gpt-5.1` are `none`, `low`, `medium`, and `high`. Tool
-	//     calls are supported for all reasoning values in gpt-5.1.
-	//   - All models before `gpt-5.1` default to `medium` reasoning effort, and do not
-	//     support `none`.
-	//   - The `gpt-5-pro` model defaults to (and only supports) `high` reasoning effort.
-	//   - `xhigh` is supported for all models after `gpt-5.1-codex-max`.
-	//
-	// Any of "none", "minimal", "low", "medium", "high", "xhigh".
+	// Any of "none", "minimal", "low", "medium", "high", "xhigh", "max".
 	ReasoningEffort shared.ReasoningEffort `json:"reasoning_effort,omitzero"`
 	// A set of resources that are used by the assistant's tools. The resources are
 	// specific to the type of tool. For example, the `code_interpreter` tool requires

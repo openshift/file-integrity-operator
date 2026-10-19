@@ -24,11 +24,13 @@ import (
 	"os"
 	"reflect"
 	rt "runtime"
+	"time"
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/spf13/cobra"
 
 	v1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -38,18 +40,23 @@ import (
 	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	runtimeconfig "sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	monitoring "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	monclientv1 "github.com/prometheus-operator/prometheus-operator/pkg/client/versioned/typed/monitoring/v1"
 
+	configv1 "github.com/openshift/api/config/v1"
+	tlspkg "github.com/openshift/controller-runtime-common/pkg/tls"
 	"github.com/openshift/file-integrity-operator/pkg/apis/fileintegrity/v1alpha1"
 	"github.com/openshift/file-integrity-operator/pkg/common"
 	"github.com/openshift/file-integrity-operator/pkg/controller/configmap"
@@ -57,6 +64,7 @@ import (
 	"github.com/openshift/file-integrity-operator/pkg/controller/metrics"
 	"github.com/openshift/file-integrity-operator/pkg/controller/node"
 	"github.com/openshift/file-integrity-operator/pkg/controller/status"
+	libgocrypto "github.com/openshift/library-go/pkg/crypto"
 )
 
 var OperatorCmd = &cobra.Command{
@@ -75,12 +83,23 @@ const (
 	operatorMetricsSA         = "file-integrity-operator-metrics"
 	operatorMetricsSecretName = "file-integrity-operator-metrics-token"
 	maxSecretRetries          = 10
+
+	tlsProfileFetchTimeout = 30 * time.Second
+	// TLS profile changes are rare, deliberate admin actions, so a coarse
+	// poll interval is fine.
+	tlsProfilePollInterval = time.Minute
+
+	// Retries only the one-time boot fetch, so a transient API failure
+	// doesn't strand the pod on default TLS settings for its whole lifetime.
+	tlsProfileFetchMaxRetries    = 2
+	tlsProfileFetchRetryInterval = 2 * time.Second
 )
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
 	utilruntime.Must(v1alpha1.AddToScheme(scheme))
+	utilruntime.Must(configv1.Install(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -125,9 +144,44 @@ func RunOperator(cmd *cobra.Command, args []string) {
 	kubeClient := kubernetes.NewForConfigOrDie(cfg)
 	monitoringClient := monclientv1.NewForConfigOrDie(cfg)
 
-	ctx := context.TODO()
+	// Also cancelled by the TLS profile watcher below on a cluster-wide TLS
+	// config change, so the pod restarts with the new settings.
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
 
 	log.Info("Registering Components.")
+
+	// Register before the TLS profile fetch below so a fetch failure there
+	// can be recorded as a metric.
+	met := metrics.NewControllerMetrics()
+	if err := met.Register(); err != nil {
+		log.Error(err, "Error registering metrics")
+		os.Exit(1)
+	}
+
+	preStartClient, err := client.New(cfg, client.Options{Scheme: scheme})
+	if err != nil {
+		log.Error(err, "unable to create client for TLS profile lookup")
+		os.Exit(1)
+	}
+	// initial* is the raw, possibly-invalid value used to seed the poll
+	// watcher below, which must match what it would itself recompute on the
+	// first tick to avoid a spurious "change" on startup. applied* falls
+	// back to safe defaults on any error instead, since an invalid profile
+	// would otherwise panic NewTLSConfigFromProfile.
+	initialTLSProfile, initialTLSAdherencePolicy, err := fetchTLSConfigWithRetry(
+		ctx, preStartClient, tlsProfileFetchMaxRetries, tlsProfileFetchRetryInterval)
+	appliedTLSProfile, appliedTLSAdherencePolicy := initialTLSProfile, initialTLSAdherencePolicy
+	if err != nil {
+		log.Info("could not fetch cluster APIServer TLS profile after retrying, using defaults", "error", err)
+		met.IncFileIntegrityError("cluster_tls_profile_fetch_failed")
+		appliedTLSProfile = configv1.TLSProfileSpec{
+			Ciphers:       tlspkg.DefaultTLSCiphers,
+			MinTLSVersion: tlspkg.DefaultMinTLSVersion,
+		}
+		appliedTLSAdherencePolicy = configv1.TLSAdherencePolicyNoOpinion
+	}
+	honorClusterTLSProfile := libgocrypto.ShouldHonorClusterTLSProfile(appliedTLSAdherencePolicy)
 
 	disableHTTP2 := func(c *tls.Config) {
 		if enableHTTP2 {
@@ -135,24 +189,37 @@ func RunOperator(cmd *cobra.Command, args []string) {
 		}
 		c.NextProtos = []string{"http/1.1"}
 	}
+	webhookTLSOpts := []func(config *tls.Config){disableHTTP2}
+	if honorClusterTLSProfile {
+		applyClusterTLSProfile, unsupported := tlspkg.NewTLSConfigFromProfile(appliedTLSProfile)
+		if len(unsupported) > 0 {
+			log.Info("cluster TLS profile contains ciphers unsupported by Go", "unsupported", unsupported)
+		}
+		webhookTLSOpts = append(webhookTLSOpts, applyClusterTLSProfile)
+		met.SetTLSConfigFn(applyClusterTLSProfile)
+	}
+
 	c := cache.Options{DefaultNamespaces: map[string]cache.Config{namespace: {}}}
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Cache:                  c,
+		Cache: c,
+		// Operand NetworkPolicies are read by name during reconcile. The
+		// operator's namespaced Role grants get/create/update/delete but not
+		// list/watch; reading NetworkPolicy through the informer cache would
+		// start a list+watch and fail, so read it directly from the API server.
+		Client: client.Options{
+			Cache: &client.CacheOptions{
+				DisableFor: []client.Object{&networkingv1.NetworkPolicy{}},
+			},
+		},
 		Scheme:                 scheme,
 		Metrics:                metricsserver.Options{BindAddress: fmt.Sprintf("%s:%d", metricsHost, metricsPort)},
 		HealthProbeBindAddress: ":8081",
-		WebhookServer:          webhook.NewServer(webhook.Options{Port: 9443, TLSOpts: []func(config *tls.Config){disableHTTP2}}),
+		WebhookServer:          webhook.NewServer(webhook.Options{Port: 9443, TLSOpts: webhookTLSOpts}),
 		LeaderElection:         true,
 		LeaderElectionID:       leaderElectionID,
 	})
 	if err != nil {
 		log.Error(err, "unable to create manager")
-		os.Exit(1)
-	}
-
-	met := metrics.NewControllerMetrics()
-	if err := met.Register(); err != nil {
-		log.Error(err, "Error registering metrics")
 		os.Exit(1)
 	}
 
@@ -194,6 +261,16 @@ func RunOperator(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
+	// Errors from this Runnable are only logged/counted, never returned: an
+	// error from mgr.Add would abort every other runnable in the manager,
+	// too large a blast radius for this best-effort hardening feature.
+	tlsProfileWatcherRecorder := mgr.GetEventRecorderFor("tlsprofilewatcher")
+	if err := mgr.Add(newTLSProfileWatcher(preStartClient, met, tlsProfileWatcherRecorder, cancel,
+		initialTLSProfile, initialTLSAdherencePolicy, tlsProfilePollInterval)); err != nil {
+		log.Error(err, "unable to add TLS profile watcher")
+		os.Exit(1)
+	}
+
 	// Create the metrics service and make sure the service-secret is available
 	metricsService, err := ensureMetricsServiceAndSecret(ctx, kubeClient, namespace)
 	if err != nil {
@@ -211,10 +288,126 @@ func RunOperator(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
+	sigCtx := ctrl.SetupSignalHandler()
+	go func() {
+		<-sigCtx.Done()
+		cancel()
+	}()
+
 	log.Info("Starting manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+	if err := mgr.Start(ctx); err != nil {
 		log.Error(err, "Manager exited non-zero")
 		os.Exit(1)
+	}
+}
+
+// fetchTLSConfig reads both the profile and adherence policy from a single
+// APIServer read so they can't disagree. A Custom profile with an invalid
+// minTLSVersion is treated as an error, since applying it would panic
+// library-go's TLS version/cipher resolution.
+func fetchTLSConfig(ctx context.Context, cl client.Client) (configv1.TLSProfileSpec, configv1.TLSAdherencePolicy, error) {
+	fetchCtx, fetchCancel := context.WithTimeout(ctx, tlsProfileFetchTimeout)
+	defer fetchCancel()
+
+	apiServer := &configv1.APIServer{}
+	if err := cl.Get(fetchCtx, client.ObjectKey{Name: tlspkg.APIServerName}, apiServer); err != nil {
+		return configv1.TLSProfileSpec{}, configv1.TLSAdherencePolicyNoOpinion, fmt.Errorf("failed to get APIServer: %w", err)
+	}
+
+	profile, err := tlspkg.GetTLSProfileSpec(apiServer.Spec.TLSSecurityProfile)
+	if err != nil {
+		return configv1.TLSProfileSpec{}, configv1.TLSAdherencePolicyNoOpinion, fmt.Errorf("invalid TLS profile: %w", err)
+	}
+	if _, err := libgocrypto.TLSVersion(string(profile.MinTLSVersion)); err != nil {
+		// Return the raw profile, not a zero value: the poll watcher's
+		// Reconcile recomputes this same unvalidated spec every tick, and
+		// seeding it with anything else would cause a spurious diff.
+		return profile, apiServer.Spec.TLSAdherence, fmt.Errorf("invalid minTLSVersion %q: %w", profile.MinTLSVersion, err)
+	}
+
+	return profile, apiServer.Spec.TLSAdherence, nil
+}
+
+// fetchTLSConfigWithRetry retries fetchTLSConfig a bounded number of times,
+// so a transient failure during this one-time boot read doesn't strand the
+// pod on defaults for its whole lifetime.
+//
+// maxRetries/retryInterval are parameters purely so tests can use a short
+// interval; production code always passes the tlsProfileFetch* constants.
+func fetchTLSConfigWithRetry(ctx context.Context, cl client.Client, maxRetries uint64, retryInterval time.Duration) (
+	configv1.TLSProfileSpec, configv1.TLSAdherencePolicy, error) {
+	type fetchResult struct {
+		profile configv1.TLSProfileSpec
+		policy  configv1.TLSAdherencePolicy
+	}
+
+	res, err := backoff.RetryNotifyWithData(func() (fetchResult, error) {
+		profile, policy, err := fetchTLSConfig(ctx, cl)
+		return fetchResult{profile: profile, policy: policy}, err
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(retryInterval), maxRetries),
+		func(err error, wait time.Duration) {
+			log.Info("transient failure fetching cluster APIServer TLS profile, retrying",
+				"error", err, "wait", wait)
+		})
+
+	return res.profile, res.policy, err
+}
+
+// newTLSProfileWatcher returns a Runnable that polls for cluster TLS
+// profile/adherence changes and calls cancel to restart the pod when they
+// change, per the "plan a maintenance window" TLS profile guidance. It
+// polls tlspkg.SecurityProfileWatcher.Reconcile directly instead of
+// registering a controller-runtime watch, avoiding a cache-sync dependency
+// on the startup path.
+//
+// Its Start must never return an error: any error from a Runnable added via
+// mgr.Add aborts every other runnable in the manager (see the call site).
+// TestNewTLSProfileWatcherNeverReturnsError enforces this. Poll failures are
+// only logged/counted, plus recorded as a Warning Event on the APIServer
+// object so a persistent failure (e.g. stale RBAC) stays visible via `oc
+// get events` instead of silently serving a stale profile.
+//
+// pollInterval is a parameter purely so tests can use a short interval;
+// production code always passes tlsProfilePollInterval.
+func newTLSProfileWatcher(cl client.Client, met *metrics.Metrics, recorder record.EventRecorder, cancel context.CancelFunc,
+	initialProfile configv1.TLSProfileSpec, initialPolicy configv1.TLSAdherencePolicy, pollInterval time.Duration) manager.RunnableFunc {
+	apiServerRef := &configv1.APIServer{ObjectMeta: metav1.ObjectMeta{Name: tlspkg.APIServerName}}
+	watcher := &tlspkg.SecurityProfileWatcher{
+		Client:                    cl,
+		InitialTLSProfileSpec:     initialProfile,
+		InitialTLSAdherencePolicy: initialPolicy,
+		OnProfileChange: func(_ context.Context, oldProfile, newProfile configv1.TLSProfileSpec) {
+			log.Info("cluster TLS profile changed, restarting to apply new configuration",
+				"oldMinTLSVersion", oldProfile.MinTLSVersion, "newMinTLSVersion", newProfile.MinTLSVersion)
+			cancel()
+		},
+		OnAdherencePolicyChange: func(_ context.Context, oldPolicy, newPolicy configv1.TLSAdherencePolicy) {
+			log.Info("cluster TLS adherence policy changed, restarting to apply new configuration",
+				"oldPolicy", oldPolicy, "newPolicy", newPolicy)
+			cancel()
+		},
+	}
+	req := ctrl.Request{NamespacedName: client.ObjectKey{Name: tlspkg.APIServerName}}
+
+	return func(ctx context.Context) error {
+		ticker := time.NewTicker(pollInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-ticker.C:
+				pollCtx, pollCancel := context.WithTimeout(ctx, tlsProfileFetchTimeout)
+				_, err := watcher.Reconcile(pollCtx, req)
+				pollCancel()
+				if err != nil {
+					log.Info("could not poll cluster TLS profile, will retry", "error", err)
+					met.IncFileIntegrityError("cluster_tls_profile_poll_failed")
+					recorder.Eventf(apiServerRef, v1.EventTypeWarning, "ClusterTLSProfile",
+						"could not poll cluster TLS profile/adherence policy, keeping previous configuration: %s", err)
+				}
+			}
+		}
 	}
 }
 

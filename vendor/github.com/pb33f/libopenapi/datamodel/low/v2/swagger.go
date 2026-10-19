@@ -152,6 +152,7 @@ func createDocument(info *datamodel.SpecInfo, config *datamodel.DocumentConfigur
 	idxConfig.BasePath = config.BasePath
 	idxConfig.Logger = config.Logger
 	idxConfig.ExcludeExtensionRefs = config.ExcludeExtensionRefs
+	idxConfig.SkipMetadataCollection = config.SkipMetadataCollection
 	rolodex := index.NewRolodex(idxConfig)
 	rolodex.SetRootNode(info.RootNode)
 	doc.Rolodex = rolodex
@@ -195,8 +196,8 @@ func createDocument(info *datamodel.SpecInfo, config *datamodel.DocumentConfigur
 		}
 	}
 
-	// if base url is provided, add a remote filesystem to the rolodex.
-	if idxConfig.BaseURL != nil {
+	// Only create a remote filesystem when the caller explicitly allows remote references.
+	if config.AllowRemoteReferences {
 
 		// create a remote filesystem
 		remoteFS, _ := index.NewRemoteFSWithConfig(idxConfig)
@@ -206,7 +207,11 @@ func createDocument(info *datamodel.SpecInfo, config *datamodel.DocumentConfigur
 		idxConfig.AllowRemoteLookup = true
 
 		// add to the rolodex
-		rolodex.AddRemoteFS(config.BaseURL.String(), remoteFS)
+		u := "default"
+		if config.BaseURL != nil {
+			u = config.BaseURL.String()
+		}
+		rolodex.AddRemoteFS(u, remoteFS)
 
 	}
 

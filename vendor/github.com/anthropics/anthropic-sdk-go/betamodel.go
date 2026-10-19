@@ -1,5 +1,3 @@
-// File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
-
 package anthropic
 
 import (
@@ -48,6 +46,9 @@ func (r *BetaModelService) Get(ctx context.Context, modelID string, query BetaMo
 	for _, v := range query.Betas {
 		opts = append(opts, option.WithHeaderAdd("anthropic-beta", fmt.Sprintf("%v", v)))
 	}
+	if !param.IsOmitted(query.WorkspaceID) {
+		opts = append(opts, option.WithHeader("anthropic-workspace-id", fmt.Sprintf("%v", query.WorkspaceID.Value)))
+	}
 	opts = slices.Concat(r.Options, opts)
 	if modelID == "" {
 		err = errors.New("missing required model_id parameter")
@@ -66,6 +67,9 @@ func (r *BetaModelService) List(ctx context.Context, params BetaModelListParams,
 	var raw *http.Response
 	for _, v := range params.Betas {
 		opts = append(opts, option.WithHeaderAdd("anthropic-beta", fmt.Sprintf("%v", v)))
+	}
+	if !param.IsOmitted(params.WorkspaceID) {
+		opts = append(opts, option.WithHeader("anthropic-workspace-id", fmt.Sprintf("%v", params.WorkspaceID.Value)))
 	}
 	opts = slices.Concat(r.Options, opts)
 	opts = append([]option.RequestOption{option.WithResponseInto(&raw)}, opts...)
@@ -105,6 +109,29 @@ type BetaCapabilitySupport struct {
 // Returns the unmodified JSON received from the API
 func (r BetaCapabilitySupport) RawJSON() string { return r.JSON.raw }
 func (r *BetaCapabilitySupport) UnmarshalJSON(data []byte) error {
+	return apijson.UnmarshalRoot(data, r)
+}
+
+// Compaction capability details: whether the model accepts the top-level
+// `compaction` request parameter, with one entry per supported `compaction.type`
+// value.
+type BetaCompactionCapability struct {
+	// Whether the summarize compaction type is supported.
+	Summarize BetaCapabilitySupport `json:"summarize" api:"required"`
+	// Whether this capability is supported by the model.
+	Supported bool `json:"supported" api:"required"`
+	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
+	JSON struct {
+		Summarize   respjson.Field
+		Supported   respjson.Field
+		ExtraFields map[string]respjson.Field
+		raw         string
+	} `json:"-"`
+}
+
+// Returns the unmodified JSON received from the API
+func (r BetaCompactionCapability) RawJSON() string { return r.JSON.raw }
+func (r *BetaCompactionCapability) UnmarshalJSON(data []byte) error {
 	return apijson.UnmarshalRoot(data, r)
 }
 
@@ -176,6 +203,10 @@ type BetaModelCapabilities struct {
 	Citations BetaCapabilitySupport `json:"citations" api:"required"`
 	// Whether the model supports code execution tools.
 	CodeExecution BetaCapabilitySupport `json:"code_execution" api:"required"`
+	// Compaction capability details: whether the model accepts the top-level
+	// `compaction` request parameter, with one entry per supported `compaction.type`
+	// value.
+	Compaction BetaCompactionCapability `json:"compaction" api:"required"`
 	// Context management support and available strategies.
 	ContextManagement BetaContextManagementCapability `json:"context_management" api:"required"`
 	// Effort (reasoning_effort) support and available levels.
@@ -193,6 +224,7 @@ type BetaModelCapabilities struct {
 		Batch             respjson.Field
 		Citations         respjson.Field
 		CodeExecution     respjson.Field
+		Compaction        respjson.Field
 		ContextManagement respjson.Field
 		Effort            respjson.Field
 		ImageInput        respjson.Field
@@ -213,6 +245,10 @@ func (r *BetaModelCapabilities) UnmarshalJSON(data []byte) error {
 type BetaModelInfo struct {
 	// Unique model identifier.
 	ID string `json:"id" api:"required"`
+	// Model IDs this model accepts as `fallbacks[i].model` on the Messages API. An
+	// empty list means the `fallbacks` parameter is not supported for this model as
+	// primary.
+	AllowedFallbackModels []string `json:"allowed_fallback_models" api:"required"`
 	// Model capability information.
 	Capabilities BetaModelCapabilities `json:"capabilities" api:"required"`
 	// RFC 3339 datetime string representing the time at which the model was released.
@@ -230,15 +266,16 @@ type BetaModelInfo struct {
 	Type constant.Model `json:"type" default:"model"`
 	// JSON contains metadata for fields, check presence with [respjson.Field.Valid].
 	JSON struct {
-		ID             respjson.Field
-		Capabilities   respjson.Field
-		CreatedAt      respjson.Field
-		DisplayName    respjson.Field
-		MaxInputTokens respjson.Field
-		MaxTokens      respjson.Field
-		Type           respjson.Field
-		ExtraFields    map[string]respjson.Field
-		raw            string
+		ID                    respjson.Field
+		AllowedFallbackModels respjson.Field
+		Capabilities          respjson.Field
+		CreatedAt             respjson.Field
+		DisplayName           respjson.Field
+		MaxInputTokens        respjson.Field
+		MaxTokens             respjson.Field
+		Type                  respjson.Field
+		ExtraFields           map[string]respjson.Field
+		raw                   string
 	} `json:"-"`
 }
 
@@ -291,6 +328,13 @@ func (r *BetaThinkingTypes) UnmarshalJSON(data []byte) error {
 }
 
 type BetaModelGetParams struct {
+	// Optional header to select the Workspace for this request. The value is a
+	// Workspace ID (for example, `wrkspc_011CZkZaBF1tNoB5wlCeusgy`).
+	//
+	// Only needed for credentials that can act on more than one Workspace. A
+	// credential that belongs to a specific Workspace may omit it; if sent, it must
+	// match that Workspace.
+	WorkspaceID param.Opt[string] `header:"anthropic-workspace-id,omitzero" json:"-"`
 	// Optional header to specify the beta version(s) you want to use.
 	Betas []AnthropicBeta `header:"anthropic-beta,omitzero" json:"-"`
 	paramObj
@@ -307,6 +351,13 @@ type BetaModelListParams struct {
 	//
 	// Defaults to `20`. Ranges from `1` to `1000`.
 	Limit param.Opt[int64] `query:"limit,omitzero" json:"-"`
+	// Optional header to select the Workspace for this request. The value is a
+	// Workspace ID (for example, `wrkspc_011CZkZaBF1tNoB5wlCeusgy`).
+	//
+	// Only needed for credentials that can act on more than one Workspace. A
+	// credential that belongs to a specific Workspace may omit it; if sent, it must
+	// match that Workspace.
+	WorkspaceID param.Opt[string] `header:"anthropic-workspace-id,omitzero" json:"-"`
 	// Optional header to specify the beta version(s) you want to use.
 	Betas []AnthropicBeta `header:"anthropic-beta,omitzero" json:"-"`
 	paramObj
@@ -315,7 +366,7 @@ type BetaModelListParams struct {
 // URLQuery serializes [BetaModelListParams]'s query parameters as `url.Values`.
 func (r BetaModelListParams) URLQuery() (v url.Values, err error) {
 	return apiquery.MarshalWithSettings(r, apiquery.QuerySettings{
-		ArrayFormat:  apiquery.ArrayQueryFormatComma,
+		ArrayFormat:  apiquery.ArrayQueryFormatBrackets,
 		NestedFormat: apiquery.NestedQueryFormatBrackets,
 	})
 }

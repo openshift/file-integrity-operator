@@ -24,6 +24,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	schedulingv1 "k8s.io/api/scheduling/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -424,6 +425,14 @@ func (r *FileIntegrityReconciler) FileIntegrityControllerReconcile(request recon
 		return reconcile.Result{}, err
 	}
 
+	// Ensure the operand NetworkPolicies exist before creating any operand pods,
+	// so operands start with their network access already governed. Fail closed:
+	// if reconciliation fails, requeue rather than launch operands ungoverned.
+	if err := r.reconcileNetworkPolicies(context.TODO(), reqLogger); err != nil {
+		reqLogger.Error(err, "Cannot reconcile operand NetworkPolicies")
+		return reconcile.Result{}, err
+	}
+
 	// Validate PriorityClass if specified. If invalid or not found, it will be ignored.
 	if instance.Spec.PriorityClassName != "" {
 		if !r.validatePriorityClass(context.TODO(), instance.Spec.PriorityClassName, reqLogger) {
@@ -578,6 +587,8 @@ func (r *FileIntegrityReconciler) FileIntegrityControllerReconcile(request recon
 
 		createErr := r.Client.Create(context.TODO(), ds)
 		if createErr != nil && !kerr.IsAlreadyExists(createErr) {
+			r.Recorder.Event(instance, corev1.EventTypeWarning, "DaemonSetCreateFailed",
+				fmt.Sprintf("Failed to create DaemonSet: %v", createErr))
 			reqLogger.Error(createErr, "error creating daemonSet")
 			return reconcile.Result{}, createErr
 		}
@@ -593,22 +604,37 @@ func (r *FileIntegrityReconciler) FileIntegrityControllerReconcile(request recon
 		pcNeedsUpdate := updateDSPriorityClassName(dsCopy, instance, reqLogger)
 		volsNeedUpdate := updateDSContainerVolumes(dsCopy, instance, operatorImage, reqLogger)
 		resNeedsUpdate := updateDSResources(dsCopy, instance, reqLogger)
+		labelsNeedUpdate := updateDSLabels(dsCopy, instance, reqLogger)
+		annotationsNeedUpdate := updateDSAnnotations(dsCopy, instance, reqLogger)
 
-		if argsNeedUpdate || imgNeedsUpdate || nsNeedsUpdate || tolsNeedsUpdate || pcNeedsUpdate || volsNeedUpdate || resNeedsUpdate || scriptsUpdated {
+		if argsNeedUpdate || imgNeedsUpdate || nsNeedsUpdate || tolsNeedsUpdate || pcNeedsUpdate ||
+			volsNeedUpdate || resNeedsUpdate || labelsNeedUpdate || annotationsNeedUpdate || scriptsUpdated {
 			if err := r.Client.Update(context.TODO(), dsCopy); err != nil {
+				r.Recorder.Event(instance, corev1.EventTypeWarning, "DaemonSetUpdateFailed",
+					fmt.Sprintf("Failed to update DaemonSet: %v", err))
+				reqLogger.Error(err, "Failed to update DaemonSet")
 				return reconcile.Result{}, err
 			}
 
 			r.Metrics.IncFileIntegrityDaemonsetUpdate()
 
-			// TODO: We might want to change this to something that signals to the daemonSet pods that they need to
-			// gracefully exit, and let them restart that way.
-			err := common.RestartFileIntegrityDs(r.Client, common.DaemonSetName(instance.Name))
-			if err != nil {
-				return reconcile.Result{}, err
+			// For metadata-only and resource changes, the DaemonSet's RollingUpdate is
+			// sufficient (maxUnavailable: 1, node-by-node). Only force-restart all pods when the
+			// change requires it (args, config, volumes, scripts, node scheduling changes).
+			needsRestart := argsNeedUpdate || imgNeedsUpdate || nsNeedsUpdate || tolsNeedsUpdate ||
+				pcNeedsUpdate || volsNeedUpdate || scriptsUpdated
+			if needsRestart {
+				// TODO: We might want to change this to something that signals to the daemonSet pods that they need to
+				// gracefully exit, and let them restart that way.
+				err := common.RestartFileIntegrityDs(r.Client, common.DaemonSetName(instance.Name))
+				if err != nil {
+					return reconcile.Result{}, err
+				}
+				reqLogger.Info("FileIntegrity daemon configuration changed - pods restarted.")
+				r.Metrics.IncFileIntegrityDaemonsetPodKill()
+			} else {
+				reqLogger.Info("FileIntegrity daemon metadata updated - rolling restart in progress.")
 			}
-			reqLogger.Info("FileIntegrity daemon configuration changed - pods restarted.")
-			r.Metrics.IncFileIntegrityDaemonsetPodKill()
 		}
 	}
 	return reconcile.Result{}, nil
@@ -656,6 +682,28 @@ func updateDSTolerations(currentDS *appsv1.DaemonSet, fi *v1alpha1.FileIntegrity
 	return needsUpdate
 }
 
+func updateDSLabels(currentDS *appsv1.DaemonSet, fi *v1alpha1.FileIntegrity, logger logr.Logger) bool {
+	lRef := &currentDS.Spec.Template.ObjectMeta.Labels
+	expectedLabels := podTemplateLabels(currentDS.Name, fi)
+	needsUpdate := !reflect.DeepEqual(*lRef, expectedLabels)
+	if needsUpdate {
+		logger.Info("FileIntegrity needed pod labels update")
+		*lRef = expectedLabels
+	}
+	return needsUpdate
+}
+
+func updateDSAnnotations(currentDS *appsv1.DaemonSet, fi *v1alpha1.FileIntegrity, logger logr.Logger) bool {
+	aRef := &currentDS.Spec.Template.ObjectMeta.Annotations
+	expectedAnnotations := podTemplateAnnotations(fi)
+	needsUpdate := !reflect.DeepEqual(*aRef, expectedAnnotations)
+	if needsUpdate {
+		logger.Info("FileIntegrity needed pod annotations update")
+		*aRef = expectedAnnotations
+	}
+	return needsUpdate
+}
+
 func updateDSPriorityClassName(currentDS *appsv1.DaemonSet, fi *v1alpha1.FileIntegrity, logger logr.Logger) bool {
 	pcRef := &currentDS.Spec.Template.Spec.PriorityClassName
 	expectedPC := fi.Spec.PriorityClassName
@@ -673,7 +721,7 @@ func updateDSPriorityClassName(currentDS *appsv1.DaemonSet, fi *v1alpha1.FileInt
 func updateDSResources(currentDS *appsv1.DaemonSet, fi *v1alpha1.FileIntegrity, logger logr.Logger) bool {
 	resRef := &currentDS.Spec.Template.Spec.Containers[0].Resources
 	expectedResources := getDaemonResources(fi)
-	needsUpdate := !reflect.DeepEqual(*resRef, expectedResources)
+	needsUpdate := !equality.Semantic.DeepEqual(*resRef, expectedResources)
 	if needsUpdate {
 		logger.Info("FileIntegrity needed DaemonSet resources update")
 		*resRef = expectedResources
@@ -804,6 +852,10 @@ func reinitAideDaemonset(reinitDaemonSetName string, fi *v1alpha1.FileIntegrity,
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
 						"app": reinitDaemonSetName,
+						// Marks the pod as an operand so the operand
+						// NetworkPolicies select it. The DaemonSet selector is
+						// left untouched.
+						common.IntegrityPodLabelKey: "",
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -905,6 +957,35 @@ func reinitAideDaemonset(reinitDaemonSetName string, fi *v1alpha1.FileIntegrity,
 	}
 }
 
+// podTemplateLabels returns the labels for the AIDE daemonSet pod template: the user-supplied
+// labels from the FileIntegrity spec, plus the labels the operator manages. The
+// operator-managed keys always win. The CRD rejects objects that try to set them, so this is
+// only a safety net.
+func podTemplateLabels(dsName string, fi *v1alpha1.FileIntegrity) map[string]string {
+	podLabels := make(map[string]string, len(fi.Spec.Labels)+3)
+	for k, v := range fi.Spec.Labels {
+		podLabels[k] = v
+	}
+	podLabels["app"] = dsName
+	podLabels[common.IntegrityPodLabelKey] = ""
+	podLabels[common.IntegrityOwnerLabelKey] = fi.Name
+	return podLabels
+}
+
+// podTemplateAnnotations returns the user-supplied annotations for the AIDE daemonSet pod
+// template. It returns nil when none are set, so that the pod template matches what the API
+// server stores and the comparison in updateDSAnnotations stays stable.
+func podTemplateAnnotations(fi *v1alpha1.FileIntegrity) map[string]string {
+	if len(fi.Spec.Annotations) == 0 {
+		return nil
+	}
+	podAnnotations := make(map[string]string, len(fi.Spec.Annotations))
+	for k, v := range fi.Spec.Annotations {
+		podAnnotations[k] = v
+	}
+	return podAnnotations
+}
+
 func aideDaemonset(dsName string, fi *v1alpha1.FileIntegrity, operatorImage string) *appsv1.DaemonSet {
 	priv := true
 	runAs := int64(0)
@@ -926,11 +1007,8 @@ func aideDaemonset(dsName string, fi *v1alpha1.FileIntegrity, operatorImage stri
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{
-						"app":                         dsName,
-						common.IntegrityPodLabelKey:   "",
-						common.IntegrityOwnerLabelKey: fi.Name,
-					},
+					Labels:      podTemplateLabels(dsName, fi),
+					Annotations: podTemplateAnnotations(fi),
 				},
 				Spec: corev1.PodSpec{
 					NodeSelector:       fi.Spec.NodeSelector,
@@ -1070,15 +1148,8 @@ func getDebug(fi *v1alpha1.FileIntegrity) string {
 	return strconv.FormatBool(fi.Spec.Debug)
 }
 
-// getDaemonResources returns the resource requirements for the AIDE daemon
-// container. The CRD applies a default when the field is omitted, but we keep a
-// built-in fallback here so objects constructed without defaulting (e.g. in
-// tests) still get sane values.
-func getDaemonResources(fi *v1alpha1.FileIntegrity) corev1.ResourceRequirements {
-	if fi.Spec.Resources != nil {
-		return *fi.Spec.Resources
-	}
-	// If the user did not specify any resources, return the operator's built-in defaults.
+// defaultDaemonResources returns the operator's built-in resources for the AIDE daemon container.
+func defaultDaemonResources() corev1.ResourceRequirements {
 	return corev1.ResourceRequirements{
 		Requests: corev1.ResourceList{
 			corev1.ResourceMemory: resource.MustParse(common.DefaultDaemonMemoryRequest),
@@ -1089,6 +1160,40 @@ func getDaemonResources(fi *v1alpha1.FileIntegrity) corev1.ResourceRequirements 
 			corev1.ResourceCPU:    resource.MustParse(common.DefaultDaemonCPULimit),
 		},
 	}
+}
+
+// getDaemonResources returns the resource requirements for the AIDE daemon
+// container. The CRD applies a default when the field is omitted, but we keep a
+// built-in fallback here so objects constructed without defaulting (e.g. in
+// tests) still get sane values. Memory and CPU values omitted from a partially
+// specified spec.resources are filled in from the built-in defaults, unless the
+// default would conflict with a value the user did set (request greater than limit).
+func getDaemonResources(fi *v1alpha1.FileIntegrity) corev1.ResourceRequirements {
+	defaults := defaultDaemonResources()
+	if fi.Spec.Resources == nil {
+		return defaults
+	}
+
+	result := *fi.Spec.Resources.DeepCopy()
+	for _, name := range []corev1.ResourceName{corev1.ResourceMemory, corev1.ResourceCPU} {
+		userReq, hasReq := result.Requests[name]
+		userLim, hasLim := result.Limits[name]
+		defReq, defLim := defaults.Requests[name], defaults.Limits[name]
+
+		if !hasReq && (!hasLim || defReq.Cmp(userLim) <= 0) {
+			if result.Requests == nil {
+				result.Requests = corev1.ResourceList{}
+			}
+			result.Requests[name] = defReq
+		}
+		if !hasLim && (!hasReq || userReq.Cmp(defLim) <= 0) {
+			if result.Limits == nil {
+				result.Limits = corev1.ResourceList{}
+			}
+			result.Limits[name] = defLim
+		}
+	}
+	return result
 }
 
 func daemonArgs(dsName string, fi *v1alpha1.FileIntegrity) []string {

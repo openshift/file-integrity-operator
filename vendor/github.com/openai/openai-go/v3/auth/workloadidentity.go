@@ -22,7 +22,6 @@ const (
 	TokenExchangeURL       = "https://auth.openai.com/oauth/token"
 )
 
-
 type WorkloadIdentityAuth struct {
 	config WorkloadIdentity
 
@@ -47,7 +46,7 @@ type tokenRefreshState struct {
 
 type tokenExchangeRequest struct {
 	GrantType          string `json:"grant_type"`
-	ClientID           string `json:"client_id"`
+	ClientID           string `json:"client_id,omitempty"`
 	SubjectToken       string `json:"subject_token"`
 	SubjectTokenType   string `json:"subject_token_type"`
 	IdentityProviderID string `json:"identity_provider_id"`
@@ -55,9 +54,6 @@ type tokenExchangeRequest struct {
 }
 
 func NewWorkloadIdentityAuth(config WorkloadIdentity) (*WorkloadIdentityAuth, error) {
-	if config.ClientID == "" {
-		return nil, fmt.Errorf("WorkloadIdentity: ClientID is required")
-	}
 	if config.IdentityProviderID == "" {
 		return nil, fmt.Errorf("WorkloadIdentity: IdentityProviderID is required")
 	}
@@ -215,7 +211,7 @@ func (w *WorkloadIdentityAuth) refreshToken(ctx context.Context, httpClient HTTP
 	if err != nil {
 		return "", fmt.Errorf("failed to exchange token: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

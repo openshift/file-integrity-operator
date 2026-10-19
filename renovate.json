@@ -11,6 +11,18 @@
   "schedule": [
     "every weekend"
   ],
+  "packageRules": [
+    {
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchBaseBranches": [
+        "master"
+      ],
+      "groupName": "master Go dependencies",
+      "groupSlug": "master-go-dependencies"
+    }
+  ],
   "gomod": {
     "packageRules": [
       {

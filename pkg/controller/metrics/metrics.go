@@ -5,7 +5,10 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net/http"
+	"os"
+	"time"
 
+	backoff "github.com/cenkalti/backoff/v4"
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -60,6 +63,10 @@ const (
 	HandlerPath                        = "/metrics-fio"
 	ControllerMetricsServiceName       = "metrics-fio"
 	ControllerMetricsPort        int32 = 8585
+
+	servingCertFile        = "/var/run/secrets/serving-cert/tls.crt"
+	servingKeyFile         = "/var/run/secrets/serving-cert/tls.key"
+	servingCertMaxWaitTime = 5 * time.Minute
 )
 
 var (
@@ -68,8 +75,10 @@ var (
 
 // Metrics is the main structure of this package.
 type Metrics struct {
-	impl                                     impl
-	log                                      logr.Logger
+	impl impl
+	log  logr.Logger
+	// Set via SetTLSConfigFn before Start; not safe to set concurrently with it.
+	tlsConfigFn                              func(*tls.Config)
 	metricFileIntegrityPhase                 *prometheus.CounterVec
 	metricFileIntegrityError                 *prometheus.CounterVec
 	metricFileIntegrityPause                 *prometheus.CounterVec
@@ -165,6 +174,13 @@ func NewControllerMetrics() *Metrics {
 	}
 }
 
+// SetTLSConfigFn sets a function applied on top of the default TLS config in
+// Start (e.g. to honor a cluster-wide TLS security profile). Must be called
+// before Start.
+func (m *Metrics) SetTLSConfigFn(fn func(*tls.Config)) {
+	m.tlsConfigFn = fn
+}
+
 // Register iterates over all available Metrics and registers them.
 func (m *Metrics) Register() error {
 	for name, collector := range map[string]prometheus.Collector{
@@ -197,16 +213,49 @@ func (m *Metrics) Start(ctx context.Context) error {
 		NextProtos: []string{"http/1.1"},
 	}
 	tlsConfig = libgocrypto.SecureTLSConfig(tlsConfig)
+	if m.tlsConfigFn != nil {
+		m.tlsConfigFn(tlsConfig)
+	}
 	server := &http.Server{
 		Addr:      ":8585",
 		TLSConfig: tlsConfig,
 	}
 
-	err := server.ListenAndServeTLS("/var/run/secrets/serving-cert/tls.crt", "/var/run/secrets/serving-cert/tls.key")
-	if err != nil {
+	// The serving cert secret is created by the service-ca controller after
+	// the operator creates the metrics Service, so the kubelet may sync the
+	// cert files into the volume mount well after this container starts.
+	if err := m.waitForServingCert(ctx); err != nil {
+		m.log.Error(err, "Timed out waiting for the metrics serving cert")
+		return err
+	}
+
+	go func() {
+		<-ctx.Done()
+		server.Close()
+	}()
+
+	err := server.ListenAndServeTLS(servingCertFile, servingKeyFile)
+	if err != nil && err != http.ErrServerClosed {
 		m.log.Error(err, "Metrics service failed")
+		return err
 	}
 	return nil
+}
+
+// waitForServingCert waits for the kubelet to sync the metrics serving cert
+// key pair into the container's volume mount.
+func (m *Metrics) waitForServingCert(ctx context.Context) error {
+	bo := backoff.NewExponentialBackOff()
+	bo.MaxElapsedTime = servingCertMaxWaitTime
+	return backoff.Retry(func() error {
+		for _, f := range []string{servingCertFile, servingKeyFile} {
+			if _, err := os.Stat(f); err != nil {
+				m.log.Info("Waiting for the metrics serving cert to be mounted", "file", f)
+				return err
+			}
+		}
+		return nil
+	}, backoff.WithContext(bo, ctx))
 }
 
 // IncFileIntegrityPhaseInit increments the FileIntegrity Phase init counter.

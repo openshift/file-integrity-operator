@@ -218,6 +218,15 @@ spec:
           verbs:
           - '*'
         - apiGroups:
+          - networking.k8s.io
+          resources:
+          - networkpolicies
+          verbs:
+          - create
+          - delete
+          - get
+          - update
+        - apiGroups:
           - security.openshift.io
           resourceNames:
           - privileged
