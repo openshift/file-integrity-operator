@@ -44,15 +44,20 @@ func aideLoop(ctx context.Context, rt *daemonRuntime, conf *daemonConfig, errCha
 	aideCtx, aideCancel := context.WithCancel(ctx)
 	defer aideCancel()
 
+	interval := time.Duration(conf.Interval) * time.Second
+	// When the last check finished. The loop re-evaluates every second instead of sleeping a whole interval, so the
+	// checks resume as soon as a holdoff or an initialization allows it.
+	var lastScan time.Time
 	for {
 		select {
 		case <-aideCtx.Done():
 			DBG("aideLoop cancelled by the main routine!")
 			return
 		default:
-			if !rt.Initializing() && !rt.Holding() {
+			if scanAllowed(rt, conf) && scanDue(lastScan, rt.LastInit(), time.Now(), interval) {
 				rt.LockAideFiles("aideLoop")
 				LOG("running aide check")
+				scanStart := time.Now()
 
 				// Run the actual AIDE scan command.
 				// This doesn't handle the output, because the operator ensures AIDE logs to /hostroot/etc/kubernetes/aide.log.new
@@ -69,8 +74,17 @@ func aideLoop(ctx context.Context, rt *daemonRuntime, conf *daemonConfig, errCha
 					return
 				}
 
-				// All done. Send the result.
-				rt.SendResult(aideResult)
+				lastScan = time.Now()
+
+				// The check was not held when it started, so holding now, or a holding that ended since, means a node
+				// update started during the check, and its changes would be reported as a failure. The database is
+				// re-initialized after the update instead.
+				if rt.Holding() || rt.NotHoldingSince().After(scanStart) {
+					LOG("discarding the aide check result, a node update started during the check")
+				} else {
+					// All done. Send the result.
+					rt.SendResult(aideResult)
+				}
 				rt.UnlockAideFiles("aideLoop")
 
 				// AIDE reads the entire host filesystem, and the resulting page
@@ -79,9 +93,37 @@ func aideLoop(ctx context.Context, rt *daemonRuntime, conf *daemonConfig, errCha
 				reclaimCgroupPageCache()
 				releaseMemoryAfterScan()
 			}
-			time.Sleep(time.Second * time.Duration(conf.Interval))
+			time.Sleep(time.Second)
 		}
 	}
+}
+
+// scanAllowed returns whether the aideLoop can run the aide check now. It cannot while the database is being
+// initialized, while the node is held off, or once the holdoff is over until the database is re-initialized, as the
+// files changed by the node update would fail the check until then. If that re-init does not come within
+// holdoffReinitTimeout, the checks resume without it.
+func scanAllowed(rt *daemonRuntime, conf *daemonConfig) bool {
+	if rt.Initializing() || rt.Holding() {
+		return false
+	}
+	if !holdoffFileExists(conf) {
+		return true
+	}
+	if time.Since(rt.NotHoldingSince()) < holdoffReinitTimeout {
+		return false
+	}
+	LOG("no AIDE database re-initialization within %v after the holdoff, resuming the aide checks", holdoffReinitTimeout)
+	if err := removeFileIfExists(aideHoldoffPath(conf)); err != nil {
+		LOG("warning: error removing the holdoff file: %v", err)
+	}
+	return true
+}
+
+// scanDue returns whether the next aide check is due. The first one runs right away, and the next ones once every
+// interval. A database (re-)initialization makes it due right away too, so that the node status reflects the new
+// database instead of the last check against the old one, e.g. a failure during a node update.
+func scanDue(lastScan, lastInit, now time.Time, interval time.Duration) bool {
+	return lastScan.IsZero() || lastInit.After(lastScan) || now.Sub(lastScan) >= interval
 }
 
 // The holdoff file is the signal from the node controller to pause the aide scan.
@@ -121,6 +163,9 @@ func holdOffLoop(ctx context.Context, rt *daemonRuntime, conf *daemonConfig, err
 					}
 					if nodeList == "" || nodeInList {
 						// All nodes are in holdoff
+						if err := createHoldoffFileIfMissing(conf); err != nil {
+							LOG("warning: error creating the holdoff file: %v", err)
+						}
 						rt.SetHolding("holdOffLoop", true)
 					} else {
 						rt.SetHolding("holdOffLoop", false)
@@ -148,6 +193,11 @@ func reinitLoop(ctx context.Context, rt *daemonRuntime, conf *daemonConfig, errC
 			DBG("reinitLoop cancelled by the main routine!")
 			return
 		default:
+			// Whether the node is held off decides if an initialization ends a holdoff, so wait until it is known.
+			if !rt.HoldingKnown() {
+				time.Sleep(time.Second)
+				continue
+			}
 			readDBStat, readDBStatErr := os.Stat(aideReadDBPath(conf))
 			_, initStatErr := os.Stat(aideReinitPath(conf))
 
@@ -198,6 +248,15 @@ func handleAIDEInit(ctx context.Context, rt *daemonRuntime, conf *daemonConfig, 
 		return err
 	}
 
+	// An initialization outside of a holdoff ends the wait for the re-init that follows one. Remove the holdoff file
+	// before AIDE builds the database, so that it is never recorded in it, whatever the AIDE config excludes. A
+	// database initialized while the node is held off may capture the middle of a node update, so it keeps the file.
+	if !rt.Holding() {
+		if err := removeFileIfExists(aideHoldoffPath(conf)); err != nil {
+			LOG("warning: error removing the holdoff file: %v", err)
+		}
+	}
+
 	if err := runAideInitDBCmd(ctx, conf); err != nil {
 		aideRv := common.GetAideExitCode(err)
 		logAndTryReportingDaemonError(ctx, rt, conf, fmt.Sprintf("Error initializing the AIDE DB: %s",
@@ -221,6 +280,7 @@ func handleAIDEInit(ctx context.Context, rt *daemonRuntime, conf *daemonConfig, 
 	}
 
 	LOG("initialization finished")
+	rt.SetLastInit(time.Now())
 	reclaimCgroupPageCache()
 	releaseMemoryAfterScan()
 	return nil
