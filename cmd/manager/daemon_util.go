@@ -129,6 +129,10 @@ func legacyAideReinitPath(c *daemonConfig) string {
 	return path.Join(c.FileDir, aideReinitFileName)
 }
 
+func aideHoldoffPath(c *daemonConfig) string {
+	return path.Join(c.FileDir, aideHoldoffFileName)
+}
+
 func aideConfigPath(c *daemonConfig) string {
 	return path.Join(c.ConfigDir, aideConfigFileName)
 }
@@ -208,6 +212,22 @@ func removeAideReinitFileIfExists(c *daemonConfig) error {
 		return err
 	}
 	return removeFileIfExists(aideReinitPath(c))
+}
+
+func holdoffFileExists(c *daemonConfig) bool {
+	_, err := os.Stat(path.Clean(aideHoldoffPath(c)))
+	return err == nil
+}
+
+func createHoldoffFileIfMissing(c *daemonConfig) error {
+	if holdoffFileExists(c) {
+		return nil
+	}
+	f, err := os.OpenFile(path.Clean(aideHoldoffPath(c)), os.O_WRONLY|os.O_CREATE, 0600)
+	if err != nil {
+		return err
+	}
+	return f.Close()
 }
 
 func removeFileIfExists(filePath string) error {
