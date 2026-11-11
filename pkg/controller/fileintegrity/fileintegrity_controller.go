@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -454,6 +455,22 @@ func (r *FileIntegrityReconciler) FileIntegrityControllerReconcile(request recon
 				return reconcile.Result{Requeue: true}, nil
 			}
 		}
+	}
+
+	// Reject resource requests that exceed their limits before touching the
+	// DaemonSet. Kubernetes refuses pod templates where a request is greater
+	// than its limit, so applying it would fail on every reconcile and leave
+	// the user with an opaque DaemonSet error. Surface it on the FileIntegrity
+	// object instead and keep the last known-good DaemonSet running.
+	if conflicts := resourceRequestLimitConflicts(getDaemonResources(instance)); len(conflicts) > 0 {
+		msg := fmt.Sprintf("Invalid spec.resources: %s; requests must be less than or equal to limits, so the AIDE DaemonSet was not updated",
+			strings.Join(conflicts, "; "))
+		reqLogger.Info(msg)
+		r.Recorder.Event(instance, corev1.EventTypeWarning, "InvalidResources", msg)
+		// The spec is invalid until the user edits it; returning without an
+		// error avoids a requeue hot loop. The watch on the FileIntegrity
+		// object re-triggers reconciliation once the spec changes.
+		return reconcile.Result{}, nil
 	}
 
 	// Get the operator image to later set as the daemonSet image. They need to always match before we deprecate RELATED_IMAGE_OPERATOR.
@@ -1194,6 +1211,34 @@ func getDaemonResources(fi *v1alpha1.FileIntegrity) corev1.ResourceRequirements 
 		}
 	}
 	return result
+}
+
+// resourceRequestLimitConflicts returns one message per resource whose request
+// is greater than its limit. An empty result means the requirements are valid.
+// Kubernetes rejects pod templates where a request exceeds its limit, so this
+// lets the operator surface the problem on the FileIntegrity object instead of
+// failing on the DaemonSet API. Resource names are reported in sorted order so
+// the resulting Event message is stable across reconciles.
+func resourceRequestLimitConflicts(res corev1.ResourceRequirements) []string {
+	names := make([]string, 0, len(res.Requests))
+	for name := range res.Requests {
+		names = append(names, string(name))
+	}
+	sort.Strings(names)
+
+	var conflicts []string
+	for _, n := range names {
+		name := corev1.ResourceName(n)
+		req := res.Requests[name]
+		lim, hasLimit := res.Limits[name]
+		if !hasLimit {
+			continue
+		}
+		if req.Cmp(lim) > 0 {
+			conflicts = append(conflicts, fmt.Sprintf("%s request %s exceeds limit %s", name, req.String(), lim.String()))
+		}
+	}
+	return conflicts
 }
 
 func daemonArgs(dsName string, fi *v1alpha1.FileIntegrity) []string {

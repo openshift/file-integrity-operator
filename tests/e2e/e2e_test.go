@@ -1002,6 +1002,70 @@ func TestFileIntegrityChangeResources(t *testing.T) {
 	}
 }
 
+func TestFileIntegrityRejectInvalidResources(t *testing.T) {
+	f, testctx, namespace := setupTest(t)
+	testName := testIntegrityNamePrefix + "-invalidresources"
+	setupFileIntegrity(t, f, testctx, testName, namespace, nodeWorkerRoleLabelKey, defaultTestGracePeriod)
+	defer testctx.Cleanup()
+	defer func() {
+		if err := cleanNodes(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+		if err := resetBundleTestMetrics(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+	}()
+	defer logContainerOutput(t, f, namespace, testName)
+
+	if err := waitForScanStatus(t, f, namespace, testName, v1alpha1.PhaseActive); err != nil {
+		t.Errorf("Timeout waiting for scan status")
+	}
+
+	// Remember the resources currently applied to the DaemonSet.
+	dsName := common.DaemonSetName(testName)
+	ds, err := f.KubeClient.AppsV1().DaemonSets(namespace).Get(context.TODO(), dsName, metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("Failed to get DaemonSet %s: %v", dsName, err)
+	}
+	applied := ds.Spec.Template.Spec.Containers[0].Resources.DeepCopy()
+
+	// Set a memory request that is larger than its limit.
+	fileIntegrity := &v1alpha1.FileIntegrity{}
+	if err := f.Client.Get(context.TODO(), types.NamespacedName{Name: testName, Namespace: namespace}, fileIntegrity); err != nil {
+		t.Fatalf("failed to retrieve FI object: %v", err)
+	}
+	invalid := corev1.ResourceRequirements{
+		Requests: corev1.ResourceList{
+			corev1.ResourceMemory: resource.MustParse("2Gi"),
+			corev1.ResourceCPU:    resource.MustParse("100m"),
+		},
+		Limits: corev1.ResourceList{
+			corev1.ResourceMemory: resource.MustParse("1Gi"),
+			corev1.ResourceCPU:    resource.MustParse("500m"),
+		},
+	}
+	updated := fileIntegrity.DeepCopy()
+	updated.Spec.Resources = &invalid
+	if err := f.Client.Update(context.TODO(), updated); err != nil {
+		t.Fatalf("failed to update FI object: %v", err)
+	}
+
+	t.Log("Verifying the operator reports a Warning event for the invalid resources")
+	if err := assertEventWithReason(t, f, namespace, testName, "InvalidResources", time.Second*5, time.Minute*5); err != nil {
+		t.Errorf("expected an event with reason InvalidResources: %v", err)
+	}
+
+	t.Log("Verifying the DaemonSet kept the last known-good resources")
+	if err := assertDSPodHasResources(t, f, testName, namespace, *applied, time.Second*5, time.Minute*2); err != nil {
+		t.Errorf("DaemonSet resources changed despite the invalid spec: %v", err)
+	}
+
+	t.Log("Verifying scans are still active")
+	if err := waitForScanStatus(t, f, namespace, testName, v1alpha1.PhaseActive); err != nil {
+		t.Errorf("Timeout waiting for scan status after the invalid resources update")
+	}
+}
+
 func TestFileIntegrityChangeDebug(t *testing.T) {
 	f, testctx, namespace := setupTest(t)
 	testName := testIntegrityNamePrefix + "-changedebug"

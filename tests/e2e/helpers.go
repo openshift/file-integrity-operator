@@ -2390,6 +2390,21 @@ func assertDSPodHasArg(t *testing.T, f *framework.Framework, fiName, namespace, 
 	})
 }
 
+// assertEventWithReason waits until an Event with the given reason, recorded
+// against the named object, exists in the namespace.
+func assertEventWithReason(t *testing.T, f *framework.Framework, namespace, objectName, reason string, interval, timeout time.Duration) error {
+	return wait.PollImmediate(interval, timeout, func() (bool, error) {
+		eventList, err := f.KubeClient.CoreV1().Events(namespace).List(goctx.TODO(), metav1.ListOptions{
+			FieldSelector: "reason=" + reason + ",involvedObject.name=" + objectName,
+		})
+		if err != nil {
+			t.Logf("Retrying. Got error listing events: %v\n", err)
+			return false, nil
+		}
+		return len(eventList.Items) > 0, nil
+	})
+}
+
 // assertDSPodHasResources polls the FileIntegrity DaemonSet until the daemon
 // container's resource requests and limits match the expected values.
 func assertDSPodHasResources(t *testing.T, f *framework.Framework, fiName, namespace string, expected corev1.ResourceRequirements, interval, timeout time.Duration) error {
