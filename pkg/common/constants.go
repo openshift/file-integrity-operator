@@ -53,4 +53,14 @@ const (
 	IntegrityHoldoffAnnotationKey = "file-integrity.openshift.io/holdoff"
 	// The default gracePeriod
 	DefaultGracePeriod = 900
+	// Default container resource quantities. These are the built-in fallback
+	// values used when the FileIntegrity object does not specify its own.
+	DefaultDaemonMemoryRequest = "40Mi"
+	DefaultDaemonCPURequest    = "40m"
+	DefaultDaemonMemoryLimit   = "600Mi"
+	DefaultDaemonCPULimit      = "300m"
+	DefaultHelperMemoryRequest = "10Mi"
+	DefaultHelperCPURequest    = "10m"
+	DefaultHelperMemoryLimit   = "50Mi"
+	DefaultHelperCPULimit      = "50m"
 )

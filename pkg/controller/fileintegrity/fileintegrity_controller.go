@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -24,6 +25,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	schedulingv1 "k8s.io/api/scheduling/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -455,6 +457,22 @@ func (r *FileIntegrityReconciler) FileIntegrityControllerReconcile(request recon
 		}
 	}
 
+	// Reject resource requests that exceed their limits before touching the
+	// DaemonSet. Kubernetes refuses pod templates where a request is greater
+	// than its limit, so applying it would fail on every reconcile and leave
+	// the user with an opaque DaemonSet error. Surface it on the FileIntegrity
+	// object instead and keep the last known-good DaemonSet running.
+	if conflicts := resourceRequestLimitConflicts(getDaemonResources(instance)); len(conflicts) > 0 {
+		msg := fmt.Sprintf("Invalid spec.resources: %s; requests must be less than or equal to limits, so the AIDE DaemonSet was not updated",
+			strings.Join(conflicts, "; "))
+		reqLogger.Info(msg)
+		r.Recorder.Event(instance, corev1.EventTypeWarning, "InvalidResources", msg)
+		// The spec is invalid until the user edits it; returning without an
+		// error avoids a requeue hot loop. The watch on the FileIntegrity
+		// object re-triggers reconciliation once the spec changes.
+		return reconcile.Result{}, nil
+	}
+
 	// Get the operator image to later set as the daemonSet image. They need to always match before we deprecate RELATED_IMAGE_OPERATOR.
 	operatorImage, err := r.getOperatorDeploymentImage()
 	if err != nil {
@@ -602,11 +620,12 @@ func (r *FileIntegrityReconciler) FileIntegrityControllerReconcile(request recon
 		tolsNeedsUpdate := updateDSTolerations(dsCopy, instance, reqLogger)
 		pcNeedsUpdate := updateDSPriorityClassName(dsCopy, instance, reqLogger)
 		volsNeedUpdate := updateDSContainerVolumes(dsCopy, instance, operatorImage, reqLogger)
+		resNeedsUpdate := updateDSResources(dsCopy, instance, reqLogger)
 		labelsNeedUpdate := updateDSLabels(dsCopy, instance, reqLogger)
 		annotationsNeedUpdate := updateDSAnnotations(dsCopy, instance, reqLogger)
 
 		if argsNeedUpdate || imgNeedsUpdate || nsNeedsUpdate || tolsNeedsUpdate || pcNeedsUpdate ||
-			volsNeedUpdate || labelsNeedUpdate || annotationsNeedUpdate || scriptsUpdated {
+			volsNeedUpdate || resNeedsUpdate || labelsNeedUpdate || annotationsNeedUpdate || scriptsUpdated {
 			if err := r.Client.Update(context.TODO(), dsCopy); err != nil {
 				r.Recorder.Event(instance, corev1.EventTypeWarning, "DaemonSetUpdateFailed",
 					fmt.Sprintf("Failed to update DaemonSet: %v", err))
@@ -616,7 +635,7 @@ func (r *FileIntegrityReconciler) FileIntegrityControllerReconcile(request recon
 
 			r.Metrics.IncFileIntegrityDaemonsetUpdate()
 
-			// For metadata-only changes (labels/annotations), the DaemonSet's RollingUpdate is
+			// For metadata-only and resource changes, the DaemonSet's RollingUpdate is
 			// sufficient (maxUnavailable: 1, node-by-node). Only force-restart all pods when the
 			// change requires it (args, config, volumes, scripts, node scheduling changes).
 			needsRestart := argsNeedUpdate || imgNeedsUpdate || nsNeedsUpdate || tolsNeedsUpdate ||
@@ -709,6 +728,20 @@ func updateDSPriorityClassName(currentDS *appsv1.DaemonSet, fi *v1alpha1.FileInt
 	if needsUpdate {
 		logger.Info("FileIntegrity needed priorityClassName update")
 		*pcRef = expectedPC
+	}
+	return needsUpdate
+}
+
+// Returns true when the daemon container resources derived from the FileIntegrity
+// object differ from the current DS. Returns false if there was no difference.
+// If an update is needed, this will update the resources from the given DaemonSet.
+func updateDSResources(currentDS *appsv1.DaemonSet, fi *v1alpha1.FileIntegrity, logger logr.Logger) bool {
+	resRef := &currentDS.Spec.Template.Spec.Containers[0].Resources
+	expectedResources := getDaemonResources(fi)
+	needsUpdate := !equality.Semantic.DeepEqual(*resRef, expectedResources)
+	if needsUpdate {
+		logger.Info("FileIntegrity needed DaemonSet resources update")
+		*resRef = expectedResources
 	}
 	return needsUpdate
 }
@@ -869,12 +902,12 @@ func reinitAideDaemonset(reinitDaemonSetName string, fi *v1alpha1.FileIntegrity,
 							},
 							Resources: corev1.ResourceRequirements{
 								Requests: corev1.ResourceList{
-									corev1.ResourceMemory: resource.MustParse("10Mi"),
-									corev1.ResourceCPU:    resource.MustParse("10m"),
+									corev1.ResourceMemory: resource.MustParse(common.DefaultHelperMemoryRequest),
+									corev1.ResourceCPU:    resource.MustParse(common.DefaultHelperCPURequest),
 								},
 								Limits: corev1.ResourceList{
-									corev1.ResourceMemory: resource.MustParse("50Mi"),
-									corev1.ResourceCPU:    resource.MustParse("50m"),
+									corev1.ResourceMemory: resource.MustParse(common.DefaultHelperMemoryLimit),
+									corev1.ResourceCPU:    resource.MustParse(common.DefaultHelperCPULimit),
 								},
 							},
 						},
@@ -893,12 +926,12 @@ func reinitAideDaemonset(reinitDaemonSetName string, fi *v1alpha1.FileIntegrity,
 							},
 							Resources: corev1.ResourceRequirements{
 								Requests: corev1.ResourceList{
-									corev1.ResourceMemory: resource.MustParse("10Mi"),
-									corev1.ResourceCPU:    resource.MustParse("10m"),
+									corev1.ResourceMemory: resource.MustParse(common.DefaultHelperMemoryRequest),
+									corev1.ResourceCPU:    resource.MustParse(common.DefaultHelperCPURequest),
 								},
 								Limits: corev1.ResourceList{
-									corev1.ResourceMemory: resource.MustParse("50Mi"),
-									corev1.ResourceCPU:    resource.MustParse("50m"),
+									corev1.ResourceMemory: resource.MustParse(common.DefaultHelperMemoryLimit),
+									corev1.ResourceCPU:    resource.MustParse(common.DefaultHelperCPULimit),
 								},
 							},
 						},
@@ -1016,12 +1049,12 @@ func aideDaemonset(dsName string, fi *v1alpha1.FileIntegrity, operatorImage stri
 							},
 							Resources: corev1.ResourceRequirements{
 								Requests: corev1.ResourceList{
-									corev1.ResourceMemory: resource.MustParse("10Mi"),
-									corev1.ResourceCPU:    resource.MustParse("10m"),
+									corev1.ResourceMemory: resource.MustParse(common.DefaultHelperMemoryRequest),
+									corev1.ResourceCPU:    resource.MustParse(common.DefaultHelperCPURequest),
 								},
 								Limits: corev1.ResourceList{
-									corev1.ResourceMemory: resource.MustParse("50Mi"),
-									corev1.ResourceCPU:    resource.MustParse("50m"),
+									corev1.ResourceMemory: resource.MustParse(common.DefaultHelperMemoryLimit),
+									corev1.ResourceCPU:    resource.MustParse(common.DefaultHelperCPULimit),
 								},
 							},
 							VolumeMounts: []corev1.VolumeMount{
@@ -1077,16 +1110,7 @@ func aideDaemonset(dsName string, fi *v1alpha1.FileIntegrity, operatorImage stri
 									MountPath: "/tmp",
 								},
 							},
-							Resources: corev1.ResourceRequirements{
-								Requests: corev1.ResourceList{
-									corev1.ResourceMemory: resource.MustParse("40Mi"),
-									corev1.ResourceCPU:    resource.MustParse("40m"),
-								},
-								Limits: corev1.ResourceList{
-									corev1.ResourceMemory: resource.MustParse("600Mi"),
-									corev1.ResourceCPU:    resource.MustParse("300m"),
-								},
-							},
+							Resources: getDaemonResources(fi),
 						},
 					},
 					Volumes: []corev1.Volume{
@@ -1139,6 +1163,82 @@ func getGracePeriod(fi *v1alpha1.FileIntegrity) string {
 
 func getDebug(fi *v1alpha1.FileIntegrity) string {
 	return strconv.FormatBool(fi.Spec.Debug)
+}
+
+// defaultDaemonResources returns the operator's built-in resources for the AIDE daemon container.
+func defaultDaemonResources() corev1.ResourceRequirements {
+	return corev1.ResourceRequirements{
+		Requests: corev1.ResourceList{
+			corev1.ResourceMemory: resource.MustParse(common.DefaultDaemonMemoryRequest),
+			corev1.ResourceCPU:    resource.MustParse(common.DefaultDaemonCPURequest),
+		},
+		Limits: corev1.ResourceList{
+			corev1.ResourceMemory: resource.MustParse(common.DefaultDaemonMemoryLimit),
+			corev1.ResourceCPU:    resource.MustParse(common.DefaultDaemonCPULimit),
+		},
+	}
+}
+
+// getDaemonResources returns the resource requirements for the AIDE daemon
+// container. The CRD applies a default when the field is omitted, but we keep a
+// built-in fallback here so objects constructed without defaulting (e.g. in
+// tests) still get sane values. Memory and CPU values omitted from a partially
+// specified spec.resources are filled in from the built-in defaults, unless the
+// default would conflict with a value the user did set (request greater than limit).
+func getDaemonResources(fi *v1alpha1.FileIntegrity) corev1.ResourceRequirements {
+	defaults := defaultDaemonResources()
+	if fi.Spec.Resources == nil {
+		return defaults
+	}
+
+	result := *fi.Spec.Resources.DeepCopy()
+	for _, name := range []corev1.ResourceName{corev1.ResourceMemory, corev1.ResourceCPU} {
+		userReq, hasReq := result.Requests[name]
+		userLim, hasLim := result.Limits[name]
+		defReq, defLim := defaults.Requests[name], defaults.Limits[name]
+
+		if !hasReq && (!hasLim || defReq.Cmp(userLim) <= 0) {
+			if result.Requests == nil {
+				result.Requests = corev1.ResourceList{}
+			}
+			result.Requests[name] = defReq
+		}
+		if !hasLim && (!hasReq || userReq.Cmp(defLim) <= 0) {
+			if result.Limits == nil {
+				result.Limits = corev1.ResourceList{}
+			}
+			result.Limits[name] = defLim
+		}
+	}
+	return result
+}
+
+// resourceRequestLimitConflicts returns one message per resource whose request
+// is greater than its limit. An empty result means the requirements are valid.
+// Kubernetes rejects pod templates where a request exceeds its limit, so this
+// lets the operator surface the problem on the FileIntegrity object instead of
+// failing on the DaemonSet API. Resource names are reported in sorted order so
+// the resulting Event message is stable across reconciles.
+func resourceRequestLimitConflicts(res corev1.ResourceRequirements) []string {
+	names := make([]string, 0, len(res.Requests))
+	for name := range res.Requests {
+		names = append(names, string(name))
+	}
+	sort.Strings(names)
+
+	var conflicts []string
+	for _, n := range names {
+		name := corev1.ResourceName(n)
+		req := res.Requests[name]
+		lim, hasLimit := res.Limits[name]
+		if !hasLimit {
+			continue
+		}
+		if req.Cmp(lim) > 0 {
+			conflicts = append(conflicts, fmt.Sprintf("%s request %s exceeds limit %s", name, req.String(), lim.String()))
+		}
+	}
+	return conflicts
 }
 
 func daemonArgs(dsName string, fi *v1alpha1.FileIntegrity) []string {

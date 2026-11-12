@@ -11,6 +11,8 @@ import (
 	fileintegrity2 "github.com/openshift/file-integrity-operator/pkg/controller/fileintegrity"
 	framework "github.com/openshift/file-integrity-operator/tests/framework"
 
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/types"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -907,6 +909,160 @@ func TestFileIntegrityChangeGracePeriod(t *testing.T) {
 	err = waitForDaemonSet(daemonSetIsReady(f.KubeClient, dsName, namespace))
 	if err != nil {
 		t.Errorf("Timed out waiting for DaemonSet %s", dsName)
+	}
+}
+
+func TestFileIntegrityChangeResources(t *testing.T) {
+	f, testctx, namespace := setupTest(t)
+	testName := testIntegrityNamePrefix + "-changeresources"
+	setupFileIntegrity(t, f, testctx, testName, namespace, nodeWorkerRoleLabelKey, defaultTestGracePeriod)
+	defer testctx.Cleanup()
+	defer func() {
+		if err := cleanNodes(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+		if err := resetBundleTestMetrics(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+	}()
+	defer logContainerOutput(t, f, namespace, testName)
+
+	// wait to go active.
+	err := waitForScanStatus(t, f, namespace, testName, v1alpha1.PhaseActive)
+	if err != nil {
+		t.Errorf("Timeout waiting for scan status")
+	}
+
+	// get daemonSet, make sure it has the default resources
+	defaultResources := corev1.ResourceRequirements{
+		Requests: corev1.ResourceList{
+			corev1.ResourceMemory: resource.MustParse("40Mi"),
+			corev1.ResourceCPU:    resource.MustParse("40m"),
+		},
+		Limits: corev1.ResourceList{
+			corev1.ResourceMemory: resource.MustParse("600Mi"),
+			corev1.ResourceCPU:    resource.MustParse("300m"),
+		},
+	}
+	err = assertDSPodHasResources(t, f, testName, namespace, defaultResources, time.Second*5, time.Minute*5)
+	if err != nil {
+		t.Errorf("pod spec didn't contain the expected default resources: %v\n", err)
+	}
+	t.Log("The pod spec contains the default resources")
+
+	oldPodList, err := getFiDsPods(f, testName, namespace)
+	if err != nil {
+		t.Errorf("Error retrieving DS pods")
+	}
+
+	// change the config
+	fileIntegrity := &v1alpha1.FileIntegrity{}
+	err = f.Client.Get(context.TODO(), types.NamespacedName{Name: testName, Namespace: namespace}, fileIntegrity)
+	if err != nil {
+		t.Errorf("failed to retrieve FI object: %v\n", err)
+	}
+
+	modifiedResources := corev1.ResourceRequirements{
+		Requests: corev1.ResourceList{
+			corev1.ResourceMemory: resource.MustParse("100Mi"),
+			corev1.ResourceCPU:    resource.MustParse("100m"),
+		},
+		Limits: corev1.ResourceList{
+			corev1.ResourceMemory: resource.MustParse("800Mi"),
+			corev1.ResourceCPU:    resource.MustParse("500m"),
+		},
+	}
+
+	fileIntegrityCopy := fileIntegrity.DeepCopy()
+	fileIntegrityCopy.Spec.Resources = &modifiedResources
+
+	err = f.Client.Update(context.TODO(), fileIntegrityCopy)
+	if err != nil {
+		t.Errorf("failed to update FI object: %v\n", err)
+	}
+
+	// make sure the daemonSet pods now have the resources we want
+	err = assertDSPodHasResources(t, f, testName, namespace, modifiedResources, time.Second*5, time.Minute*5)
+	if err != nil {
+		t.Errorf("spec didn't contain the expected resources: %v\n", err)
+	}
+	t.Log("The spec contains the modified resources")
+
+	// make sure the DS restarted by first making sure at least one of the original pods
+	// went away, then waiting until the DS is ready again
+	err = waitUntilPodsAreGone(t, f.Client.Client, oldPodList, time.Second*5, time.Minute*5)
+	if err != nil {
+		t.Errorf("The old pods were not shut down\n")
+	}
+
+	resDsName := common.DaemonSetName(testName)
+	err = waitForDaemonSet(daemonSetIsReady(f.KubeClient, resDsName, namespace))
+	if err != nil {
+		t.Errorf("Timed out waiting for DaemonSet %s", resDsName)
+	}
+}
+
+func TestFileIntegrityRejectInvalidResources(t *testing.T) {
+	f, testctx, namespace := setupTest(t)
+	testName := testIntegrityNamePrefix + "-invalidresources"
+	setupFileIntegrity(t, f, testctx, testName, namespace, nodeWorkerRoleLabelKey, defaultTestGracePeriod)
+	defer testctx.Cleanup()
+	defer func() {
+		if err := cleanNodes(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+		if err := resetBundleTestMetrics(f, namespace); err != nil {
+			t.Fatal(err)
+		}
+	}()
+	defer logContainerOutput(t, f, namespace, testName)
+
+	if err := waitForScanStatus(t, f, namespace, testName, v1alpha1.PhaseActive); err != nil {
+		t.Errorf("Timeout waiting for scan status")
+	}
+
+	// Remember the resources currently applied to the DaemonSet.
+	dsName := common.DaemonSetName(testName)
+	ds, err := f.KubeClient.AppsV1().DaemonSets(namespace).Get(context.TODO(), dsName, metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("Failed to get DaemonSet %s: %v", dsName, err)
+	}
+	applied := ds.Spec.Template.Spec.Containers[0].Resources.DeepCopy()
+
+	// Set a memory request that is larger than its limit.
+	fileIntegrity := &v1alpha1.FileIntegrity{}
+	if err := f.Client.Get(context.TODO(), types.NamespacedName{Name: testName, Namespace: namespace}, fileIntegrity); err != nil {
+		t.Fatalf("failed to retrieve FI object: %v", err)
+	}
+	invalid := corev1.ResourceRequirements{
+		Requests: corev1.ResourceList{
+			corev1.ResourceMemory: resource.MustParse("2Gi"),
+			corev1.ResourceCPU:    resource.MustParse("100m"),
+		},
+		Limits: corev1.ResourceList{
+			corev1.ResourceMemory: resource.MustParse("1Gi"),
+			corev1.ResourceCPU:    resource.MustParse("500m"),
+		},
+	}
+	updated := fileIntegrity.DeepCopy()
+	updated.Spec.Resources = &invalid
+	if err := f.Client.Update(context.TODO(), updated); err != nil {
+		t.Fatalf("failed to update FI object: %v", err)
+	}
+
+	t.Log("Verifying the operator reports a Warning event for the invalid resources")
+	if err := assertEventWithReason(t, f, namespace, testName, "InvalidResources", time.Second*5, time.Minute*5); err != nil {
+		t.Errorf("expected an event with reason InvalidResources: %v", err)
+	}
+
+	t.Log("Verifying the DaemonSet kept the last known-good resources")
+	if err := assertDSPodHasResources(t, f, testName, namespace, *applied, time.Second*5, time.Minute*2); err != nil {
+		t.Errorf("DaemonSet resources changed despite the invalid spec: %v", err)
+	}
+
+	t.Log("Verifying scans are still active")
+	if err := waitForScanStatus(t, f, namespace, testName, v1alpha1.PhaseActive); err != nil {
+		t.Errorf("Timeout waiting for scan status after the invalid resources update")
 	}
 }
 
