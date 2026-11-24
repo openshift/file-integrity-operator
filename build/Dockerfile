@@ -1,5 +1,5 @@
 # Step one: build file-integrity-operator
-FROM golang:1.26 as builder
+FROM golang:1.26.10 as builder
 USER root
 
 # Commented to enable upstream build and testing
