@@ -49,10 +49,15 @@ const (
 	aideWritingDBFileName  = "aide.db.gz.new"
 	aideWritingLogFileName = "aide.log.new"
 	aideReinitFileName     = "aide.reinit"
-	aideConfigFileName     = "aide.conf"
-	backupTimeFormat       = "20060102T15_04_05"
-	pprofAddr              = "127.0.0.1:6060"
-	maxConfigRetries       = 10
+	// Marks that a node update held the AIDE checks off and the database has not been re-initialized since. It lives
+	// next to the database, so it survives the daemon restart caused by the node update reboot.
+	aideHoldoffFileName = "aide.holdoff"
+	aideConfigFileName  = "aide.conf"
+	backupTimeFormat    = "20060102T15_04_05"
+	pprofAddr           = "127.0.0.1:6060"
+	maxConfigRetries    = 10
+	// How long the AIDE checks wait for the database re-init that follows a holdoff, before resuming without it.
+	holdoffReinitTimeout = 10 * time.Minute
 )
 
 var DaemonCmd = &cobra.Command{
@@ -88,8 +93,11 @@ type daemonRuntime struct {
 	dynclient         dynamic.Interface
 	logCollectorInode uint64
 	initializing      bool
+	lastInit          time.Time
 	initializingMux   sync.Mutex
 	holding           bool
+	holdingKnown      bool
+	notHoldingSince   time.Time
 	holdingMux        sync.Mutex
 	result            chan int
 	dbMux             sync.Mutex
@@ -113,10 +121,33 @@ func (rt *daemonRuntime) SetInitializing(fun string, initializing bool) {
 	rt.initializingMux.Unlock()
 }
 
+// LastInit is when the AIDE database was last (re-)initialized, the zero time if it was not since the daemon started.
+func (rt *daemonRuntime) LastInit() time.Time {
+	rt.initializingMux.Lock()
+	defer rt.initializingMux.Unlock()
+	return rt.lastInit
+}
+
+func (rt *daemonRuntime) SetLastInit(lastInit time.Time) {
+	rt.initializingMux.Lock()
+	rt.lastInit = lastInit
+	rt.initializingMux.Unlock()
+}
+
+// Holding is how the holdOffLoop tells the aideLoop to pause the checks. Until the holdOffLoop has read the holdoff
+// annotation, the node might be in the middle of an update (e.g. right after the update reboot), so it counts as
+// holding.
 func (rt *daemonRuntime) Holding() bool {
 	rt.holdingMux.Lock()
 	defer rt.holdingMux.Unlock()
-	return rt.holding
+	return rt.holding || !rt.holdingKnown
+}
+
+// HoldingKnown is whether the holdOffLoop has read the holdoff annotation.
+func (rt *daemonRuntime) HoldingKnown() bool {
+	rt.holdingMux.Lock()
+	defer rt.holdingMux.Unlock()
+	return rt.holdingKnown
 }
 
 func (rt *daemonRuntime) SetHolding(fun string, holding bool) {
@@ -124,8 +155,19 @@ func (rt *daemonRuntime) SetHolding(fun string, holding bool) {
 	if holding != rt.holding {
 		DBG("holding set to %v by %s", holding, fun)
 	}
+	if (rt.holding || !rt.holdingKnown) && !holding {
+		rt.notHoldingSince = time.Now()
+	}
 	rt.holding = holding
+	rt.holdingKnown = true
 	rt.holdingMux.Unlock()
+}
+
+// NotHoldingSince is when the holding last ended.
+func (rt *daemonRuntime) NotHoldingSince() time.Time {
+	rt.holdingMux.Lock()
+	defer rt.holdingMux.Unlock()
+	return rt.notHoldingSince
 }
 
 func (rt *daemonRuntime) LockAideFiles(fun string) {
