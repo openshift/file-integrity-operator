@@ -3,11 +3,11 @@ module github.com/openshift/file-integrity-operator
 go 1.26.10
 
 require (
-	github.com/cenkalti/backoff/v4 v4.3.0
+	github.com/cenkalti/backoff/v7 v7.0.3
 	github.com/coreos/ignition/v2 v2.26.0
 	github.com/go-logr/logr v1.4.4
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/onsi/ginkgo v1.16.5
+	github.com/onsi/ginkgo/v2 v2.34.0
 	github.com/onsi/gomega v1.42.1
 	github.com/openshift/api v0.0.0-20260901194050-81278704edb0
 	github.com/openshift/controller-runtime-common v0.0.0-20260813135806-e1187ec555fc
